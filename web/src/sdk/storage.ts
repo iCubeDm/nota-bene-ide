@@ -6,6 +6,7 @@ import { DEFAULT_THEME, isThemeId, isUiLang, isUiScale, type ThemeId, type UiLan
 import { connections, type HelloEvent } from './connections.ts';
 import { pageVisible } from './repository.ts';
 import { routes } from './routes.ts';
+import { send as write } from './repository.ts';
 
 /** How a value is kept as a string: `read` gives undefined for a string it does not know, `is` checks a server value. */
 export interface Codec<T> {
@@ -188,7 +189,7 @@ function makePref<K extends keyof SharedPrefs>(name: K): Pref<SharedPrefs[K]> {
   };
   const post = async (body: object): Promise<string | null> => {
     try {
-      const r = await connections.current().fetch(routes.systemPrefs(), { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      const r = await write(routes.systemPrefs(), body, { keepalive: true });
       return r.ok ? null : String(r.status);
     } catch (e) { return e instanceof Error ? e.message : String(e); }
   };

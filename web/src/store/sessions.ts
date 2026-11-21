@@ -1,4 +1,4 @@
-import { connections } from '../sdk/connections.ts';
+import { send } from '../sdk/repository.ts';
 
 // The Sessions menu's writes (server/src/sessions.ts), shared by the menu, the chat tab and the feed's cleared line
 
@@ -11,7 +11,7 @@ export const brief = (status: number | null, body: string): string => {
 
 /** POSTs JSON to a /sessions route: null, or what went wrong. `done`: another status that also means it is done. */
 const postSessions = async (route: string, body: object, done?: number): Promise<string | null> => {
-  const r = await connections.current().fetch(route, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch(() => null);
+  const r = await send(route, body).catch(() => null);
   return r?.ok || (r && r.status === done) ? null : brief(r?.status ?? null, r ? await r.text().catch(() => '') : '');
 };
 

@@ -1,5 +1,5 @@
 import { basename } from '@nota-bene/shared/paths';
-import { useT, connections, routes, isMac, toast, projectFileUrl, isLocalPage, useRegistry } from '@/sdk';
+import { useT, routes, isMac, toast, projectFileUrl, isLocalPage, useRegistry, send } from '@/sdk';
 import { ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/sdk/ui';
 
 /** Saves each file through `/file?…&download=1` (the login cookie opens it: no token or key in the link). */
@@ -40,7 +40,7 @@ export function TreeMenu({ row, picked, src, creating, setCreating }: {
   // the server's refusal codes become words (OS_REASONS)
   const os = async (action: 'reveal' | 'open') => {
     try {
-      const r = await connections.current().fetch(routes.os(action), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: row }) });
+      const r = await send(routes.os(action), { path: row });
       if (r.ok) return;
       const j = (await r.json().catch(() => null)) as { error?: string } | null;
       toast(t('treeOsFail', basename(row)), t(OS_REASONS[j?.error ?? ''] ?? 'treeOsOther'));

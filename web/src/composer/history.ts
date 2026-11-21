@@ -1,6 +1,6 @@
 import { createSlice, type Middleware, type PayloadAction } from '@reduxjs/toolkit';
 import { fuzzyScore, PROMPT_MAX, type PromptEntry, type PromptSrc } from '@nota-bene/shared';
-import { serverEvent, routes, type AppThunk, type RootState } from '@/sdk';
+import { serverEvent, routes, type AppThunk, type RootState, send } from '@/sdk';
 import type { SentDraft, ShellDraft } from './slice.ts';
 
 /**
@@ -103,7 +103,7 @@ const record = (entry: Omit<PromptEntry, 'ts'>): AppThunk => (d, getState, { con
   const full: PromptEntry = { ...entry, ts: Date.now() };
   const session = getState().feed.session?.id ?? null;
   d(historySlice.actions.appended(full));
-  connections.current().fetch(routes.prompts(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session, id: full.id, text: full.text, src: full.src }) })
+  send(routes.prompts(), { session, id: full.id, text: full.text, src: full.src }, { conn: connections.current() })
     .then((r) => { if (!r.ok) warn('save failed', r.status); })
     .catch((e: unknown) => warn('save failed', e));
 };

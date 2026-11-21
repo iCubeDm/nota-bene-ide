@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat, sendCount, sendWaiting, nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching, useAutosize, draggedPaths, useSeekStep, insertPaths, hasFiles, ComposerFieldContext, addImage, selectBuilding, selectImages, selectUploading, uploadFinished, uploadStarted, PLAYER_HELP, useService } from '@/sdk';
+import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat, sendCount, sendWaiting, nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching, useAutosize, draggedPaths, useSeekStep, insertPaths, hasFiles, ComposerFieldContext, addImage, selectBuilding, selectImages, selectUploading, uploadFinished, uploadStarted, PLAYER_HELP, useService, useFeature } from '@/sdk';
 import { Button, MessageInput, MicButton, SendIcon, Slots, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { SlashPicker } from './SlashPicker.tsx';
 import { selectShellMode } from './shellMode.ts';
 import { PromptHistory } from './PromptHistory.tsx';
-import { has } from '@nota-bene/shared';
+
 import { selectPromptItems, selectPromptSid } from './history.ts';
 import { usePromptRecall } from './usePromptRecall.ts';
 import { useComposerKeys } from './useComposerKeys.ts';
@@ -53,7 +53,7 @@ export function Composer() {
   // ↑/↓ through the prompts sent before, and a prompt picked in the history list
   const { stepHistory, pickHistory, placeOf, reset: endRecall } = usePromptRecall({ items, sid, text, ref });
   // voice messages: only a server that speaks protocol 14 has the mic; without Whisper it opens Settings → Dictation
-  const voiceOk = useAppSelector((s) => has(s.controls.protocol, 'voice'));
+  const voiceOk = useFeature('voice');
   const whisper = caps.dictation === 'whisper';
   const fileIn = useRef<HTMLInputElement>(null);
   // the mic without Whisper asks to set it up in a prompt anchored to the mic

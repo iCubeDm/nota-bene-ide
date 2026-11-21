@@ -4,9 +4,9 @@
 // being browsed). "New folder here" creates one in the folder being browsed and opens it. Either way in a window of the
 // chosen agent, and this tab moves there.
 import { useEffect, useRef, useState } from 'react';
-import { useT, connections, routes } from '@/sdk';
+import { useT, connections, routes, send } from '@/sdk';
 import { Dialog, DialogContent, DialogTitle } from '@/sdk/ui';
-import { isAbsolute, onPageRestore, openFolder, postJson, PROVIDER_LABEL, reasonOf, reasonText, setStarter, validName, type Provider } from './api.ts';
+import { isAbsolute, onPageRestore, openFolder, PROVIDER_LABEL, reasonOf, reasonText, setStarter, validName, type Provider } from './api.ts';
 
 type Dir = { name: string; git: boolean };
 type Place = { path: string; kind: 'home' | 'desktop' | 'recent' };
@@ -54,7 +54,7 @@ export function Starter() {
 
   const fetchListing = async (path: string | undefined, withHidden: boolean): Promise<Listing | string> => {
     try {
-      const r = await postJson(routes.systemFolders(), { ...(path !== undefined ? { path } : {}), hidden: withHidden });
+      const r = await send(routes.systemFolders(), { ...(path !== undefined ? { path } : {}), hidden: withHidden });
       if (!r.ok) return reasonOf(r);
       return (await r.json()) as Listing;
     } catch (e) {

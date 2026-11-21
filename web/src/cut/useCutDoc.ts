@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { validateCut, type Cut } from '@nota-bene/shared/cut';
-import { connections, routes } from '@/sdk';
+import { connections, routes, send } from '@/sdk';
 import { cutChanges, isNoChange, type CutChanges } from './changes.ts';
 import { commit, redo as redoStep, start, undo as undoStep, type History } from './history.ts';
 
@@ -114,10 +114,7 @@ export function useCutDoc({ text, path }: { text: string; path: string | undefin
       writes.current++;
       setSaving(true);
       try {
-        const r = await connections.current().fetch(routes.edit(), {
-          method: 'POST', keepalive, headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ path, text: body, base: overwrite ? null : disk.current.base }),
-        });
+        const r = await send(routes.edit(), { path, text: body, base: overwrite ? null : disk.current.base }, { keepalive });
         if (r.status === 409) return setConflict(true);
         if (!r.ok) {
           const error = (await r.json().catch(() => null) as { error?: string } | null)?.error;

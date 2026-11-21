@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { has, type Anchor, type AnchorSource } from '@nota-bene/shared';
-import { makeAnchor, offsetsOf, textOf, useT, useAppDispatch, useAppSelector, editable, clearPageSelections, pageRoot, pageSelection, rangeRect, itemRootOf, selectSwitching, labelsFor, labelText } from '@/sdk';
+import { type Anchor, type AnchorSource } from '@nota-bene/shared';
+import { makeAnchor, offsetsOf, textOf, useT, useAppDispatch, useAppSelector, editable, clearPageSelections, pageRoot, pageSelection, rangeRect, itemRootOf, selectSwitching, labelsFor, labelText, useFeature } from '@/sdk';
 import { Button, Tooltip, TooltipTrigger } from '@/sdk/ui';
 import type { QuickLabelId } from '@nota-bene/shared';
 import { LabelTip } from './LabelTip.tsx';
@@ -104,7 +104,7 @@ export function SelectionButton({ onComment }: { onComment: (s: PendingSelection
   const dispatch = useAppDispatch();
   const protocol = useAppSelector((s) => s.controls.protocol);
   const agentsOkNow = useRef(false);
-  agentsOkNow.current = has(protocol, 'subagentAnchors');
+  agentsOkNow.current = useFeature('subagentAnchors');
   const barLabels = labelsFor(protocol).filter((l) => BAR.includes(l.id));
   const [sel, setSel] = useState<PendingSelection | null>(null);
   const selNow = useRef<PendingSelection | null>(null);

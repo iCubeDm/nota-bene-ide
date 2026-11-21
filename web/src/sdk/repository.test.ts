@@ -5,7 +5,7 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { events, stubRoutes, testStore } from '@/testing';
 import { connectionsOf } from './connections.ts';
-import { defineResource, repositoryOf, useResource } from './repository.ts';
+import { defineResource, repositoryOf, send, useResource } from './repository.ts';
 
 type Item = { n: number };
 let answer: () => Response | Promise<Response>;
@@ -296,4 +296,28 @@ it('with a timeout, a tick replaces a request older than the period; its late an
   await flush();
   expect(repo.peek(quick, 'x').data).toEqual({ n: 2 });
   stop();
+});
+
+// The one write path of issue 564: JSON by default, a Blob as it is, the answer whatever its status
+it('send posts JSON, a Blob as it is, nothing without a body, and resolves to a refusal', async () => {
+  setup();
+  routes.restore();
+  routes = stubRoutes({ '/w': (req) => (new URL(req.url).searchParams.has('no') ? Response.json({ error: 'no' }, { status: 409 }) : Response.json({ ok: true })) });
+  expect((await send('/w', { a: 1 })).ok).toBe(true);
+  await send('/w', new Blob(['x'], { type: 'image/png' }));
+  await send('/w', new Blob(['x']), { type: 'audio/wav', method: 'PUT' });
+  await send('/w', undefined, { method: 'DELETE' });
+  const r = await send('/w?no=1', {});
+  expect([r.ok, r.status, await r.json()]).toEqual([false, 409, { error: 'no' }]);
+  const [json, blob, typed, bare] = routes.calls;
+  expect([json!.method, json!.headers.get('content-type'), await json!.text()]).toEqual(['POST', 'application/json', '{"a":1}']);
+  expect([blob!.headers.get('content-type'), await blob!.text()]).toEqual(['image/png', 'x']);
+  expect([typed!.method, typed!.headers.get('content-type')]).toEqual(['PUT', 'audio/wav']);
+  expect([bare!.method, bare!.headers.get('content-type'), await bare!.text()]).toEqual(['DELETE', null, '']);
+});
+
+it('send rejects only when no answer came', async () => {
+  setup();
+  vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('offline'));
+  await expect(send('/w', {})).rejects.toThrow('offline');
 });

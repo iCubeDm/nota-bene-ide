@@ -68,6 +68,9 @@ export const routes = {
   cutExport: (path?: string) => (path === undefined ? '/cut/export' : q('/cut/export', { path })),
   cutExportCancel: () => '/cut/export/cancel',
 
+  // this computer's phones and the computers it reaches (server/src/remote/routes.ts): POSTs
+  remote: (action: 'config' | 'pair' | 'pair/cancel' | 'revoke' | 'connect' | 'forget') => `/remote/${action}`,
+
   // the machine: every window, prefs, updates
   systemPrefs: () => '/system/prefs',
   systemAbout: () => '/system/about',

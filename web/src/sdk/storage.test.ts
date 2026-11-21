@@ -12,7 +12,6 @@ import { theme } from '@/shell/theme.ts';
 import { uiScale } from '@/shell/uiScale.ts';
 import { railPref } from '@/projects/railPref.ts';
 import { getLang, resetUnsyncedLang, setLang } from '@/i18n/index.ts';
-import { flag } from './flags.ts';
 import { bool, json, oneOf, storage, string, useStored } from './storage.ts';
 
 let stub: ReturnType<typeof stubRoutes> | null = null;
@@ -127,7 +126,6 @@ it('storage unavailable: reads fall back, a set holds for the page', () => {
   expect(item.get()).toBe(true);
   item.set(false);
   expect(item.get()).toBe(false);
-  expect(flag('demo' as never)).toBe(false); // a flag nobody stored reads as off
 });
 
 it('storage full (a set throws, reads work): the set reads back for the page', () => {
@@ -138,11 +136,6 @@ it('storage full (a set throws, reads work): the set reads back for the page', (
   vi.mocked(Storage.prototype.setItem).mockRestore();
   wrapLines.set(true); // a later write that succeeds is what reads see again
   expect([wrapLines.get(), localStorage.getItem('nb.wrap')]).toEqual([true, '1']);
-});
-
-it('a flag reads nb.flag.<name>', () => {
-  localStorage.setItem('nb.flag.demo', '1');
-  expect(flag('demo' as never)).toBe(true);
 });
 
 it('pref sets go through the connection one at a time and the last one wins', async () => {

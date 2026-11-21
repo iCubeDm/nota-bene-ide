@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { useT, modKey, withKeys, connections, json, routes, storage } from '@/sdk';
+import { useT, modKey, withKeys, connections, json, routes, storage, send } from '@/sdk';
 import { useWrapLines } from '../wrap.ts';
 
 type Draft = { text: string; base: string | null };
@@ -67,9 +67,7 @@ export function FileEditor({ path, onClose }: { path: string; onClose: (saved: b
     setBusy(true);
     setProblem(null);
     try {
-      const r = await connections.current().fetch(routes.edit(), {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path, text, base: overwrite ? null : base.current }),
-      });
+      const r = await send(routes.edit(), { path, text, base: overwrite ? null : base.current });
       if (r.status === 409) return setConflict(true);
       if (!r.ok) {
         const error = (await r.json().catch(() => null) as { error?: string } | null)?.error;

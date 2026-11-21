@@ -1,4 +1,4 @@
-import { connections, routes } from '@/sdk';
+import { routes, send } from '@/sdk';
 
 /** A refused upload: the HTTP status and the server's error code (`attachments-not-folder`, ...). */
 export class UploadError extends Error {
@@ -16,7 +16,7 @@ export class UploadError extends Error {
  * into the project's `attachments/`; answers the project-relative path it got there. `signal` cancels it.
  */
 export async function uploadFile(f: File, signal?: AbortSignal): Promise<string> {
-  const r = await connections.current().fetch(routes.attachFile(f.name), { method: 'POST', body: f, ...(signal ? { signal } : {}) });
+  const r = await send(routes.attachFile(f.name), f, signal ? { signal } : {});
   const j = (await r.json().catch(() => null)) as { path?: unknown; error?: unknown } | null;
   if (!r.ok || typeof j?.path !== 'string') throw new UploadError(r.status, typeof j?.error === 'string' ? j.error : undefined);
   return j.path;

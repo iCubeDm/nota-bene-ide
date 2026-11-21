@@ -1,6 +1,5 @@
-import { has } from '@nota-bene/shared';
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { keysInScope, useT, useAppDispatch, useAppSelector, type AppDispatch, applyPlayerKey, inPlayerScope, ONCE, type Flash } from '@/sdk';
+import { keysInScope, useT, useAppDispatch, type AppDispatch, applyPlayerKey, inPlayerScope, ONCE, type Flash, useFeature } from '@/sdk';
 import { setMode } from './markup/slice.ts';
 
 /** N and the bar's ✎: one still frame, then the markup mode. */
@@ -21,7 +20,7 @@ export function usePlayerKeys({ tabId, active, marking, media, image, box }: {
 }): Flash | null {
   const t = useT();
   const dispatch = useAppDispatch();
-  const offered = useAppSelector((s) => has(s.controls.protocol, 'mediaAnchors'));
+  const offered = useFeature('mediaAnchors');
   const [flash, setFlash] = useState<Flash | null>(null);
   const n = useRef(0);
   const unit = t('unitSec');

@@ -1,5 +1,5 @@
-import { has, SHELL_CMD_MAX } from '@nota-bene/shared';
-import { t, toast, byteSize, activate, selectConn, sendWaiting, type AppThunk, type RootState, selectImages } from '@/sdk';
+import { SHELL_CMD_MAX } from '@nota-bene/shared';
+import { t, toast, byteSize, activate, selectConn, sendWaiting, type AppThunk, type RootState, selectImages, selectFeature } from '@/sdk';
 import { selectDraft, setDraft, shellDraftSent } from './slice.ts';
 
 
@@ -8,7 +8,7 @@ import { selectDraft, setDraft, shellDraftSent } from './slice.ts';
  * markdown link or image), and the server knows `shell-run`. A pasted script of several lines is a message: it must not run on one Enter.
  */
 const isShellDraft = (draft: string): boolean => draft.startsWith('!') && !draft.startsWith('![') && !draft.trimEnd().includes('\n'); // a paste's trailing newline is still one line
-export const selectShellMode = (s: RootState): boolean => has(s.controls.protocol, 'shellRun') && isShellDraft(selectDraft(s));
+export const selectShellMode = (s: RootState): boolean => selectFeature(s, 'shellRun') && isShellDraft(selectDraft(s));
 
 /** The id of the `! cmd` run in progress, if the feed shows one. */
 export const selectShellRunning = (s: RootState): string | null => {

@@ -1,5 +1,5 @@
 import { IMAGE_TYPES, type ImageType } from '@nota-bene/shared';
-import { connections } from '../sdk/connections.ts';
+import { send } from '../sdk/repository.ts';
 import { routes } from '../sdk/routes.ts';
 
 // Values copied from the prototype: the model works at <=1568 px on the long edge anyway, and the API caps an image at 5 MB.
@@ -51,7 +51,7 @@ export async function prepareImage(file: Blob): Promise<Blob> {
 
 /** POST /attach with the raw bytes; the id is the content hash, so the same image twice is one attachment. */
 export async function uploadImage(b: Blob): Promise<{ id: string; mediaType: ImageType }> {
-  const r = await connections.current().fetch(routes.attach(), { method: 'POST', headers: { 'content-type': b.type }, body: b });
+  const r = await send(routes.attach(), b);
   if (!r.ok) throw new Error(`attach ${r.status}`);
   const j = (await r.json()) as { id?: unknown; mediaType?: unknown };
   if (typeof j.id !== 'string' || typeof j.mediaType !== 'string' || !isImageType(j.mediaType)) throw new Error('bad attach reply');

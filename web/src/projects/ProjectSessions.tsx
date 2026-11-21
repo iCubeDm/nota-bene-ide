@@ -5,9 +5,9 @@
 // This window's sessions are renamed and archived from their row (the time gives way on hover); delete stays in the
 // Sessions menu (▾ on the chat tab). Another window's are only opened: its server takes no write from this one.
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import { useT, connections, routes, toast, useAppDispatch, switchSession, remotePage, REFUSED, archiveSession, renameSession, ago } from '@/sdk';
+import { useT, connections, routes, toast, useAppDispatch, switchSession, remotePage, REFUSED, archiveSession, renameSession, ago, send } from '@/sdk';
 import { ConfirmDialog, ArchiveIcon } from '@/sdk/ui';
-import { enterProject, openFolder, postJson, PROVIDER_LABEL, reasonText, type Provider, type RunningRow } from './api.ts';
+import { enterProject, openFolder, PROVIDER_LABEL, reasonText, type Provider, type RunningRow } from './api.ts';
 
 export type LocalSession = { id: string; title: string; at: number; cwd: string; archived?: true };
 type Item = { id: string; title: string; at: number; window: RunningRow; mine?: true };
@@ -36,7 +36,7 @@ export function ProjectSessions({ root, windows, local, setLocal, onDone }: {
     let gone = false;
     void Promise.all(live.filter((w) => !w.current).map(async (w) => {
       try {
-        const r = await postJson(routes.systemProjects('sessions'), { provider: w.provider, port: w.port, root: w.root });
+        const r = await send(routes.systemProjects('sessions'), { provider: w.provider, port: w.port, root: w.root });
         if (!r.ok) return [];
         const v = (await r.json()) as { sessions?: { id: string; title: string; at: number; archived?: true }[] };
         return (v.sessions ?? []).filter((x) => !x.archived).map((x) => ({ id: x.id, title: x.title, at: x.at, window: w }));

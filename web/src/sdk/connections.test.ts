@@ -108,23 +108,19 @@ it('a server event carries the agent it came from', () => {
   expect(metas).toEqual([{ agent: SELF }]);
 });
 
-it('hello is adopted in one place: hello(), has() and the feature hook follow it; a drop forgets it', () => {
+it('hello is adopted in one place: hello() and the feature hook follow it; a drop forgets it', () => {
   const f = fake();
   const store = makeStore({ url: 'u', connect: f.connect });
   const conn = connectionsOf(store).current();
   const wrapper = ({ children }: { children: ReactNode }) => createElement(Provider, { store, children });
   const hook = renderHook(() => ({ state: useConnState(), models: useFeature('models'), conn: useConnection() }), { wrapper });
   expect(conn.hello()).toBeNull();
-  expect(conn.has('models')).toBe(false);
   expect(hook.result.current.conn).toBe(conn);
   act(() => { f.state('open'); f.ev({ kind: 'hello', protocol: 6 }); });
   expect(conn.hello()).toEqual({ kind: 'hello', protocol: 6 });
-  expect(conn.has('models')).toBe(true);
-  expect(conn.has('remoteProjects')).toBe(false);
   expect(hook.result.current).toMatchObject({ state: 'open', models: true });
   act(() => f.state('closed'));
   expect(conn.hello()).toBeNull();
-  expect(conn.has('models')).toBe(false);
   expect(hook.result.current).toMatchObject({ state: 'closed', models: false });
 });
 

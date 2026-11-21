@@ -26,6 +26,23 @@ export interface Resource<A, T> {
 
 export const defineResource = <A, T>(r: Resource<A, T>): Resource<A, T> => r;
 
+/**
+ * A write to the server (issue 564), through `conn` (the current connection by default; a thunk passes its store's):
+ * `body` goes as JSON, a Blob (a File too) as it is under its own type or `type`; none, no body. POST unless `method` says. The one error behavior: it resolves to the
+ * answer whatever its status, so the caller reads a refusal and its reason, and rejects only when none came.
+ */
+export function send(route: Route, body?: unknown, o: { method?: 'POST' | 'PUT' | 'DELETE'; type?: string; keepalive?: boolean; signal?: AbortSignal; conn?: AgentConnection } = {}): Promise<Response> {
+  const blob = body instanceof Blob;
+  const type = o.type ?? (blob ? body.type : body === undefined ? '' : 'application/json');
+  return (o.conn ?? connections.current()).fetch(route, {
+    method: o.method ?? 'POST',
+    ...(type && { headers: { 'content-type': type } }),
+    ...(body !== undefined && { body: blob ? body : JSON.stringify(body) }),
+    ...(o.keepalive && { keepalive: true }),
+    ...(o.signal && { signal: o.signal }),
+  });
+}
+
 export interface Snapshot<T> {
   readonly data: T | null;
   /** the last read failed (what came before stays in `data`) */

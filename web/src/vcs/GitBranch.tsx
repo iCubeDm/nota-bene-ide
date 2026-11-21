@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GitSwitchAnswer, Source, VcsBranch } from '@nota-bene/shared';
-import { useT, selectSession, selectTurnSeq, useAppDispatch, useAppSelector, routes, defineResource, useResource, loadSources, useSources, connections, useService } from '@/sdk';
+import { useT, selectSession, selectTurnSeq, useAppDispatch, useAppSelector, routes, defineResource, useResource, loadSources, useSources, connections, useService, send } from '@/sdk';
 import { Popover, PopoverContent, PopoverTrigger, ICONS, Svg } from '@/sdk/ui';
 import { setHasRepo } from './store.ts';
 
@@ -139,7 +139,7 @@ export function GitBranch() {
     setGoing(true);
     setErr(null);
     try {
-      const r = await connections.current().fetch(routes.gitSwitch(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ branch: s.ref }) });
+      const r = await send(routes.gitSwitch(), { branch: s.ref });
       const v = await r.json().catch(() => null) as GitSwitchAnswer | null;
       if (!r.ok) return setErr(refusal(t, v));
       // the folder is now that branch: show it, and reload what a finished turn reloads (status, tree, tabs, Changes, log)
