@@ -132,10 +132,10 @@ void main() {
     expect(out['title'], isNull);
   });
 
-  test('hasFeature: at, below and above its protocol, and with none', () {
-    expect(hasFeature(Feature.voice.protocol, Feature.voice), isTrue);
-    expect(hasFeature(Feature.voice.protocol - 1, Feature.voice), isFalse);
-    expect(hasFeature(protocolVersion, Feature.voice), isTrue);
-    expect(hasFeature(null, Feature.activity), isFalse);
+  test('has: at, below and above its protocol, and with none', () {
+    expect(has(Feature.voice.protocol, Feature.voice), isTrue);
+    expect(has(Feature.voice.protocol - 1, Feature.voice), isFalse);
+    expect(has(protocolVersion, Feature.voice), isTrue);
+    expect(has(null, Feature.activity), isFalse);
   });
 }

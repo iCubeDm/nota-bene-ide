@@ -181,5 +181,5 @@ it('the real schema converts', () => {
 it('the feature table as an enum, numbers shared', () => {
   const dart = schemaToDart({ ...schema({}), 'x-features': { held: 27, voice: 14, compactOrder: 27 } });
   expect(dart).toContain('enum Feature {\n  voice(14),\n  held(27),\n  compactOrder(27);\n\n  const Feature(this.protocol);\n  final int protocol;\n}');
-  expect(dart).toContain('bool hasFeature(num? protocol, Feature f) => (protocol ?? 0) >= f.protocol;');
+  expect(dart).toContain('bool has(num? protocol, Feature f) => (protocol ?? 0) >= f.protocol;');
 });

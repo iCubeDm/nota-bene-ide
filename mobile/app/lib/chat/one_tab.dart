@@ -51,9 +51,9 @@ class _OneTabOverlayState extends State<OneTabOverlay> {
   }
 
   void _changed() {
-    final gone = widget.tab.state == TabState.gone;
+    final gone = widget.tab.connection.state == TabState.gone;
     final waiting =
-        gone || (_trying && widget.tab.state == TabState.connecting);
+        gone || (_trying && widget.tab.connection.state == TabState.connecting);
     if (gone && _timer == null && !_late) {
       _startWait();
     } else if (!waiting) {
@@ -69,7 +69,7 @@ class _OneTabOverlayState extends State<OneTabOverlay> {
     _trying = true;
     _late = false;
     _startWait();
-    widget.tab.reopen();
+    widget.tab.connection.reopen();
     setState(() {});
   }
 
@@ -80,8 +80,8 @@ class _OneTabOverlayState extends State<OneTabOverlay> {
       final tab = widget.tab;
       final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;
-      if (tab.state == TabState.gone ||
-          (_trying && tab.state == TabState.connecting)) {
+      if (tab.connection.state == TabState.gone ||
+          (_trying && tab.connection.state == TabState.connecting)) {
         return Positioned.fill(
           child: ColoredBox(
             color: c.background.withValues(alpha: 0.7),
@@ -121,7 +121,7 @@ class _OneTabOverlayState extends State<OneTabOverlay> {
           ),
         );
       }
-      final text = switch (tab.state) {
+      final text = switch (tab.connection.state) {
         TabState.occupied => t.occupiedTitle,
         TabState.taken => t.takenTitle,
         _ => null,
@@ -139,7 +139,7 @@ class _OneTabOverlayState extends State<OneTabOverlay> {
                   Text(text, textAlign: TextAlign.center),
                   const SizedBox(height: 16),
                   FilledButton(
-                    onPressed: tab.takeOver,
+                    onPressed: tab.connection.takeOver,
                     child: Text(t.workHere),
                   ),
                 ],

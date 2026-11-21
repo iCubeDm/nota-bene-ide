@@ -15,9 +15,8 @@ import '../theme.dart';
 import '../comments/strings.g.dart';
 import '../ui/insets.dart';
 import '../ui/folder_tabs.dart';
-import 'git.dart';
 import 'git_pages.dart';
-import 'remote.dart';
+import 'repository.dart';
 import 'text_file_screen.dart' show ErrorRetry;
 
 /// How many of the session's files show before "Show all".
@@ -108,9 +107,13 @@ class _PaneHomeState extends State<_PaneHome> {
 
   /// Asked once the window is open, and again later when the host could not say.
   Future<void> _maybeAsk() async {
-    if (_repo != null || _asking || widget.tab.state != TabState.open) return;
+    if (_repo != null ||
+        _asking ||
+        widget.tab.connection.state != TabState.open) {
+      return;
+    }
     _asking = true;
-    final repo = await isGitRepo(widget.tab);
+    final repo = await widget.tab.repository.isGitRepo();
     _asking = false;
     if (!mounted) return;
     if (repo != null) setState(() => _repo = repo);
@@ -205,7 +208,7 @@ class _FolderPageState extends State<FolderPage> {
     List<TreeEntry>? entries;
     FilesError? error;
     try {
-      entries = await fetchTree(widget.tab, widget.dir);
+      entries = await widget.tab.repository.tree(widget.dir);
     } on FilesError catch (e) {
       error = e;
     } on Object {
@@ -237,7 +240,7 @@ class _FolderPageState extends State<FolderPage> {
     List<String>? hits;
     FilesError? error;
     try {
-      hits = await completeFiles(widget.tab, q);
+      hits = await widget.tab.repository.complete(q);
     } on FilesError catch (e) {
       error = e;
     } on Object {
@@ -420,7 +423,10 @@ class _FolderPageState extends State<FolderPage> {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
     final title = _root
-        ? (widget.tab.root.split('/').where((s) => s.isNotEmpty).lastOrNull ??
+        ? (widget.tab.connection.root
+                  .split('/')
+                  .where((s) => s.isNotEmpty)
+                  .lastOrNull ??
               t.projectFolder)
         : widget.dir;
     return Scaffold(

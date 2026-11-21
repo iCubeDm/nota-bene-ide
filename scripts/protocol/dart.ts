@@ -343,7 +343,7 @@ function renderFeatures(features: Record<string, number>): string {
     '}',
     '',
     '/// Whether a peer that announced [protocol] understands [f].',
-    'bool hasFeature(num? protocol, Feature f) => (protocol ?? 0) >= f.protocol;',
+    'bool has(num? protocol, Feature f) => (protocol ?? 0) >= f.protocol;',
   ].join('\n');
 }
 

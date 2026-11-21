@@ -84,19 +84,19 @@ class _ChatRouteState extends State<ChatRoute> {
   }
 
   /// The key the chat was last shown under (the window's key can change: issue 511, a duplicate's id).
-  late String _shown = _tab.key;
+  late String _shown = _tab.connection.key;
 
   /// The chat in front keeps its window's current key; while the tab is open and the app on screen, the window's
   /// replies count as seen.
   void _see() {
-    final w = _tab.window;
-    if (_tab.key != _shown) {
+    final w = _tab.connection.window;
+    if (_tab.connection.key != _shown) {
       widget.visible?.close(widget.link.host.id, _shown);
-      _shown = _tab.key;
+      _shown = _tab.connection.key;
       widget.visible?.open(widget.link.host.id, _shown);
     }
     final seen = widget.seen;
-    if (seen == null || _tab.state != TabState.open) return;
+    if (seen == null || _tab.connection.state != TabState.open) return;
     if (widget.visible?.visible == false) return;
     final session = w?.session, replies = w?.replies;
     if (session == null || replies == null) return;

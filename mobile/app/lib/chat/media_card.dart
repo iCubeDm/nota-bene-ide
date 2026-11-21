@@ -61,7 +61,7 @@ List<MediaSpec> mediaOf(WindowTab tab, ToolItem it) {
   if (it.result == null || it.isError) return const [];
   final out = <MediaSpec>[];
   final path = toolPath(it);
-  final rel = path == null ? null : projectFile(tab.root, path);
+  final rel = path == null ? null : projectFile(tab.connection.root, path);
   if (rel != null) {
     switch (fileKindOf(rel)) {
       case FileKind.image:
@@ -73,7 +73,7 @@ List<MediaSpec> mediaOf(WindowTab tab, ToolItem it) {
   }
   for (final k in _toolArgs) {
     if (it.input[k] case final String v) {
-      for (final p in tmpImagePathsIn(v, tab.tmpDirs)) {
+      for (final p in tmpImagePathsIn(v, tab.windowState.tmpDirs)) {
         out.add(MediaSpec(p, video: false, tmp: true));
       }
     }

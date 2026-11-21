@@ -57,10 +57,10 @@ class ChatHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
-    final f = tab.feed;
-    final ctx = tab.stats?.stats.context;
+    final f = tab.windowState.feed;
+    final ctx = tab.windowState.stats?.stats.context;
     // without a live link the avatar and the ring dim; the ring keeps the last value
-    final live = tab.state == TabState.open;
+    final live = tab.connection.state == TabState.open;
     final shape = StadiumBorder(side: BorderSide(color: c.border));
     final fill = c.popover.withValues(alpha: 0.92);
     final content = MediaQuery.withClampedTextScaling(
@@ -77,16 +77,20 @@ class ChatHeader extends StatelessWidget {
                 clipBehavior: Clip.none,
                 children: [
                   ListenableBuilder(
-                    listenable: tab.link,
+                    listenable: tab.connection.link,
                     builder: (_, _) => ProjectIconAvatar(
                       icons: tab.stores.icons,
-                      link: tab.link,
-                      port: tab.port,
-                      icon: tab.window?.icon,
+                      link: tab.connection.link,
+                      port: tab.connection.port,
+                      icon: tab.connection.window?.icon,
                       size: 28,
-                      semanticLabel: providerName(tab.capabilities?.provider),
+                      semanticLabel: providerName(
+                        tab.windowState.capabilities?.provider,
+                      ),
                       badge: ProviderBadge(
-                        letter: providerLetter(tab.capabilities?.provider),
+                        letter: providerLetter(
+                          tab.windowState.capabilities?.provider,
+                        ),
                         size: 13,
                         fill: c.muted,
                         fg: c.foreground,
@@ -101,7 +105,9 @@ class ChatHeader extends StatelessWidget {
                           shape: BoxShape.circle,
                         ),
                         child: Text(
-                          providerLetter(tab.capabilities?.provider),
+                          providerLetter(
+                            tab.windowState.capabilities?.provider,
+                          ),
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -111,7 +117,7 @@ class ChatHeader extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (live && tab.busy)
+                  if (live && tab.windowState.busy)
                     Positioned(
                       right: -1,
                       bottom: -1,
@@ -192,7 +198,7 @@ class ChatHeader extends StatelessWidget {
                     : InkWell(onTap: onTapTitle, child: content),
               ),
             ),
-            if (tab.capabilities != null || ctx != null) ...[
+            if (tab.windowState.capabilities != null || ctx != null) ...[
               const SizedBox(width: 8),
               ContextRing(
                 pct: ctx?.pct,
@@ -239,15 +245,15 @@ class _StateLineState extends State<_StateLine> {
   @override
   void initState() {
     super.initState();
-    widget.tab.link.addListener(_relink);
+    widget.tab.connection.link.addListener(_relink);
   }
 
   @override
   void didUpdateWidget(_StateLine old) {
     super.didUpdateWidget(old);
-    if (old.tab.link != widget.tab.link) {
-      old.tab.link.removeListener(_relink);
-      widget.tab.link.addListener(_relink);
+    if (old.tab.connection.link != widget.tab.connection.link) {
+      old.tab.connection.link.removeListener(_relink);
+      widget.tab.connection.link.addListener(_relink);
     }
   }
 
@@ -258,7 +264,7 @@ class _StateLineState extends State<_StateLine> {
 
   @override
   void dispose() {
-    widget.tab.link.removeListener(_relink);
+    widget.tab.connection.link.removeListener(_relink);
     _tick?.cancel();
     super.dispose();
   }
@@ -270,9 +276,9 @@ class _StateLineState extends State<_StateLine> {
     final c = Theme.of(context).extension<NbColors>()!;
     final locale = Localizations.localeOf(context).languageCode;
     // a second for the elapsed time of a turn, half a minute for "seen N min ago"
-    final every = tab.state == TabState.open && tab.busy
+    final every = tab.connection.state == TabState.open && tab.windowState.busy
         ? const Duration(seconds: 1)
-        : tab.state == TabState.offline
+        : tab.connection.state == TabState.offline
         ? const Duration(seconds: 30)
         : null;
     if (every != _every) {
@@ -285,7 +291,7 @@ class _StateLineState extends State<_StateLine> {
             });
     }
     return Text(
-      sessionLine(t, tab, tab.clock(), locale),
+      sessionLine(t, tab, tab.windowState.clock(), locale),
       key: const ValueKey('state-line'),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,

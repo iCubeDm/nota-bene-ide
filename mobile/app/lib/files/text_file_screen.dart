@@ -7,8 +7,7 @@ import '../chat/code_screen.dart';
 import '../chat/window_tab.dart';
 import '../l10n/app_localizations.dart';
 import '../usage/format.dart' show byteSize;
-import 'file_screen.dart' show fileMaxBytes;
-import 'remote.dart';
+import 'repository.dart';
 
 /// highlight.js on a file of 200 kB or more freezes the screen (the desktop's HIGHLIGHT_MAX)
 const highlightMax = 200000;
@@ -47,7 +46,7 @@ class _TextFileScreenState extends State<TextFileScreen> {
     FileRead? read;
     FilesError? error;
     try {
-      read = await readTextFile(widget.tab, widget.path);
+      read = await widget.tab.repository.readText(widget.path);
     } on FilesError catch (e) {
       error = e;
     } on Object {

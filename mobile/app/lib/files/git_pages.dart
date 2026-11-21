@@ -17,7 +17,7 @@ import '../theme.dart';
 import '../ui/insets.dart';
 import 'diff_screen.dart';
 import 'git.dart';
-import 'remote.dart';
+import 'repository.dart';
 import 'text_file_screen.dart' show ErrorRetry;
 
 Color statusColor(NbColors c, VcsFileStatus status) => switch (status) {
@@ -120,7 +120,7 @@ class _ChangesPageState extends State<ChangesPage> {
   @override
   void initState() {
     super.initState();
-    _turn = widget.tab.feed.turnSeq;
+    _turn = widget.tab.windowState.feed.turnSeq;
     widget.tab.addListener(_tabChanged);
     _load();
   }
@@ -133,8 +133,8 @@ class _ChangesPageState extends State<ChangesPage> {
 
   /// A turn ended: the agent may have changed files.
   void _tabChanged() {
-    if (widget.tab.feed.turnSeq != _turn) {
-      _turn = widget.tab.feed.turnSeq;
+    if (widget.tab.windowState.feed.turnSeq != _turn) {
+      _turn = widget.tab.windowState.feed.turnSeq;
       _load(quiet: true);
     }
   }
@@ -144,7 +144,7 @@ class _ChangesPageState extends State<ChangesPage> {
     VcsRepoDiff? changes;
     FilesError? error;
     try {
-      changes = await fetchChanges(widget.tab);
+      changes = await widget.tab.repository.changes();
     } on FilesError catch (e) {
       error = e;
     } on Object {
@@ -214,7 +214,7 @@ class _ChangesPageState extends State<ChangesPage> {
               context,
               widget.tab,
               f,
-              () => fetchChangePatch(widget.tab, f),
+              () => widget.tab.repository.changePatch(f),
             ),
           );
         },
@@ -247,7 +247,7 @@ class _LogPageState extends State<LogPage> {
   @override
   void initState() {
     super.initState();
-    _turn = widget.tab.feed.turnSeq;
+    _turn = widget.tab.windowState.feed.turnSeq;
     widget.tab.addListener(_tabChanged);
     _load();
   }
@@ -259,8 +259,8 @@ class _LogPageState extends State<LogPage> {
   }
 
   void _tabChanged() {
-    if (widget.tab.feed.turnSeq != _turn) {
-      _turn = widget.tab.feed.turnSeq;
+    if (widget.tab.windowState.feed.turnSeq != _turn) {
+      _turn = widget.tab.windowState.feed.turnSeq;
       _load();
     }
   }
@@ -270,7 +270,7 @@ class _LogPageState extends State<LogPage> {
     bool more = false;
     FilesError? error;
     try {
-      final r = await fetchLog(widget.tab);
+      final r = await widget.tab.repository.log();
       commits = r.commits;
       more = r.more;
     } on FilesError catch (e) {
@@ -390,7 +390,7 @@ class _CommitPageState extends State<CommitPage> {
     VcsCommitDetail? detail;
     FilesError? error;
     try {
-      detail = await fetchCommit(widget.tab, widget.commit.sha);
+      detail = await widget.tab.repository.commit(widget.commit.sha);
     } on FilesError catch (e) {
       error = e;
     } on Object {
@@ -451,7 +451,7 @@ class _CommitPageState extends State<CommitPage> {
                     context,
                     widget.tab,
                     f,
-                    () => fetchCommitPatch(widget.tab, d.sha, f),
+                    () => widget.tab.repository.commitPatch(d.sha, f),
                     ref: d.sha.substring(0, 7),
                   ),
                 );

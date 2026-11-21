@@ -9,12 +9,12 @@ import 'store/hosts.dart';
 import 'store/notified.dart';
 import 'store/notify_choice.dart';
 import 'store/seen.dart';
-import 'store/vault.dart';
+import 'store/storage.dart';
 import 'voice/files.dart';
 import 'voice/outbox.dart';
 
-/// The app's stores: what the vault keeps (the pairings, what was seen and notified, the notification choice), the
-/// voice outboxes and comment queues on the phone's disk, and the project pictures fetched so far.
+/// The app's stores, built on its [Storage]: what the vault keeps (the pairings, what was seen and notified, the
+/// notification choice), the voice outboxes and comment queues in its files, and the project pictures fetched so far.
 class AppStores {
   AppStores({
     required this.hosts,
@@ -26,22 +26,17 @@ class AppStores {
     required this.icons,
   });
 
-  /// The stores of [v]; the outboxes and the comment queues on [outFiles] and [queueFile] (the phone's disk without
-  /// them), the outboxes caching what they send in [sounds] (the player).
-  static Future<AppStores> load(
-    Vault v, {
-    required Sounds sounds,
-    OutFiles? outFiles,
-    QueueFile? queueFile,
-  }) async => AppStores(
-    hosts: await Hosts.load(v),
-    seen: await Seen.load(v),
-    notified: await Notified.load(v),
-    notify: await NotifyChoice.load(v),
-    voice: VoiceStore(outFiles ?? DiskOutFiles(), sounds: sounds),
-    comments: CommentQueues(queueFile ?? DiskQueueFile()),
-    icons: ProjectIcons(),
-  );
+  /// The stores kept in [s], the outboxes caching what they send in [sounds] (the player).
+  static Future<AppStores> load(Storage s, {required Sounds sounds}) async =>
+      AppStores(
+        hosts: await Hosts.load(s.vault),
+        seen: await Seen.load(s.vault),
+        notified: await Notified.load(s.vault),
+        notify: await NotifyChoice.load(s.vault),
+        voice: VoiceStore(s.files, sounds: sounds),
+        comments: CommentQueues(s.files),
+        icons: ProjectIcons(),
+      );
 
   final Hosts hosts;
   final Seen seen;

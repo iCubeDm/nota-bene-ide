@@ -78,10 +78,10 @@ class _VideoScreenState extends State<VideoScreen> {
     String method,
     Map<String, String> headers,
   ) async {
-    final ch = widget.tab.link.channel;
+    final ch = widget.tab.connection.link.channel;
     if (ch == null) throw StateError('offline');
     final a = await ch.httpStream(
-      widget.tab.port,
+      widget.tab.connection.port,
       method,
       '/file?path=${Uri.encodeQueryComponent(widget.path)}',
       headers: headers,
@@ -89,13 +89,15 @@ class _VideoScreenState extends State<VideoScreen> {
     final etag = a.headers['etag'];
     if (_etag == null && etag != null) {
       _etag = etag;
-      widget.tab.fileVersions[widget.path] = etag;
+      widget.tab.windowState.fileVersions[widget.path] = etag;
     }
     return a;
   }
 
   Future<void> _open() async {
-    if (widget.tab.link.channel == null) return setState(() => _failed = true);
+    if (widget.tab.connection.link.channel == null) {
+      return setState(() => _failed = true);
+    }
     try {
       final proxy = await widget.startProxy(_openMedia);
       if (_disposed) return unawaited(proxy.close());

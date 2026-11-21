@@ -50,15 +50,15 @@ class ContextSheet extends StatelessWidget {
       final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;
       final lang = Localizations.localeOf(context).languageCode;
-      final caps = tab.capabilities;
-      final open = tab.state == TabState.open;
-      final st = tab.stats?.stats;
+      final caps = tab.windowState.capabilities;
+      final open = tab.connection.state == TabState.open;
+      final st = tab.windowState.stats?.stats;
       final ctx = st?.context;
       final limits = st?.limits;
       final five = limits?.fiveHour;
       final week = limits?.sevenDay;
       final cost = st?.cost;
-      final idle = tab.idleCompact;
+      final idle = tab.windowState.idleCompact;
       final canCompact = caps?.compact ?? true;
       final label = TextStyle(
         fontSize: 12,
@@ -155,7 +155,7 @@ class ContextSheet extends StatelessWidget {
                   ),
                   value: idle.on && !idle.blocked,
                   onChanged: open && !idle.blocked
-                      ? (_) => tab.toggleIdleCompact()
+                      ? (_) => tab.windowState.toggleIdleCompact()
                       : null,
                 ),
               ],
@@ -171,8 +171,9 @@ class ContextSheet extends StatelessWidget {
                         // while the agent works: ordered for its next pause (protocol 27), once
                         enabled:
                             open &&
-                            !tab.compactPending &&
-                            (!tab.busy || tab.canOrderCompact),
+                            !tab.windowState.compactPending &&
+                            (!tab.windowState.busy ||
+                                tab.connection.has(Feature.compactOrder)),
                         onTap: () {
                           // the web shows no note for a refused Compact; the phone says why, as it does for Clear
                           final messenger = ScaffoldMessenger.maybeOf(outer);
@@ -198,7 +199,10 @@ class ContextSheet extends StatelessWidget {
                         NbGlyph.clear,
                         t.tileClear,
                         tooltip: webString(WebKey.clearTip, lang),
-                        enabled: open && !tab.busy && !tab.orderWaits,
+                        enabled:
+                            open &&
+                            !tab.windowState.busy &&
+                            !tab.windowState.orderWaits,
                         onTap: () => _clear(context),
                       ),
                     ),

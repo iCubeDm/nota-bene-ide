@@ -150,7 +150,7 @@ class _WhisperSheetState extends State<WhisperSheet> {
   }
 
   void _ready() {
-    widget.tab.whisperOn = true;
+    widget.tab.windowState.whisperOn = true;
     final text = AppLocalizations.of(context).whisperReady;
     Navigator.of(context).pop();
     widget.messenger.showSnackBar(SnackBar(content: Text(text)));

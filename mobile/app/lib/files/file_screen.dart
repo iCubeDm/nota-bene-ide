@@ -15,11 +15,9 @@ import '../ui/insets.dart';
 import '../usage/format.dart' show byteSize;
 import '../chat/paths.dart';
 import 'file_markdown.dart';
+import 'repository.dart' show fileMaxBytes;
 
 export '../chat/paths.dart' show isMarkdownPath;
-
-/// The largest file the phone opens.
-const fileMaxBytes = 2000000;
 
 enum _Fail { notMarkdown, notFound, outside, tooLarge, unreadable }
 
@@ -60,14 +58,10 @@ class _FileScreenState extends State<FileScreen> {
     if (!isMarkdownPath(widget.path)) {
       return setState(() => _fail = _Fail.notMarkdown);
     }
-    final ch = widget.tab.link.channel;
-    if (ch == null) return setState(() => _fail = _Fail.unreadable);
     _Fail? fail;
     String? text;
     try {
-      final r = await ch.http(
-        widget.tab.port,
-        'GET',
+      final r = await widget.tab.repository.get(
         '/file?path=${Uri.encodeQueryComponent(widget.path)}',
       );
       if (r.status == 404) {
