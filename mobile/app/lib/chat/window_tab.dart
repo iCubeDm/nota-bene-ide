@@ -1,6 +1,6 @@
 // One window on the phone (issue 511): its [AgentConnection] (the socket, the one-tab rule, reconnects), its
-// [Repository] (the window's data over it), its [WindowState] (what the window said) and the window's comments, voice
-// outbox and media cache, wired together for the window's lifetime. The screens read the parts themselves (issue 547)
+// [Repository] (the window's data over it), its [WindowState] (what the window said), its [Tasks] (issue 573) and the
+// window's comments, voice outbox and media cache, wired together for the window's lifetime. The screens read the parts themselves (issue 547)
 // and send through [WindowTab.send] and [WindowTab.sendVoice], giving the question (issue 565).
 
 import 'package:flutter/foundation.dart';
@@ -11,6 +11,7 @@ import '../files/repository.dart';
 import '../hosts/host_link.dart';
 import '../media/fetch.dart';
 import '../sdk.dart';
+import '../tasks/tasks.dart';
 import 'agent_connection.dart';
 import 'window_state.dart';
 
@@ -86,6 +87,9 @@ class WindowTab extends ChangeNotifier {
     send: connection.send,
     http: () => connection.http,
   );
+
+  /// The window's background tasks; they tell only when they change.
+  final tasks = Tasks();
 
   /// The app's stores: this window's comment queue and voice outbox are among them.
   final AppStores stores;
@@ -205,6 +209,7 @@ class WindowTab extends ChangeNotifier {
       default:
     }
     windowState.apply(e);
+    tasks.apply(e);
     // the outbox is the app's: a tab that was replaced and is still closing must not touch the new tab's sends
     if (voiceOutbox.attachedTo(this)) {
       voiceOutbox.event(
@@ -220,6 +225,7 @@ class WindowTab extends ChangeNotifier {
     _disposed = true;
     connection.dispose();
     windowState.dispose();
+    tasks.dispose();
     voiceOutbox.removeListener(comments.refresh);
     voiceOutbox.detach(this);
     super.dispose();

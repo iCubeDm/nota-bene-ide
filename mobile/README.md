@@ -57,6 +57,18 @@ generator copies every `usage*` key of the English dictionary, in all six langua
 `app/lib/comments/strings.g.dart`. The number formatters (`app/lib/usage/format.dart`) are pinned to the desktop's by
 `web/src/plugins/usage/mobileFormat.test.ts`; dates are not pinned.
 
+## Background tasks
+
+The window's task events (background shells, subagents, workflows) are kept by `app/lib/tasks/tasks.dart`, a port of
+`shared/src/tasks.ts` and of the drawer's rows and counts in `web/src/plugins/tasks/slice.ts`, pinned by
+`web/src/plugins/tasks/mobileParity.test.ts`, which writes `app/test/fixtures/tasks/` (`UPDATE_FIXTURES=1`) for
+`app/test/tasks_test.dart`; the shell output's text and the elapsed times are pinned the same way. The header's count opens
+a sheet of them (`tasks_sheet.dart`) with Stop and To background as the desktop's (protocol 8, `taskControl`; To
+background also by the window's `taskBackground`). A tap opens a subagent's conversation (`agent_screen.dart`, `/subagent`,
+drawn by the chat's feed) or a shell's output (`shell_screen.dart`, `/task-output`), each read again while it runs and its
+screen and the app are up. The elapsed times run on the window's clock, taken from its live events. Their words are the
+web's own, through the strings generator.
+
 ## Voice messages
 
 The round button at the right of the message field is the microphone while there is nothing to send, and Send

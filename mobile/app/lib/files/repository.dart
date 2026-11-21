@@ -3,7 +3,7 @@
 // project-relative paths, folders ending in `/`), `/file?path=` (raw bytes, Range supported) and git's read-only views
 // as the desktop's panel reads them (server/src/vcs.ts, shared/src/vcs.ts): `/git-status` (null outside a repository),
 // `/vcs-diff`, `/vcs-file`, `/vcs-log`, `/vcs-commit` and `/vcs-commit-file`, the host's `/usage` and the window's
-// `/dictation`, their answers the generated protocol classes where there are any. Requests for the same route in flight share one answer, and none goes while the host is offline. Nothing
+// `/dictation`, a subagent's `/subagent` and a shell task's `/task-output`, their answers the generated protocol classes where there are any. Requests for the same route in flight share one answer, and none goes while the host is offline. Nothing
 // is kept once answered (the web keeps the last answer for its watchers; the phone has none, its screens hold what
 // they show).
 import 'dart:convert';
@@ -165,6 +165,45 @@ class Repository {
             as Map)
         .cast<String, Object?>(),
   );
+
+  /// `GET /subagent` (protocol 7): the conversation of the subagent the Agent call [tool] of [session] started, as
+  /// feed events, whether it still runs, and what the call named it. A 404 or 409 is a subagent not in this session.
+  Future<
+    ({List<ServerEvent> events, bool running, String type, String description})
+  >
+  subagent(String session, String tool) async {
+    final j =
+        await _json(
+              '/subagent?${Uri(queryParameters: {'session': session, 'tool': tool}).query}',
+            )
+            as Map;
+    return (
+      events: [
+        for (final e in j['events'] as List)
+          ServerEvent.fromJson((e as Map).cast<String, Object?>()),
+      ],
+      running: j['running'] == true,
+      type: j['type'] as String? ?? '',
+      description: j['description'] as String? ?? '',
+    );
+  }
+
+  /// `GET /task-output` (protocol 8): the end of shell task [task]'s output (at most 8 KiB, may hold escape
+  /// sequences), its size, and whether it still runs. A 404 or 409 is a task the window no longer knows.
+  Future<({String output, num totalBytes, bool truncated, bool running})>
+  taskOutput(String session, String task) async {
+    final j =
+        await _json(
+              '/task-output?${Uri(queryParameters: {'session': session, 'task': task}).query}',
+            )
+            as Map;
+    return (
+      output: j['output'] as String,
+      totalBytes: j['totalBytes'] as num,
+      truncated: j['truncated'] == true,
+      running: j['running'] == true,
+    );
+  }
 
   /// The window's Whisper as Settings → Dictation shows it (`on`, `phase`, the sizes); null when it did not answer.
   Future<Map<Object?, Object?>?> dictation() async {

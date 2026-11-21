@@ -1,0 +1,881 @@
+{
+ "events": [
+  {
+   "kind": "agent",
+   "ts": 1000,
+   "e": {
+    "t": "task",
+    "id": "t0",
+    "phase": "started",
+    "desc": "do t0",
+    "type": "local_bash",
+    "inner": true,
+    "parent": "wf"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 2000,
+   "e": {
+    "t": "task",
+    "id": "t1",
+    "phase": "started",
+    "desc": "do t1",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 3000,
+   "e": {
+    "t": "task",
+    "id": "t2",
+    "phase": "started",
+    "desc": "do t2",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 4000,
+   "e": {
+    "t": "task",
+    "id": "t3",
+    "phase": "started",
+    "desc": "do t3",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 5000,
+   "e": {
+    "t": "task",
+    "id": "t4",
+    "phase": "started",
+    "desc": "do t4",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 6000,
+   "e": {
+    "t": "task",
+    "id": "t5",
+    "phase": "started",
+    "desc": "do t5",
+    "type": "local_bash",
+    "inner": true,
+    "parent": "wf"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 7000,
+   "e": {
+    "t": "task",
+    "id": "t6",
+    "phase": "started",
+    "desc": "do t6",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 8000,
+   "e": {
+    "t": "task",
+    "id": "t7",
+    "phase": "started",
+    "desc": "do t7",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 9000,
+   "e": {
+    "t": "task",
+    "id": "t8",
+    "phase": "started",
+    "desc": "do t8",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 10000,
+   "e": {
+    "t": "task",
+    "id": "t9",
+    "phase": "started",
+    "desc": "do t9",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 11000,
+   "e": {
+    "t": "task",
+    "id": "t10",
+    "phase": "started",
+    "desc": "do t10",
+    "type": "local_bash",
+    "inner": true,
+    "parent": "wf"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 12000,
+   "e": {
+    "t": "task",
+    "id": "t11",
+    "phase": "started",
+    "desc": "do t11",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 13000,
+   "e": {
+    "t": "task",
+    "id": "t12",
+    "phase": "started",
+    "desc": "do t12",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 14000,
+   "e": {
+    "t": "task",
+    "id": "t13",
+    "phase": "started",
+    "desc": "do t13",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 15000,
+   "e": {
+    "t": "task",
+    "id": "t14",
+    "phase": "started",
+    "desc": "do t14",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 16000,
+   "e": {
+    "t": "task",
+    "id": "t15",
+    "phase": "started",
+    "desc": "do t15",
+    "type": "local_bash",
+    "inner": true,
+    "parent": "wf"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 17000,
+   "e": {
+    "t": "task",
+    "id": "t16",
+    "phase": "started",
+    "desc": "do t16",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 18000,
+   "e": {
+    "t": "task",
+    "id": "t17",
+    "phase": "started",
+    "desc": "do t17",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 19000,
+   "e": {
+    "t": "task",
+    "id": "t18",
+    "phase": "started",
+    "desc": "do t18",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 20000,
+   "e": {
+    "t": "task",
+    "id": "t19",
+    "phase": "started",
+    "desc": "do t19",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 21000,
+   "e": {
+    "t": "task",
+    "id": "t20",
+    "phase": "started",
+    "desc": "do t20",
+    "type": "local_bash",
+    "inner": true,
+    "parent": "wf"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 22000,
+   "e": {
+    "t": "task",
+    "id": "t21",
+    "phase": "started",
+    "desc": "do t21",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 23000,
+   "e": {
+    "t": "task",
+    "id": "t22",
+    "phase": "started",
+    "desc": "do t22",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 24000,
+   "e": {
+    "t": "task",
+    "id": "t23",
+    "phase": "started",
+    "desc": "do t23",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 25000,
+   "e": {
+    "t": "task",
+    "id": "wf",
+    "phase": "started",
+    "desc": "do wf",
+    "type": "local_workflow",
+    "workflow": "w"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 26000,
+   "e": {
+    "t": "task",
+    "id": "t0",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 27000,
+   "e": {
+    "t": "task",
+    "id": "t1",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 28000,
+   "e": {
+    "t": "task",
+    "id": "t2",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 29000,
+   "e": {
+    "t": "task",
+    "id": "t3",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 30000,
+   "e": {
+    "t": "task",
+    "id": "t4",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 31000,
+   "e": {
+    "t": "task",
+    "id": "t5",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 32000,
+   "e": {
+    "t": "task",
+    "id": "t6",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 33000,
+   "e": {
+    "t": "task",
+    "id": "t7",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 34000,
+   "e": {
+    "t": "task",
+    "id": "t8",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 35000,
+   "e": {
+    "t": "task",
+    "id": "t9",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 36000,
+   "e": {
+    "t": "task",
+    "id": "t10",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 37000,
+   "e": {
+    "t": "task",
+    "id": "t11",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 38000,
+   "e": {
+    "t": "task",
+    "id": "t12",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 39000,
+   "e": {
+    "t": "task",
+    "id": "t13",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 40000,
+   "e": {
+    "t": "task",
+    "id": "t14",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 41000,
+   "e": {
+    "t": "task",
+    "id": "t15",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 42000,
+   "e": {
+    "t": "task",
+    "id": "t16",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 43000,
+   "e": {
+    "t": "task",
+    "id": "t17",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 44000,
+   "e": {
+    "t": "task",
+    "id": "t18",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 45000,
+   "e": {
+    "t": "task",
+    "id": "t19",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 46000,
+   "e": {
+    "t": "task",
+    "id": "t20",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 47000,
+   "e": {
+    "t": "task",
+    "id": "t21",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 48000,
+   "e": {
+    "t": "task",
+    "id": "t22",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 49000,
+   "e": {
+    "t": "task",
+    "id": "t23",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 50000,
+   "e": {
+    "t": "task",
+    "id": "live",
+    "phase": "started",
+    "desc": "do live",
+    "type": "local_bash"
+   }
+  }
+ ],
+ "tasks": {
+  "t1": {
+   "desc": "do t1",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 2000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 27000
+  },
+  "t2": {
+   "desc": "do t2",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 3000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 28000
+  },
+  "t3": {
+   "desc": "do t3",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 4000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 29000
+  },
+  "t4": {
+   "desc": "do t4",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 5000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 30000
+  },
+  "t6": {
+   "desc": "do t6",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 7000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 32000
+  },
+  "t7": {
+   "desc": "do t7",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 8000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 33000
+  },
+  "t8": {
+   "desc": "do t8",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 9000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 34000
+  },
+  "t9": {
+   "desc": "do t9",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 10000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 35000
+  },
+  "t11": {
+   "desc": "do t11",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 12000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 37000
+  },
+  "t12": {
+   "desc": "do t12",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 13000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 38000
+  },
+  "t13": {
+   "desc": "do t13",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 14000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 39000
+  },
+  "t14": {
+   "desc": "do t14",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 15000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 40000
+  },
+  "t16": {
+   "desc": "do t16",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 17000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 42000
+  },
+  "t17": {
+   "desc": "do t17",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 18000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 43000
+  },
+  "t18": {
+   "desc": "do t18",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 19000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 44000
+  },
+  "t19": {
+   "desc": "do t19",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 20000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 45000
+  },
+  "t20": {
+   "desc": "do t20",
+   "type": "local_bash",
+   "kind": "shell",
+   "parent": "wf",
+   "inner": true,
+   "start": 21000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 46000
+  },
+  "t21": {
+   "desc": "do t21",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 22000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 47000
+  },
+  "t22": {
+   "desc": "do t22",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 23000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 48000
+  },
+  "t23": {
+   "desc": "do t23",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 24000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 49000
+  },
+  "wf": {
+   "desc": "do wf",
+   "type": "local_workflow",
+   "kind": "workflow",
+   "workflow": "w",
+   "start": 25000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  },
+  "live": {
+   "desc": "do live",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 50000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  }
+ },
+ "ordered": [
+  "wf",
+  "live",
+  "t23",
+  "t22",
+  "t21",
+  "t20",
+  "t19",
+  "t18",
+  "t17",
+  "t16",
+  "t14",
+  "t13",
+  "t12",
+  "t11",
+  "t9",
+  "t8",
+  "t7",
+  "t6",
+  "t4",
+  "t3",
+  "t2",
+  "t1"
+ ],
+ "rows": [
+  {
+   "id": "wf",
+   "depth": 0
+  },
+  {
+   "id": "t20",
+   "depth": 1
+  },
+  {
+   "id": "live",
+   "depth": 0
+  },
+  {
+   "id": "t23",
+   "depth": 0
+  },
+  {
+   "id": "t22",
+   "depth": 0
+  },
+  {
+   "id": "t21",
+   "depth": 0
+  },
+  {
+   "id": "t19",
+   "depth": 0
+  },
+  {
+   "id": "t18",
+   "depth": 0
+  },
+  {
+   "id": "t17",
+   "depth": 0
+  },
+  {
+   "id": "t16",
+   "depth": 0
+  },
+  {
+   "id": "t14",
+   "depth": 0
+  },
+  {
+   "id": "t13",
+   "depth": 0
+  },
+  {
+   "id": "t12",
+   "depth": 0
+  },
+  {
+   "id": "t11",
+   "depth": 0
+  },
+  {
+   "id": "t9",
+   "depth": 0
+  },
+  {
+   "id": "t8",
+   "depth": 0
+  },
+  {
+   "id": "t7",
+   "depth": 0
+  },
+  {
+   "id": "t6",
+   "depth": 0
+  },
+  {
+   "id": "t4",
+   "depth": 0
+  },
+  {
+   "id": "t3",
+   "depth": 0
+  },
+  {
+   "id": "t2",
+   "depth": 0
+  },
+  {
+   "id": "t1",
+   "depth": 0
+  }
+ ],
+ "counts": {
+  "running": 2,
+  "finished": 19,
+  "watchers": 0
+ }
+}

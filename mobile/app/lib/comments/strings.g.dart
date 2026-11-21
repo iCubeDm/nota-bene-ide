@@ -55,6 +55,13 @@ enum BatchKey {
   vcsAgainst,
   vcsOnlyUncommitted,
   vcsLogCut,
+  taskGroupDone,
+  taskTokens,
+  taskWorkflow,
+  shellEarlier,
+  shellFailed,
+  shellStale,
+  agentFailed,
   srcToolBare,
   srcAgentReplyBare,
   srcAgentToolBare,
@@ -92,10 +99,38 @@ enum WebKey {
   compactCancel,
   youHeldRestart,
   youHeldCompact,
+  tasksLabel,
+  tasksNone,
+  taskRunning,
+  taskDone,
+  taskFailed,
+  taskStopped,
+  taskOpen,
+  taskStop,
+  taskStopConfirm,
+  taskStopping,
+  taskStopAll,
+  taskStopAllConfirm,
+  taskBackground,
+  shellLoading,
+  shellEmpty,
+  shellGone,
+  shellGoneShort,
+  agentLoading,
+  agentGone,
+  agentRunning,
 }
 
 /// The web's counted strings ([webCount]).
-enum CountKey { nComments, markShapes }
+enum CountKey {
+  nComments,
+  markShapes,
+  tasksRunning,
+  tasksWatchers,
+  taskGroup,
+  taskGroupFailed,
+  taskGroupStopped,
+}
 
 /// The words of the web's Usage tab ([usageString], [usageTemplate]).
 enum UsageKey {
@@ -1234,6 +1269,166 @@ const _json = r'''
    "es": " · espera la compactación",
    "pt": " · aguarda a compactação",
    "de": " · wartet auf die Komprimierung"
+  },
+  "tasksLabel": {
+   "en": "Background tasks",
+   "ru": "Фоновые задачи",
+   "zh": "后台任务",
+   "es": "Tareas en segundo plano",
+   "pt": "Tarefas em segundo plano",
+   "de": "Hintergrundaufgaben"
+  },
+  "tasksNone": {
+   "en": "No tasks.",
+   "ru": "Задач нет.",
+   "zh": "没有任务。",
+   "es": "Sin tareas.",
+   "pt": "Nenhuma tarefa.",
+   "de": "Keine Aufgaben."
+  },
+  "taskRunning": {
+   "en": "running",
+   "ru": "работает",
+   "zh": "运行中",
+   "es": "en curso",
+   "pt": "em execução",
+   "de": "läuft"
+  },
+  "taskDone": {
+   "en": "done",
+   "ru": "готово",
+   "zh": "完成",
+   "es": "lista",
+   "pt": "concluída",
+   "de": "fertig"
+  },
+  "taskFailed": {
+   "en": "failed",
+   "ru": "ошибка",
+   "zh": "失败",
+   "es": "fallida",
+   "pt": "falhou",
+   "de": "fehlgeschlagen"
+  },
+  "taskStopped": {
+   "en": "stopped",
+   "ru": "остановлена",
+   "zh": "已停止",
+   "es": "detenida",
+   "pt": "parada",
+   "de": "gestoppt"
+  },
+  "taskOpen": {
+   "en": "open",
+   "ru": "открыть",
+   "zh": "打开",
+   "es": "abrir",
+   "pt": "abrir",
+   "de": "öffnen"
+  },
+  "taskStop": {
+   "en": "Stop",
+   "ru": "Стоп",
+   "zh": "停止",
+   "es": "Detener",
+   "pt": "Parar",
+   "de": "Stoppen"
+  },
+  "taskStopConfirm": {
+   "en": "Stop?",
+   "ru": "Стоп?",
+   "zh": "停止？",
+   "es": "¿Detener?",
+   "pt": "Parar?",
+   "de": "Stoppen?"
+  },
+  "taskStopping": {
+   "en": "Stopping…",
+   "ru": "Останавливаю…",
+   "zh": "正在停止…",
+   "es": "Deteniendo…",
+   "pt": "Parando…",
+   "de": "Stoppe…"
+  },
+  "taskStopAll": {
+   "en": "Stop all",
+   "ru": "Остановить все",
+   "zh": "全部停止",
+   "es": "Detener todos",
+   "pt": "Parar todos",
+   "de": "Alle stoppen"
+  },
+  "taskStopAllConfirm": {
+   "en": "Stop all?",
+   "ru": "Остановить все?",
+   "zh": "全部停止？",
+   "es": "¿Detener todos?",
+   "pt": "Parar todos?",
+   "de": "Alle stoppen?"
+  },
+  "taskBackground": {
+   "en": "To background",
+   "ru": "В фон",
+   "zh": "转入后台",
+   "es": "A segundo plano",
+   "pt": "Para segundo plano",
+   "de": "In den Hintergrund"
+  },
+  "shellLoading": {
+   "en": "Reading the output…",
+   "ru": "Читаю вывод…",
+   "zh": "正在读取输出…",
+   "es": "Leyendo la salida…",
+   "pt": "Lendo a saída…",
+   "de": "Lese die Ausgabe…"
+  },
+  "shellEmpty": {
+   "en": "(no output yet)",
+   "ru": "(вывода пока нет)",
+   "zh": "（暂无输出）",
+   "es": "(aún sin salida)",
+   "pt": "(ainda sem saída)",
+   "de": "(noch keine Ausgabe)"
+  },
+  "shellGone": {
+   "en": "The server no longer knows this task (another session, or a restart).",
+   "ru": "Сервер больше не знает эту задачу (другая сессия или перезапуск).",
+   "zh": "服务器已不认识此任务（来自另一个会话，或服务器已重启）。",
+   "es": "El servidor ya no conoce esta tarea (otra sesión, o un reinicio).",
+   "pt": "O servidor não conhece mais esta tarefa (outra sessão, ou uma reinicialização).",
+   "de": "Der Server kennt diese Aufgabe nicht mehr (andere Sitzung oder Neustart)."
+  },
+  "shellGoneShort": {
+   "en": "unknown",
+   "ru": "неизвестна",
+   "zh": "未知",
+   "es": "desconocida",
+   "pt": "desconhecida",
+   "de": "unbekannt"
+  },
+  "agentLoading": {
+   "en": "Loading the subagent…",
+   "ru": "Загружаю субагента…",
+   "zh": "正在加载子代理…",
+   "es": "Cargando el subagente…",
+   "pt": "Carregando o subagente…",
+   "de": "Lade den Subagent…"
+  },
+  "agentGone": {
+   "en": "This subagent is not in the current session.",
+   "ru": "Этого субагента нет в текущей сессии.",
+   "zh": "当前会话中没有此子代理。",
+   "es": "Este subagente no está en la sesión actual.",
+   "pt": "Este subagente não está na sessão atual.",
+   "de": "Dieser Subagent gehört nicht zur aktuellen Sitzung."
+  },
+  "agentRunning": {
+   "en": "running",
+   "ru": "работает",
+   "zh": "运行中",
+   "es": "en curso",
+   "pt": "em execução",
+   "de": "läuft"
   }
  },
  "counted": {
@@ -1299,6 +1494,166 @@ const _json = r'''
     "f1": "{0} Form",
     "f2": "{0} Formen",
     "f5": "{0} Formen"
+   }
+  },
+  "tasksRunning": {
+   "en": {
+    "f1": "{0} task",
+    "f2": "{0} tasks",
+    "f5": "{0} tasks"
+   },
+   "ru": {
+    "f1": "{0} задача",
+    "f2": "{0} задачи",
+    "f5": "{0} задач"
+   },
+   "zh": {
+    "f1": "{0} 个任务",
+    "f2": "{0} 个任务",
+    "f5": "{0} 个任务"
+   },
+   "es": {
+    "f1": "{0} tarea",
+    "f2": "{0} tareas",
+    "f5": "{0} tareas"
+   },
+   "pt": {
+    "f1": "{0} tarefa",
+    "f2": "{0} tarefas",
+    "f5": "{0} tarefas"
+   },
+   "de": {
+    "f1": "{0} Aufgabe",
+    "f2": "{0} Aufgaben",
+    "f5": "{0} Aufgaben"
+   }
+  },
+  "tasksWatchers": {
+   "en": {
+    "f1": "{0} watcher",
+    "f2": "{0} watchers",
+    "f5": "{0} watchers"
+   },
+   "ru": {
+    "f1": "{0} наблюдатель",
+    "f2": "{0} наблюдателя",
+    "f5": "{0} наблюдателей"
+   },
+   "zh": {
+    "f1": "{0} 个监视器",
+    "f2": "{0} 个监视器",
+    "f5": "{0} 个监视器"
+   },
+   "es": {
+    "f1": "{0} observador",
+    "f2": "{0} observadores",
+    "f5": "{0} observadores"
+   },
+   "pt": {
+    "f1": "{0} observador",
+    "f2": "{0} observadores",
+    "f5": "{0} observadores"
+   },
+   "de": {
+    "f1": "{0} Watcher",
+    "f2": "{0} Watcher",
+    "f5": "{0} Watcher"
+   }
+  },
+  "taskGroup": {
+   "en": {
+    "f1": "{0} parallel agents",
+    "f2": "{0} parallel agents",
+    "f5": "{0} parallel agents"
+   },
+   "ru": {
+    "f1": "{0} параллельный агент",
+    "f2": "{0} параллельных агента",
+    "f5": "{0} параллельных агентов"
+   },
+   "zh": {
+    "f1": "{0} 个并行代理",
+    "f2": "{0} 个并行代理",
+    "f5": "{0} 个并行代理"
+   },
+   "es": {
+    "f1": "{0} agentes en paralelo",
+    "f2": "{0} agentes en paralelo",
+    "f5": "{0} agentes en paralelo"
+   },
+   "pt": {
+    "f1": "{0} agentes em paralelo",
+    "f2": "{0} agentes em paralelo",
+    "f5": "{0} agentes em paralelo"
+   },
+   "de": {
+    "f1": "{0} parallele Agenten",
+    "f2": "{0} parallele Agenten",
+    "f5": "{0} parallele Agenten"
+   }
+  },
+  "taskGroupFailed": {
+   "en": {
+    "f1": "{0} failed",
+    "f2": "{0} failed",
+    "f5": "{0} failed"
+   },
+   "ru": {
+    "f1": "{0} с ошибкой",
+    "f2": "{0} с ошибкой",
+    "f5": "{0} с ошибкой"
+   },
+   "zh": {
+    "f1": "{0} 个失败",
+    "f2": "{0} 个失败",
+    "f5": "{0} 个失败"
+   },
+   "es": {
+    "f1": "{0} con error",
+    "f2": "{0} con error",
+    "f5": "{0} con error"
+   },
+   "pt": {
+    "f1": "{0} com falha",
+    "f2": "{0} com falha",
+    "f5": "{0} com falha"
+   },
+   "de": {
+    "f1": "{0} fehlgeschlagen",
+    "f2": "{0} fehlgeschlagen",
+    "f5": "{0} fehlgeschlagen"
+   }
+  },
+  "taskGroupStopped": {
+   "en": {
+    "f1": "{0} stopped",
+    "f2": "{0} stopped",
+    "f5": "{0} stopped"
+   },
+   "ru": {
+    "f1": "{0} остановлено",
+    "f2": "{0} остановлено",
+    "f5": "{0} остановлено"
+   },
+   "zh": {
+    "f1": "{0} 个已停止",
+    "f2": "{0} 个已停止",
+    "f5": "{0} 个已停止"
+   },
+   "es": {
+    "f1": "{0} detenidos",
+    "f2": "{0} detenidos",
+    "f5": "{0} detenidos"
+   },
+   "pt": {
+    "f1": "{0} parados",
+    "f2": "{0} parados",
+    "f5": "{0} parados"
+   },
+   "de": {
+    "f1": "{0} gestoppt",
+    "f2": "{0} gestoppt",
+    "f5": "{0} gestoppt"
    }
   }
  },
@@ -1478,6 +1833,62 @@ const _json = r'''
    "es": "Se muestran los últimos {0} commits",
    "pt": "Os últimos {0} commits são mostrados",
    "de": "Die letzten {0} Commits werden angezeigt"
+  },
+  "taskGroupDone": {
+   "en": "{0}/{1} done",
+   "ru": "{0}/{1} готово",
+   "zh": "{0}/{1} 已完成",
+   "es": "{0}/{1} listos",
+   "pt": "{0}/{1} concluídos",
+   "de": "{0}/{1} fertig"
+  },
+  "taskTokens": {
+   "en": "{0} tok",
+   "ru": "{0} ток.",
+   "zh": "{0} 令牌",
+   "es": "{0} tok",
+   "pt": "{0} tok",
+   "de": "{0} Tok."
+  },
+  "taskWorkflow": {
+   "en": "workflow “{0}”",
+   "ru": "workflow «{0}»",
+   "zh": "工作流“{0}”",
+   "es": "flujo de trabajo «{0}»",
+   "pt": "fluxo de trabalho “{0}”",
+   "de": "Workflow „{0}“"
+  },
+  "shellEarlier": {
+   "en": "…({0} earlier not shown)",
+   "ru": "…(ещё {0} раньше не показано)",
+   "zh": "…（较早的 {0} 未显示）",
+   "es": "…({0} anteriores no se muestran)",
+   "pt": "…({0} anteriores não exibidos)",
+   "de": "…({0} früher nicht angezeigt)"
+  },
+  "shellFailed": {
+   "en": "Could not read the output: {0}",
+   "ru": "Не удалось прочитать вывод: {0}",
+   "zh": "无法读取输出：{0}",
+   "es": "No se pudo leer la salida: {0}",
+   "pt": "Não foi possível ler a saída: {0}",
+   "de": "Ausgabe konnte nicht gelesen werden: {0}"
+  },
+  "shellStale": {
+   "en": "The last read failed ({0}); showing the previous output",
+   "ru": "Последнее чтение не удалось ({0}); показан прошлый вывод",
+   "zh": "上次读取失败（{0}）；显示的是先前的输出",
+   "es": "Falló la última lectura ({0}); se muestra la salida anterior",
+   "pt": "A última leitura falhou ({0}); exibindo a saída anterior",
+   "de": "Das letzte Lesen ist fehlgeschlagen ({0}); zeige die vorherige Ausgabe"
+  },
+  "agentFailed": {
+   "en": "Could not load the subagent: {0}",
+   "ru": "Не удалось загрузить субагента: {0}",
+   "zh": "无法加载子代理：{0}",
+   "es": "No se pudo cargar el subagente: {0}",
+   "pt": "Não foi possível carregar o subagente: {0}",
+   "de": "Subagent konnte nicht geladen werden: {0}"
   },
   "srcToolBare": {
    "en": "{0} command",

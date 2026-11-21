@@ -1,0 +1,83 @@
+{
+ "events": [
+  {
+   "kind": "agent",
+   "ts": 1000,
+   "e": {
+    "t": "task",
+    "id": "k",
+    "phase": "started",
+    "desc": "do k",
+    "type": "local_agent",
+    "call": "toolu_1",
+    "parent": "p0",
+    "group": "g1",
+    "bg": true,
+    "model": "sonnet"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 2000,
+   "e": {
+    "t": "task",
+    "id": "k",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 3000,
+   "e": {
+    "t": "task",
+    "id": "k",
+    "phase": "started",
+    "desc": "again",
+    "type": "local_agent",
+    "call": "toolu_2",
+    "parent": "p9",
+    "group": "g2"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 99,
+   "e": {
+    "t": "message",
+    "id": "m:0",
+    "text": "not a task"
+   }
+  }
+ ],
+ "tasks": {
+  "k": {
+   "desc": "again",
+   "type": "local_agent",
+   "kind": "agent",
+   "call": "toolu_1",
+   "parent": "p0",
+   "group": "g1",
+   "bg": true,
+   "model": "sonnet",
+   "start": 3000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  }
+ },
+ "ordered": [
+  "k"
+ ],
+ "rows": [
+  {
+   "id": "k",
+   "depth": 0
+  }
+ ],
+ "counts": {
+  "running": 1,
+  "finished": 0,
+  "watchers": 0
+ }
+}

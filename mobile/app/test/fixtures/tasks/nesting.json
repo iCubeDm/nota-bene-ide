@@ -1,0 +1,315 @@
+{
+ "events": [
+  {
+   "kind": "agent",
+   "ts": 1000,
+   "e": {
+    "t": "task",
+    "id": "p",
+    "phase": "started",
+    "desc": "do p",
+    "type": "local_agent",
+    "call": "toolu_p"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 2000,
+   "e": {
+    "t": "task",
+    "id": "k1",
+    "phase": "started",
+    "desc": "do k1",
+    "type": "local_bash",
+    "parent": "p"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 3000,
+   "e": {
+    "t": "task",
+    "id": "k2",
+    "phase": "started",
+    "desc": "do k2",
+    "type": "local_agent",
+    "parent": "p"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 4000,
+   "e": {
+    "t": "task",
+    "id": "g",
+    "phase": "started",
+    "desc": "do g",
+    "type": "local_bash",
+    "parent": "k2"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 5000,
+   "e": {
+    "t": "task",
+    "id": "lone",
+    "phase": "started",
+    "desc": "do lone",
+    "type": "local_agent",
+    "parent": "gone"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 6000,
+   "e": {
+    "t": "task",
+    "id": "x",
+    "phase": "started",
+    "desc": "do x",
+    "type": "local_agent",
+    "parent": "y"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 7000,
+   "e": {
+    "t": "task",
+    "id": "y",
+    "phase": "started",
+    "desc": "do y",
+    "type": "local_agent",
+    "parent": "x"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 8000,
+   "e": {
+    "t": "task",
+    "id": "self",
+    "phase": "started",
+    "desc": "do self",
+    "type": "local_agent",
+    "parent": "self"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 9000,
+   "e": {
+    "t": "task",
+    "id": "q",
+    "phase": "started",
+    "desc": "do q",
+    "type": "local_agent"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 10000,
+   "e": {
+    "t": "task",
+    "id": "qk",
+    "phase": "started",
+    "desc": "do qk",
+    "type": "local_agent",
+    "parent": "q"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 11000,
+   "e": {
+    "t": "task",
+    "id": "q",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 12000,
+   "e": {
+    "t": "task",
+    "id": "p",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 13000,
+   "e": {
+    "t": "task",
+    "id": "k1",
+    "phase": "done"
+   }
+  }
+ ],
+ "tasks": {
+  "p": {
+   "desc": "do p",
+   "type": "local_agent",
+   "kind": "agent",
+   "call": "toolu_p",
+   "start": 1000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 12000
+  },
+  "k1": {
+   "desc": "do k1",
+   "type": "local_bash",
+   "kind": "shell",
+   "parent": "p",
+   "start": 2000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 13000
+  },
+  "k2": {
+   "desc": "do k2",
+   "type": "local_agent",
+   "kind": "agent",
+   "parent": "p",
+   "start": 3000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  },
+  "g": {
+   "desc": "do g",
+   "type": "local_bash",
+   "kind": "shell",
+   "parent": "k2",
+   "start": 4000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  },
+  "lone": {
+   "desc": "do lone",
+   "type": "local_agent",
+   "kind": "agent",
+   "parent": "gone",
+   "start": 5000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  },
+  "x": {
+   "desc": "do x",
+   "type": "local_agent",
+   "kind": "agent",
+   "parent": "y",
+   "start": 6000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  },
+  "y": {
+   "desc": "do y",
+   "type": "local_agent",
+   "kind": "agent",
+   "parent": "x",
+   "start": 7000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  },
+  "self": {
+   "desc": "do self",
+   "type": "local_agent",
+   "kind": "agent",
+   "parent": "self",
+   "start": 8000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  },
+  "q": {
+   "desc": "do q",
+   "type": "local_agent",
+   "kind": "agent",
+   "start": 9000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 11000
+  },
+  "qk": {
+   "desc": "do qk",
+   "type": "local_agent",
+   "kind": "agent",
+   "parent": "q",
+   "start": 10000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  }
+ },
+ "ordered": [
+  "k2",
+  "g",
+  "lone",
+  "x",
+  "y",
+  "self",
+  "qk",
+  "k1",
+  "p",
+  "q"
+ ],
+ "rows": [
+  {
+   "id": "lone",
+   "depth": 0
+  },
+  {
+   "id": "self",
+   "depth": 0
+  },
+  {
+   "id": "p",
+   "depth": 0
+  },
+  {
+   "id": "k2",
+   "depth": 1
+  },
+  {
+   "id": "g",
+   "depth": 2
+  },
+  {
+   "id": "k1",
+   "depth": 1
+  },
+  {
+   "id": "q",
+   "depth": 0
+  },
+  {
+   "id": "qk",
+   "depth": 1
+  }
+ ],
+ "counts": {
+  "running": 7,
+  "finished": 3,
+  "watchers": 0
+ }
+}
