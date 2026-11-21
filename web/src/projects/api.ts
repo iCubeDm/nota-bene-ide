@@ -169,18 +169,6 @@ export async function stopProject(row: RunningRow): Promise<string | null> {
   }
 }
 
-/** The header's Stop Nota Bene, before this window stops itself: every other window; how many could not be stopped. */
-export async function stopOthers(): Promise<number> {
-  try {
-    const r = await postJson(routes.systemProjects('stop-others'), {});
-    if (!r.ok) return -1;
-    const j = (await r.json()) as { failed?: unknown };
-    return typeof j.failed === 'number' ? j.failed : -1;
-  } catch {
-    return -1;
-  }
-}
-
 /** The starter's open handle (Starter.tsx mounts the dialog and listens). */
 let starter: ((mode: 'open' | 'new') => void) | null = null;
 export const setStarter = (f: ((mode: 'open' | 'new') => void) | null): void => { starter = f; };

@@ -3,7 +3,7 @@
 // projects read it too, and plugins never import each other. The controls plugin draws it and registers its listener.
 import { createAction, type PayloadAction, createSlice } from '@reduxjs/toolkit';
 import { has, CLAUDE_CAPABILITIES, MODES, type Capabilities, type AgentEffort as EffortLevel, type HeldSend, type IdleCompact, type AgentMode as Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
-import { t } from '../i18n/index.ts';
+import { getLang, t } from '../i18n/index.ts';
 import { toast } from '../shell/toast.ts';
 import { routes } from '../sdk/routes.ts';
 import { connState, serverEvent, type AppThunk, type RootState, type StartListening } from './store.ts';
@@ -179,6 +179,21 @@ export const pickMode = (mode: Mode): AppThunk => (dispatch, getState, { connect
   if (!has(c.protocol, 'modeAck')) return void connections.current().send({ type: 'mode', mode });
   const id = crypto.randomUUID();
   if (connections.current().send({ type: 'mode', mode, id })) dispatch(modeSent(id));
+};
+
+/** The UI language as Whisper takes it: an ISO 639 code (zh-CN → zh, pt-BR → pt). */
+const whisperLang = (): string => getLang().split('-')[0]!;
+
+/**
+ * What a dictation request says about the language: Auto (the default, `dictationLang` absent or `auto`) asks the server to
+ * detect it, the UI language being the hint; a pinned code is sent as `lang` alone. A server older than protocol 18 only
+ * knows `lang`, so it gets the UI language as before. Core (issue 511): the voice plugin's sends and the comment popup's
+ * clips both ask, and it reads only this state.
+ */
+export const dictationAsk = (s: RootState): { lang: string; detect?: true } => {
+  const pref = s.controls.dictationLang;
+  if (!has(s.controls.protocol, 'voiceDetect')) return { lang: whisperLang() };
+  return !pref || pref === 'auto' ? { lang: whisperLang(), detect: true } : { lang: pref };
 };
 
 export const selectModel = (s: RootState): ControlsState['model'] => s.controls.model;

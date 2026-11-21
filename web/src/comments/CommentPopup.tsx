@@ -1,10 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from 'react-redux';
 import { has, isAttachmentAnchor, isMediaAnchor, isTextAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
-import { getLang, useT, useAppDispatch, useAppSelector, anchorLine, type RootState, toast, clearPageSelections, selectCapabilities, selectSwitching, labelsFor, labelText, useAutosize } from '@/sdk';
+import { getLang, useT, useAppDispatch, useAppSelector, anchorLine, type RootState, toast, clearPageSelections, selectCapabilities, selectSwitching, labelsFor, labelText, useAutosize, dictationAsk } from '@/sdk';
 import { Button, Tooltip, TooltipTrigger } from '@/sdk/ui';
 import { ClipRow } from '@/voice/ClipRow.tsx';
-import { dictationAsk } from '@/voice/lang.ts';
 import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';
 import { RecordBar } from '@/voice/RecordBar.tsx';
 import { transcribeVoice } from '@/voice/upload.ts';

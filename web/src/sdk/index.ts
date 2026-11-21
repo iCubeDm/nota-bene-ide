@@ -96,7 +96,7 @@ export {
 
 // the agent's session-wide state: mode, model, commands, hello, a switch or restart, held sends
 export {
-  dictationSet, dictationLangSet, planApproved, controlsListeners,
+  dictationSet, dictationLangSet, dictationAsk, planApproved, controlsListeners,
   selectMode, selectSuggestion, selectCapabilitiesKnown, selectCapabilities, selectSwitching, selectRestarting, selectRestartPending,
   selectCompactPending, selectHeld, selectOrderWaits, selectCanOrderCompact, selectModel, selectModels, selectCommands,
   selectModelSwitchable, selectIdleCompact, pickMode, pickModel, toggleIdleCompact, nextMode, reportActivity, resetActivityThrottle,

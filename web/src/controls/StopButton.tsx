@@ -1,7 +1,18 @@
 import { useState } from 'react';
 import { useT, selectBusy, useAppDispatch, useAppSelector, routes, toast, selectSwitching, stopWindow, remotePage, connections } from '@/sdk';
 import { ConfirmDialog, ICONS, Svg } from '@/sdk/ui';
-import { stopOthers } from '@/projects/api.ts';
+
+/** The header's Stop Nota Bene, before this window stops itself: every other window; how many could not be stopped. */
+async function stopOthers(): Promise<number> {
+  try {
+    const r = await connections.current().fetch(routes.systemProjects('stop-others'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+    if (!r.ok) return -1;
+    const j = (await r.json()) as { failed?: unknown };
+    return typeof j.failed === 'number' ? j.failed : -1;
+  } catch {
+    return -1;
+  }
+}
 
 /**
  * ⏻ in the header's corner: Stop Nota Bene. After a confirmation that warns of a running turn (here or in another window),

@@ -1,6 +1,5 @@
 import { has, type Voice } from '@nota-bene/shared';
-import { chat, selectBusy, selectConn, serverEvent, refusedWhy, t, toast, type AppThunk, type StartListening } from '@/sdk';
-import { dictationAsk } from './lang.ts';
+import { chat, selectBusy, selectConn, serverEvent, refusedWhy, t, toast, type AppThunk, type StartListening, dictationAsk } from '@/sdk';
 import { takeVoiceSend, trackVoiceSend, voiceRefused, voiceSendEchoed } from './inflight.ts';
 
 /**
