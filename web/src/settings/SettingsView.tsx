@@ -5,7 +5,7 @@ import { dictationChanged, type Dictation } from '@/voice/dictation.ts';
 import { langName } from '@/voice/lang.ts';
 import { useEffect, useState, type ReactNode } from 'react';
 import { has, MODES, UI_SCALES, type AgentMode as Mode, type UiScale } from '@nota-bene/shared';
-import { recheckUpdate } from '@/shell/UpdateNotice.tsx';
+import { recheckUpdate } from '@/update/UpdateNotice.tsx';
 import { uiScale, useUiScale } from '@/shell/uiScale.ts';
 import { theme, THEME_GROUPS, THEME_NAMES, useTheme } from '@/shell/theme.ts';
 import { playCue } from '@/shell/sounds.ts';

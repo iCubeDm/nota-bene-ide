@@ -4,6 +4,7 @@
 // translations and toasts
 export { t, tIn, useT, getLang, setLang, chooseLang, LANGS, type Lang, type I18nKey } from '../i18n/index.ts';
 export { toast } from '../shell/toast.ts';
+export { reloadPage } from '../shell/reloadPage.ts';
 
 // storage, flags and usage events
 export { storage, useStored, bool, string, json, oneOf, type Codec, type Stored, type Pref, type SharedPrefs, type Sounds } from './storage.ts';
@@ -15,6 +16,7 @@ export { num, compact, compactParts, percent, money, byteSize } from '../lib/for
 export { serverSep, isDrivePath, isServerDrivePath, wireAbs, underDir, folderName, shortWinHome, shortHome } from '../lib/paths.ts';
 export { keysInScope } from '../lib/keyScope.ts';
 export { editable } from '../lib/editable.ts';
+export { useFocusWithin } from '../shell/focusWithin.ts';
 export { makeAnchor } from '../anchors/resolve.ts';
 export { textOf, collapsedLength, rawIndexOf, offsetsOf, rangeForAnchor } from '../anchors/text.ts';
 
@@ -62,6 +64,8 @@ export {
   type StartListening,
 } from '../store/store.ts';
 
+export { usePagePause } from '../shell/pagePause.ts';
+
 import { answerPermission, interrupt, sendMessage, takeOver } from '../store/store.ts';
 
 /**
@@ -77,4 +81,4 @@ export const chat = {
 
 // tabs
 export { openFile, activate, closeTab, selectTabs, enterRoot, type Tab, type TabKinds, type DiagramLang } from '../tabs/slice.ts';
-export type { TabView } from './registry.ts';
+export type { TabView, Slot, SlotName } from './registry.ts';

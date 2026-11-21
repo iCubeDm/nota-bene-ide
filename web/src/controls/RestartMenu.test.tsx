@@ -6,9 +6,9 @@ import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/testing';
 import { SERVER_RESTART_TIMEOUT_MS } from '@/controls/slice.ts';
-import { Header } from './Header.tsx';
+import { Header } from '@/shell/Header.tsx';
 import { INFO_POLL_MS } from './RestartMenu.tsx';
-import { getToasts, resetToasts } from './toast.ts';
+import { getToasts, resetToasts } from '@/shell/toast.ts';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 

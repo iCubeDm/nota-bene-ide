@@ -14,9 +14,11 @@ export {
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
+  MENU_ROW,
 } from '../components/ui/dropdown-menu.tsx';
 export { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '../components/ui/context-menu.tsx';
 export { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogOverlay, DialogPortal, DialogTitle } from '../components/ui/dialog.tsx';
 export { ConfirmDialog } from '../components/ConfirmDialog.tsx';
 export { ViewPane } from '../components/ViewPane.tsx';
+export { ToolButton } from '../components/ToolButton.tsx';
 export { PanelResizer, usePanelWidth } from '../shell/PanelResizer.tsx';

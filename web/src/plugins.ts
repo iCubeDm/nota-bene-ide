@@ -14,5 +14,7 @@ import { diagramPlugin } from './diagram/plugin.ts';
 import { settingsPlugin } from './settings/plugin.ts';
 import { usagePlugin } from './usage/plugin.ts';
 import { vcsPlugin } from './vcs/plugin.ts';
+import { updatePlugin } from './update/plugin.ts';
+import { projectsPlugin } from './projects/plugin.ts';
 
-export const PLUGINS: readonly Plugin[] = [commentsPlugin, composerPlugin, filesPlugin, controlsPlugin, statsPlugin, remotePlugin, tasksPlugin, mediaPlugin, feedPlugin, subagentPlugin, diagramPlugin, settingsPlugin, usagePlugin, vcsPlugin];
+export const PLUGINS: readonly Plugin[] = [commentsPlugin, composerPlugin, filesPlugin, controlsPlugin, statsPlugin, remotePlugin, tasksPlugin, mediaPlugin, feedPlugin, subagentPlugin, diagramPlugin, settingsPlugin, usagePlugin, vcsPlugin, updatePlugin, projectsPlugin];

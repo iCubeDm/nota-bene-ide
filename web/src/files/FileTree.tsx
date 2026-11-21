@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useT, openFile, useAppDispatch, useAppSelector } from '@/sdk';
+import { useT, openFile, selectTabs, useAppDispatch, useAppSelector } from '@/sdk';
 import { PanelResizer, usePanelWidth, ContextMenu, ContextMenuTrigger } from '@/sdk/ui';
 import { selectPendingCountByPath } from '@/comments/slice.ts';
 import { selectActiveTab } from '@/tabs/slice.ts';
@@ -149,4 +149,10 @@ export function FileTree() {
       </ContextMenu>
     </aside>
   );
+}
+
+/** The tree as the frame's left panel: another root's loaded folders belong to the old one (its open/closed state is in the store and stays). */
+export function Tree() {
+  const rootGen = useAppSelector((s) => selectTabs(s).rootGen);
+  return <FileTree key={rootGen} />;
 }

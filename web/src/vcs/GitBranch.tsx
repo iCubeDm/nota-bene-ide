@@ -1,16 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { openFolder, reasonText } from '@/projects/api.ts';
-import { useT } from '@/i18n/index.ts';
 import type { GitSwitchAnswer, Source, VcsBranch } from '@nota-bene/shared';
-import { selectSession, selectTurnSeq, useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { useT, selectSession, selectTurnSeq, useAppDispatch, useAppSelector, routes, defineResource, useResource } from '@/sdk';
+import { Popover, PopoverContent, PopoverTrigger } from '@/sdk/ui';
 import { apiFetch } from '@/net/auth.ts';
-import { routes } from '@/sdk/routes.ts';
-import { defineResource, useResource } from '@/sdk/repository.ts';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
 import { loadSources, useSources } from '@/files/sources.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { diskChanged, pickSource, selectTree } from '@/files/treeSlice.ts';
-import { setHasRepo } from '@/vcs/store.ts';
+import { setHasRepo } from './store.ts';
 
 type GitStatus = { branch: string | null; detached: boolean; dirty: boolean };
 const THROTTLE = 3_000;

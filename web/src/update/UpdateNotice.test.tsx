@@ -6,10 +6,10 @@ import { setLang } from '@/i18n/index.ts';
 import { serverEvent } from '@/store/store.ts';
 import { testStore, type FakeConnection } from '@/testing';
 import { draftSent, setBuilding, setDraft, uploadStarted } from '@/composer/slice.ts';
-import { reloadPage } from './reloadPage.ts';
+import { reloadPage } from '@/shell/reloadPage.ts';
 import { recheckUpdate, UpdateNotice } from './UpdateNotice.tsx';
 
-vi.mock('./reloadPage.ts', () => ({ reloadPage: vi.fn() }));
+vi.mock('@/shell/reloadPage.ts', () => ({ reloadPage: vi.fn() }));
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 

@@ -22,3 +22,9 @@ export function useActivity(): void {
     };
   }, [dispatch]);
 }
+
+/** useActivity as a part of the frame (a slot), rendering nothing. */
+export function Activity(): null {
+  useActivity();
+  return null;
+}
