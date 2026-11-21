@@ -1,8 +1,5 @@
-import { isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, isTextAnchor, type Comment } from '@nota-bene/shared';
-import { tIn, type Lang } from '@/sdk';
-import { describeShape } from '../media/markup/geometry.ts';
-import { pageLines } from '../page/quote.ts';
-import { cutQuote } from '../cut/quote.ts';
+import { isAttachmentAnchor, isCutAnchor, isMediaAnchor, type Comment } from '@nota-bene/shared';
+import { tIn, batchQuote, type Lang } from '@/sdk';
 
 /**
  * The text sent to the agent: the general message, then the numbered comment list (prototype format).
@@ -30,12 +27,7 @@ export function composeBatch(
   if (!items.length) return general;
   const blocks = items.map((c, i) => {
     const a = c.anchor;
-    const quote = isMediaAnchor(a) || isAttachmentAnchor(a)
-      ? a.shapes.map((s) => '> ' + describeShape(s, a.width, a.height)).join('\n')
-      : isPageAnchor(a) ? pageLines(a, lang).map((l) => '> ' + l).join('\n')
-      : isCutAnchor(a) ? '> ' + cutQuote(a, lang)
-      : isTextAnchor(a) ? a.quote.split('\n').map((l) => '> ' + l).join('\n')
-      : ''; // a kind this client does not know: no quote
+    const quote = batchQuote(a, lang); // a kind this client does not know: no quote
     let tail = '';
     if (isMediaAnchor(a)) {
       const sfx = a.scale ? tIn(lang, 'scaledSfx', a.scale) : '';

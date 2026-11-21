@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
-import { contentBox, describeShape, hitPolygon, insidePolygon, mediaTime, movePoints, rectFrom, round4, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
+import { contentBox, hitPolygon, insidePolygon, movePoints, rectFrom, round4, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
+import { describeShape, mediaTime } from '@/anchors/quote.ts';
 import type { MediaShape } from '@nota-bene/shared';
 
 const R = (x: number, y: number, w: number, h: number) =>

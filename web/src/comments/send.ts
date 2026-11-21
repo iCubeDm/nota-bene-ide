@@ -1,7 +1,6 @@
-import { has, anchorSource, generatedImages, isAttachmentAnchor, isCutAnchor, isMediaAnchor, type AnchorSource, type Comment, type ImageRef, type Voice } from '@nota-bene/shared';
+import { has, anchorSource, generatedImages, isAttachmentAnchor, isCutAnchor, isMediaAnchor, type AnchorSource, type Comment, type ImageRef } from '@nota-bene/shared';
 import { mediaTypeOf } from '../attachments/image.ts';
-import { getLang, t, tIn, type Lang, type AppThunk, type RootState, activate, toast, chat } from '@/sdk';
-import { selectReplyLabel } from '../store/store.ts';
+import { getLang, t, tIn, type Lang, type AppThunk, type RootState, activate, toast, chat, cutWhere, mediaTime, TOOL_SRC, serverEvent, type VoiceSend, type StartListening } from '@/sdk';
 import { isClearCommand } from '../composer/slashRank.ts';
 import { runShellDraft, selectShellMode } from '../composer/shellMode.ts';
 import { composeBatch } from './compose.ts';
@@ -10,10 +9,8 @@ import { draftSent, removeImage, selectBuilding, selectDraft, selectImages, sele
 import { createSelector } from '@reduxjs/toolkit';
 import { markSending, selectComments, selectPending, unmarkSending } from './slice.ts';
 import { selectFileVersion } from '../files/slice.ts';
-import { cutWhere } from '../cut/quote.ts';
 import { liveCutState } from '../cut/live.ts';
-import { mediaTime } from '../media/markup/geometry.ts';
-import { agentName } from '../subagent/slice.ts';
+import { agentName, itemsOf } from '../subagent/slice.ts';
 import { buildComposites, frameGroups, type FrameGroup } from './frameGroups.ts';
 
 /** 'blocked': a /clear with pending comments, or a `! cmd` that cannot run now, held with a note (nothing sent, nothing released). 'building': a combined image is being made and uploaded; the send finishes by itself (the button is disabled meanwhile). 'changed': the comments or the session changed during that wait, nothing was sent. */
@@ -29,6 +26,53 @@ const ownImages = (c: Comment): string[] => {
 };
 /** Pasted images only (a grouped media comment sends the shared composite instead of its frame). */
 const pastedImages = (c: Comment): string[] => (c.images ?? []).slice(generatedImages(c));
+
+const ARG_CUT = 60;
+
+/**
+ * Where a comment's source sits: "reply #n" for a FINAL assistant item (n = 1-based among final
+ * assistant items in feed order), "my message" for a user item, "<name> command (arg)" for an action, null otherwise; `plain` (the batch text) names a reply just "reply", no number. The feed keeps no time per assistant
+ * item, so the " · time" part of `reply` is dropped rather than invented.
+ */
+export const selectReplyLabel = (s: RootState, messageId: string, plain = false, agent?: string): string | null => {
+  if (agent) return agentLabel(s, messageId, agent);
+  if (messageId.startsWith(TOOL_SRC)) {
+    // an agent action's command or output (R-M7-20): "Bash command (npm test)", the arg cut to 60 characters
+    const id = messageId.slice(TOOL_SRC.length);
+    const it = s.feed.items.find((x) => x.kind === 'tool' && x.id === id);
+    if (it?.kind !== 'tool') return null;
+    return t('srcTool', it.name, it.arg.length > ARG_CUT ? `${it.arg.slice(0, ARG_CUT)}…` : it.arg);
+  }
+  if (messageId.startsWith('plan:')) return s.feed.items.some((it) => it.kind === 'permission' && `plan:${it.id}` === messageId) ? t('mode_plan') : null;
+  let n = 0;
+  for (const it of s.feed.items) {
+    if (it.kind === 'assistant' && it.final) n++;
+    if ((it.kind === 'assistant' || it.kind === 'user') && it.id === messageId) {
+      if (it.kind === 'user') return t('srcMine');
+      if (!it.final) return null;
+      return plain ? t('replyPlain') : t('reply', n, '').replace(/\s*·\s*$/, '');
+    }
+  }
+  return null;
+};
+
+/**
+ * The label of a place inside a subagent's conversation (no numbers, like the plain `reply`; the quote is the locator):
+ * "subagent reply «description»", and for an action "Bash command (npm test) · subagent «description»". An action the
+ * conversation does not (yet) hold is unknown (null); a reply is named even before the conversation is loaded, so a
+ * batch never calls it a chat message.
+ */
+function agentLabel(s: RootState, messageId: string, agent: string): string | null {
+  const name = agentName(s, agent);
+  if (messageId.startsWith(TOOL_SRC)) {
+    const id = messageId.slice(TOOL_SRC.length);
+    // not loaded (a reload with the tab closed): the same call forwarded into the chat names it, if it is there
+    const it = (itemsOf(s, agent) ?? s.feed.items).find((x) => x.kind === 'tool' && x.id === id);
+    if (it?.kind !== 'tool') return null;
+    return t('srcAgentTool', t('srcTool', it.name, it.arg.length > ARG_CUT ? `${it.arg.slice(0, ARG_CUT)}…` : it.arg), name);
+  }
+  return t('srcAgentReply', name);
+}
 
 /** Where a comment's fragment lives, for the batch line: the reply label, "my message", or the file. */
 export function whereOf(
@@ -83,7 +127,7 @@ const unchanged = (st: RootState, snap: Snapshot): boolean =>
  * message: the composer's first, then each comment's in order. Media comments on one source frame share one composite image
  * (`composites`: group key → attachment id; a group without one falls back to each comment's own frame). A send switches to the chat tab.
  */
-const sendNow = (snap: Snapshot, composites: Map<string, string>, force: boolean, voice?: { voice: Voice; id: string }): AppThunk<SendResult> => (d, getState) => {
+const sendNow = (snap: Snapshot, composites: Map<string, string>, force: boolean, voice?: VoiceSend & { id: string }): AppThunk<SendResult> => (d, getState) => {
   const st = getState();
   const { pending, body, own } = snap;
   const ids = pending.map((c) => c.id);
@@ -122,7 +166,7 @@ const sendNow = (snap: Snapshot, composites: Map<string, string>, force: boolean
     (c) => { const s = isCutAnchor(c.anchor) ? liveCutState(c.anchor) : undefined; return s === 'ok' ? undefined : s; },
   );
   const id = voice?.id ?? crypto.randomUUID();
-  if (!d(chat.send(text, force, ids, images, id, voice?.voice))) return fail('offline');
+  if (!d(chat.send(text, force, ids, images, id, voice && { voice: voice.voice, ask: voice.ask }))) return fail('offline');
   if (voice) return 'sent'; // a recording has no draft to hand back or clear, and the chat tab is not taken over
   d(draftSent({ id, text: body, images: own, commentIds: ids })); // until the echo: a refusal puts it back
   const cur = selectDraft(getState());
@@ -191,11 +235,27 @@ export const sendBatch = (force: boolean): AppThunk<SendResult> => (d, getState)
  * stays (it goes only with its image). Each comment's own frame goes, not a shared composite (nothing here waits).
  * Their ids are marked as sending; `unmarkSending` gives them back when the send is refused. Empty when there is none.
  */
-export const voiceComments = (id: string, voice: Voice, force: boolean): AppThunk<{ ids: string[]; sent: boolean }> => (d, getState) => {
+export const voiceComments = (id: string, voice: VoiceSend, force: boolean): AppThunk<{ ids: string[]; sent: boolean }> => (d, getState) => {
   const st = getState();
   const pending = selectSendable(st).filter((c) => !isAttachmentAnchor(c.anchor));
   if (!has(st.controls.protocol, 'voiceComments') || !pending.length) return { ids: [], sent: false };
   const snap: Snapshot = { sid: st.feed.session?.id, draft: '', body: '', own: [], pending, prints: pending.map(printOf) };
   d(markSending(pending.map((c) => c.id)));
-  return { ids: pending.map((c) => c.id), sent: d(sendNow(snap, new Map(), force, { voice, id })) === 'sent' };
+  return { ids: pending.map((c) => c.id), sent: d(sendNow(snap, new Map(), force, { ...voice, id })) === 'sent' };
 };
+
+/** Comments a send took, sendable again (a refused recording gives back those that rode along). */
+export const releaseComments = unmarkSending;
+
+/**
+ * A refused send (`send-refused`): its comments are sendable again (issue 511: the comments' own, no longer the
+ * composer's). The composer's last send names them, read from the state before the refusal dropped it.
+ */
+export const refusedListener = (start: StartListening): void => void start({
+  actionCreator: serverEvent,
+  effect: ({ payload: ev }, api) => {
+    if (ev.kind !== 'send-refused') return;
+    const last = api.getOriginalState().composer.unconfirmed;
+    if (last?.id === ev.id) api.dispatch(unmarkSending(last.commentIds));
+  },
+});

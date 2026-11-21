@@ -131,8 +131,8 @@ a step touches them (the boundary check counts them outside `web/src/sdk/`).
 - `definePlugin(p: Plugin): Plugin`, where `interface Plugin { id: string; slices?: Slice[]; middleware?: Middleware[];
   listeners?: (start: StartListening) => void /* persist-style, one per concern */; pause?: (s: RootState, o: { draft:
   boolean }) => boolean /* false while the plugin holds the page busy, for pagePause */; tabs?: TabView[]; slots?:
-  Slot[]; fileViews?: FileView[]; feed?: FeedRenderer[]; tools?: ToolRenderer[]; userParts?: UserPart[]; anchors?:
-  AnchorKind[]; commands?: Command[]; settings?: SettingsSection[]; resources?: Resource[]; sendParts?: SendPart[] }`.
+  Slot[]; fileViews?: FileView[]; feed?: FeedRenderer[]; tools?: ToolRenderer[]; userParts?: UserPart[]; anchorViews?:
+  AnchorView[]; commands?: Command[]; settings?: SettingsSection[]; resources?: Resource[]; sendParts?: SendPart[] }`.
 - `makeStore({ url, plugins, connect?, pip? })`: the reducer is RTK 2 `combineSlices(feed, conn, tabs, …core)
   .withLazyLoadedSlices<PluginState>()`, each plugin's slices injected once at creation. `PluginState` is an interface
   that each plugin extends by module augmentation (`declare module '@/sdk' { interface PluginState extends
@@ -168,14 +168,14 @@ re-exported by name, not by wildcard, so the SDK surface is visible in one file.
 | `tabs` | `TabView { kind; label(tab, t, state): string; Icon?: FC<{ tab }>; Extra?: FC<{ tab }> /* after the name in the strip */; detail?(tab, t): string /* the tabs menu column */; edit?: { when(state); label; Input } /* the chat's rename */; render?: FC<{ tab; active; rootGen }> }`. Rendering only: the core owns tab data (ids, open actions, saved form) in `TabKinds`, because several plugins open each kind. A plugin's new kind may extend `TabKinds`, but it gets no id rule or persistence from the registry: those are added to the core's tabs | the `tab.kind` chain in `tabs/Panes.tsx`, label chains in `TabStrip`/`TabsMenu` (one `tabLabel`), `tabs/slice.ts` importing `diagram/render.ts` and `diagram/sha1.ts` for ids |
 | `slots` | `Slot { slot: 'header.title' \| 'header.center' \| 'header.end' \| 'header.menu' \| 'header.badge' \| 'strip.left' \| 'strip.right' \| 'panel.left' \| 'panel.right' \| 'chat' \| 'panes' \| 'footer' \| 'overlay'; order; render: FC }`, merged with the frame's own parts by order (one order per slot); `composer.*` slots come with the composer's plugins | `App.tsx`, `Header`, `Footer`, `ToolStrip` importing features (GitBranch, RestartMenu, TasksIndicator, UpdateNotice, meters, panels, overlays) |
 | `fileViews` | `FileView { id; match(path, kind): boolean; order; render: FC<{ path; src; ref?; tabId; active }>; jump?(target) }` | `files/FileView.tsx` importing cut, media, page, diagram; its `files.jump` special cases |
-| `feed` | `FeedRenderer { kind: FeedItem['kind']; render: FC<{ item; held? }> }` | the `switch` in `feed/Feed.tsx` |
-| `tools` | `ToolRenderer { match(it: ToolItem): boolean; render: FC<{ item }> }` | `feed/ToolLine.tsx` and `Feed.tsx` importing `subagent/` for Agent calls |
+| `feed` | `FeedRenderer { kind: Exclude<FeedItem['kind'], 'tool'>; render: FC<{ item; held? }> }` (runs of actions are the feed's own) | the `switch` in `feed/Feed.tsx` |
+| `tools` | `ToolRenderer { match(it: ToolItem): boolean; render: FC<{ item; open; panelId; comments; busy; onToggle }> }`: the head; the feed keeps the fold and the commentable panel | `feed/ToolLine.tsx` and `Feed.tsx` importing `subagent/` for Agent calls |
 | `userParts` | `UserPart { id; order; render: FC<{ item: UserItem }> }` | `feed/UserMessage.tsx` importing voice, attachments |
-| `anchors` | `AnchorKind { kind: Anchor['kind']; is(a): boolean; line(c: Comment, lang): string /* the batch and feed quote */; label?(c, s): string \| null; reveal?(c): void; card?: FC<{ comment }> }` | `UserMessage` importing cut, page, media quotes; `comments/compose.ts` per-kind branches; `store.ts` hosting `selectReplyLabel`/`agentLabel` |
+| `anchorViews` | `AnchorView { kind: Anchor['kind']; Card?: FC<{ comment }>; reveal?(c): void; orphan?(c, root): boolean }`, UI only; a kind without one shows core `anchorLine`. The batch text per kind stays core (`anchors/quote.ts`): it is the agent's contract, mirrored by the phone | `comments/card/CommentCard.tsx`'s per-kind branches; `useCommentSource`/`HighlightLayer` importing `page/*`; `frameGroups` importing `media/markup` |
 | `commands` | `Command { id: KeyId /* the i18n key of its help line */; codes; mods; inFields: boolean \| 'notMac'; inModal?(): boolean /* also over a modal (Alt+E, Alt+H toggle their own) */; anyMod?; helpOnly?; order /* the help's and the match order */; run(ctx: { store; e }) }`; the core's own (tabs, scale) are `CORE_COMMANDS`, passed to `buildRegistry` by the store. No `label` (the id is the label key), no `when` and no `connection` in `run`: no key needs them. `order`, as in `slots`: the help interleaves core and plugin keys, which `PLUGINS` order would not reproduce | the `BINDINGS` list in `shell/keymap.ts`, which imports comments, composer, files, projects, tasks, tree |
 | `settings` | `SettingsSection { id; order; title: I18nKey; render: FC<{ active }> }` | the 421-line `SettingsView.tsx` and its five post/error copies (one `post()` helper in the section host) |
 | `resources` | `Resource` (above) | lets the harness stub by key and core refetch on `events` |
-| `sendParts` | `SendPart { id; collect(s): { commentIds?; text?; images? } \| null; sent?(id); refused?(id) }` | the composer importing `comments/send.ts`, `comments/slice.ts`, and `composer/refused.ts` reaching into comments |
+| `sendParts` | `SendPart { id; order; take(s, d): Taken \| null }`, `Taken { ready?: Promise<void>; unchanged(s): boolean; compose(ctx: { lang; images }): { text?; images?; commentIds? }; released(): void }` (plan step 10d) | the composer importing `comments/send.ts`, `comments/slice.ts`, and `composer/refused.ts` reaching into comments |
 
 `sendParts` is the one registry beyond the owner's list: without it the composer↔comments cycle stays, because a send
 carries the pending comments.
@@ -194,23 +194,23 @@ Core is what the SDK re-exports; core folders may import each other but never a 
 | `lib/` | core | pure helpers |
 | `components/` | core | UI primitives via `@/sdk/ui` |
 | `theme/` | core | theme tests only |
-| `anchors/` | core | text anchoring, used by comments, files, page, feed |
+| `anchors/` | core | text anchoring, used by comments, files, page, feed; how each anchor kind reads (`quote.ts`: the batch, the card line) |
 | `refs/` | core | paths in agent text; opens files through `openFile` |
 | `tabs/` | core | the tab host over the `tabs` registry; `fileLabels.ts` moves to `files` |
 | `shell/` | core | the frame: Header, Footer, ToolStrip, Logo, toasts, keymap host, theme, uiScale, sounds, Favicon, OneTab, LoginRequired, Stopped, PanelResizer, focusWithin, tabAlign, reloadPage, pagePause (now the AND of `Plugin.pause`). `GitBranch` → `vcs`; `RestartMenu`, `StopButton` → `controls`; `TasksIndicator` → `tasks`; `UpdateNotice` → `update` |
 | `feed/` | plugin `feed` | the chat feed rendering; owns the `feed`, `tools`, `userParts` registries' host components |
 | `composer/` | plugin `composer` | input, pickers, history; `Composer.tsx` key handling and recall extracted (511 lines, 44 hooks) |
-| `comments/` | plugin `comments` | registers `anchors` (text, message), `sendParts`, slots (panel, popup, card, highlight layer) |
-| `attachments/` | plugin `attachments` | `userParts`, `anchors` (attachment), `sendParts` (images) |
+| `comments/` | plugin `comments` | registers `userParts` (sent comments), `sendParts`, slots (panel, popup, card, highlight layer) |
+| `attachments/` | plugin `attachments` | `userParts`, `anchorViews` (image preview), `sendParts` (images) |
 | `voice/` | plugin `voice` | `userParts` (bubble, clips), composer slot, settings section |
 | `controls/` | plugin `controls` | mode, sessions, compact/clear, model, effort, restart, stop; `ConfirmDialog` → `@/sdk/ui` |
 | `stats/` | plugin `stats` | footer meters, context nudge |
 | `tasks/` | plugin `tasks` | drawer, `shell:` tab, indicator |
 | `subagent/` | plugin `subagent` | `agent:` tab, `tools` renderer for Agent calls |
 | `files/` + `tree/` | plugin `files` | tree, file tab, recent, sources; `tree/slice.ts` moves into `files/` (97 lines, used only by files and persist) |
-| `media/` | plugin `media` | player, keys, markup; registers `fileViews` (image, video, audio) and `anchors` (media) |
-| `cut/` | plugin `cut` | `fileViews` (`*.nbcut.json`), `anchors` (cut) |
-| `page/` | plugin `page` | `fileViews` (html), `anchors` (page) |
+| `media/` | plugin `media` | player, keys, markup; registers `fileViews` (image, video, audio) and `anchorViews` (image preview) |
+| `cut/` | plugin `cut` | `fileViews` (`*.nbcut.json`), `anchorViews` (clip card) |
+| `page/` | plugin `page` | `fileViews` (html), `anchorViews` (quote, reveal, orphan) |
 | `diagram/` | plugin `diagram` | `diagram:` tab (ids from its own `sha1.ts`) |
 | `vcs/` | plugin `vcs` | Changes panel and tab, Git log, branch pill |
 | `projects/` | plugin `projects` | rail, switcher, starter; window-per-port stays confined to `projects/api.ts` |

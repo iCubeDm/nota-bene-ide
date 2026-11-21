@@ -90,7 +90,7 @@ it('devtools only in dev', () => {
 
 it('selectReplyLabel numbers final assistant items and names user messages', async () => {
   const { setLang } = await import('../i18n/index.ts');
-  const { selectReplyLabel } = await import('./store.ts');
+  const { selectReplyLabel } = await import('../comments/send.ts');
   setLang('en');
   const f = fake();
   const store = makeStore({ url: 'ws://x/ws', connect: f.connect });

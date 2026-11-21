@@ -5,6 +5,7 @@ import { CommentsToggle } from './CommentsToggle.tsx';
 import { Comments, SelectionComment } from './FrameParts.tsx';
 import { HighlightLayer } from './HighlightLayer.tsx';
 import { CommentCardPopover, SentComments } from './CommentCard.tsx';
+import { refusedListener } from './send.ts';
 
 declare module '@/sdk' {
   interface PluginState extends WithSlice<typeof commentsSlice> {}
@@ -38,5 +39,6 @@ export const commentsPlugin = definePlugin({
       },
     });
     start({ actionCreator: connState, effect: ({ payload }, api) => void (payload === 'open' && api.dispatch(flushComments())) });
+    refusedListener(start);
   },
 });

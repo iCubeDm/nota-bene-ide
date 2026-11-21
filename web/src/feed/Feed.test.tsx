@@ -7,7 +7,7 @@ import { historyPrepended } from '@/store/feed.ts';
 import { serverEvent } from '@/store/store.ts';
 import { makeStore } from '@/testing';
 import { Feed } from './Feed.tsx';
-import { inputText } from './ToolLine.tsx';
+import { inputText, ToolLine } from './ToolLine.tsx';
 import { clockTime, fullTime } from './time.ts';
 
 // counts renders: every feed element and the feed itself call useT once a render
@@ -455,4 +455,20 @@ it('a streamed token re-renders the feed and the reply it extends, not every ite
   act(() => { store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'message-chunk', text: 'x' } })); });
   // the feed, its earlier button, the first day's separator and the streaming reply's time; the 60 other items stay
   expect(renders.n).toBe(4);
+});
+
+it('a plain action\'s line does not re-render when the chat turns busy; a subagent card\'s head does (issue 471)', () => {
+  const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+  const tool = (name: string) => ({ kind: 'tool' as const, id: name, name, arg: '', sub: false, input: {} });
+  const count = (name: string) => {
+    render(<Provider store={store}><ToolLine item={tool(name)} /></Provider>);
+    renders.n = 0;
+    act(() => { store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'turn-start' } })); });
+    const n = renders.n;
+    act(() => { store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'turn-end' } as never })); });
+    cleanup();
+    return n;
+  };
+  expect(count('Bash')).toBe(0);
+  expect(count('Agent')).toBeGreaterThan(0);
 });

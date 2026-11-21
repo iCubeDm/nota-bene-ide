@@ -1,11 +1,9 @@
 import { useAutosize } from '@/composer/autosize.ts';
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from 'react-redux';
-import { has, isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, isTextAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
-import { getLang, useT, useAppDispatch, useAppSelector, type RootState, toast } from '@/sdk';
+import { has, isAttachmentAnchor, isMediaAnchor, isTextAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
+import { getLang, useT, useAppDispatch, useAppSelector, anchorLine, type RootState, toast } from '@/sdk';
 import { Button, Tooltip, TooltipTrigger } from '@/sdk/ui';
-import { pageQuote } from '@/page/quote.ts';
-import { cutLine } from '@/cut/quote.ts';
 import { selectCapabilities, selectSwitching } from '@/controls/slice.ts';
 import { ClipRow } from '@/voice/ClipRow.tsx';
 import { dictationAsk } from '@/voice/lang.ts';
@@ -24,7 +22,6 @@ import { Attachments } from '@/attachments/Attachments.tsx';
 import { insertPaths } from '@/attachments/file.ts';
 import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import type { ImageEntry } from '@/composer/slice.ts';
-import { mediaLine } from '@/media/markup/geometry.ts';
 import { deleteMarks, type MediaAnchorPatch } from '@/media/markup/createMediaComment.ts';
 import { addComment, setPanelOpen } from './slice.ts';
 import { useDrag } from './useDrag.ts';
@@ -45,14 +42,8 @@ export type PendingComment = {
 type Clip = { voice: Voice; text?: string; error?: VoiceError };
 
 /** The popup's header line: the quoted text, or the media file (with the time) and its shape count. */
-function quoteOf(a: Anchor, t: ReturnType<typeof useT>): string {
-  return isMediaAnchor(a)
-    ? mediaLine(a, (n) => t('markShapes', n))
-    : isPageAnchor(a) ? pageQuote(a, getLang())
-    : isCutAnchor(a) ? cutLine(a, getLang())
-    : isAttachmentAnchor(a) ? t('markShapes', a.shapes.length)
-    : isTextAnchor(a) ? `«${a.quote.trim()}»`
-    : '';
+function quoteOf(a: Anchor): string {
+  return isTextAnchor(a) ? `«${a.quote.trim()}»` : anchorLine(a, getLang());
 }
 
 /**
@@ -164,7 +155,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
         const msg = t('markSaveFailed', e instanceof Error ? e.message : String(e));
         setBusy(false);
         if (alive.current) notify(msg, 8000);
-        if (!alive.current || hiddenNow.current) toast(msg, body || quoteOf(pending.anchor, t));
+        if (!alive.current || hiddenNow.current) toast(msg, body || quoteOf(pending.anchor));
         return;
       }
       // a session switch began meanwhile: the comment set belongs to the session left, the comment never came to be
@@ -244,7 +235,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     e.stopPropagation(); // never reaches the composer
     void add();
   };
-  const quote = quoteOf(pending.anchor, t);
+  const quote = quoteOf(pending.anchor);
   // the mic inside the field hides once it has something (text, an image); a recorded clip keeps it (one more can be recorded)
   const hasContent = !!text.trim() || images.length > 0 || intake.pending.length > 0;
   // as in the composer, Add is always beside the field (off with nothing to add); a drawing and the clips are content of their own

@@ -261,23 +261,28 @@ run in parallel with 5–11.
 - **Tests:** Composer tests unchanged and green; the hooks tested where logic moved.
 - **Baseline:** unchanged.
 
-### 10b. Feed, anchor-kind and send-part registries
+### 10b. Feed, tool and user-part registries; anchor text in the core
 
-- **Goal:** the feed and the comment batch stop importing the features they show; comment logic leaves `store.ts`.
-  **e2e**
-- **Files:** `feed/Feed.tsx` (`feed`), `feed/ToolLine.tsx` and `subagent/` (`tools`), `feed/UserMessage.tsx`
-  (`userParts`, `anchors`); `comments/compose.ts`, `labels.ts`, `send.ts` over `anchors` (cut, page, media, attachment,
-  text, message registered by their plugins); `store/store.ts:245-300` `selectReplyLabel`/`agentLabel` → `comments/`;
-  `sendMessage` → `chat.send` collecting `sendParts` (comments, attachments, voice); `composer/refused.ts` through
-  `SendPart.refused`.
-- **Produces:** `FeedRenderer`, `ToolRenderer`, `UserPart`, `AnchorKind`, `SendPart`.
-- **Tests:** `comments/compose.test.ts` and `send.where.test.ts` (the agent-facing batch text, a contract) unchanged
-  byte for byte; `Feed`, `UserMessage`, `toolComments`, `AgentCard`, Composer tests green; the anchor parity tests
-  (`anchors/mobileParity`, `mobileChatParity`) and the feed fixture unchanged.
-- **Baseline:** plugin→plugin −~120 (feed's 22-folder fan-out, composer↔comments, feed↔subagent, comments→cut/page/media).
-  The SDK barrels' reach (`sdkReach` in `scripts/boundaries.test.ts`) loses `store/store.ts` → `voice/lang.ts`
-  (`dictationAsk`, with `sendParts`), `subagent/slice.ts` and `feed/uiSlice.ts` (`agentName`, `itemsOf`, `TOOL_SRC`,
-  with `selectReplyLabel`/`agentLabel`), and `media/mediaController.ts` (the controller is core: it moves to `store/`).
+- **Goal:** the feed stops importing the features it shows; comment logic leaves `store.ts`. **e2e**
+- **Delivered** (two PRs, 10b-1 and 10b-2): `feed/Feed.tsx` over `feed` (the feed's own kinds in `feed/items.tsx`);
+  `feed/ToolLine.tsx` over `tools` (the subagent's card in `subagent/AgentCard.tsx`; the feed keeps the fold and the
+  commentable panel); `feed/UserMessage.tsx` over `userParts` (voice 10, text 20, images 30, comments 40; new `voice`
+  and `attachments` plugins); `isAgentTool`, `TOOL_SRC` → `store/feed.ts`; `media/mediaController.ts` → `store/`; the
+  per-kind text of anchors (batch quote, card/popup/sent line, `mediaTime`, `describeShape`, cut and page lines) →
+  core `anchors/quote.ts`; `selectReplyLabel`/`agentLabel` → `comments/send.ts`; `chat.send` takes the recording with
+  its dictation ask from the voice plugin; a refused send's comments and recording are given back by the comments' and
+  the voice plugin's own listeners.
+- **Produces:** `FeedRenderer` (every kind but `tool`), `ToolRenderer` (the head: `open`, `panelId`, `comments`,
+  `busy`, `onToggle`), `UserPart`.
+- **Rulings:** the batch text stays core: it is the agent's contract, mirrored by the phone and pinned by store-free
+  tests (`compose.test.ts`, `send.where.test.ts`, `mobileBatch`) that no per-store registry can reach. No `AnchorKind`
+  (its UI duties are 10c's `AnchorView`, without `line`). No `sendParts` here: the send's snapshot, async composites
+  and image numbering need the two-phase part of 10d.
+- **Tests:** `compose.test.ts`, `send.where.test.ts`, `mobileBatch.test.ts`, the anchor parity tests and the feed
+  fixture byte-identical; registry tests pin the feed kinds, the subagent's tool head and the user parts' order; a
+  plain action's line does not re-render when the chat turns busy.
+- **Baseline:** plugin→plugin 222 → 196 (−26), plugin→core 56 → 48, core→plugin 8 → 4. `sdkReach` lost every
+  `store/store.ts` entry and `media/mediaController.ts`.
 
 ### 10c. File views registry
 
@@ -285,11 +290,33 @@ run in parallel with 5–11.
   layer and the jump through the SDK, so moving them adds no plugin→plugin entry. **e2e**
 - **Files:** `files/FileView.tsx` over `fileViews` (cut, media, page, text register; each body handles its own jump),
   `files/view/HtmlBody.tsx` → `page/`, `files/view/MediaBody.tsx` and `useMediaMarkup.ts` → `media/`.
-- **Produces:** `FileView`.
-- **Tests:** the `FileView*` tests green (jump, cut, edit, tmp); duplicate file view id throws at build; e2e.
+- **Also:** a UI-only `anchorViews` registry, `AnchorView { kind: Anchor['kind']; Card?: FC<{ comment }>; reveal?(c);
+  orphan?(c, root): boolean }`, falling back to core `anchorLine`: `cut` registers the clip card, `media` and
+  `attachments` the image preview, `page` its quote, reveal and orphan check. It removes the per-kind ternary in
+  `comments/card/CommentCard.tsx`, `useCommentSource`/`HighlightLayer` → `page/*` and `frameGroups` → `media/markup`.
+  With the jump: `feed/uiSlice.ts` → `subagent/slice.ts` (`revealToolOf`'s `itemsOf`), and with `refs` the feed's file
+  edges (`Markdown` → `files/*`, `media/ChatPlayer.tsx`; `ToolLine` → `files/tmpImages.ts`).
+- **Produces:** `FileView`, `AnchorView`.
+- **Tests:** the `FileView*` tests green (jump, cut, edit, tmp); duplicate file view id throws at build; the card,
+  popup and highlight tests green; e2e.
 - **Baseline:** plugin→plugin −~20 (files↔cut, files→media/page). The SDK barrels' reach loses `refs/refs.ts` →
   `files/kinds.ts`, `files/sources.ts`, `files/tmpImages.ts` (refs resolves paths through what `files` registers) and
   `anchors/scroll.ts` → `page/frame.ts` (the frame's rect helpers move into `anchors/`): `sdkReach` is then empty.
+
+### 10d. `chat.send` over `sendParts`
+
+- **Goal:** the composer↔comments cycle goes: a send collects its parts through the core. **e2e**
+- **Files:** core `chat.send` (from `comments/send.ts`'s `sendBatch`/`sendNow`); `comments`, `attachments` and `voice`
+  register `sendParts`; `composer/Composer.tsx`, `composer/shellMode.ts`, `composer/refused.ts`.
+- **Produces:** two-phase `SendPart { id; order; take(s, d): Taken | null }`, `Taken { ready?: Promise<void>;
+  unchanged(s): boolean; compose(ctx: { lang; images: ImageRef[] }): { text?; images?; commentIds? }; released():
+  void }`. `chat.send` takes the parts in order at the click, waits for `ready` up to `COMPOSITE_MS`, checks
+  `unchanged`, composes in order (`ctx.images`: the numbering so far, the attachment numbers), sends, and calls
+  `released` on a failure or a `send-refused` (the core keeps send id → taken parts, so comments no longer read
+  `composer.unconfirmed`). A voice send is the same call with a parts filter.
+- **Tests:** the send, voice and `micSend` tests green (behavior unchanged); `compose.test.ts` and `send.where.test.ts`
+  byte-identical.
+- **Baseline:** composer↔comments (18 entries) and the comments' `refusedListener` coupling go.
 
 ### 11. Settings sections, resources registry, baseline to zero
 
@@ -300,6 +327,9 @@ run in parallel with 5–11.
   folded per the state rule where the touched files hold them; the ~60 unused exports (inventory) removed there;
   the global `BINDINGS` in `shell/keymap.ts` (9c) goes: key labels come from `useRegistry().commands` through a pure
   `keysFor(commands, id)`, so `withKey` takes the commands (`shell/keymap.test.tsx` may change then).
+- **Also:** the rest of the feed's fan-out: its reads of `controls/slice.ts` (`Feed`, `DoneLine`, `PlanCard`),
+  `ShellBlock` → `composer/shellMode.ts`, `settings/shells.ts`, `Markdown` → `diagram/`, `shell/theme.ts`, and
+  `subagent/AgentView.tsx` → `feed/Feed.tsx`, `comments/HighlightLayer.tsx`.
 - **Produces:** `SettingsSection`; the registry complete.
 - **Tests:** `SettingsView.test.tsx` per section; the boundary test with an empty (or explicitly justified) baseline.
 - **Baseline:** → 0 plugin→plugin, 0 core→plugin, 0 plugin→core outside the SDK; any survivor listed in the PR with
