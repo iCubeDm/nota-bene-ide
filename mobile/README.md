@@ -11,7 +11,8 @@ The phone side of remote access (issue #63), in three Dart packages:
 In `app/lib`, `sdk.dart` is what the app is built on (`Sdk`: the `AppStores`, the host links, the phone's identity, the
 background check), made once by `main.dart` and passed down. A window is `chat/window_tab.dart`, composing
 `chat/agent_connection.dart` (the socket) and `chat/window_state.dart` (what the window said). `app/test/imports_test.dart`
-keeps model and store files free of screens and `main.dart`. Details: [architecture 2.3](../docs/architecture.md#23-remote-relay).
+keeps model and store files free of screens, the media renderer and `main.dart`, and the stores off the folders above
+them. Details: [architecture 2.3](../docs/architecture.md#23-remote-relay).
 
 ## Checks
 
@@ -99,7 +100,7 @@ commit's short hash for a commit's diff) and the text of the code rows, markers 
 nor notified, a wait that started; counts kept in `store/notified.dart`, apart from Seen). `background.dart` keeps the
 links while a window is busy or pending and for 5 minutes after, through `AgentService.kt` (a foreground service of
 type `remoteMessaging` on a minimum-importance channel); a hidden app without it drops its links after 10 minutes, as
-before. `CheckWorker.kt` runs every 15 minutes: while the activity exists it asks that engine to `check` (one device key
+before. When the links run is `hosts/link_life.dart`'s, made by `main.dart` beside them: the service and a check hold them. `CheckWorker.kt` runs every 15 minutes: while the activity exists it asks that engine to `check` (one device key
 holds one connection per host; a second would close the app's with 4409), otherwise it starts an engine at
 `headless.dart`'s `backgroundCheck`. An open chat counts replies as seen only while the app is visible
 (`visible.dart`). The Dart side drives Android through `nb/background` (`platform.dart`, `Notices.kt`).

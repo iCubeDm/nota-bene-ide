@@ -23,7 +23,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypt
 import fs from 'node:fs';
 import type { IncomingHttpHeaders, RequestListener } from 'node:http';
 import path from 'node:path';
-import { renameRetry } from './platform.ts';
+import { writeAtomic } from './atomicFile.ts';
 import { SecretError, stateDir } from './state.ts';
 
 export { SecretError };
@@ -96,16 +96,7 @@ export function readPrivateFile(file: string, valid: RegExp, what: string, remed
 const cap = (s: string): string => s[0]!.toUpperCase() + s.slice(1);
 
 /** Writes a private file whole: a tmp file (mode 600) in the same folder, then renamed over the old one. */
-export function writePrivateFile(file: string, content: string): void {
-  const tmp = `${file}.tmp${process.pid}-${randomBytes(4).toString('hex')}`;
-  fs.writeFileSync(tmp, content, { mode: 0o600, flag: 'wx' });
-  try {
-    renameRetry(tmp, file);
-  } catch (e) {
-    fs.rmSync(tmp, { force: true });
-    throw e;
-  }
-}
+export const writePrivateFile = (file: string, content: string): void => writeAtomic(file, content, 0o600);
 
 /** link() codes of a file system without hard links (as in marks.ts). */
 const NO_LINKS = new Set(['ENOTSUP', 'EOPNOTSUPP', 'EPERM', 'ENOSYS']);

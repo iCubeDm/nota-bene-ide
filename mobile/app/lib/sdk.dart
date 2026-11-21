@@ -1,9 +1,10 @@
-// What the app is built on (issue 511): its stores, the links to the paired hosts, the phone's key and the background
-// check. Made once by main.dart's `_load` and passed down; no store is a singleton of its own, so a test builds its
+// What the app is built on (issue 511): its stores, the links to the paired hosts and what keeps them running, the
+// phone's key and the background check. Made once by main.dart's `_load` and passed down; no store is a singleton of its own, so a test builds its
 // own in memory.
 import 'comments/queue.dart';
 import 'hosts/host_link.dart';
-import 'hosts/project_icon.dart';
+import 'hosts/link_life.dart';
+import 'store/project_icons.dart';
 import 'notify/background.dart';
 import 'store/hosts.dart';
 import 'store/notified.dart';
@@ -51,12 +52,14 @@ class Sdk {
   Sdk({
     required this.stores,
     required this.links,
+    required this.life,
     required this.id,
     required this.background,
   });
 
   final AppStores stores;
   final Links links;
+  final LinkLife life;
   final Identity id;
   final Background background;
 }

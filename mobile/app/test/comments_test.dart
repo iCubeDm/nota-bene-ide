@@ -98,7 +98,7 @@ void main() {
       },
     );
     test('it stays pending for the desktop', () {
-      final cs = Comments((_) => true, () => null);
+      final cs = Comments((_) => true, () => null, has: (_) => false);
       cs.apply([cut(voice)]);
       expect(cs.pending.map((x) => x.id), ['k']);
       expect(cs.sendable, isEmpty);
@@ -154,10 +154,14 @@ void main() {
 
     test('add and edit keep the clips', () {
       final sent = <ClientMessage>[];
-      final cs = Comments((m) {
-        sent.add(m);
-        return true;
-      }, () => 's')..hello(13);
+      final cs = Comments(
+        (m) {
+          sent.add(m);
+          return true;
+        },
+        () => 's',
+        has: (f) => has(13, f),
+      )..hello();
       final x = cs.add(
         c('z', 'q', '').anchor,
         'hi',
@@ -188,7 +192,8 @@ void main() {
           },
           () => null,
           now: () => DateTime.fromMillisecondsSinceEpoch(1),
-        )..hello(13);
+          has: (f) => has(13, f),
+        )..hello();
         final w = Comment.fromJson(want);
         cs.add(
           w.anchor,
@@ -372,10 +377,14 @@ void main() {
     setUp(() {
       out = [];
       // a window older than protocol 19: the whole set
-      cs = Comments((m) {
-        out.add(m);
-        return true;
-      }, () => 's1')..hello(13);
+      cs = Comments(
+        (m) {
+          out.add(m);
+          return true;
+        },
+        () => 's1',
+        has: (f) => has(13, f),
+      )..hello();
     });
 
     test('the server set replaces the list; pending and per file', () {

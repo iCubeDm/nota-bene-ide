@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { providerStateDir, type AgentProvider } from './agent/provider.ts';
+import { breakLock, updateJson, writeAtomic } from './atomicFile.ts';
 import { HIDDEN, isWindows, killTree, npmSpec, resolveBin, spawnSpec, type SpawnSpec } from './platform.ts';
 import { stateBaseDir } from './state.ts';
 import { RELEASE } from './update.ts';
@@ -17,12 +18,6 @@ const currentFile = () => path.join(runtimeDir(), 'current');
 const stateFile = () => path.join(runtimeDir(), 'state.json');
 const lockFile = () => path.join(runtimeDir(), 'update.lock');
 
-function writeAtomic(file: string, text: string): void {
-  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, text, { mode: 0o600 });
-  fs.renameSync(tmp, file);
-}
 
 /** What `current` says, installed or not: after a rollback to a launcher's own version there is no runtime folder for it. */
 export const rawCurrent = (): string | null => {
@@ -43,16 +38,20 @@ export type UpdateState = {
   rolledBack?: { version: string; at: number };
 };
 
+const asState = (s: unknown): UpdateState =>
+  s && typeof s === 'object' && !Array.isArray(s) ? { ...(s as UpdateState), auto: (s as UpdateState).auto === true } : { auto: false };
+
 export function readUpdateState(): UpdateState {
   try {
-    const s: unknown = JSON.parse(fs.readFileSync(stateFile(), 'utf8'));
-    if (s && typeof s === 'object' && !Array.isArray(s)) return { ...(s as UpdateState), auto: (s as UpdateState).auto === true };
-  } catch { /* missing or broken: the defaults */ }
-  return { auto: false };
+    return asState(JSON.parse(fs.readFileSync(stateFile(), 'utf8')));
+  } catch {
+    return { auto: false }; // missing or broken: the defaults
+  }
 }
 
 export function patchUpdateState(f: (s: UpdateState) => UpdateState): void {
-  writeAtomic(stateFile(), JSON.stringify(f(readUpdateState()), null, 2));
+  fs.mkdirSync(runtimeDir(), { recursive: true, mode: 0o700 });
+  updateJson(stateFile(), (s) => f(asState(s)), { space: 2, mode: 0o600 });
 }
 
 /** Points `current` at `v`, remembering the replaced version as `previous`. With `expect`, only while `current` still says so. */
@@ -60,7 +59,8 @@ export function writeCurrent(v: string, expect?: string | null): boolean {
   if (!RELEASE.test(v)) return false;
   const was = rawCurrent();
   if (expect !== undefined && was !== expect) return false;
-  writeAtomic(currentFile(), v);
+  fs.mkdirSync(runtimeDir(), { recursive: true, mode: 0o700 });
+  writeAtomic(currentFile(), v, 0o600);
   if (was !== null && was !== v && RELEASE.test(was)) patchUpdateState((s) => ({ ...s, previous: was }));
   return true;
 }
@@ -105,18 +105,12 @@ export function takeLockFile(file: string, version: string): boolean {
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
       }
+      let seen: string;
+      try { seen = fs.readFileSync(file, 'utf8'); } catch { continue; }
       const l = readLock(file);
       if (l && l !== 'stale') return false;
-      // stale: move it aside (one winner), and re-check what was really moved
-      const aside = `${file}.${uniq}.stale`;
-      try { fs.renameSync(file, aside); } catch { continue; }
-      const moved = readLock(aside);
-      if (moved && moved !== 'stale') {
-        try { fs.linkSync(aside, file); } catch { /* the newer owner already re-created it */ }
-        fs.rmSync(aside, { force: true });
-        return false;
-      }
-      fs.rmSync(aside, { force: true });
+      // stale: removed only while it still holds what was judged (a newer owner's lock is never touched)
+      if (l) breakLock(file, seen);
     }
     return false;
   } finally {

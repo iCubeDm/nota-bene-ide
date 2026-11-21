@@ -936,7 +936,7 @@ export const ru = {
   voiceClipsWait: "Ждём расшифровку…",
   voiceClipsMax: "Не больше 10 фрагментов в комментарии",
   voiceRefused: (why: string) => `Голосовое сообщение не отправлено: ${why}`,
-  // экспорт видеоредактора (web/src/cut/export)
+  // экспорт видеоредактора (web/src/plugins/cut/export)
   cutExport: "Экспорт",
   cutExportFormat: "Формат экспорта",
   cutExportMp4: "Видео (MP4)",

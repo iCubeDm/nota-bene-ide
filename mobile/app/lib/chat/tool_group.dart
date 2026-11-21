@@ -6,7 +6,7 @@ import 'package:nb_protocol/nb_protocol.dart'
 import '../comments/comments.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
-import 'chat_screen.dart' show ToolLine;
+import 'bubbles.dart' show ToolLine;
 import 'feed.dart';
 import 'files.dart';
 import 'media_card.dart';

@@ -49,6 +49,9 @@ class Window {
 
   late final Comments cs;
 
+  /// The protocol of the window's last hello.
+  num? protocol;
+
   Window({CommentQueue? queue, num? protocol = 19}) {
     cs = Comments(
       (m) {
@@ -57,9 +60,16 @@ class Window {
         return true;
       },
       () => session,
+      has: (f) => has(this.protocol, f),
       queue: queue,
     );
-    if (protocol != null) cs.hello(protocol);
+    if (protocol != null) hello(protocol);
+  }
+
+  /// A new socket says hello with [p].
+  void hello(num p) {
+    protocol = p;
+    cs.hello();
   }
 
   List<ClientMessageCommentOp> get ops =>
@@ -112,7 +122,7 @@ void main() {
         w.cs.apply([c('a'), c('b')]);
         expect(w.ops.length, 3);
         // a new socket: what was not acked goes again
-        w.cs.hello(19);
+        w.hello(19);
         w.cs.flush();
         expect(w.ops.length, 6);
       },
@@ -124,7 +134,7 @@ void main() {
       w.cs.apply([]);
       expect(w.sent, isEmpty);
       expect(w.shown, ['n']);
-      w.cs.hello(19);
+      w.hello(19);
       w.cs.flush();
       expect(w.ops.length, 1);
     });
@@ -135,7 +145,7 @@ void main() {
       w.cs.add(c('x').anchor, 'mine', null, id: 'n');
       w.cs.refused(w.ops.single.opId, CommentRefusal.invalid);
       expect(w.shown, isEmpty);
-      w.cs.hello(19);
+      w.hello(19);
       expect(w.ops.length, 1);
     });
 
@@ -156,7 +166,7 @@ void main() {
         w.cs.flush();
         w.cs.apply([c('a', text: 'theirs')]);
         expect(w.ops.length, 2);
-        w.cs.hello(19);
+        w.hello(19);
         w.cs.flush();
         expect(w.ops.length, 3);
         await Future<void>.delayed(Duration.zero);
@@ -177,7 +187,7 @@ void main() {
         w.cs.flush();
         expect(w.ops.single.sessionId, 's1');
         w.cs.acked(w.ops.single.opId);
-        w.cs.hello(19);
+        w.hello(19);
         w.cs.flush();
         expect(w.ops.length, 1);
       },
@@ -208,7 +218,7 @@ void main() {
       () {
         final w = Window(protocol: null)..open = false;
         w.cs.add(c('x').anchor, 'new', null, id: 'n');
-        w.cs.hello(13);
+        w.hello(13);
         w.cs.apply([c('a')]);
         expect(w.sent, isEmpty);
         w.open = true;
@@ -243,7 +253,7 @@ void main() {
         after.cs.apply([c('a'), c('b')]);
         expect(after.shown, ['a', 'n']);
         expect(after.cs.all.first.text, 'better');
-        after.cs.hello(19);
+        after.hello(19);
         after.cs.flush();
         expect(after.ops.length, 3);
         // acked, they leave the disk too
@@ -371,7 +381,7 @@ void main() {
       r.event({'kind': 'comment-ack', 'opId': op['opId']});
       await t.pump();
       // acked, it is not sent again on the next socket
-      r.tab!.comments.hello(19);
+      r.tab!.comments.hello();
       r.tab!.comments.flush();
       expect(r.sent.where((m) => m['type'] == 'comment-op').length, 1);
       r.dispose();

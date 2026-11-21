@@ -8,6 +8,7 @@ import { createHash, createHmac, createPrivateKey, createPublicKey, randomBytes,
 import fs from 'node:fs';
 import path from 'node:path';
 import type { RemoteRefusalCode } from '@nota-bene/shared';
+import { withLock } from '../atomicFile.ts';
 import { readPrivateFile, writePrivateFile } from '../auth.ts';
 import { SecretError, stateBaseDir } from '../state.ts';
 import { generateKeyPair, publicOf, type KeyPair } from './noise.ts';
@@ -205,21 +206,25 @@ function byId<T extends { id: string }>(list: T[], idOrPrefix: string): T | null
 
 /** Adds a device (idempotent for one key). */
 export function addDevice(pub: Buffer, name?: string): Device {
-  const devices = readDevices();
-  const key = b64u(pub);
-  const have = devices.find((d) => d.pub === key);
-  if (have) return have;
-  const d: Device = { id: newId(pub, devices), pub: key, ...(name ? { name: name.slice(0, 64) } : {}), addedAt: Date.now() };
-  writeDevices([...devices, d]);
-  return d;
+  return withLock(devicesFile(), () => {
+    const devices = readDevices();
+    const key = b64u(pub);
+    const have = devices.find((d) => d.pub === key);
+    if (have) return have;
+    const d: Device = { id: newId(pub, devices), pub: key, ...(name ? { name: name.slice(0, 64) } : {}), addedAt: Date.now() };
+    writeDevices([...devices, d]);
+    return d;
+  });
 }
 
 /** Removes the device whose id is or starts with `idOrPrefix`; null when none does; an ambiguous prefix throws. */
 export function removeDevice(idOrPrefix: string): Device | null {
-  const devices = readDevices();
-  const d = byId(devices, idOrPrefix);
-  if (d) writeDevices(devices.filter((x) => x !== d));
-  return d;
+  return withLock(devicesFile(), () => {
+    const devices = readDevices();
+    const d = byId(devices, idOrPrefix);
+    if (d) writeDevices(devices.filter((x) => x !== d));
+    return d;
+  });
 }
 
 /** A computer this one paired with as a device (issue 297): where to reach it and the host key it pinned. */
@@ -231,35 +236,42 @@ export function readHosts(): Host[] {
   return list.filter((h) => h && typeof h.id === 'string' && typeof h.relay === 'string' && typeof h.pub === 'string' && KEY_RE.test(h.pub));
 }
 
-const writeHosts = (hosts: Host[]) => writePrivateFile(path.join(remoteDir(), 'hosts.json'), `${JSON.stringify({ v: 1, hosts }, null, 2)}\n`);
+const hostsFile = () => path.join(remoteDir(), 'hosts.json');
+const writeHosts = (hosts: Host[]) => writePrivateFile(hostsFile(), `${JSON.stringify({ v: 1, hosts }, null, 2)}\n`);
 
 /** Saves a paired computer; one already saved with this key keeps its id and date and takes the new relay and name. */
 export function addHost(o: { relay: string; pub: Buffer; name?: string }): Host {
   checkRelay(o.relay);
-  const hosts = readHosts();
-  const key = b64u(o.pub);
-  const have = hosts.find((h) => h.pub === key);
-  const h: Host = { id: have?.id ?? newId(o.pub, hosts), relay: o.relay, pub: key, ...(o.name ? { name: o.name.slice(0, 64) } : {}), addedAt: have?.addedAt ?? Date.now() };
-  writeHosts(have ? hosts.map((x) => (x === have ? h : x)) : [...hosts, h]);
-  return h;
+  return withLock(hostsFile(), () => {
+    const hosts = readHosts();
+    const key = b64u(o.pub);
+    const have = hosts.find((h) => h.pub === key);
+    const h: Host = { id: have?.id ?? newId(o.pub, hosts), relay: o.relay, pub: key, ...(o.name ? { name: o.name.slice(0, 64) } : {}), addedAt: have?.addedAt ?? Date.now() };
+    writeHosts(have ? hosts.map((x) => (x === have ? h : x)) : [...hosts, h]);
+    return h;
+  });
 }
 
 /** A saved computer's new name, read and written at once: a computer forgotten meanwhile stays forgotten. */
 export function renameHost(pub: Buffer, name: string): Host | null {
-  const hosts = readHosts();
-  const have = hosts.find((h) => h.pub === b64u(pub));
-  if (!have) return null;
-  const h: Host = { ...have, name: name.slice(0, 64) };
-  writeHosts(hosts.map((x) => (x === have ? h : x)));
-  return h;
+  return withLock(hostsFile(), () => {
+    const hosts = readHosts();
+    const have = hosts.find((h) => h.pub === b64u(pub));
+    if (!have) return null;
+    const h: Host = { ...have, name: name.slice(0, 64) };
+    writeHosts(hosts.map((x) => (x === have ? h : x)));
+    return h;
+  });
 }
 
 /** Forgets the computer whose id is or starts with `idOrPrefix`; null when none does; an ambiguous prefix throws. */
 export function removeHost(idOrPrefix: string): Host | null {
-  const hosts = readHosts();
-  const h = byId(hosts, idOrPrefix);
-  if (h) writeHosts(hosts.filter((x) => x !== h));
-  return h;
+  return withLock(hostsFile(), () => {
+    const hosts = readHosts();
+    const h = byId(hosts, idOrPrefix);
+    if (h) writeHosts(hosts.filter((x) => x !== h));
+    return h;
+  });
 }
 
 export function checkRelay(url: string): void {

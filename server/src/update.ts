@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { renameRetry } from './platform.ts';
+import { writeJsonAtomic } from './atomicFile.ts';
 import { readPrefs } from './prefs.ts';
 import { stateBaseDir } from './state.ts';
 
@@ -56,9 +56,7 @@ export function updateCheck(o: { fetch?: typeof fetch; now?: () => number; off?:
     } catch { /* no network is not a fault: the notice just does not show */ }
     try {
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      const tmp = `${file}.${process.pid}.tmp`;
-      fs.writeFileSync(tmp, JSON.stringify({ latest, at: now() } satisfies Cached), { mode: 0o600 });
-      renameRetry(tmp, file);
+      writeJsonAtomic(file, { latest, at: now() } satisfies Cached, { mode: 0o600 });
     } catch { /* an unwritable folder only means the next ask is not spared */ }
     running = null;
   };

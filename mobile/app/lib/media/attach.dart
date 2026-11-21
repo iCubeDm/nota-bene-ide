@@ -7,10 +7,10 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:image/image.dart' as img;
+import 'package:nb_channel/nb_channel.dart' show WindowHttp;
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../chat/window_tab.dart';
-import 'media_comment.dart';
 import 'render.dart';
 
 /// What `/attach` takes.

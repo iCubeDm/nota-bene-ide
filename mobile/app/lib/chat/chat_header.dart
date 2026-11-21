@@ -54,7 +54,12 @@ class ChatHeader extends StatelessWidget {
   static const _size = 40.0;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: tab,
+    builder: (context, _) => _pill(context),
+  );
+
+  Widget _pill(BuildContext context) {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
     final f = tab.windowState.feed;

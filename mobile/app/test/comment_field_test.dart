@@ -68,7 +68,8 @@ void main() {
         },
         () => 's',
         now: () => now,
-      )..hello(13);
+        has: (f) => has(13, f),
+      )..hello();
       cs.add(_c('a').anchor, 'hi', null, id: 'a');
       now = now.add(const Duration(minutes: 1));
       expect(cs.pending.map((x) => x.id), ['a']);
@@ -86,7 +87,7 @@ void main() {
 
     test('an edit made offline is not undone by the server\'s older copy', () {
       var open = false;
-      final cs = Comments((m) => open, () => 's');
+      final cs = Comments((m) => open, () => 's', has: (_) => false);
       cs.apply([_c('a')]);
       cs.edit('a', 'new', null);
       cs.apply([_c('a')]);
@@ -99,11 +100,15 @@ void main() {
       var open = false;
       var sid = 's1';
       final sent = <ClientMessageComments>[];
-      final cs = Comments((m) {
-        if (!open) return false;
-        sent.add(m as ClientMessageComments);
-        return true;
-      }, () => sid);
+      final cs = Comments(
+        (m) {
+          if (!open) return false;
+          sent.add(m as ClientMessageComments);
+          return true;
+        },
+        () => sid,
+        has: (_) => false,
+      );
       cs.add(_c('a').anchor, 'hi', null, id: 'a');
       sid = 's2';
       open = true;
@@ -120,11 +125,15 @@ void main() {
       () {
         var open = false;
         final sent = <ClientMessageComments>[];
-        final cs = Comments((m) {
-          if (!open) return false;
-          sent.add(m as ClientMessageComments);
-          return true;
-        }, () => 's');
+        final cs = Comments(
+          (m) {
+            if (!open) return false;
+            sent.add(m as ClientMessageComments);
+            return true;
+          },
+          () => 's',
+          has: (_) => false,
+        );
         cs.apply([_c('a'), _c('b')]);
         cs.edit('a', 'new', null);
         open = true;
@@ -139,10 +148,14 @@ void main() {
 
     test('an edit that went out is not overlaid or pushed again', () {
       final sent = <ClientMessageComments>[];
-      final cs = Comments((m) {
-        sent.add(m as ClientMessageComments);
-        return true;
-      }, () => 's');
+      final cs = Comments(
+        (m) {
+          sent.add(m as ClientMessageComments);
+          return true;
+        },
+        () => 's',
+        has: (_) => false,
+      );
       cs.apply([_c('a')]);
       cs.edit('a', 'new', null);
       final n = sent.length;
@@ -154,7 +167,7 @@ void main() {
 
   group('one count of comments to send', () {
     test('held ones are counted out everywhere', () {
-      final cs = Comments((_) => true, () => 's');
+      final cs = Comments((_) => true, () => 's', has: (_) => false);
       cs.held = () => {'b'};
       cs.apply([_c('a'), _c('b'), _c('x', status: CommentStatus.sent)]);
       expect(cs.pending.length, 2);

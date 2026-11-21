@@ -4,10 +4,23 @@
 // (`comment-ops.json`) and the voice outboxes (`voice-out/index.json`, `voice-out/<entry>.wav`). The phone has no
 // `storage.pref`: its settings are its own, not a host's. Tests use [Storage.memory].
 import 'dart:io';
-import 'dart:typed_data';
 
-import '../voice/files.dart' show outDir;
+import 'package:flutter/services.dart';
+
 import 'vault.dart';
+
+/// MainActivity's `nb/play`: the voice player, and the app's folders it names.
+const playChannel = MethodChannel('nb/play');
+
+/// `filesDir/voice-out`, the voice outboxes' recordings; null where the platform has none (tests).
+Future<Directory?> outDir() async {
+  try {
+    final p = await playChannel.invokeMethod<String>('outDir');
+    return p == null ? null : Directory(p);
+  } on Object {
+    return null;
+  }
+}
 
 class Storage {
   Storage(this.vault, this.files);

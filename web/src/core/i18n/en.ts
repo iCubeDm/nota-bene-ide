@@ -938,7 +938,7 @@ export const en: Dict = {
   voiceClipsWait: "Waiting for the transcripts…",
   voiceClipsMax: "At most 10 clips in a comment",
   voiceRefused: (why: string) => `The voice message was not sent: ${why}`,
-  // the video editor's export (web/src/cut/export)
+  // the video editor's export (web/src/plugins/cut/export)
   cutExport: "Export",
   cutExportFormat: "Export format",
   cutExportMp4: "Video (MP4)",

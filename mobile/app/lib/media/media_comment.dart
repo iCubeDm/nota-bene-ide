@@ -9,15 +9,6 @@ import 'package:nb_protocol/nb_protocol.dart';
 
 import 'render.dart';
 
-/// One request to the window (its port is the caller's).
-typedef WindowHttp =
-    Future<HttpAnswer> Function(
-      String method,
-      String path, {
-      Map<String, String>? headers,
-      List<int>? body,
-    });
-
 class MarkSaveError implements Exception {
   MarkSaveError(this.what);
   final String what;

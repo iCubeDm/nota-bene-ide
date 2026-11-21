@@ -920,7 +920,7 @@ export const de: Dict = {
   voiceClipsWait: "Warte auf die Transkripte …",
   voiceClipsMax: "Höchstens 10 Clips pro Kommentar",
   voiceRefused: (why: string) => `Die Sprachnachricht wurde nicht gesendet: ${why}`,
-  // der Export des Videoeditors (web/src/cut/export)
+  // der Export des Videoeditors (web/src/plugins/cut/export)
   cutExport: "Exportieren",
   cutExportFormat: "Exportformat",
   cutExportMp4: "Video (MP4)",
