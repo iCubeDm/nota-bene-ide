@@ -1,5 +1,5 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { anchorSource } from '@nota-bene/shared';
+import { anchorSource, type Comment } from '@nota-bene/shared';
 import { isAgentTool, TOOL_SRC, type AppThunk, type RootState, type FeedItem } from '@/sdk';
 
 /**
@@ -65,8 +65,11 @@ export const revealToolOf = (toolId: string, items: (s: RootState) => FeedItem[]
   d(revealTool({ tool: scopedId(agent, toolId), group: group && scopedId(agent, group) }));
 };
 
-/** Comments (pending and sent) per tool id, for the folded heads: a comment inside a closed panel is never invisible. */
-export const selectToolCommentCounts = createSelector([(s: RootState) => s.comments.items], (items) => {
+/**
+ * Comments (pending and sent) per tool id, for the folded heads: a comment inside a closed panel is never invisible.
+ * Of the comments service's `selectComments` (the comments are that plugin's slice).
+ */
+export const toolCommentCounts = createSelector([(items: readonly Comment[]) => items], (items) => {
   const m: Record<string, number> = {};
   for (const c of items) {
     const src = anchorSource(c.anchor);
@@ -79,7 +82,7 @@ export const selectToolCommentCounts = createSelector([(s: RootState) => s.comme
 });
 
 /** The furthest anchor end (in the panel's anchor text) per tool id: how much of a commented output must be rendered. */
-export const selectToolAnchorEnds = createSelector([(s: RootState) => s.comments.items], (items) => {
+export const toolAnchorEnds = createSelector([(items: readonly Comment[]) => items], (items) => {
   const m: Record<string, number> = {};
   for (const c of items) {
     const src = anchorSource(c.anchor);

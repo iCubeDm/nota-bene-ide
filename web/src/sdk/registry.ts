@@ -1,10 +1,9 @@
-import type { ClipboardEvent, FC, MutableRefObject, Ref, RefObject, SyntheticEvent } from 'react';
-import type { PayloadAction, UnknownAction } from '@reduxjs/toolkit';
-import type { AgentProvider, Anchor, Comment, CutAnchor, ImageRef, ImageType, MediaAnchor, TextAnchor, Voice, VoiceError } from '@nota-bene/shared';
+import type { FC, MutableRefObject, Ref, SyntheticEvent } from 'react';
+import type { Anchor, Comment, ImageRef, ImageType, MediaAnchor, TextAnchor } from '@nota-bene/shared';
 import type { I18nKey, Lang, t } from '../i18n/index.ts';
 import type { ru } from '../i18n/ru.ts';
 import type { AppDispatch, AppStore, AppThunk, RootState } from '../store/store.ts';
-import type { FeedItem, FeedState } from '../store/feed.ts';
+import type { FeedItem } from '../store/feed.ts';
 import type { FileKind } from '../refs/kinds.ts';
 import type { Tab, TabKinds } from '../tabs/slice.ts';
 import type { Plugin } from './plugin.ts';
@@ -206,175 +205,8 @@ export type PendingComment = {
 
 export type MediaComment = Comment & { anchor: MediaAnchor };
 
-/**
- * The comments as other plugins' views use them (issue 545), provided by the comments plugin and read with
- * `useComments()`: the marks over a pane's text, the popup over a fresh selection or drawing, the flash of a jump, and
- * the comment set.
- */
-export interface CommentsService {
-  /**
-   * The marks over the commented text of a pane (`pane`: the tab id, 'chat' by default), inside its scroll element. A
-   * diff view passes the file it shows (`diff`, null for none) and what repaints it (`content`).
-   */
-  HighlightLayer: FC<{ pane?: string; diff?: { path: string; ref?: string } | null; content?: unknown }>;
-  /**
-   * `onAdded`: the comment is in the store; `onBusy`: a drawing's Add started (true) or ended without a comment (false);
-   * `hidden`: its tab is not shown.
-   */
-  CommentPopup: FC<{ pending: PendingComment; onClose: () => void; onAdded?: () => void; onBusy?: (busy: boolean) => void; hidden?: boolean }>;
-  /** a one-off flash over a fragment, in the pane's layer */
-  flashRange(pane: HTMLElement, range: Range): void;
-  /** the same over boxes in this window's coordinates (a page element or area) */
-  flashRects(pane: HTMLElement, rects: DOMRect[]): void;
-  selectComments(s: RootState): Comment[];
-  /** pending comments per file, keyed by `fileKey(path, ref)` */
-  selectPendingCountByPath(s: RootState): Record<string, number>;
-  /** the media comments on one file of one source, in store order */
-  selectMediaComments(s: RootState, path: string, ref?: string): MediaComment[];
-  /** opens a comment's card at a point */
-  openCommentCard(at: { id: string; x: number; y: number }): PayloadAction<{ id: string; x: number; y: number }>;
-  /** a comment on an edit, moved with what it marks */
-  moveCutComment(id: string, anchor: CutAnchor): AppThunk;
-  removeComment(id: string): AppThunk;
-}
-
-/** A recording being made, as `VoiceService.useRecorder` holds it; `wav`, `ms`, `wave`: the stopped recording. */
-export type RecState =
-  | { phase: 'idle' }
-  /** `held`: the button is still down (release sends); `ms`: the length so far; `levels`: the recent input levels, newest last */
-  | { phase: 'recording'; held: boolean; ms: number; levels: number[] }
-  /**
-   * stopped, to be listened to; `url`: the recording as a playable blob URL ('' where the browser has none);
-   * `voice`: it is already uploaded (the send could not go out), so Send does not upload it again
-   */
-  | { phase: 'preview'; recording: { wav: Blob; ms: number; wave: number[] }; url: string; voice?: Voice }
-  | { phase: 'sending'; recording: { wav: Blob; ms: number; wave: number[] }; url: string; voice?: Voice };
-
-/** One recording at a time: `start(held)`, `stop` (to the preview, or uploaded), `send`, `cancel`; `restore` a refused one. */
-export interface VoiceRecorder {
-  st: RecState;
-  start(held: boolean): void;
-  restore(v: Voice): void;
-  /** the held button let go */
-  release(): void;
-  cancel(): void;
-  stop(): Promise<void>;
-  send(force?: boolean): Promise<void>;
-}
-
-/**
- * The voice messages as the composer and the comment popup use them (issue 545), provided by the voice plugin and read
- * with `useVoice()`: the recorder, its bar, the Whisper set-up prompt, a comment's clip, and the sends.
- */
-export interface VoiceService {
-  /**
-   * `onDone` gets the uploaded voice (and whether Send forced) and answers false when it could not use it: the
-   * recording stays in the preview. `preview`: Stop goes to a preview; without it Stop uploads at once.
-   */
-  useRecorder(o: { onDone: (v: Voice, force: boolean) => boolean | void; notify: (msg: string) => void; preview: boolean }): VoiceRecorder;
-  /** the field while recording; `clip`: a comment's recording (Stop adds the clip) */
-  RecordBar: FC<{ state: Exclude<RecState, { phase: 'idle' }>; onCancel: () => void; onStop?: () => void; onSend: (force: boolean) => void; clip?: boolean; busy?: boolean; onEscape?: () => boolean }>;
-  /** the mic without Whisper: the prompt to set it up, anchored to the mic */
-  WhisperPrompt: FC<{ open: boolean; onOpenChange: (open: boolean) => void; anchor: RefObject<HTMLElement | null> }>;
-  /** a comment's recording with its transcript; its player stops on delete */
-  ClipRow: FC<{ voice: Voice; text?: string; error?: VoiceError; onRetry?: () => void; onDelete?: () => void }>;
-  transcribe(id: string, ask: { lang: string; detect?: true }): Promise<{ text: string; lang?: string } | { error: VoiceError }>;
-  /**
-   * a recording as a message of its own; `force`: it interrupts the agent, `rides`: the pending comments go with it.
-   * False when nothing was sent
-   */
-  send(voice: Voice, o?: { id?: string; force?: boolean; rides?: boolean }): AppThunk<boolean>;
-  /** a refused voice send's recording, back to its host */
-  onRefused(fn: (v: Voice) => void): () => void;
-}
-
 /** An uploaded image of a message or a comment. */
 export type ImageEntry = { id: string; mediaType: ImageType };
-/** an upload in flight: an image's object URL thumbnail, or a file's name (issue 461) */
-export type PendingThumb = { key: string; url?: string; name?: string };
-
-/**
- * The attachments as the composer and the comment popup take them (issue 545), provided by the attachments plugin and
- * read with `useAttachments()`: the intake of pasted, dropped and picked files, and their thumbnails.
- */
-export interface AttachmentsService {
-  /**
-   * A finished image goes to `onUploaded`, any other file's project path to `onFilePath`; `notify` gets the failures,
-   * `onBusy(±1)` the uploads running. `add` takes files, `cancel(key)` stops a file's upload.
-   */
-  useIntake(o: { onUploaded: (e: ImageEntry) => void; onFilePath: (path: string) => void; notify: (msg: string) => void; onBusy?: (d: 1 | -1) => void }): {
-    pending: PendingThumb[]; add(files: Iterable<File>): boolean; onPaste(e: ClipboardEvent<HTMLTextAreaElement>): void; cancel(key: string): void;
-  };
-  /** a strip of thumbnails: the uploaded `ids` (× with `onRemove`) and the uploads in flight */
-  Attachments: FC<{ ids: string[]; pending?: PendingThumb[]; onCancel?: (key: string) => void; onRemove?: (id: string) => void } & { 'data-testid'?: string }>;
-  /** the composer's strip, with each image's markup */
-  ComposerAttachments: FC<{ pending: PendingThumb[]; onCancel?: (key: string) => void }>;
-}
-
-/**
- * What an open file view shows, for the comments on it. `loaded`: its text is in the DOM (anchors resolve against it);
- * `gone`: the view settled without text (deleted, too large, binary), so a comment on it is orphaned. No entry, or
- * `loading`: unknown (tab closed, not fetched yet, a transient error): a comment is neither marked nor orphaned.
- * `v` bumps on every settled load, so a reload re-runs the checks even when the state stays `loaded`.
- */
-export type FileLoad = { s: 'loading' | 'loaded' | 'gone'; v: number };
-
-/**
- * The Files tree and the open file views as other plugins read them (issue 545), provided by the files plugin: the
- * source the tree shows (the git views show the same), what moves when the folder's files change, and each open file
- * view's load and media version (keyed by path and `ref`, see `fileKey`).
- */
-export interface FilesService {
-  /** the source the tree shows: 'here', 'ref:<branch>', 'dir:<hash>' */
-  selectSource(s: RootState): string;
-  /** moves when this folder's files changed outside a turn (a branch switch) */
-  selectDiskSeq(s: RootState): number;
-  /** moves after each live turn and each change of this folder outside one: the views that reload after a turn watch it */
-  selectRefreshSeq(s: RootState): number;
-  /** shows another source in the tree, with the folders that were open there last time */
-  pickSource(id: string): AppThunk;
-  /** this folder's files changed outside a turn: the views reload as after one */
-  diskChanged(): UnknownAction;
-  setTreeOpen(open: boolean): UnknownAction;
-  selectFileLoad(s: RootState, path: string, ref?: string): FileLoad | undefined;
-  /** an open media tab's file's current ETag; undefined: unknown (tab closed), no claim either way */
-  selectFileVersion(s: RootState, path: string, ref?: string): string | undefined;
-  /** opens the comment's file (a comment made on a commit: that commit in the log) and scrolls to its fragment once loaded */
-  jumpToFileComment(path: string, id: string, ref?: string): AppThunk;
-}
-
-/** The git views as other plugins reach them (issue 545), provided by the vcs plugin. */
-export interface VcsService {
-  /** the log shows this commit, with `path` picked (a comment on a commit asked for it) */
-  showCommit(sha: string, path: string): UnknownAction;
-}
-
-/** The projects' windows as other plugins open them (issue 545), provided by the projects plugin. */
-export interface ProjectsService {
-  /** opens the folder in a window of its own (this tab moves there); the refusal, in words, or null */
-  openFolder(dir: string, provider: AgentProvider): Promise<string | null>;
-}
-
-/** The chat feed's panels as other plugins open them (issue 545), provided by the feed plugin. */
-export interface FeedUiService {
-  /** opens an action's panel and its group, read from its conversation's `items` (`agent`: a subagent's) at call time */
-  revealTool(toolId: string, items: (s: RootState) => FeedItem[] | null, agent?: string): AppThunk;
-  /** a conversation drawn as the chat's: `agent`, a subagent's (its panels and comments are keyed by it) */
-  Feed: FC<{ feed: FeedState; agent: string; running?: boolean }>;
-}
-
-/** The background tasks as other plugins' views control them (issue 545), provided by the tasks plugin. */
-export interface TasksService {
-  /** Stop and To background for the task of the call `call`, while one runs (nothing otherwise) */
-  CallMenu: FC<{ call: string }>;
-}
-
-/** The edits as other plugins read them (issue 545), provided by the cut plugin. */
-export interface CutService {
-  /** how a cut comment stands in its edit as its open tab shows it; undefined while no tab shows it */
-  liveCutState(a: CutAnchor): 'ok' | 'trimmed' | 'gone' | undefined;
-}
-
 /** The media as other plugins' views play it (issue 545), provided by the media plugin. */
 export interface MediaService {
   /** the player bar over a reply's video or audio element, inside its wrapper `box` */
@@ -411,23 +243,16 @@ export interface TreeAction {
 
 /**
  * A plugin's service to other plugins (issue 545): each is provided by one plugin, and read with `useService(name)` in
- * a view or `registry.<name>` in a thunk.
+ * a view or `registry.<name>` in a thunk. Its interface lives with its provider, which adds it here by declaration
+ * merging (`declare module '@/sdk' { interface Services { files: FilesService } }`, issue 563); only one the core reads
+ * itself is declared here.
  */
 export interface Services {
-  comments: CommentsService;
-  voice: VoiceService;
-  attachments: AttachmentsService;
-  files: FilesService;
-  vcs: VcsService;
-  projects: ProjectsService;
-  feedUi: FeedUiService;
-  tasks: TasksService;
-  cut: CutService;
   media: MediaService;
 }
-const SERVICES: Record<keyof Services, true> = {
-  comments: true, voice: true, attachments: true, files: true, vcs: true, projects: true, feedUi: true, tasks: true, cut: true, media: true,
-};
+/** What a plugin contributes besides its services: every other key of a plugin is a service. */
+const CONTRIBUTIONS = new Set(['id', 'slices', 'middleware', 'listeners', 'pause', 'tabs', 'slots', 'commands', 'feed', 'tools', 'userParts',
+  'fileViews', 'anchorViews', 'sendParts', 'settings', 'resources', 'codeBlocks', 'treeActions']);
 
 /**
  * How a send ended (`chat.send`). 'building': a part is being made ready (a combined image); the send finishes by
@@ -587,11 +412,13 @@ export function buildRegistry(plugins: readonly Plugin[], core: readonly Command
     if (treeActions.some((x) => x.order === a.order)) throw new Error(`registry: two tree actions at order ${a.order}`);
     treeActions.push(a);
   }
-  const services: Partial<Services> = {};
-  for (const k of Object.keys(SERVICES) as (keyof Services)[]) {
-    const all = plugins.filter((p) => p[k]);
-    if (all.length > 1) throw new Error(`registry: two plugins provide the ${k}`);
-    if (all[0]) Object.assign(services, { [k]: all[0][k] });
+  const services: Record<string, unknown> = {};
+  for (const p of plugins) {
+    for (const [k, v] of Object.entries(p)) {
+      if (CONTRIBUTIONS.has(k) || v === undefined) continue;
+      if (k in services) throw new Error(`registry: two plugins provide the ${k}`);
+      services[k] = v;
+    }
   }
   return Object.freeze({
     tabs, slots, commands: Object.freeze(commands.sort((a, b) => a.order - b.order)),

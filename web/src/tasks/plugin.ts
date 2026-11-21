@@ -1,3 +1,4 @@
+import type { FC } from 'react';
 import type { WithSlice } from '@reduxjs/toolkit';
 import { definePlugin } from '@/sdk';
 import { selectRunningCount, tasksUiSlice, toggleDrawer } from './slice.ts';
@@ -7,7 +8,14 @@ import { TasksDrawer } from './TasksDrawer.tsx';
 import { TasksIndicator } from './TasksIndicator.tsx';
 
 declare module '@/sdk' {
+  interface Services { tasks: TasksService }
   interface PluginState extends WithSlice<typeof tasksUiSlice> {}
+}
+
+/** The background tasks as other plugins' views control them (issue 545), provided by the tasks plugin. */
+export interface TasksService {
+  /** Stop and To background for the task of the call `call`, while one runs (nothing otherwise) */
+  CallMenu: FC<{ call: string }>;
 }
 
 export const tasksPlugin = definePlugin({

@@ -48,7 +48,7 @@ function setup(tools: Tool[], comments: Comment[] = [], card?: string) {
     <Provider store={store}>
       <TooltipProvider>
         <main data-chat-pane data-pane="chat">
-          <div id="items"><Feed /></div>
+          <div id="items" data-items><Feed /></div>
           <HighlightLayer />
         </main>
         <SelectionButton onComment={() => {}} />

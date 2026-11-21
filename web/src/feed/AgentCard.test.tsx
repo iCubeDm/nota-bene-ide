@@ -42,7 +42,7 @@ function setup(events: ServerEvent[]) {
     store.dispatch(serverEvent({ kind: 'session', id: 'S-1', root: '/r', title: null, model: null }));
     for (const e of events) store.dispatch(serverEvent(e));
   });
-  render(<Provider store={store}><TooltipProvider><main data-chat-pane data-pane="chat"><div id="items"><Feed /></div></main></TooltipProvider></Provider>);
+  render(<Provider store={store}><TooltipProvider><main data-chat-pane data-pane="chat"><div id="items" data-items><Feed /></div></main></TooltipProvider></Provider>);
   return store;
 }
 

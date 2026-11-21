@@ -19,11 +19,11 @@ type CommentsState = {
    */
   queue: QueuedOp[]; wired: string[]; /** a local change the server has not received */ unsynced: boolean; /** local set re-sent on reconnect; the server's initial (stale) push is still to come and must be ignored once */ resent: boolean; /** ids handed to the socket whose `comments` echo has not arrived yet (client-only; keeps a double send out) */ sendingIds: string[]; ui: { panelOpen: boolean; card: CommentCard | null } };
 
-const readPanelOpen = (): boolean => storage.local('panel:comments', bool, true).get();
+export const savedPanelOpen = storage.local('panel:comments', bool, true);
 
 export const commentsSlice = createSlice({
   name: 'comments',
-  initialState: (): CommentsState => ({ items: [], ops: false, server: [], sessionId: null, queue: [], wired: [], unsynced: false, resent: false, sendingIds: [], ui: { panelOpen: readPanelOpen(), card: null } }),
+  initialState: (): CommentsState => ({ items: [], ops: false, server: [], sessionId: null, queue: [], wired: [], unsynced: false, resent: false, sendingIds: [], ui: { panelOpen: savedPanelOpen.get(), card: null } }),
   reducers: {
     setItems: (s, a: PayloadAction<Comment[]>) => void (s.items = a.payload),
     markSending: (s, a: PayloadAction<string[]>) => void (s.sendingIds = [...s.sendingIds, ...a.payload]),

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent } from 'react';
-import { t, isLocalPage, prepareImage, uploadImage, type ImageEntry, type PendingThumb } from '@/sdk';
+import { t, isLocalPage, prepareImage, uploadImage, type ImageEntry } from '@/sdk';
 import { uploadFile, UploadError } from './file.ts';
+
+/** an upload in flight: an image's object URL thumbnail, or a file's name (issue 461) */
+export type PendingThumb = { key: string; url?: string; name?: string };
 
 const isImage = (f: File) => f.type.startsWith('image/');
 /** the relay (remote/device.ts) holds a request body whole, up to 32 MiB: a page on another computer cannot send more */

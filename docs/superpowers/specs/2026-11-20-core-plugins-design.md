@@ -550,3 +550,17 @@ result.
     sources. The sources are HTTP data but load on demand with a 5 s time-to-live, and a forced load drops an answer in
     flight; the repository has no TTL for a load and pauses while the page is hidden, so they stay until it has that
     option. The baseline is gone: the check fails any violation, an unlisted singleton, and a listed one that is gone.
+51. **Boundaries, part 2** (issue 563): the check's state rule: a plugin's slice is read only inside that plugin (its
+    owner is the folder of its `createSlice({ name })`); the core's slices are anyone's. The feed's comment counts take
+    the comments service's `selectComments`, the marks read `files.selectFileLoad` and `feedUi.selectFolds`, and the
+    git panel's listener reads `files.selectTreeOpen` through the registry a plugin's `listeners(start, registry)` now
+    gets. The DOM ids other plugins read became services (`composer.field()`, `files.inTree(el)`) and the conversation's
+    items a core contract (`anchors/items.ts`: `data-items`, `data-item-id`). A service interface lives in its
+    provider's `plugin.ts` and joins `Services` by declaration merging; `buildRegistry` takes every key of a plugin that
+    is not a contribution as a service, and `useComments`, `useVoice`, `useAttachments` gave way to `useService(name)`.
+    Rulings: `MediaService` stays in the SDK, because the core's Markdown reads its player; the data types several
+    plugins name (`PendingComment`, `MediaComment`, `MediaAnchorPatch`, `ImageEntry`) stay with it. The facade lost the
+    names no plugin used (a test imports those from their module); a name only one plugin uses stays where its module is
+    core, and only `reloadPage`, a module no core file imported, moved into its plugin (`update`). The panel keys
+    `panel:comments` and `panel:tree` are each one `storage.local` item. The core's player keys still name the Files
+    tree's `#tree-sheet` and the file view's `data-file-view` as where the keys stay the player's.

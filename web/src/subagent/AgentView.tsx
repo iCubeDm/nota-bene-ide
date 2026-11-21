@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useStore } from 'react-redux';
-import { useT, useAppDispatch, useAppSelector, type AppStore, type TabView, setAgentTitle, type AgentTab, useComments, selectLiveCalls, selectSubagent, useService } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, type AppStore, type TabView, setAgentTitle, type AgentTab, selectLiveCalls, selectSubagent, useService } from '@/sdk';
 import { OLD_SERVER, fetchSubagent, knownOld, selectToolResulted } from './slice.ts';
 
 /** How often a running subagent is read again while its tab is the visible one. */
@@ -14,7 +14,7 @@ export const POLL_MS = 1500;
  * not in the current conversation, or a failed read, is said in a line, never an empty pane; both are tried again with a backoff while the tab is visible.
  */
 export function AgentView({ tab, active }: { tab: AgentTab; active: boolean }) {
-  const { HighlightLayer } = useComments();
+  const { HighlightLayer } = useService('comments');
   const { Feed } = useService('feedUi');
   const t = useT();
   const dispatch = useAppDispatch();

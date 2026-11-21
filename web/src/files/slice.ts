@@ -1,10 +1,18 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { type RootState, openFile, requestJump, type AppThunk, fileKey, isCommitRef, loadSources, srcIdOfRef, enterRoot, openLog, type FileLoad } from '@/sdk';
+import { type RootState, openFile, requestJump, type AppThunk, fileKey, isCommitRef, loadSources, srcIdOfRef, enterRoot, openLog } from '@/sdk';
 
 /**
  * What an open file view shows, for the comments on it (`FileLoad`), keyed by `fileKey(path, ref)`: the path alone for
  * this folder, so a.md and a.md @ feature/x never mix (M3-16).
  */
+/**
+ * What an open file view shows, for the comments on it. `loaded`: its text is in the DOM (anchors resolve against it);
+ * `gone`: the view settled without text (deleted, too large, binary), so a comment on it is orphaned. No entry, or
+ * `loading`: unknown (tab closed, not fetched yet, a transient error): a comment is neither marked nor orphaned.
+ * `v` bumps on every settled load, so a reload re-runs the checks even when the state stays `loaded`.
+ */
+export type FileLoad = { s: 'loading' | 'loaded' | 'gone'; v: number };
+
 /** A file of some source: `ref` only when it is not this folder. */
 type FileRef = { path: string; ref?: string };
 /**

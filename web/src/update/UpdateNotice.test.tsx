@@ -7,11 +7,11 @@ import { serverEvent } from '@/store/store.ts';
 import { testStore, type FakeConnection } from '@/testing';
 import { draftSent, setDraft } from '@/composer/slice.ts';
 import { uploadStarted } from '@/store/message.ts';
-import { sendBuilding } from '@/sdk';
-import { reloadPage } from '@/shell/reloadPage.ts';
+import { sendBuilding } from '@/store/send.ts';
+import { reloadPage } from './reloadPage.ts';
 import { recheckUpdate, UpdateNotice } from './UpdateNotice.tsx';
 
-vi.mock('@/shell/reloadPage.ts', () => ({ reloadPage: vi.fn() }));
+vi.mock('./reloadPage.ts', () => ({ reloadPage: vi.fn() }));
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 

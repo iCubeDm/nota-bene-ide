@@ -30,7 +30,7 @@ function setup(items: string) {
   const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
   const view = withStore(
     <main data-chat-pane>
-      <div id="items" dangerouslySetInnerHTML={{ __html: items }} />
+      <div id="items" data-items dangerouslySetInnerHTML={{ __html: items }} />
       <SelectionButton onComment={onComment} />
     </main>,
     store,
@@ -168,7 +168,7 @@ it('a selection outside #items (composer textarea, header) shows no button', asy
   const view = withStore(
     <>
       <header>app header</header>
-      <main data-chat-pane><div id="items" dangerouslySetInnerHTML={{ __html: A }} /></main>
+      <main data-chat-pane><div id="items" data-items dangerouslySetInnerHTML={{ __html: A }} /></main>
       <p id="outside">composer hint text</p>
       <SelectionButton onComment={() => {}} />
     </>,
@@ -203,7 +203,7 @@ it('Esc dismisses the button and never interrupts a busy agent', async () => {
   const view = render(
     <Provider store={store}>
       <TooltipProvider>
-        <main data-chat-pane><div id="items" dangerouslySetInnerHTML={{ __html: A }} /></main>
+        <main data-chat-pane><div id="items" data-items dangerouslySetInnerHTML={{ __html: A }} /></main>
         <Composer />
         <SelectionButton onComment={() => {}} />
       </TooltipProvider>
@@ -229,7 +229,7 @@ function setupFile(html: string, outside = '') {
   const onComment = vi.fn<(s: PendingSelection) => void>();
   const view = withStore(
     <>
-      <main data-chat-pane data-pane="chat" hidden><div id="items" dangerouslySetInnerHTML={{ __html: A }} /></main>
+      <main data-chat-pane data-pane="chat" hidden><div id="items" data-items dangerouslySetInnerHTML={{ __html: A }} /></main>
       <div data-pane="file:docs/n.md" data-file-path="docs/n.md" dangerouslySetInnerHTML={{ __html: html }} />
       <div id="outside" dangerouslySetInnerHTML={{ __html: outside }} />
       <SelectionButton onComment={onComment} />
@@ -324,7 +324,7 @@ it('a selection made while switching shows no button', async () => {
   const view = render(
     <Provider store={store}>
       <main data-chat-pane>
-        <div id="items" dangerouslySetInnerHTML={{ __html: A }} />
+        <div id="items" data-items dangerouslySetInnerHTML={{ __html: A }} />
         <SelectionButton onComment={vi.fn()} />
       </main>
     </Provider>,

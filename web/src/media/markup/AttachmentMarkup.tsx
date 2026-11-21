@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { createPortal } from 'react-dom';
 import { isAttachmentAnchor, type AttachmentAnchor, type MediaShape } from '@nota-bene/shared';
 import { useMarkPopup } from '../useMediaMarkup.ts';
-import { useT, toast, useAppDispatch, useAppSelector, connections, routes, useComments } from '@/sdk';
+import { useT, toast, useAppDispatch, useAppSelector, connections, routes, useService } from '@/sdk';
 import { prepareAttachmentComment } from './createMediaComment.ts';
 import { MarkupLayer } from './MarkupLayer.tsx';
 import { shapeEls, useOverlayPlacement } from './overlay.tsx';
@@ -13,7 +13,7 @@ const attachTabId = (imageId: string): string => `attach:${imageId}`;
 
 /** The marks of the image's comments made so far, dimmed under the drawing; they take no clicks. */
 function Marks({ image, media }: { image: string; media: HTMLImageElement }) {
-  const { selectComments } = useComments();
+  const { selectComments } = useService('comments');
   const all = useAppSelector(selectComments);
   const mine = useMemo(() => all.flatMap((c) => (c.status === 'pending' && isAttachmentAnchor(c.anchor) && c.anchor.image === image ? [c.anchor] : [])), [all, image]);
   const svg = useRef<SVGSVGElement>(null);
@@ -46,7 +46,7 @@ function Marks({ image, media }: { image: string; media: HTMLImageElement }) {
  * to /marks). Leaving the mode (Esc, ✕; a drawing asks first) closes it.
  */
 export function AttachmentMarkup({ id, onClose }: { id: string; onClose: () => void }) {
-  const { CommentPopup } = useComments();
+  const { CommentPopup } = useService('comments');
   const t = useT();
   const dispatch = useAppDispatch();
   const tabId = attachTabId(id);

@@ -101,10 +101,23 @@ function role(rel: string): { role: Role; folder: string } {
   throw new Error(`boundaries: web/src/${folder}/ is neither core nor a plugin; classify it in scripts/boundaries.test.ts`);
 }
 
+// The state rule of issue 563: a plugin's slice is read only inside that plugin; the core's slices are anyone's
+// (directly or through the SDK's selectors), and another plugin's state comes through its service. A slice's owner is
+// the folder of its `createSlice({ name })`; a read is `s.<name>`, `st.`, `state.`, `was.` or `getState().<name>`.
+const SLICE = /createSlice\(\s*\{\s*name:\s*"(\d+)"/g;
+const READ = /(?:(?<![\w$.])(?:s|st|state|was)|\bgetState\(\s*\))\s*\.\s*([\w$]+)/g;
+
 // The violations in `root` (a repository checkout), as sorted "<file> -> <what>" entries.
 function scan(root: string): string[] {
   const src = path.join(root, WEB);
   const out = new Set<string>();
+  const owner = new Map<string, string>();
+  for (const abs of files(src, /\.tsx?$/)) {
+    const rel = path.relative(src, abs).split(path.sep).join('/');
+    if (/\.test\.tsx?$/.test(rel) || role(rel).role !== 'plugin') continue;
+    const { code, strings } = mask(fs.readFileSync(abs, 'utf8'));
+    for (const m of code.matchAll(SLICE)) owner.set(strings[Number(m[1])], role(rel).folder);
+  }
   for (const abs of files(src, /\.tsx?$/)) {
     const rel = path.relative(src, abs).split(path.sep).join('/');
     const me = role(rel);
@@ -129,6 +142,10 @@ function scan(root: string): string[] {
     if (singleton(code) && me.folder !== 'sdk' && !SINGLETONS[rel]) add('module singleton');
     // the page's visibility pauses polls in the SDK's repository and is read nowhere else (pageVisible)
     if (/\bvisibilityState\b/.test(code) && me.folder !== 'sdk') add('visibilityState');
+    for (const m of code.matchAll(READ)) {
+      const of = owner.get(m[1]);
+      if (of && of !== me.folder) add(`slice ${m[1]}`);
+    }
   }
   const phone = path.join(root, PHONE);
   for (const abs of files(phone, /\.dart$/)) {
@@ -140,6 +157,7 @@ function scan(root: string): string[] {
 // The rule an entry breaks, named in a failure.
 function classify(entry: string): string {
   const [from, to] = entry.split(' -> ');
+  if (to.startsWith('slice ')) return 'foreign slice';
   if (!to.startsWith(`${WEB}/`)) return to;
   const a = role(from.slice(WEB.length + 1)), b = role(to.slice(WEB.length + 1));
   if (b.role === 'harness') return 'testing outside tests';
@@ -347,6 +365,29 @@ it('counts a module singleton outside the SDK that the allowlist does not name',
   });
   expect(scan(root)).toEqual([`${W}/feed/flag.ts -> module singleton`, `${W}/media/y.ts -> module singleton`]);
   expect(classify(`${W}/feed/flag.ts -> module singleton`)).toBe('module singleton');
+});
+
+it("counts a read of another plugin's slice, wherever it is read from", () => {
+  const root = tree({
+    ...base,
+    [`${W}/comments/slice.ts`]: "export const commentsSlice = createSlice({ name: 'comments', initialState, reducers: {} });\nconst own = (s: RootState) => s.comments.items;",
+    [`${W}/files/treeSlice.ts`]: "export const treeSlice = createSlice({\n  name: 'tree',\n  initialState,\n  reducers: {},\n});",
+    [`${W}/feed/uiSlice.ts`]: [
+      "const n = createSelector([(s: RootState) => s.comments.items], f);",
+      "const core = (s: RootState) => s.feed.items.length + s.controls.protocol;",
+      "const other = (x: Box) => x.comments + this.s.tree;",
+      "const text = 's.comments'; // st.tree.open",
+    ].join('\n'),
+    [`${W}/vcs/store.ts`]: "start({ predicate: (_a, st, was) => st.tree.open && !was.tree.open, effect: (_a, api) => api.getState().tree });",
+    [`${W}/shell/Header.tsx`]: "const open = useAppSelector((state) => state.tree.open);",
+    [`${W}/comments/Feed.test.tsx`]: "expect(store.getState().tree.open).toBe(true);",
+  });
+  expect(scan(root)).toEqual([
+    `${W}/feed/uiSlice.ts -> slice comments`,
+    `${W}/shell/Header.tsx -> slice tree`,
+    `${W}/vcs/store.ts -> slice tree`,
+  ]);
+  expect(classify(`${W}/vcs/store.ts -> slice tree`)).toBe('foreign slice');
 });
 
 it('refuses a web/src folder the rule does not know', () => {

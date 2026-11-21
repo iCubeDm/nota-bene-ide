@@ -1,4 +1,4 @@
-import { SERVER_RESTART_TIMEOUT_MS } from '@/sdk';
+import { SERVER_RESTART_TIMEOUT_MS } from '@/store/controls.ts';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';

@@ -1,7 +1,7 @@
 import { anchorSource, isAttachmentAnchor, isMediaAnchor, type AnchorSource, type Comment } from '@nota-bene/shared';
 import { useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { revealRangeSideways, scrollRangeIntoView, rangeForAnchor, activate, t, useAppDispatch, useAppSelector, useRegistry, useService, anchorView, TOOL_SRC, type RootState, textRootOf, usePageGen, selectImages, itemsOf, openSubagentTab, selectSubagent } from '@/sdk';
+import { revealRangeSideways, scrollRangeIntoView, rangeForAnchor, activate, t, useAppDispatch, useAppSelector, useRegistry, useService, anchorView, TOOL_SRC, type RootState, textRootOf, usePageGen, selectImages, itemsOf, openSubagentTab, selectSubagent, itemRoots } from '@/sdk';
 import { selectReplyLabel, whereOfFile } from '../send.ts';
 
 /** How many times (100 ms apart) a jump into a subagent's tab waits for its conversation to be on screen. */
@@ -25,7 +25,7 @@ function showAt(root: HTMLElement, c: Comment): void {
 
 /** The item's root in ITS pane: a subagent's tab (`agent`) or the chat (an id may sit in both, see scopedId). */
 const itemRoot = (id: string, agent?: string): HTMLElement | null =>
-  [...document.querySelectorAll<HTMLElement>('[data-item-id]')].find((e) => e.dataset.itemId === id && e.closest<HTMLElement>('[data-agent]')?.dataset.agent === agent) ?? null;
+  itemRoots(document).find((e) => e.dataset.itemId === id && e.closest<HTMLElement>('[data-agent]')?.dataset.agent === agent) ?? null;
 /** The file tab's own text root: its pane element, carrying `data-file-path` (and `data-file-ref` for another source)
  * while it shows text. A `data-file-path` inside rendered markdown is file content, never a root. */
 const fileRoot = (path: string, ref?: string): HTMLElement | null =>

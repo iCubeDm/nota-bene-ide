@@ -5,7 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { testStore } from '@/testing';
 import { setLang } from '@/i18n/index.ts';
 import { RecordBar } from './RecordBar.tsx';
-import type { RecState } from '@/sdk';
+import type { RecState } from './useVoiceRecorder.ts';
 
 afterEach(cleanup);
 setLang('en');

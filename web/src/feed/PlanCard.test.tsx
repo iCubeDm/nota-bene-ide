@@ -29,7 +29,7 @@ function setup(onComment: (s: PendingSelection) => void = () => {}) {
     <Provider store={store}>
       <TooltipProvider>
         <main data-chat-pane>
-          <div id="items"><Feed /></div>
+          <div id="items" data-items><Feed /></div>
           <SelectionButton onComment={onComment} />
         </main>
       </TooltipProvider>

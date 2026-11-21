@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { VcsDiff, VcsFile, VcsPatch } from '@nota-bene/shared';
-import { bool, defineResource, json, routes, storage, useAppSelector, useResource, type Route, type StartListening } from '@/sdk';
+import { bool, defineResource, json, routes, storage, useAppSelector, useResource, type Registry, type Route, type StartListening } from '@/sdk';
 
 /** The git views' shared state (the tool window and the tab share one fetch through the diff resource). */
 export type RepoDiff = Extract<VcsDiff, { repo: true }>;
@@ -49,10 +49,10 @@ export const useVcsUi = (): Ui => useAppSelector((s) => s.vcs);
 export const baseOf = (bases: Ui['bases'], root: string, src: string): string | undefined => bases[baseKey(root, src)];
 
 /** Saves the layout and the bases when they change; Files and Changes share the left side, so the tree opening closes the panel. */
-export function vcsListeners(start: StartListening): void {
+export function vcsListeners(start: StartListening, { files }: Registry): void {
   start({ predicate: (_a, st, was) => st.vcs.split !== was.vcs.split, effect: (_a, api) => savedSplit.set(api.getState().vcs.split) });
   start({ predicate: (_a, st, was) => st.vcs.bases !== was.vcs.bases, effect: (_a, api) => savedBases.set(api.getState().vcs.bases) });
-  start({ predicate: (_a, st, was) => st.tree.open && !was.tree.open, effect: (_a, api) => void api.dispatch(setPanel(false)) });
+  if (files) start({ predicate: (_a, st, was) => files.selectTreeOpen(st) && !files.selectTreeOpen(was), effect: (_a, api) => void api.dispatch(setPanel(false)) });
 }
 
 /** One project, source and base's diff: one poll every 4 s however many views watch it (the tool window and the tab, issue 471). */

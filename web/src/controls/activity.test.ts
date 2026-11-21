@@ -1,4 +1,4 @@
-import { ACTIVITY_THROTTLE_MS, reportActivity, resetActivityThrottle } from '@/sdk';
+import { ACTIVITY_THROTTLE_MS, reportActivity, resetActivityThrottle } from '@/store/controls.ts';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { ClientMessage } from '@nota-bene/shared';
 import { serverEvent } from '@/store/store.ts';

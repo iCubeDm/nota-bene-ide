@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ago, useT, selectBusy, selectSession, useAppDispatch, useAppSelector, connections, byteSize, routes, selectSwitching, switchSession, REFUSED, useNote, archiveSession, brief, deleteSession, renameSession } from '@/sdk';
+import { ago, useT, selectBusy, selectSession, useAppDispatch, useAppSelector, connections, byteSize, routes, selectSwitching, switchSession, REFUSED, useNote, archiveSession, brief, deleteSession, renameSession, useService } from '@/sdk';
 import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog, ArchiveIcon } from '@/sdk/ui';
 
 /** GET /sessions (server/src/sessions.ts SessionsView). */
@@ -64,6 +64,7 @@ export function SessionPicker() {
   const trigger = useRef<HTMLButtonElement>(null);
   const loadSeq = useRef(0);
   const confirmed = useRef(false);
+  const composer = useService('composer');
   const [note, showNote] = useNote();
   const session = useAppSelector(selectSession);
   const needle = q.trim().toLowerCase();
@@ -321,7 +322,7 @@ export function SessionPicker() {
             }
           }}
           onCancel={() => { confirmed.current = false; setAsk(null); }}
-          focusAfter={() => (confirmed.current ? document.getElementById('composer-input') : null)}
+          focusAfter={() => (confirmed.current ? composer.field() : null)}
         />
       )}
       {del && (

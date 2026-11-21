@@ -32,7 +32,7 @@ function setup(c: Comment = comment(), dom = true, inFeed = true) {
   const view = render(
     <Provider store={store}>
       <TooltipProvider>
-        {dom && <main data-chat-pane><div id="items"><div data-item-id="a1" data-kind="user"><p>hello brave world</p></div></div></main>}
+        {dom && <main data-chat-pane><div id="items" data-items><div data-item-id="a1" data-kind="user"><p>hello brave world</p></div></div></main>}
         <CommentCard id={c.id} index={0} />
       </TooltipProvider>
     </Provider>,
@@ -345,7 +345,7 @@ describe('a comment whose source went into the archive (R-M7-4)', () => {
     render(
       <Provider store={store}>
         <TooltipProvider>
-          <main data-chat-pane><div id="items" /></main>
+          <main data-chat-pane><div id="items" data-items /></main>
           <CommentCard id={c.id} index={0} />
         </TooltipProvider>
       </Provider>,

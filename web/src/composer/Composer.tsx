@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat, sendCount, sendWaiting, nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching, useAutosize, draggedPaths, useSeekStep, useVoice, useAttachments, insertPaths, hasFiles, ComposerFieldContext, addImage, selectBuilding, selectImages, selectUploading, uploadFinished, uploadStarted, PLAYER_HELP } from '@/sdk';
+import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat, sendCount, sendWaiting, nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching, useAutosize, draggedPaths, useSeekStep, insertPaths, hasFiles, ComposerFieldContext, addImage, selectBuilding, selectImages, selectUploading, uploadFinished, uploadStarted, PLAYER_HELP, useService } from '@/sdk';
 import { Button, MessageInput, MicButton, SendIcon, Slots, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { SlashPicker } from './SlashPicker.tsx';
 import { selectShellMode } from './shellMode.ts';
@@ -14,8 +14,8 @@ import { VOICE_KEY } from './commands.ts';
 export function Composer() {
   const t = useT();
   const registry = useRegistry();
-  const { useRecorder, RecordBar, WhisperPrompt, send: sendVoice, onRefused: onVoiceRefused } = useVoice();
-  const { useIntake, ComposerAttachments } = useAttachments();
+  const { useRecorder, RecordBar, WhisperPrompt, send: sendVoice, onRefused: onVoiceRefused } = useService('voice');
+  const { useIntake, ComposerAttachments } = useService('attachments');
   const { commands } = registry;
   const seekStep = useSeekStep();
   const dispatch = useAppDispatch();

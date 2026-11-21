@@ -18,7 +18,7 @@ import { browserPip, MediaController, type PipApi } from './mediaController.ts';
 import { toast } from '../shell/toast.ts';
 import { adoptHello } from '../sdk/storage.ts';
 import type { Plugin, PluginState } from '../sdk/plugin.ts';
-import { buildRegistry, type AttachmentsService, type CommentsService, type Registry, type Services, type VoiceService } from '../sdk/registry.ts';
+import { buildRegistry, type Registry, type Services } from '../sdk/registry.ts';
 import { sendListener, type SentParts } from './send.ts';
 import { CORE_COMMANDS } from '../shell/keymap.ts';
 import { learnServerSep } from '../lib/paths.ts';
@@ -156,7 +156,7 @@ export function makeStore(o: {
   persistListeners(listeners.startListening);
   const sent: SentParts = new Map();
   sendListener(listeners.startListening, sent);
-  for (const p of o.plugins) p.listeners?.(listeners.startListening);
+  for (const p of o.plugins) p.listeners?.(listeners.startListening, registered);
   const store = configureStore({
     reducer: rootReducer(o.plugins),
     middleware: (gdm) => gdm({ thunk: { extraArgument: { connections, registry: registered, sent } satisfies Extra } }).prepend(listeners.middleware).concat(...middlewareOf(o.plugins, mediaMiddleware(media))),
@@ -204,9 +204,6 @@ export function useService<K extends keyof Services>(k: K): Services[K] {
   if (!s) throw new Error(`no plugin provides the ${k}`);
   return s as Services[K];
 }
-export const useComments = (): CommentsService => useService('comments');
-export const useVoice = (): VoiceService => useService('voice');
-export const useAttachments = (): AttachmentsService => useService('attachments');
 
 export const selectFeed = (s: RootState): FeedState => s.feed;
 export const selectBusy = (s: RootState): boolean => s.feed.busy;

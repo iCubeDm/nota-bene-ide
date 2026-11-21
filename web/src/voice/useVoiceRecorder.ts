@@ -1,10 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Voice } from '@nota-bene/shared';
-import { useT, type RecState, type VoiceRecorder } from '@/sdk';
+import { useT } from '@/sdk';
 import { mic, type Recorder, type Recording } from './recorder.ts';
 import { uploadVoice } from './upload.ts';
 
 /** A press shorter than this is a click (a locked recording); a longer one records while held and sends on release. */
+/** A recording being made, as `VoiceService.useRecorder` holds it; `wav`, `ms`, `wave`: the stopped recording. */
+export type RecState =
+  | { phase: 'idle' }
+  /** `held`: the button is still down (release sends); `ms`: the length so far; `levels`: the recent input levels, newest last */
+  | { phase: 'recording'; held: boolean; ms: number; levels: number[] }
+  /**
+   * stopped, to be listened to; `url`: the recording as a playable blob URL ('' where the browser has none);
+   * `voice`: it is already uploaded (the send could not go out), so Send does not upload it again
+   */
+  | { phase: 'preview'; recording: { wav: Blob; ms: number; wave: number[] }; url: string; voice?: Voice }
+  | { phase: 'sending'; recording: { wav: Blob; ms: number; wave: number[] }; url: string; voice?: Voice };
+
+/** One recording at a time: `start(held)`, `stop` (to the preview, or uploaded), `send`, `cancel`; `restore` a refused one. */
+export interface VoiceRecorder {
+  st: RecState;
+  start(held: boolean): void;
+  restore(v: Voice): void;
+  /** the held button let go */
+  release(): void;
+  cancel(): void;
+  stop(): Promise<void>;
+  send(force?: boolean): Promise<void>;
+}
+
 const HOLD_MS = 300;
 const LEVELS = 48;
 
