@@ -47,7 +47,8 @@ class _ToolGroupState extends State<ToolGroup> {
   final _local = FeedUi();
   Comments? _watching;
 
-  FeedUi _ui(BuildContext context) => FileOpener.of(context)?.feedUi ?? _local;
+  FeedUi _ui(BuildContext context) =>
+      FileOpener.of(context)?.windowState.feedUi ?? _local;
 
   void _watch(Comments? c) {
     if (_watching == c) return;

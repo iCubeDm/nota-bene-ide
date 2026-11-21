@@ -21,7 +21,7 @@ import '../usage/format.dart' show byteSize;
 export '../media/fetch.dart' show imageMaxBytes, previewMaxBytes;
 
 /// The window's own requests for a tab, through its channel; null while the host is offline.
-WindowHttp? windowHttp(WindowTab tab) => tab.http;
+WindowHttp? windowHttp(WindowTab tab) => tab.connection.http;
 
 /// The marks of [path]'s comments, numbered as the strip numbers them.
 List<ShownMark> shownMarks(WindowTab tab, String path, {double? at}) {
@@ -244,7 +244,7 @@ class _ImageScreenState extends State<ImageScreen>
       return;
     }
     if (got.etag != null && item.path != null) {
-      widget.tab.fileVersions[item.path!] = got.etag!;
+      widget.tab.windowState.fileVersions[item.path!] = got.etag!;
     }
     setState(() {
       page.fail = fail;
@@ -413,7 +413,7 @@ class _ImageScreenState extends State<ImageScreen>
             }),
           // a comment without marks: an older window would refuse it (issue 494)
           if (_item.markable &&
-              hasFeature(widget.tab.protocol, Feature.wholePicture))
+              has(widget.tab.connection.protocol, Feature.wholePicture))
             _action('act-comment', NbGlyph.comments, t.comment, _comment),
           _action('act-share', NbGlyph.share, t.share, _share),
         ],

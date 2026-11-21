@@ -90,7 +90,7 @@ void main() {
     await t.pumpAndSettle();
     final c = r.tab!.comments.all.single;
     final a = c.anchor as TextAnchor;
-    final text = chatText(r.tab!.feed.items.last).text;
+    final text = chatText(r.tab!.windowState.feed.items.last).text;
     expect((c.label, c.text), (QuickLabelId.fire, ''));
     expect((a.start, a.end, a.quote), (0, text.length, text));
     expect((a.source as AnchorSourceMessage).id, 'a1');
@@ -109,7 +109,7 @@ void main() {
     await t.pumpAndSettle();
     final c = r.tab!.comments.all.single;
     final a = c.anchor as TextAnchor;
-    final text = chatText(r.tab!.feed.items.first).text;
+    final text = chatText(r.tab!.windowState.feed.items.first).text;
     expect(c.text, 'why this?');
     expect((a.start, a.end), (0, text.length));
     expect((a.source as AnchorSourceMessage).id, 'u1');

@@ -65,7 +65,7 @@ class _ComposerState extends State<Composer> {
   @override
   void initState() {
     super.initState();
-    _refused = widget.tab.refusals.listen(_onRefused);
+    _refused = widget.tab.windowState.refusals.listen(_onRefused);
     _elsewhere = widget.tab.comments.changedElsewhere.listen((_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -203,7 +203,7 @@ class _ComposerState extends State<Composer> {
     final textLang = Localizations.localeOf(context).languageCode;
     final outbox = widget.tab.voiceOutbox;
     var force = false;
-    if (widget.tab.busy) {
+    if (widget.tab.windowState.busy) {
       final choice = await askSendNow(context);
       if (choice == null) {
         // dismissed: the recording waits in the preview, if there is still one to wait in
@@ -212,9 +212,9 @@ class _ComposerState extends State<Composer> {
       }
       force = choice == 'force';
     }
-    // only their ids now: the batch is written when the recording leaves (see WindowTab.composeFor), when it is known
+    // only their ids now: the batch is written when the recording leaves (see Comments.composeFor), when it is known
     // which of them are still pending. A window older than 16 gets the recording alone and they stay pending.
-    final ids = widget.tab.voiceCommentsProtocol
+    final ids = widget.tab.connection.has(Feature.voiceComments)
         ? [for (final c in widget.tab.comments.sendable) c.id]
         : const <String>[];
     outbox.submit(
@@ -279,7 +279,7 @@ class _ComposerState extends State<Composer> {
       return;
     }
     var force = false;
-    if (widget.tab.busy) {
+    if (widget.tab.windowState.busy) {
       // as on the desktop: a message while the agent works waits for its turn, unless it is sent now and interrupts
       final choice = await askSendNow(context);
       if (choice == null || !mounted) return;
@@ -294,13 +294,14 @@ class _ComposerState extends State<Composer> {
     // the text stays when the window is not there to take it (the tab went offline or was taken meanwhile)
     // the pending comments leave with it, in the desktop's batch; the server marks them sent
     final lang = Localizations.localeOf(context).languageCode;
-    final batch = widget.tab.composeComments(
+    final batch = widget.tab.comments.compose(
+      widget.tab.windowState,
       text,
       comments,
       lang,
       own: [for (final d in drafts) d.ref!],
     );
-    final sent = widget.tab.send(
+    final sent = widget.tab.connection.send(
       ClientMessageSend(
         id: id,
         text: batch.text,
@@ -323,7 +324,7 @@ class _ComposerState extends State<Composer> {
     listenable: Listenable.merge([widget.tab, widget.tab.comments, _session]),
     builder: (context, _) {
       final t = AppLocalizations.of(context);
-      final open = widget.tab.state == TabState.open;
+      final open = widget.tab.connection.state == TabState.open;
       final c = Theme.of(context).extension<NbColors>()!;
       final uploading = _uploading;
       // pending comments are not content here: they go from the Comments tab, or ride along with a recording
@@ -377,8 +378,8 @@ class _ComposerState extends State<Composer> {
     hint: t.messageHint,
     session: _session,
     open: open,
-    voiceProtocol: widget.tab.voiceProtocol,
-    whisperAvailable: widget.tab.whisper,
+    voiceProtocol: widget.tab.connection.has(Feature.voice),
+    whisperAvailable: transcribes(widget.tab),
     onWhisperMissing: () => showWhisperSheet(context, widget.tab),
     showMic: mic,
     showSend: !mic,
@@ -392,7 +393,7 @@ class _ComposerState extends State<Composer> {
     // The paperclip floats while text is typed (it left the row to leave the text its width), never while recording.
     floating: (link) {
       final holding = recording && _session.holding;
-      final stop = open && widget.tab.busy && !holding;
+      final stop = open && widget.tab.windowState.busy && !holding;
       final clip = _text.text.isNotEmpty && !recording && !holding;
       final room = FloatingRoom.maybeOf(context);
       if (room != null && room.value != clip) {
@@ -416,8 +417,9 @@ class _ComposerState extends State<Composer> {
                     key: const ValueKey('stop'),
                     label: t.stop,
                     glyph: NbGlyph.stop,
-                    onTap: () =>
-                        widget.tab.send(const ClientMessageInterrupt()),
+                    onTap: () => widget.tab.connection.send(
+                      const ClientMessageInterrupt(),
+                    ),
                   ),
               ],
             )

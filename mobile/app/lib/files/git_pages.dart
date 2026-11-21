@@ -120,7 +120,7 @@ class _ChangesPageState extends State<ChangesPage> {
   @override
   void initState() {
     super.initState();
-    _turn = widget.tab.feed.turnSeq;
+    _turn = widget.tab.windowState.feed.turnSeq;
     widget.tab.addListener(_tabChanged);
     _load();
   }
@@ -133,8 +133,8 @@ class _ChangesPageState extends State<ChangesPage> {
 
   /// A turn ended: the agent may have changed files.
   void _tabChanged() {
-    if (widget.tab.feed.turnSeq != _turn) {
-      _turn = widget.tab.feed.turnSeq;
+    if (widget.tab.windowState.feed.turnSeq != _turn) {
+      _turn = widget.tab.windowState.feed.turnSeq;
       _load(quiet: true);
     }
   }
@@ -247,7 +247,7 @@ class _LogPageState extends State<LogPage> {
   @override
   void initState() {
     super.initState();
-    _turn = widget.tab.feed.turnSeq;
+    _turn = widget.tab.windowState.feed.turnSeq;
     widget.tab.addListener(_tabChanged);
     _load();
   }
@@ -259,8 +259,8 @@ class _LogPageState extends State<LogPage> {
   }
 
   void _tabChanged() {
-    if (widget.tab.feed.turnSeq != _turn) {
-      _turn = widget.tab.feed.turnSeq;
+    if (widget.tab.windowState.feed.turnSeq != _turn) {
+      _turn = widget.tab.windowState.feed.turnSeq;
       _load();
     }
   }

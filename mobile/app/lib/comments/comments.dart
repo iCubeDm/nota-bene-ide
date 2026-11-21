@@ -8,8 +8,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
+import '../chat/agent_connection.dart' show uuidV4;
 import '../chat/feed.dart' show Feed;
-import '../chat/window_connection.dart' show uuidV4;
+import '../chat/window_state.dart';
 import '../media/shapes.dart';
 import 'chat_anchor.dart';
 import 'queue.dart';
@@ -39,6 +40,9 @@ class Comments extends ChangeNotifier {
 
   /// Whether the window takes ops (its hello); null before the first hello, when nothing goes out.
   bool? _ops;
+
+  /// The protocol of the window's last hello.
+  num? _protocol;
 
   /// The queued ops sent on this socket: each goes once, and again on the next one.
   final _wired = <String>{};
@@ -157,6 +161,47 @@ class Comments extends ChangeNotifier {
         c,
   ];
 
+  /// The batch the agent gets for [items] (after [general]), as the desktop writes it, with the images that go along:
+  /// one place for the typed send, the comments pane's Send and a recording that carries comments. A media comment is
+  /// "changed" only when the current version of its file is known in [w] (it was opened here) and differs from the
+  /// drawn one.
+  ({String text, List<ImageRef> images}) compose(
+    WindowState w,
+    String general,
+    List<Comment> items,
+    String lang, {
+    List<ImageRef> own = const [],
+  }) {
+    final versions = w.fileVersions;
+    return composeSend(
+      general,
+      items,
+      w.feed,
+      lang,
+      own: own,
+      staleOf: (c) => switch (c.anchor) {
+        MediaAnchor(:final source, :final version?) when source.ref == null =>
+          versions[source.path] != null && versions[source.path] != version,
+        _ => false,
+      },
+    );
+  }
+
+  /// What a recording carries when it leaves, composed then and not at record time: only the [ids] still pending
+  /// (the desktop may have sent or deleted some meanwhile), their batch and images. None for a window older than 16.
+  ({String text, List<ImageRef> images, List<String> ids}) composeFor(
+    WindowState w,
+    List<String> ids,
+    String lang,
+  ) {
+    final items = has(_protocol, Feature.voiceComments)
+        ? pendingOf(ids)
+        : const <Comment>[];
+    if (items.isEmpty) return (text: '', images: const [], ids: const []);
+    final b = compose(w, '', items, lang);
+    return (text: b.text, images: b.images, ids: [for (final c in items) c.id]);
+  }
+
   /// The socket is gone: nothing goes until the next one's hello, and what went on this one goes again then.
   void closed() {
     _ops = null;
@@ -166,7 +211,8 @@ class Comments extends ChangeNotifier {
   /// A new socket said hello: [protocol] says how the changes go. The window says hello after its replay and set
   /// (issue 494), so the queue goes now.
   void hello(num? protocol) {
-    _ops = hasFeature(protocol, Feature.commentOps);
+    _protocol = protocol;
+    _ops = has(protocol, Feature.commentOps);
     _wired.clear();
     flush();
   }

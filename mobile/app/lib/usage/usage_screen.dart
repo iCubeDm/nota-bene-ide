@@ -47,7 +47,7 @@ class UsageScreen extends StatefulWidget {
 
 class _UsageScreenState extends State<UsageScreen> {
   late UsageProvider _provider =
-      widget.tab.capabilities?.provider == AgentProvider.codex
+      widget.tab.windowState.capabilities?.provider == AgentProvider.codex
       ? UsageProvider.codex
       : UsageProvider.claude;
   var _period = UsagePeriod.trip;

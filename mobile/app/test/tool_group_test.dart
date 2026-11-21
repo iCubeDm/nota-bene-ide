@@ -297,7 +297,7 @@ void main() {
       await t.tap(find.text('▸ 2 actions'));
       await t.pumpAndSettle();
       final tab = r.tab!;
-      expect(tab.feedUi.groupOpen('t1'), isTrue);
+      expect(tab.windowState.feedUi.groupOpen('t1'), isTrue);
       // a replay of the same session (a reconnect) keeps it
       r.event({
         'kind': 'replay',

@@ -69,7 +69,9 @@ class EmbedScope extends InheritedWidget {
   final tab = scope?.tab ?? FileOpener.of(context);
   return (
     tab: tab,
-    rel: tab == null ? null : embedFile(tab.root, src, base: scope?.base ?? ''),
+    rel: tab == null
+        ? null
+        : embedFile(tab.connection.root, src, base: scope?.base ?? ''),
   );
 }
 
@@ -104,7 +106,8 @@ class _EmbeddedMediaState extends State<EmbeddedMedia> {
   bool _undecodable = false;
 
   void _read(WindowTab tab, String rel) {
-    final key = '${tab.link.host.id}|${tab.port}|$rel|${widget.video}';
+    final key =
+        '${tab.connection.link.host.id}|${tab.connection.port}|$rel|${widget.video}';
     if (key == _key) return;
     _key = key;
     _undecodable = false;
