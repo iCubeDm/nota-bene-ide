@@ -3,11 +3,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { updateJson, writeJsonAtomic } from './atomicFile.ts';
+import { breakLock, LOCK, updateJson, withLock, writeJsonAtomic } from './atomicFile.ts';
 
 let dir: string;
+const times = { ...LOCK };
 beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-atomic-')); });
-afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+afterEach(() => { Object.assign(LOCK, times); fs.rmSync(dir, { recursive: true, force: true }); });
 
 const N = 150;
 const self = new URL('./atomicFile.ts', import.meta.url).href;
@@ -34,11 +35,11 @@ it('a lock left by a dead holder, or held too long, is taken over', async () => 
     const c = spawn(process.execPath, ['-e', '']);
     c.on('exit', () => resolve(c.pid!));
   });
-  fs.writeFileSync(`${file}.lock`, String(dead));
+  fs.writeFileSync(`${file}.lock`, `${dead} t0`);
   updateJson(file, () => ({ n: 1 }));
   expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({ n: 1 });
 
-  fs.writeFileSync(`${file}.lock`, String(process.ppid)); // alive, but its lock is a minute old
+  fs.writeFileSync(`${file}.lock`, `${process.ppid} t1`); // alive, but its lock is a minute old
   const old = new Date(Date.now() - 60_000);
   fs.utimesSync(`${file}.lock`, old, old);
   updateJson(file, (d) => ({ n: (d as { n: number }).n + 1 }));
@@ -65,4 +66,41 @@ it('writeJsonAtomic keeps the format asked for and leaves no tmp file', () => {
   expect(fs.readFileSync(file, 'utf8')).toBe('[\n  1\n]\n');
   if (process.platform !== 'win32') expect(fs.statSync(file).mode & 0o777).toBe(0o600);
   expect(fs.readdirSync(dir)).toEqual(['w.json']);
+});
+
+it('a lock with an mtime in the future counts as stale', () => {
+  const file = path.join(dir, 'f.json');
+  fs.writeFileSync(`${file}.lock`, `${process.ppid} t2`);
+  const later = new Date(Date.now() + 60_000);
+  fs.utimesSync(`${file}.lock`, later, later);
+  updateJson(file, () => 1);
+  expect(fs.readFileSync(file, 'utf8')).toBe('1');
+});
+
+it('a release leaves a lock that is no longer its own', () => {
+  const file = path.join(dir, 'o.json');
+  withLock(file, () => fs.writeFileSync(`${file}.lock`, `${process.ppid} theirs`)); // taken over meanwhile
+  expect(fs.readFileSync(`${file}.lock`, 'utf8')).toBe(`${process.ppid} theirs`);
+});
+
+it('breaking a stale lock never touches the live one that replaced it', () => {
+  const lock = path.join(dir, 'b.json.lock');
+  fs.writeFileSync(lock, `${process.ppid} live`);
+  const ino = fs.statSync(lock).ino;
+  breakLock(lock, '999999 judged-stale');
+  expect(fs.readFileSync(lock, 'utf8')).toBe(`${process.ppid} live`);
+  expect(fs.statSync(lock).ino).toBe(ino); // not even moved aside and back
+  expect(fs.readdirSync(dir)).toEqual(['b.json.lock']);
+  breakLock(lock, `${process.ppid} live`);
+  expect(fs.existsSync(lock)).toBe(false);
+});
+
+it('a wait is bounded: a lock that stays live past the cap is an error, not a hang', () => {
+  Object.assign(LOCK, { waitMs: 200 });
+  const file = path.join(dir, 'w.json');
+  fs.writeFileSync(`${file}.lock`, `${process.ppid} busy`);
+  const t = Date.now();
+  expect(() => updateJson(file, () => 1)).toThrow(/lock/);
+  expect(Date.now() - t).toBeLessThan(2000);
+  expect(fs.existsSync(file)).toBe(false);
 });

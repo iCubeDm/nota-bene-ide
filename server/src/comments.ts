@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Comment, CommentOp, CommentRefusal } from '@nota-bene/shared';
 import { isCutAnchor } from '@nota-bene/shared';
-import { writeJsonAtomic } from './atomicFile.ts';
+import { withLock, writeJsonAtomic } from './atomicFile.ts';
 
 /** a session id that is safe as a file name (the fake backend's ids are no UUIDs) */
 export const SAFE_SESSION_ID = /^[0-9a-zA-Z-]{1,100}$/;
@@ -29,6 +29,7 @@ const valid = (data: unknown[]): Comment[] =>
 export class CommentStore {
   private readonly dir: string;
   private pending: CommentState = { rev: 0, items: [], removed: [] };
+  private holding = false;
 
   constructor(o: { dir: string }) {
     this.dir = o.dir;
@@ -61,7 +62,9 @@ export class CommentStore {
   }
 
   set(sessionId: string | null, items: Comment[]): void {
-    this.write(sessionId, items, this.state(sessionId).removed);
+    this.locked(sessionId, () => {
+      this.write(sessionId, items, this.state(sessionId).removed);
+    });
   }
 
   /** A switch away from the id-less session: its unsent set, and what it deleted, stay behind. */
@@ -71,18 +74,20 @@ export class CommentStore {
 
   /** Moves the in-memory set under the real id (no-op when there is nothing to move). */
   adopt(sessionId: string): void {
-    fileFor(this.dir, sessionId);
-    if (this.pending.items.length === 0 && this.pending.removed.length === 0) return;
-    // merge by id; on conflict the sent copy wins, otherwise the stored entry (resumed session already has it)
-    const stored = this.state(sessionId);
-    const mem = new Map(this.pending.items.map((c) => [c.id, c]));
-    const merged = stored.items.map((c) => {
-      const m = mem.get(c.id);
-      return m && m.status === 'sent' && c.status !== 'sent' ? m : c;
+    this.locked(sessionId, () => {
+      fileFor(this.dir, sessionId);
+      if (this.pending.items.length === 0 && this.pending.removed.length === 0) return;
+      // merge by id; on conflict the sent copy wins, otherwise the stored entry (resumed session already has it)
+      const stored = this.state(sessionId);
+      const mem = new Map(this.pending.items.map((c) => [c.id, c]));
+      const merged = stored.items.map((c) => {
+        const m = mem.get(c.id);
+        return m && m.status === 'sent' && c.status !== 'sent' ? m : c;
+      });
+      const have = new Set(stored.items.map((c) => c.id));
+      this.write(sessionId, [...merged, ...this.pending.items.filter((c) => !have.has(c.id))], [...stored.removed, ...this.pending.removed]);
+      this.pending = { rev: 0, items: [], removed: [] };
     });
-    const have = new Set(stored.items.map((c) => c.id));
-    this.write(sessionId, [...merged, ...this.pending.items.filter((c) => !have.has(c.id))], [...stored.removed, ...this.pending.removed]);
-    this.pending = { rev: 0, items: [], removed: [] };
   }
 
   /**
@@ -92,15 +97,17 @@ export class CommentStore {
    * leaves out counts as deleted. Returns the set as stored.
    */
   merge(sessionId: string | null, incoming: Comment[]): Comment[] {
-    const st = this.state(sessionId);
-    const gone = new Set(st.removed);
-    const sent = new Map(st.items.filter((c) => c.status === 'sent').map((c) => [c.id, c]));
-    const next = incoming.filter((c) => !gone.has(c.id)).map((c) => sent.get(c.id) ?? c);
-    const seen = new Set(incoming.map((c) => c.id));
-    for (const [id, c] of sent) if (!seen.has(id)) next.push(c);
-    const dropped = st.items.filter((c) => c.status === 'pending' && !seen.has(c.id)).map((c) => c.id);
-    this.write(sessionId, next, [...st.removed, ...dropped]);
-    return [...next];
+    return this.locked(sessionId, () => {
+      const st = this.state(sessionId);
+      const gone = new Set(st.removed);
+      const sent = new Map(st.items.filter((c) => c.status === 'sent').map((c) => [c.id, c]));
+      const next = incoming.filter((c) => !gone.has(c.id)).map((c) => sent.get(c.id) ?? c);
+      const seen = new Set(incoming.map((c) => c.id));
+      for (const [id, c] of sent) if (!seen.has(id)) next.push(c);
+      const dropped = st.items.filter((c) => c.status === 'pending' && !seen.has(c.id)).map((c) => c.id);
+      this.write(sessionId, next, [...st.removed, ...dropped]);
+      return [...next];
+    });
   }
 
   /**
@@ -111,40 +118,56 @@ export class CommentStore {
    * missing one and is refused `sent` for a sent one. Returns the refusal, or null when the set is stored.
    */
   apply(sessionId: string | null, ops: CommentOp[]): OpRefusal | null {
-    const st = this.state(sessionId);
-    const items = [...st.items];
-    const removed = [...st.removed];
-    for (const o of ops) {
-      const id = o.op === 'remove' ? o.id : o.comment.id;
-      const at = items.findIndex((c) => c.id === id);
-      const cur = items[at];
-      if (o.op === 'add') {
-        if (cur) continue;
-        const dead = removed.indexOf(id);
-        if (dead >= 0 && !o.restore) return { reason: 'gone', id };
-        if (dead >= 0) removed.splice(dead, 1);
-        // a new comment is pending whatever the client says: only a send makes one sent
-        const { sentIn: _sentIn, ...fresh } = o.comment;
-        const next = o.before === undefined ? -1 : items.findIndex((c) => c.id === o.before);
-        items.splice(next < 0 ? items.length : next, 0, { ...fresh, status: 'pending' });
-      } else if (o.op === 'edit') {
-        if (!cur) return { reason: 'gone', id };
-        if (cur.status === 'sent') return { reason: 'sent', id };
-        const { text, label, images, voice, genImages } = o.comment;
-        const { label: _l, images: _i, voice: _v, genImages: _g, ...base } = cur;
-        // a cut comment follows its clip (protocol 23): its anchor moves, on the same file only
-        const a = o.comment.anchor, was = cur.anchor;
-        if (isCutAnchor(a) && isCutAnchor(was) && a.source.path === was.source.path && a.source.ref === was.source.ref) base.anchor = a;
-        items[at] = { ...base, text, ...(label === undefined ? {} : { label }), ...(images === undefined ? {} : { images }),
-          ...(voice === undefined ? {} : { voice }), ...(genImages === undefined ? {} : { genImages }) };
-      } else {
-        if (cur?.status === 'sent') return { reason: 'sent', id };
-        if (cur) items.splice(at, 1);
-        if (!removed.includes(id)) removed.push(id);
+    return this.locked(sessionId, () => {
+      const st = this.state(sessionId);
+      const items = [...st.items];
+      const removed = [...st.removed];
+      for (const o of ops) {
+        const id = o.op === 'remove' ? o.id : o.comment.id;
+        const at = items.findIndex((c) => c.id === id);
+        const cur = items[at];
+        if (o.op === 'add') {
+          if (cur) continue;
+          const dead = removed.indexOf(id);
+          if (dead >= 0 && !o.restore) return { reason: 'gone', id };
+          if (dead >= 0) removed.splice(dead, 1);
+          // a new comment is pending whatever the client says: only a send makes one sent
+          const { sentIn: _sentIn, ...fresh } = o.comment;
+          const next = o.before === undefined ? -1 : items.findIndex((c) => c.id === o.before);
+          items.splice(next < 0 ? items.length : next, 0, { ...fresh, status: 'pending' });
+        } else if (o.op === 'edit') {
+          if (!cur) return { reason: 'gone', id };
+          if (cur.status === 'sent') return { reason: 'sent', id };
+          const { text, label, images, voice, genImages } = o.comment;
+          const { label: _l, images: _i, voice: _v, genImages: _g, ...base } = cur;
+          // a cut comment follows its clip (protocol 23): its anchor moves, on the same file only
+          const a = o.comment.anchor, was = cur.anchor;
+          if (isCutAnchor(a) && isCutAnchor(was) && a.source.path === was.source.path && a.source.ref === was.source.ref) base.anchor = a;
+          items[at] = { ...base, text, ...(label === undefined ? {} : { label }), ...(images === undefined ? {} : { images }),
+            ...(voice === undefined ? {} : { voice }), ...(genImages === undefined ? {} : { genImages }) };
+        } else {
+          if (cur?.status === 'sent') return { reason: 'sent', id };
+          if (cur) items.splice(at, 1);
+          if (!removed.includes(id)) removed.push(id);
+        }
       }
-    }
-    this.write(sessionId, items, removed);
-    return null;
+      this.write(sessionId, items, removed);
+      return null;
+    });
+  }
+
+  /** Runs a change of a stored set under its file's lock (issue 562: two windows may hold one session); nested calls share it. */
+  private locked<T>(sessionId: string | null, fn: () => T): T {
+    if (sessionId === null || this.holding) return fn();
+    fs.mkdirSync(this.dir, { recursive: true });
+    return withLock(v2For(this.dir, sessionId), () => {
+      this.holding = true;
+      try {
+        return fn();
+      } finally {
+        this.holding = false;
+      }
+    });
   }
 
   private write(sessionId: string | null, items: Comment[], removed: string[]): void {
@@ -160,21 +183,25 @@ export class CommentStore {
 
   /** Marks the given comments as sent in `sentIn`; returns the full updated set. */
   markSent(sessionId: string | null, ids: string[], sentIn: string): Comment[] {
-    const want = new Set(ids);
-    const next = this.get(sessionId).map((c): Comment => (want.has(c.id) ? { ...c, status: 'sent', sentIn } : c));
-    this.set(sessionId, next);
-    return [...next];
+    return this.locked(sessionId, () => {
+      const want = new Set(ids);
+      const next = this.get(sessionId).map((c): Comment => (want.has(c.id) ? { ...c, status: 'sent', sentIn } : c));
+      this.set(sessionId, next);
+      return [...next];
+    });
   }
 
   /** The send [sentIn] never reached the agent (a voice message without a transcript): its comments are pending again. */
   markPending(sessionId: string | null, sentIn: string): Comment[] {
-    const next = this.get(sessionId).map((c): Comment => {
-      if (c.sentIn !== sentIn) return c;
-      const { sentIn: _gone, ...rest } = c;
-      return { ...rest, status: 'pending' };
+    return this.locked(sessionId, () => {
+      const next = this.get(sessionId).map((c): Comment => {
+        if (c.sentIn !== sentIn) return c;
+        const { sentIn: _gone, ...rest } = c;
+        return { ...rest, status: 'pending' };
+      });
+      this.set(sessionId, next);
+      return [...next];
     });
-    this.set(sessionId, next);
-    return [...next];
   }
 }
 

@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { providerStateDir, type AgentProvider } from './agent/provider.ts';
-import { updateJson, writeAtomic } from './atomicFile.ts';
+import { breakLock, updateJson, writeAtomic } from './atomicFile.ts';
 import { HIDDEN, isWindows, killTree, npmSpec, resolveBin, spawnSpec, type SpawnSpec } from './platform.ts';
 import { stateBaseDir } from './state.ts';
 import { RELEASE } from './update.ts';
@@ -105,18 +105,12 @@ export function takeLockFile(file: string, version: string): boolean {
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
       }
+      let seen: string;
+      try { seen = fs.readFileSync(file, 'utf8'); } catch { continue; }
       const l = readLock(file);
       if (l && l !== 'stale') return false;
-      // stale: move it aside (one winner), and re-check what was really moved
-      const aside = `${file}.${uniq}.stale`;
-      try { fs.renameSync(file, aside); } catch { continue; }
-      const moved = readLock(aside);
-      if (moved && moved !== 'stale') {
-        try { fs.linkSync(aside, file); } catch { /* the newer owner already re-created it */ }
-        fs.rmSync(aside, { force: true });
-        return false;
-      }
-      fs.rmSync(aside, { force: true });
+      // stale: removed only while it still holds what was judged (a newer owner's lock is never touched)
+      if (l) breakLock(file, seen);
     }
     return false;
   } finally {

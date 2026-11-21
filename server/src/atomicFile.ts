@@ -1,6 +1,7 @@
 // Whole-file writes and read-modify-writes of the files every window shares (prefs.json, sessions.json, ...): a write is a
 // tmp file renamed over the old one, so a reader never sees half of it; an update holds `<file>.lock` across its read and
 // write, so two windows updating one file at once both keep their change (issue 562). Sync: the critical part is short.
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pidAlive, renameRetry, sleepSync } from './platform.ts';
@@ -8,8 +9,11 @@ import { pidAlive, renameRetry, sleepSync } from './platform.ts';
 /** JSON.stringify's indent, a final newline, the file's mode: what each file has always been written with. */
 export type JsonFormat = { space?: number; newline?: boolean; mode?: number };
 
-/** A lock older than this is a holder that hung or a reused pid: an update takes well under it, even a retried rename. */
-const STALE_MS = 10_000;
+/**
+ * `staleMs`: a lock older than this (or dated this far ahead: a clock that jumped) is a holder that hung or slept, or a
+ * reused pid; an update takes well under it, even a retried rename. `waitMs`: a wait longer than this is an error.
+ */
+export const LOCK = { staleMs: 10_000, waitMs: 15_000 };
 
 /**
  * Writes `file` whole: a hidden tmp file in the same folder, renamed over the old one (over `file` itself, even a symlink
@@ -30,44 +34,73 @@ export function writeJsonAtomic(file: string, value: unknown, f: JsonFormat = {}
   writeAtomic(file, JSON.stringify(value, null, f.space) + (f.newline ? '\n' : ''), f.mode);
 }
 
-/** A lock whose holder is gone (its pid is dead) or that is older than STALE_MS. An empty one is still being written. */
-function stale(lock: string): boolean {
+const token = (): string => `${process.pid} ${randomBytes(8).toString('hex')}`;
+const readText = (file: string): string | null => {
+  try { return fs.readFileSync(file, 'utf8'); } catch { return null; }
+};
+
+/**
+ * What a stale lock holds (to hand to breakLock), or null for a live or missing one. Stale: its pid is dead, or its age
+ * is past LOCK.staleMs either way. An empty one is being written: judged by age only.
+ */
+function staleText(lock: string): string | null {
   try {
-    if (Date.now() - fs.statSync(lock).mtimeMs > STALE_MS) return true;
+    const age = Date.now() - fs.statSync(lock).mtimeMs;
     const text = fs.readFileSync(lock, 'utf8');
-    return text !== '' && !pidAlive(Number(text));
+    if (Math.abs(age) > LOCK.staleMs) return text;
+    return text !== '' && !pidAlive(Number(text.split(' ')[0])) ? text : null;
   } catch {
-    return false; // gone meanwhile: the next try takes it
+    return null; // gone meanwhile: the next try takes it
   }
 }
 
-/** Moves a stale lock aside (one waiter wins) and drops it; one that turns out live (a newer holder's) is put back. */
-function breakLock(lock: string): void {
-  const aside = `${lock}.${process.pid}-${Math.random().toString(36).slice(2)}`;
-  try { fs.renameSync(lock, aside); } catch { return; }
-  if (!stale(aside)) {
-    try { fs.linkSync(aside, lock); } catch { /* another holder already made its own */ }
+/**
+ * Removes `lock` (true) only while it still holds `judged`, the text found stale; a lock that has changed since (a new
+ * holder's) is never moved or removed. One breaker at a time, under `<lock>.break`: with no other breaker, the text can
+ * only change by its own holder releasing it, so the check and the removal see one lock. A break lock left by a crash
+ * (it is held for two syscalls) goes after LOCK.staleMs.
+ */
+export function breakLock(lock: string, judged: string): boolean {
+  const brk = `${lock}.break`;
+  try {
+    fs.writeFileSync(brk, '', { flag: 'wx', mode: 0o600 });
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+    try {
+      if (Math.abs(Date.now() - fs.statSync(brk).mtimeMs) > LOCK.staleMs) fs.rmSync(brk, { force: true });
+    } catch { /* gone */ }
+    return false;
   }
-  fs.rmSync(aside, { force: true });
+  try {
+    if (readText(lock) !== judged) return false;
+    fs.rmSync(lock, { force: true });
+    return true;
+  } finally {
+    fs.rmSync(brk, { force: true });
+  }
 }
 
-/** Runs `fn` holding `<file>.lock` (created with O_EXCL, naming this pid), across processes; never nest it on one file. */
+/**
+ * Runs `fn` holding `<file>.lock` (created with O_EXCL, naming this pid and a token of its own), across processes; never
+ * nest it on one file. The release removes the lock only while it is still ours. Throws when the wait passes LOCK.waitMs.
+ */
 export function withLock<T>(file: string, fn: () => T): T {
-  const lock = `${file}.lock`;
+  const lock = `${file}.lock`, mine = token(), until = Date.now() + LOCK.waitMs;
   for (let wait = 1; ; wait = Math.min(wait * 2, 20)) {
     try {
-      fs.writeFileSync(lock, String(process.pid), { flag: 'wx', mode: 0o600 });
+      fs.writeFileSync(lock, mine, { flag: 'wx', mode: 0o600 });
       break;
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
     }
-    if (stale(lock)) breakLock(lock);
-    else sleepSync(wait);
+    if (Date.now() > until) throw new Error(`timed out waiting for the lock ${lock}`);
+    const judged = staleText(lock);
+    if (judged === null || !breakLock(lock, judged)) sleepSync(wait);
   }
   try {
     return fn();
   } finally {
-    fs.rmSync(lock, { force: true });
+    if (readText(lock) === mine) fs.rmSync(lock, { force: true });
   }
 }
 

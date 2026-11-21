@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { AgentProvider } from './agent/provider.ts';
 import { SecretError, verifiedBearer } from './auth.ts';
-import { writeJsonAtomic } from './atomicFile.ts';
+import { withLock, writeJsonAtomic } from './atomicFile.ts';
 import { pidAlive } from './platform.ts';
 import { stateDir } from './state.ts';
 
@@ -67,10 +67,15 @@ export function readWindows(base?: string): Record<string, WindowEntry> {
   return out;
 }
 
-export function registerWindow(port: number, root: string, pid: number, launcherPid?: number, version?: string, nonce?: string): void {
-  fs.mkdirSync(dir(), { recursive: true });
+/** The entry's writers (the launcher and its server) take its lock (issue 562): a read and its write stay together. */
+function put(port: number, root: string, pid: number, launcherPid?: number, version?: string, nonce?: string): void {
   const entry: WindowEntry = { root, pid, ...(launcherPid !== undefined ? { launcherPid } : {}), startedAt: Date.now(), ...(version !== undefined ? { version } : {}), ...(nonce !== undefined ? { nonce } : {}) };
   writeJsonAtomic(fileOf(port), entry, { space: 2 });
+}
+
+export function registerWindow(port: number, root: string, pid: number, launcherPid?: number, version?: string, nonce?: string): void {
+  fs.mkdirSync(dir(), { recursive: true });
+  withLock(fileOf(port), () => put(port, root, pid, launcherPid, version, nonce));
 }
 
 /**
@@ -78,22 +83,31 @@ export function registerWindow(port: number, root: string, pid: number, launcher
  * runs, which keeps that release from being pruned; the nonce) kept from the entry, when the entry is this server's.
  */
 export function moveWindow(port: number, root: string, pid: number, launcherPid?: number): void {
-  const w = readEntry(port);
-  const own = w?.pid === pid ? w : undefined;
-  registerWindow(port, root, pid, launcherPid, own?.version, own?.nonce);
+  fs.mkdirSync(dir(), { recursive: true });
+  withLock(fileOf(port), () => {
+    const w = readEntry(port);
+    const own = w?.pid === pid ? w : undefined;
+    put(port, root, pid, launcherPid, own?.version, own?.nonce);
+  });
 }
 
 /** Marks the port's entry (when it is this launcher's) as rebuilding web/dist, or clears the mark. */
 export function setBuilding(port: number, launcherPid: number, on: boolean): void {
-  const w = readEntry(port);
-  if (!w || w.launcherPid !== launcherPid || Boolean(w.building) === on) return;
-  const { building: _, ...rest } = w;
-  writeJsonAtomic(fileOf(port), on ? { ...rest, building: true } : rest, { space: 2 });
+  if (!fs.existsSync(fileOf(port))) return;
+  withLock(fileOf(port), () => {
+    const w = readEntry(port);
+    if (!w || w.launcherPid !== launcherPid || Boolean(w.building) === on) return;
+    const { building: _, ...rest } = w;
+    writeJsonAtomic(fileOf(port), on ? { ...rest, building: true } : rest, { space: 2 });
+  });
 }
 
 /** Removes the port's entry only if it is still this pid's (or unreadable): a newer window on the port keeps its own. */
 export function unregisterWindow(port: number, pid: number): void {
-  if (fs.existsSync(fileOf(port)) && (readEntry(port)?.pid ?? pid) === pid) fs.rmSync(fileOf(port), { force: true });
+  if (!fs.existsSync(fileOf(port))) return;
+  withLock(fileOf(port), () => {
+    if (fs.existsSync(fileOf(port)) && (readEntry(port)?.pid ?? pid) === pid) fs.rmSync(fileOf(port), { force: true });
+  });
 }
 
 export { pidAlive }; // its callers import it from here
