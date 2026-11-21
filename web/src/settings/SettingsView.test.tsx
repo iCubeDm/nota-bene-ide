@@ -259,6 +259,17 @@ it('About names the agent of the window where a log would be', async () => {
   expect(await screen.findByText(/in the Codex task/)).toBeInTheDocument();
 });
 
+it('the sections and the Defaults rows keep their order, whichever plugin registers them (issue 511)', async () => {
+  setup();
+  await screen.findByText('v0.9-12-gabc');
+  expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['Windows', 'Storage', 'Voice messages (Whisper)', 'Defaults', 'Themes', 'About']);
+  const defaults = screen.getByRole('heading', { name: 'Defaults' }).closest('section')!;
+  await within(defaults).findByRole('combobox', { name: 'Agent mode for projects without their own' });
+  const labels = [...defaults.querySelectorAll('.w-56')].map((n) => n.textContent);
+  expect(labels).toEqual(['Interface language', 'Interface scale', 'Agent mode for projects without their own', 'Check npm for new versions', 'Update automatically', 'Write an audit log of system events', 'Projects rail', 'Sounds']);
+  expect(document.getElementById('settings-dictation')).toHaveTextContent('Voice messages (Whisper)');
+});
+
 it('the language select follows a change made elsewhere (a hello), with no copy of its own', async () => {
   setup();
   const sel = (await screen.findByRole('combobox', { name: 'Interface language' })) as HTMLSelectElement;

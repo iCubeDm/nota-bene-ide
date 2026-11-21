@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { routes, useResource, useT, useAppDispatch } from '@/sdk';
+import { routes, useResource, useT, useAppDispatch, dictationSet } from '@/sdk';
 import { Button, Popover, PopoverAnchor, PopoverContent } from '@/sdk/ui';
-import { dictationSet } from '@/controls/slice.ts';
 import { dictationResource, postDictation } from './dictation.ts';
 import { openDictationSettings } from './settings.ts';
 

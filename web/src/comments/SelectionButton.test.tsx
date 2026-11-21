@@ -1,3 +1,4 @@
+import { switchSession } from '@/sdk';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { anchorSource, type ClientMessage, type TextAnchor } from '@nota-bene/shared';
@@ -5,7 +6,6 @@ import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { Composer } from '@/composer/Composer.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/testing';
-import { switchSession } from '@/controls/slice.ts';
 import { Provider } from 'react-redux';
 import { SelectionButton, type PendingSelection } from './SelectionButton.tsx';
 

@@ -5,10 +5,17 @@ import { PROTOCOL } from '@nota-bene/shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { connectionsOf, useConnState } from '@/sdk/connections.ts';
 import { selectConn, selectSession } from '@/store/store.ts';
-import { events, renderWith, stubRoutes, testStore } from './index.tsx';
+import { events, renderWith, stubResources, stubRoutes, testStore } from './index.tsx';
 
 let routes: ReturnType<typeof stubRoutes> | undefined;
 afterEach(() => routes?.restore());
+
+it('stubResources answers a registered resource by its id, at the path its route builds', async () => {
+  routes = stubResources({ 'voice.dictation': { phase: 'none' }, 'vcs.log': { commits: [] } }, { 'vcs.log': { src: 'here', all: false } });
+  expect(await (await fetch('/dictation')).json()).toEqual({ phase: 'none' });
+  expect(await (await fetch('/vcs-log?src=here&all=1')).json()).toEqual({ commits: [] });
+  expect(() => stubResources({ nowhere: {} })).toThrow('no resource "nowhere"');
+});
 
 it('stubRoutes answers by path; an unmatched route answers 404 and is recorded', async () => {
   const real = globalThis.fetch;

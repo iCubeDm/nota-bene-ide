@@ -1,7 +1,6 @@
 import type { AgentMode as Mode } from '@nota-bene/shared';
-import { useT, isMac, withKeys, useAppDispatch, useAppSelector } from '@/sdk';
+import { useT, isMac, withKeys, useAppDispatch, useAppSelector, pickMode, selectCapabilitiesKnown, selectMode, selectSwitching } from '@/sdk';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
-import { pickMode, selectCapabilitiesKnown, selectMode, selectSwitching } from './slice.ts';
 
 // colours as in the CLI's mode line (prototype #modeBtn.m-*)
 const TONE: Partial<Record<Mode, string>> = {

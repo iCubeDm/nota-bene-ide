@@ -5,10 +5,9 @@
 // This window's sessions are renamed and archived from their row (the time gives way on hover); delete stays in the
 // Sessions menu (▾ on the chat tab). Another window's are only opened: its server takes no write from this one.
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import { useT, connections, routes, toast, useAppDispatch } from '@/sdk';
+import { useT, connections, routes, toast, useAppDispatch, switchSession } from '@/sdk';
 import { ConfirmDialog } from '@/sdk/ui';
 import { ago, ArchiveIcon } from '@/controls/SessionPicker.tsx';
-import { switchSession } from '@/controls/slice.ts';
 import { REFUSED } from '@/controls/useNote.ts';
 import { archiveSession, renameSession } from '@/controls/sessionsApi.ts';
 import { remotePage } from '@/net/local.ts';

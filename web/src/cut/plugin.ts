@@ -3,6 +3,7 @@ import { isCutPath } from '@nota-bene/shared/cut';
 import { definePlugin } from '@/sdk';
 import { CutView } from './CutBody.tsx';
 import { CutCard } from './CutCard.tsx';
+import { exportResource } from './export/api.ts';
 
 export const cutPlugin = definePlugin({
   id: 'cut',
@@ -14,4 +15,5 @@ export const cutPlugin = definePlugin({
   }],
   // a place on the timeline is its clip, not text: a gone clip is the card's own note
   anchorViews: [{ kind: 'cut', Card: CutCard, orphan: false }],
+  resources: [exportResource],
 });

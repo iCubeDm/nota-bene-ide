@@ -52,7 +52,8 @@ const EMPTY: ProjectsList = { running: [], recent: [] };
 // GET /system/projects, one poll for the page however many parts show it (the header's switcher, the rail): every 3 s
 // while any of them is `active` (the menu is open, the rail shows) and the window has the focus, every 10 s otherwise;
 // never while the page is hidden. A request that does not answer in 8 s, or by the next poll, is given up.
-const projectsResource = defineResource<void, ProjectsList>({
+export const projectsResource = defineResource<void, ProjectsList>({
+  id: 'projects.list',
   key: () => '',
   route: () => routes.systemProjects(),
   timeout: 8000,

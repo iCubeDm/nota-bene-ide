@@ -1,10 +1,9 @@
-import { dictationLangSet, dictationSet } from '@/controls/slice.ts';
-import { connections, defineResource, routes, type AppDispatch } from '@/sdk';
+import { connections, defineResource, routes, type AppDispatch, dictationLangSet, dictationSet } from '@/sdk';
 
 /** `GET /dictation`: the optional Whisper install that transcribes voice messages and the phone's microphone */
 export type Dictation = { on: boolean; phase: 'none' | 'installing' | 'ready' | 'failed'; downloadMb: number; diskMb: number; dir: string; model: string; /** protocol 18: `auto` or an ISO 639 code */ dictationLang?: string };
 
-export const dictationResource = defineResource<void, Dictation>({ key: () => '', route: () => routes.dictation() });
+export const dictationResource = defineResource<void, Dictation>({ id: 'voice.dictation', key: () => '', route: () => routes.dictation() });
 
 /**
  * The composer's and the comment popup's mic read the capabilities, which only `hello` sets: a change of Whisper that a

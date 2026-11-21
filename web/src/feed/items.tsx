@@ -5,7 +5,6 @@ import { DoneLine, IdleCompactLine, MarkerLine, NoticeLine } from './DoneLine.ts
 import { MsgTime } from './MsgTime.tsx';
 import { PermissionCard } from './PermissionCard.tsx';
 import { PlanCard } from './PlanCard.tsx';
-import { ShellBlock } from './ShellBlock.tsx';
 import { UserMessage } from './UserMessage.tsx';
 
 type Of<K extends FeedItem['kind']> = Extract<FeedItem, { kind: K }>;
@@ -31,13 +30,12 @@ const Permission = memo(function Permission({ item }: { item: Of<'permission'> }
   return item.toolName === 'ExitPlanMode' && typeof item.input.plan === 'string' ? <PlanCard item={item} /> : <PermissionCard item={item} />;
 });
 
-/** How the feed draws its own kinds (issue 511): every kind but actions, which `Feed` draws in runs. */
+/** How the feed draws its own kinds (issue 511): every kind but actions, which `Feed` draws in runs, and `! cmd` runs, the composer's. */
 export const FEED_RENDERERS: AnyFeedRenderer[] = [
   { kind: 'user', render: UserLine },
   { kind: 'assistant', render: Reply },
   { kind: 'done', render: DoneLine },
   { kind: 'permission', render: Permission },
-  { kind: 'shell', render: ShellBlock },
   { kind: 'marker', render: MarkerLine },
   { kind: 'notice', render: NoticeLine },
 ];

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { connections, routes, useT, useAppDispatch, useAppSelector } from '@/sdk';
-import { restartAgent } from './slice.ts';
+import { connections, routes, useT, useAppDispatch, useAppSelector, restartAgent } from '@/sdk';
 
 /** Authentication stays in the native Codex process. No credential values reach this page. */
 export function AgentAccount() {

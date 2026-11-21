@@ -6,7 +6,7 @@ import { PLUGINS } from '../plugins.ts';
 import { commentsSlice } from '../comments/slice.ts';
 import { composerSlice } from '../composer/slice.ts';
 import { historySlice } from '../composer/history.ts';
-import { controlsSlice } from '../controls/slice.ts';
+import { controlsSlice } from '../store/controls.ts';
 import { feedUiSlice } from '../feed/uiSlice.ts';
 import { filesSlice } from '../files/slice.ts';
 import { markupSlice } from '../media/markup/slice.ts';

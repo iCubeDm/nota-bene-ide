@@ -6,7 +6,7 @@ import { PROTOCOL, type ClientMessage, type ServerEvent } from '@nota-bene/share
 import { setLang } from '@/i18n/index.ts';
 import { serverEvent } from '@/store/store.ts';
 import { makeStore } from '@/testing';
-import { Feed } from './Feed.tsx';
+import { Feed } from '@/feed/Feed.tsx';
 
 beforeEach(() => setLang('en'));
 afterEach(cleanup);

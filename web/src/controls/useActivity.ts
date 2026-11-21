@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
-import { pageVisible, useAppDispatch } from '@/sdk';
-import { reportActivity } from './slice.ts';
+import { pageVisible, useAppDispatch, reportActivity } from '@/sdk';
 
 const EVENTS = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'scroll', 'focus'] as const;
 

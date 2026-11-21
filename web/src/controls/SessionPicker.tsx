@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { getLang, t as tNow, useT, selectBusy, selectSession, useAppDispatch, useAppSelector, connections, byteSize, routes } from '@/sdk';
+import { getLang, t as tNow, useT, selectBusy, selectSession, useAppDispatch, useAppSelector, connections, byteSize, routes, selectSwitching, switchSession } from '@/sdk';
 import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog } from '@/sdk/ui';
-import { selectSwitching, switchSession } from './slice.ts';
 import { REFUSED, useNote } from './useNote.ts';
 import { archiveSession, brief, deleteSession, renameSession } from './sessionsApi.ts';
 

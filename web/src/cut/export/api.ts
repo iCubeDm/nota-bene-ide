@@ -35,7 +35,7 @@ async function post(url: string, body: unknown): Promise<Response> {
 }
 
 /** `GET /cut/export` of an edit; a 404 is a server without the export routes (older than the capability). */
-export const exportResource = defineResource<string, ExportState>({ key: (edit) => edit, route: (edit) => routes.cutExport(edit) });
+export const exportResource = defineResource<string, ExportState>({ id: 'cut.export', key: (edit) => edit, route: (edit) => routes.cutExport(edit) });
 
 export async function startExport(edit: string, mode: ExportMode): Promise<ExportJob> {
   const r = await post(routes.cutExport(), { path: edit, mode });

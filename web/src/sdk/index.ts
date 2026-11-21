@@ -11,6 +11,11 @@ export { storage, useStored, bool, string, json, oneOf, type Codec, type Stored,
 export { flag, useFlag, FLAGS, type Flag } from './flags.ts';
 export { track, type TrackProps } from './track.ts';
 
+// the frame's prefs: theme, scale, sounds
+export { theme, THEME_GROUPS, THEME_NAMES, useTheme } from '../shell/theme.ts';
+export { uiScale, useUiScale } from '../shell/uiScale.ts';
+export { playCue } from '../shell/sounds.ts';
+
 // helpers
 export { num, compact, compactParts, percent, money, byteSize } from '../lib/format.ts';
 export { serverSep, isDrivePath, isServerDrivePath, wireAbs, underDir, folderName, shortWinHome, shortHome } from '../lib/paths.ts';
@@ -38,6 +43,7 @@ export {
 } from './connections.ts';
 export { routes } from './routes.ts';
 export { defineResource, useResource, repository, pageVisible, type Resource, type Snapshot } from './repository.ts';
+export { SettingsContext, useSettings, systemPrefs, type SettingsHost, type SystemPrefs } from './settings.ts';
 
 // where the project's files are: their kinds and URLs, the sources they are read from, the temp images, a media tab's start
 export { AUDIO, IMAGE, VIDEO, HTML, kindOf, fileUrl, projectFileUrl, isPath, headVersion, type FileKind } from '../refs/kinds.ts';
@@ -79,6 +85,16 @@ export {
   type VoiceSend,
 } from '../store/store.ts';
 
+// the agent's session-wide state: mode, model, commands, hello, a switch or restart, held sends
+export {
+  dictationSet, dictationLangSet, planApproved, controlsListeners,
+  selectMode, selectSuggestion, selectCapabilitiesKnown, selectCapabilities, selectSwitching, selectRestarting, selectRestartPending,
+  selectCompactPending, selectHeld, selectOrderWaits, selectCanOrderCompact, selectModel, selectModels, selectCommands,
+  selectModelSwitchable, selectIdleCompact, pickMode, pickModel, toggleIdleCompact, nextMode, reportActivity, resetActivityThrottle,
+  ACTIVITY_THROTTLE_MS, runCommand, switchSession, restartAgent, stopWindow, restartServer, restartInPause, cancelCompact, cancelRestart,
+  SERVER_RESTART_TIMEOUT_MS, type ControlsState, type SwitchPhase, type CommandResult, type SwitchResult,
+} from '../store/controls.ts';
+
 export { seekAndPause, type MediaController, type PipApi } from '../store/mediaController.ts';
 export { usePagePause } from '../shell/pagePause.ts';
 
@@ -100,4 +116,4 @@ export const chat = {
 // tabs
 export { openFile, openAgent, activate, closeTab, selectTabs, enterRoot, fileTabId, type Tab, type TabKinds, type DiagramLang } from '../tabs/slice.ts';
 export { requestJump, clearJump, dropJump, selectJump, type Jump } from '../tabs/jump.ts';
-export { feedRenderer, anchorView, type AnchorView, type AnchorKind, type TabView, type Slot, type SlotName, type Command, type KeyId, type Mods, type FeedRenderer, type AnyFeedRenderer, type FeedKind, type Held, type ToolRenderer, type ToolItem, type UserPart, type FileView, type SendPart, type Taken, type SendResult, type TextFileView, type MediaFileView, type MediaLoad, type FileBar } from './registry.ts';
+export { feedRenderer, anchorView, type AnchorView, type AnchorKind, type TabView, type Slot, type SlotName, type Command, type KeyId, type Mods, type FeedRenderer, type AnyFeedRenderer, type FeedKind, type Held, type ToolRenderer, type ToolItem, type UserPart, type FileView, type SettingsSection, type SendPart, type Taken, type SendResult, type TextFileView, type MediaFileView, type MediaLoad, type FileBar } from './registry.ts';

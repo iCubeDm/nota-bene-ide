@@ -12,8 +12,8 @@ import { currentFile, usePatch, useVcsUi } from './store.ts';
 const when = (s: number) => new Date(s * 1000).toLocaleString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 const refName = (r: string) => r.replace('HEAD -> ', '').replace('tag: ', '');
 
-const logResource = defineResource<{ src: string; all: boolean }, VcsLog>({ key: (a) => `${a.src}\0${a.all}`, route: (a) => routes.vcsLog(a.src, a.all), every: 6_000 });
-const commitResource = defineResource<string, VcsCommitDetail>({ key: (sha) => sha, route: routes.vcsCommit });
+export const logResource = defineResource<{ src: string; all: boolean }, VcsLog>({ id: 'vcs.log', key: (a) => `${a.src}\0${a.all}`, route: (a) => routes.vcsLog(a.src, a.all), every: 6_000 });
+export const commitResource = defineResource<string, VcsCommitDetail>({ id: 'vcs.commit', key: (sha) => sha, route: routes.vcsCommit });
 
 function Lanes({ r, width }: { r: ReturnType<typeof layout>[number]; width: number }) {
   const x = (i: number) => i * STEP + STEP / 2;

@@ -8,6 +8,7 @@ import { agentConnection, bindConnections, connectionManager, SELF, type AgentCo
 import { t } from '../i18n/index.ts';
 import { activate, tabsSlice, type Tab, type TabsState } from '../tabs/slice.ts';
 import { jumpSlice } from '../tabs/jump.ts';
+import { controlsSlice } from './controls.ts';
 import { AUDIO, VIDEO } from '@nota-bene/shared/cut';
 import { browserPip, MediaController, type PipApi } from './mediaController.ts';
 import { toast } from '../shell/toast.ts';
@@ -60,7 +61,7 @@ export const connSlice = createSlice({
 type Extra = { connections: ConnectionManager; registry: Registry; sent: SentParts };
 
 /** The core's slices; the plugins' are injected by makeStore. */
-const coreReducer = () => combineSlices(feedSlice, connSlice, tabsSlice, jumpSlice).withLazyLoadedSlices<PluginState>();
+const coreReducer = () => combineSlices(feedSlice, connSlice, tabsSlice, jumpSlice, controlsSlice).withLazyLoadedSlices<PluginState>();
 export type RootState = ReturnType<ReturnType<typeof coreReducer>> & PluginState;
 /** How a listener (`Plugin.listeners`) registers on the store's one listener middleware. */
 export type StartListening = TypedStartListening<RootState, ThunkDispatch<RootState, Extra, UnknownAction>>;
@@ -68,7 +69,7 @@ export type StartListening = TypedStartListening<RootState, ThunkDispatch<RootSt
 /** The reducer of the core and every plugin's slices, each injected once. A slice name taken twice is a build error. */
 function rootReducer(plugins: readonly Plugin[]): Reducer<RootState> {
   const reducer = coreReducer();
-  const names = new Set<string>([feedSlice.reducerPath, connSlice.reducerPath, tabsSlice.reducerPath, jumpSlice.reducerPath]);
+  const names = new Set<string>([feedSlice.reducerPath, connSlice.reducerPath, tabsSlice.reducerPath, jumpSlice.reducerPath, controlsSlice.reducerPath]);
   for (const s of plugins.flatMap((p) => p.slices ?? [])) {
     if (names.has(s.reducerPath)) throw new Error(`store: the slice "${s.reducerPath}" is declared twice`);
     names.add(s.reducerPath);

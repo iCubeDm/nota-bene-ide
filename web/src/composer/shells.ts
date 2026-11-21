@@ -1,6 +1,6 @@
 import type { t as tNow } from '@/sdk';
 
-/** The shells of `! cmd` on Windows, as the server's prefs.ts has them (Settings → Defaults); other systems run $SHELL. */
+/** The shells of `! cmd` on Windows, as the server's prefs.ts has them (Settings → Defaults, `settings.tsx`); other systems run $SHELL. */
 export type WinShell = 'git-bash' | 'pwsh' | 'powershell' | 'cmd';
 export type ShellChoice = 'auto' | WinShell;
 /** the setting's order; `auto` takes the first of the first three that is installed */

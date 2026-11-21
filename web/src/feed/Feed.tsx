@@ -1,12 +1,11 @@
 import { Fragment, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import { useT, refClick, selectFeed, useAppDispatch, useAppSelector, useRegistry, feedRenderer, retriedVoice, isAgentTool, type FeedState } from '@/sdk';
+import { useT, refClick, selectFeed, useAppDispatch, useAppSelector, useRegistry, feedRenderer, retriedVoice, isAgentTool, type FeedState, selectHeld, selectRestartPending } from '@/sdk';
 import { FeedScope } from './scope.ts';
 import { CompactingLine } from './DoneLine.tsx';
 import { EarlierButton } from './EarlierButton.tsx';
 import { ToolGroup } from './ToolGroup.tsx';
 import { ToolLine } from './ToolLine.tsx';
 import { DaySeparator } from './MsgTime.tsx';
-import { selectHeld, selectRestartPending } from '@/controls/slice.ts';
 import type { HeldSend } from '@nota-bene/shared';
 import { dayStarts } from './time.ts';
 
