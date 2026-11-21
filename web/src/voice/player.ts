@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { connections, routes } from '@/sdk';
 
 /** What a bubble shows of its recording: playing now, and the position in ms. */
-export type PlayState = { playing: boolean; pos: number };
+type PlayState = { playing: boolean; pos: number };
 const IDLE: PlayState = { playing: false, pos: 0 };
 
 /** Recently used elements, oldest first: a feed of many voice messages must not keep an element (and its buffered audio) for each. */

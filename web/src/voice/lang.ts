@@ -2,7 +2,7 @@ import { has } from '@nota-bene/shared';
 import { getLang, type RootState } from '@/sdk';
 
 /** The UI language as Whisper takes it: an ISO 639 code (zh-CN → zh, pt-BR → pt). */
-export const whisperLang = (): string => getLang().split('-')[0]!;
+const whisperLang = (): string => getLang().split('-')[0]!;
 
 /** `1:05`, from milliseconds; a recording is shown rounded up, so a 0.4 s one reads 0:01 and never 0:00. */
 export function clock(ms: number, up = false): string {

@@ -6,7 +6,7 @@ import { readSavedDirs, treeKey } from '@/files/treeSlice.ts';
 import { readRecent, recentKey } from '@/files/recent.ts';
 import { expectedCompactMs } from '@/feed/compactTiming.ts';
 import { wrapLines } from '@/files/wrap.ts';
-import { seekStep } from '@/media/seekStep.ts';
+import { seekStep } from '@/store/seekStep.ts';
 import { hasDraft } from '@/files/view/FileEditor.tsx';
 import { theme } from '@/shell/theme.ts';
 import { uiScale } from '@/shell/uiScale.ts';

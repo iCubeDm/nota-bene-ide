@@ -15,10 +15,10 @@ export function formatTime(s: number): string {
 
 export type MarkerIn = { id: string; time: number; text: string; dim: boolean };
 /** One tick: the comments within `mergePx` of each other. `time` is the earliest one's (a click seeks there). */
-export type Marker = { time: number; pct: number; count: number; dim: boolean; ids: string[]; text: string };
+type Marker = { time: number; pct: number; count: number; dim: boolean; ids: string[]; text: string };
 
-export const MARKER_TEXT_CHARS = 40;
-export const MERGE_PX = 4;
+const MARKER_TEXT_CHARS = 40;
+const MERGE_PX = 4;
 
 /**
  * Ticks for comments at `time` s on a timeline of `duration` s drawn `widthPx` wide. Neighbours closer than `mergePx`

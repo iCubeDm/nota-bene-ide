@@ -25,7 +25,7 @@ export const shownIn = (open: Set<string>) => (p: string): boolean => {
 };
 
 /** The "Expand all" run as the entries need to see it: whether it is going, and how to end it (a source switch ends it). */
-export type ExpandRun = { running: boolean; stop: () => void };
+type ExpandRun = { running: boolean; stop: () => void };
 
 type Args = { open: boolean; dirs: string[]; src: string; sources: Source[]; turnSeq: number; run: ExpandRun };
 

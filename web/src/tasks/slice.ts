@@ -30,7 +30,7 @@ export const selectDrawerOpen = (s: RootState): boolean => s.tasksUi.open;
 export const selectLiveCalls = createSelector([(s: RootState) => s.tasks], (t): ReadonlySet<string> =>
   new Set(Object.values(t).flatMap((x) => (x.call && x.status === 'running' ? [x.call] : []))));
 
-export const selectTasks = (s: RootState): TasksState => s.tasks;
+const selectTasks = (s: RootState): TasksState => s.tasks;
 /** How many tasks run (what the indicator, the pulse and the favicon count; a workflow's agents count as their workflow). */
 export const selectRunningCount = createSelector([selectTasks], (t) => Object.values(t).filter((x) => x.status === 'running' && !x.ambient && !x.inner).length);
 /** Running watchers (`ambient`): only they exist => the indicator shows a quiet variant, so the drawer stays reachable. */
@@ -42,12 +42,12 @@ export const selectFinishedCount = createSelector([selectTasks], (t) => Object.v
  * A swarm: the agents one model response launched, as one row. `live`: the running members, the ones Stop all stops.
  * Counted from the members still kept: past FINISHED_CAP the oldest finished ones are gone, and with one left there is no umbrella.
  */
-export type TaskGroup = {
+type TaskGroup = {
   key: string; ids: string[]; live: string[]; status: TaskStatus;
   total: number; running: number; done: number; failed: number; stopped: number; tokens: number;
   /** the first start; `end`, the last end, once none runs */ start: number; end?: number;
 };
-export type TaskRow = { id: string; depth: number } & ({ task: Task; group?: undefined } | { group: TaskGroup; task?: undefined });
+type TaskRow = { id: string; depth: number } & ({ task: Task; group?: undefined } | { group: TaskGroup; task?: undefined });
 
 function swarm(key: string, members: [string, Task][]): TaskGroup {
   const ts = members.map(([, x]) => x);
@@ -118,7 +118,7 @@ export const selectCallEnd = (s: RootState, call: string): 'failed' | 'stopped' 
 };
 
 /** The ids of the tool calls that have their result, in the chat and in every loaded subagent feed: one scan per change, not one per button. */
-export const selectResultedIds = createSelector(
+const selectResultedIds = createSelector(
   [(s: RootState) => s.feed.items, (s: RootState) => s.subagents.byTool],
   (items, byTool): ReadonlySet<string> => {
     const ids = new Set<string>();

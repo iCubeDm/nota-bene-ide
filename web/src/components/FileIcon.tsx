@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react';
 import { isCutPath } from '@nota-bene/shared/cut';
-import { AUDIO, IMAGE, VIDEO } from '@/sdk';
+import { AUDIO, IMAGE, VIDEO } from '../refs/kinds.ts';
 
 /**
  * File-type icons (M6-11), after IntelliJ's new UI: a coloured letter mark for source and config files, a coloured
  * glyph for media, folders and a few well-known names. Built in (inline SVG, no dependency); the colours are the
  * theme's --hue-1..8.
  */
-export type IconId =
+type IconId =
   | 'ts' | 'js' | 'json' | 'md' | 'css' | 'html' | 'py' | 'sh' | 'yml' | 'toml'
   | 'image' | 'video' | 'audio' | 'cut' | 'npm' | 'readme' | 'git' | 'docker' | 'dir' | 'dirOpen' | 'file';
 

@@ -4,7 +4,7 @@ import { ConfirmDialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, Dro
 
 export const INFO_POLL_MS = 20_000;
 /** while a restart is pending and this page is in its pause, it asks again this often (the server may still see work) */
-export const PAUSE_ASK_MS = 5_000;
+const PAUSE_ASK_MS = 5_000;
 
 /**
  * gh-422: a pending restart goes once this page is in its pause too (no send on its way, no upload, no waiting question;

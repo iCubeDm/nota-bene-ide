@@ -3,7 +3,7 @@ import { compact, money, percent, getLang, useT, useAppSelector, selectCapabilit
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { selectStats } from './slice.ts';
 
-export type Level = '' | 'warn' | 'hot';
+type Level = '' | 'warn' | 'hot';
 export const meterLevel = (pct: number): Level => (pct >= 85 ? 'hot' : pct >= 60 ? 'warn' : '');
 
 const FILL: Record<Level, string> = { '': 'bg-primary', warn: 'bg-nb-accent', hot: 'bg-destructive' };

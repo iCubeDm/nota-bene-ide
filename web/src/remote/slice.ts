@@ -3,8 +3,8 @@ import { has, type RemoteState, type ServerEvent } from '@nota-bene/shared';
 import { serverEvent, type RootState } from '@/sdk';
 
 
-export type RemotePair = Extract<ServerEvent, { kind: 'remote-pair' }>;
-export type RemoteSlice = {
+type RemotePair = Extract<ServerEvent, { kind: 'remote-pair' }>;
+type RemoteSlice = {
   /** the window's server is new enough (`hello.protocol`): before it, no indicator and no tab */
   supported: boolean;
   /** it also takes an access key */

@@ -3,7 +3,7 @@
 // editing state, so the change is one step of its undo and is saved as any other edit (never a second writer of the file).
 import { useSyncExternalStore } from 'react';
 
-export type EditTarget = {
+type EditTarget = {
   /** the edit's project-relative path */
   path: string;
   /** appends these project files, in this order (CutBody: the first track of each one's kind) */

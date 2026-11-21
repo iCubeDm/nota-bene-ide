@@ -1,4 +1,4 @@
-import { oneOf, storage, useStored } from '@/sdk';
+import { oneOf, storage, useStored } from '../sdk/storage.ts';
 
 /** The seconds a ← / → press seeks by; the bar's step chip picks one. */
 export const SEEK_STEPS = [0.1, 0.5, 1, 5] as const;

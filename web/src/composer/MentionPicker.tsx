@@ -1,8 +1,6 @@
+import { FileIcon } from '@/sdk/ui';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { useT, connections, routes } from '@/sdk';
-import { setValueAndCaret } from '@/comments/insertText.ts';
-import { FileIcon } from '@/files/FileIcon.tsx';
-import { placeListFor, revealSelected } from './placeList.ts';
+import { useT, connections, routes, setValueAndCaret, placeListFor, revealSelected } from '@/sdk';
 
 // copied from the prototype: `@` at a word start, up to the caret
 export const AT_RE = /(^|\s)@("[^"]*|[^\s"]*)$/;
@@ -23,7 +21,7 @@ export function highlight(text: string, q: string): ReactNode[] {
  * while open, keys are taken at WINDOW capture so Enter/Tab/Esc never reach the host's own handlers.
  */
 /** A path as a shell word: as it is when it is safe, else in single quotes. */
-export const shellWord = (p: string): string => (/^[\w@%+=:,./-]+$/.test(p) ? p : `'${p.replaceAll("'", "'\\''")}'`);
+const shellWord = (p: string): string => (/^[\w@%+=:,./-]+$/.test(p) ? p : `'${p.replaceAll("'", "'\\''")}'`);
 
 /** `shell`: the field holds a `! cmd` draft right now; the pick is then the plain path (a shell word), not an `@` mention the shell would not know. */
 export function MentionPicker({ target, shell }: { target: RefObject<HTMLTextAreaElement | null>; shell?: () => boolean }) {

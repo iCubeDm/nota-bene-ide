@@ -1,7 +1,6 @@
 import { useEffect, type RefObject } from 'react';
-import { keysInScope } from '@/sdk';
+import { keysInScope, seekStep } from '@/sdk';
 import { inPlayerScope, ONCE } from '@/media/playerKeys.ts';
-import { seekStep } from '@/media/seekStep.ts';
 import type { CutPlayer } from './engine.ts';
 import { edgeStep, frameStep } from './playback.ts';
 

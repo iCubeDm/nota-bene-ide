@@ -2,9 +2,9 @@ import { IMAGE_TYPES, type ImageType } from '@nota-bene/shared';
 import { connections, routes } from '@/sdk';
 
 // Values copied from the prototype: the model works at <=1568 px on the long edge anyway, and the API caps an image at 5 MB.
-export const IMG_OK: readonly string[] = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-export const IMG_EDGE = 1568;
-export const IMG_BYTES = 3.5e6;
+const IMG_OK: readonly string[] = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+const IMG_EDGE = 1568;
+const IMG_BYTES = 3.5e6;
 
 /** media types of the ids uploaded in this page's lifetime; a comment stores bare ids, the server has the final say at send */
 const known = new Map<string, ImageType>();

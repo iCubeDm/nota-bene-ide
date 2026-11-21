@@ -86,7 +86,7 @@ export function markRefs(root: HTMLElement, baseDir?: string): void {
 type Part = { text: string } | { mention: string };
 
 /** Like splitMentions, but a mention also carries its source text (`@"a b.md"`), so rendering can keep the text unchanged. */
-export function splitMentionsRaw(text: string): ({ text: string } | { mention: string; raw: string })[] {
+function splitMentionsRaw(text: string): ({ text: string } | { mention: string; raw: string })[] {
   const out: ({ text: string } | { mention: string; raw: string })[] = [];
   const re = /(^|\s)@("[^"]+"|[^\s"]+)/g;
   let last = 0;

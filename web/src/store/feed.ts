@@ -68,7 +68,7 @@ export const emptyFeed: FeedState = { items: [], busy: false, session: null, for
 /** One `GET /history` page: the archived events of segment `segment`; `more`: older segments exist. */
 export type HistoryPage = { events: ServerEvent[]; segment: number; more: boolean };
 /** A page plus the session and feed epoch it was asked for under. */
-export type HistoryPrepend = HistoryPage & { session: string; epoch: number };
+type HistoryPrepend = HistoryPage & { session: string; epoch: number };
 
 export const historyPrepended = createAction<HistoryPrepend>('feed/historyPrepended');
 

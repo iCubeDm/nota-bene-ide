@@ -1,5 +1,5 @@
 import { basename } from '@nota-bene/shared/paths';
-import { projectFileUrl } from '@/sdk';
+import { projectFileUrl } from '../refs/kinds.ts';
 
 /** The drag type of files dragged from the Files tree onto the composer (issue 461): a JSON list of project-relative paths. */
 export const PATHS_MIME = 'application/x-nota-bene-paths';

@@ -9,7 +9,7 @@ export const SAVE_DELAY = 400;
 /** The edit as the editor writes it: two-space JSON and a final newline. */
 export const serialize = (c: Cut): string => `${JSON.stringify(c, null, 2)}\n`;
 
-export type DocStatus = 'saved' | 'unsaved' | 'saving' | 'conflict' | 'error';
+type DocStatus = 'saved' | 'unsaved' | 'saving' | 'conflict' | 'error';
 export type CutDoc = {
   /** the edit being edited; null while it cannot be (not yet read, invalid, another source, no /edit) */
   cut: Cut | null;

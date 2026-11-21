@@ -14,7 +14,7 @@ export type RunningRow = {
   /** issue 297: a window of a paired computer (its host id and name), opened through this computer's connector */
   remote?: { host: string; name: string };
 };
-export type RecentRow = { root: string; provider: Provider; at: number; running: boolean };
+type RecentRow = { root: string; provider: Provider; at: number; running: boolean };
 export type ProjectsList = { running: RunningRow[]; recent: RecentRow[]; /** folders removed from Recent: out of this window's history too */ hidden?: string[] };
 
 export const PROVIDER_LABEL: Record<Provider, string> = { claude: 'Claude', codex: 'Codex', omp: 'omp' };

@@ -7,7 +7,7 @@ import { isAgentTool, TOOL_SRC, type AppThunk, type RootState, type FeedItem } f
  * card can open them before it resolves the range. A group is keyed by its FIRST tool id, which stays the same while
  * later actions join the run. Not persisted: a reload starts with everything folded.
  */
-export type FeedUiState = { openTools: string[]; openGroups: string[] };
+type FeedUiState = { openTools: string[]; openGroups: string[] };
 
 const initialState: FeedUiState = { openTools: [], openGroups: [] };
 

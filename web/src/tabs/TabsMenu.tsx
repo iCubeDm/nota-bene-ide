@@ -9,7 +9,7 @@ import { Svg } from '../components/icons.tsx';
 import { focusTab } from './focus.ts';
 
 /** The ids of the tabs not fully inside the strip's visible width (a 1 px slack for subpixel layouts). */
-export function hiddenTabs(strip: HTMLElement): Set<string> {
+function hiddenTabs(strip: HTMLElement): Set<string> {
   const box = strip.getBoundingClientRect();
   const out = new Set<string>();
   for (const el of strip.querySelectorAll<HTMLElement>('[data-tab]')) {

@@ -36,7 +36,7 @@ type Slot = {
   joining?: boolean;
 };
 
-export type PlayerOptions = {
+type PlayerOptions = {
   /** a source's URL */
   url: (src: string) => string;
   /**

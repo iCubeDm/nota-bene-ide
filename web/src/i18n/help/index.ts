@@ -8,10 +8,10 @@ import { helpRu } from './ru.ts';
 import { helpZhCN } from './zh-CN.ts';
 
 /** The reference's groups (issue 464). */
-export type HelpArea = 'chat' | 'comments' | 'files' | 'markup' | 'edit' | 'voice' | 'projects' | 'settings' | 'phone';
+type HelpArea = 'chat' | 'comments' | 'files' | 'markup' | 'edit' | 'voice' | 'projects' | 'settings' | 'phone';
 
 /** A key of the UI dictionary. */
-export type TKey = keyof typeof ru;
+type TKey = keyof typeof ru;
 
 /**
  * The help dictionary (issue 463): one entry per feature, the explanation a tooltip no longer carries (a tooltip only
@@ -55,7 +55,7 @@ export const HELP_ENTRIES = {
   auditLog: { area: 'settings', guide: 'audit-log', tips: ['defAuditHint'] },
 } as const satisfies Record<string, { area: HelpArea; guide: string; tips: readonly TKey[] }>;
 
-export type HelpKey = keyof typeof HELP_ENTRIES;
+type HelpKey = keyof typeof HELP_ENTRIES;
 
 /**
  * What an entry that depends on this computer or platform takes, filled when it is shown: `attach` the Cmd/Ctrl prefix

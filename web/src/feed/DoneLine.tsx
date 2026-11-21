@@ -1,6 +1,5 @@
 import { memo, useEffect, useState } from 'react';
-import { compact, useT, type FeedItem, selectConn, useAppDispatch, useAppSelector, chat, selectIdleCompact } from '@/sdk';
-import { archiveSession } from '@/controls/sessionsApi.ts';
+import { compact, useT, type FeedItem, selectConn, useAppDispatch, useAppSelector, chat, selectIdleCompact, archiveSession } from '@/sdk';
 import { compactProgress, expectedCompactMs, mmss } from './compactTiming.ts';
 import { MsgTime } from './MsgTime.tsx';
 import { timeOf } from './UserMessage.tsx';

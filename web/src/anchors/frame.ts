@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react';
 // coordinates and DOM; these helpers carry what it reads across the frame's edge.
 
 /** The frame HtmlBody renders a page into. */
-export const PAGE_FRAME = 'iframe[data-page-frame]';
+const PAGE_FRAME = 'iframe[data-page-frame]';
 
 /** The frame element holding `n`, when `n` is in a page frame's document; null for this window's own nodes. */
 export function frameOf(n: Node): HTMLIFrameElement | null {
@@ -13,7 +13,7 @@ export function frameOf(n: Node): HTMLIFrameElement | null {
 }
 
 /** How far the page's own client coordinates sit from this window's: the frame's content box corner. */
-export function shiftOf(n: Node): { x: number; y: number } {
+function shiftOf(n: Node): { x: number; y: number } {
   const f = frameOf(n);
   if (!f) return { x: 0, y: 0 };
   const r = f.getBoundingClientRect();

@@ -126,7 +126,7 @@ it('refusals say why: a file named attachments, too large, too large for the rel
 
 it('files dragged from the tree drop onto the composer as their paths (issue 461)', async () => {
   const { box } = setup();
-  const { PATHS_MIME } = await import('@/files/drag.ts');
+  const { PATHS_MIME } = await import('@/lib/drag.ts');
   const data: Record<string, string> = { [PATHS_MIME]: JSON.stringify(['docs/a.md', 'clips/take.mp4']), 'text/plain': 'docs/a.md' };
   const dataTransfer = { types: Object.keys(data), getData: (k: string) => data[k] ?? '', dropEffect: 'none', files: [] };
   const over = new Event('dragover', { bubbles: true, cancelable: true });

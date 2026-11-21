@@ -1,7 +1,6 @@
 // The other end of a hand-off to a session (api.ts enterProject with a session): the URL said `&s=<id>` (or `new`), so
 // once this window tells its session the page switches to that one (or a new one). Once; a refusal is a toast.
-import { t, toast, selectConn, selectSession, type AppStore, switchSession, type SwitchResult } from '@/sdk';
-import { REFUSED } from '@/controls/useNote.ts';
+import { t, toast, selectConn, selectSession, type AppStore, switchSession, type SwitchResult, REFUSED } from '@/sdk';
 
 export function startLanding(store: AppStore, session: string, switchFn?: (id: string | null, dir: string) => SwitchResult): () => void {
   const sw = switchFn ?? ((id: string | null, dir: string) => store.dispatch(switchSession(id, dir)));

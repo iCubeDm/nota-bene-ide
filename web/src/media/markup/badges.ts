@@ -4,7 +4,7 @@ import { shapesBounds } from './geometry.ts';
 type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
 /** Badge radius for a w×h picture: 1.2% of the long edge (a disc ~2.4% across), at least 16 px, so it is >= 30 px across at the 1568 px upload size. */
-export const badgeRadius = (w: number, h: number): number => Math.max(16, Math.round(Math.max(w, h) * 0.012));
+const badgeRadius = (w: number, h: number): number => Math.max(16, Math.round(Math.max(w, h) * 0.012));
 
 /**
  * One numbered disc per comment at the top-left corner of its shapes' box (dark disc, white ring, the shape colour

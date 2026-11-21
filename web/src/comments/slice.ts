@@ -5,8 +5,8 @@ import { bool, connState, serverEvent, storage, type AppThunk, type RootState, f
 
 export type CommentCard = { id: string; x: number; y: number };
 /** a local change on its way to the server (protocol 19): it shows at once and is sent until the server acks or refuses it */
-export type QueuedOp = { opId: string; sessionId: string | null; ops: CommentOp[] };
-export type CommentsState = {
+type QueuedOp = { opId: string; sessionId: string | null; ops: CommentOp[] };
+type CommentsState = {
   /** what the user sees: the server's set with the queued changes of this session on top */
   items: Comment[];
   /** protocol 19 (from `hello`): changes go as ops; before it, as the whole set */
@@ -154,7 +154,7 @@ const sync = (items: Comment[]): AppThunk => (d, getState, { connections }) => {
 };
 
 /** On socket open: re-send local changes made while offline (local wins; last-writer-wins between windows is accepted). */
-export const resyncComments = (): AppThunk => (d, getState, { connections }) => {
+const resyncComments = (): AppThunk => (d, getState, { connections }) => {
   const st = getState().comments;
   if (st.unsynced && connections.current().send({ type: 'comments', sessionId: getState().feed.session?.id ?? null, items: st.items })) d(commentsSlice.actions.markResent());
 };

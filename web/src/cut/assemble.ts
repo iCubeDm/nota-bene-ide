@@ -4,7 +4,7 @@ import { AUDIO, clipLength, PHOTO, VIDEO, type Cut, type CutTrack } from '@nota-
 import { addClip, addTrack, takes } from './ops.ts';
 
 /** A file to add, and how long its clip is (a photo's duration, a video's or sound's whole length), seconds; null unknown. */
-export type MediaItem = { src: string; len: number | null };
+type MediaItem = { src: string; len: number | null };
 
 /** A new edit's frame: Full HD at 30 frames a second, the size most cameras and phones record. */
 export const NEW_CUT: Cut = { version: 1, width: 1920, height: 1080, fps: 30, tracks: [], clips: [] };

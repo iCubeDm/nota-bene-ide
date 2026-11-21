@@ -25,3 +25,5 @@ export { PanelResizer, usePanelWidth } from '../shell/PanelResizer.tsx';
 export { SettingsRow, SettingsFail } from '../components/SettingsRow.tsx';
 export { ICONS, Svg } from '../components/icons.tsx';
 export { focusTab } from '../tabs/focus.ts';
+export { FileIcon, iconOf } from '../components/FileIcon.tsx';
+export { PlayIcon, PauseIcon, ReplayIcon, VolumeOffIcon, VolumeLowIcon, VolumeHighIcon, PencilIcon, PipIcon, EnterFullscreenIcon, ExitFullscreenIcon, EdgeBackIcon, EdgeForwardIcon, FrameBackIcon, FrameForwardIcon } from '../components/playerIcons.tsx';

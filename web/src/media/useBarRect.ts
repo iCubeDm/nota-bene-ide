@@ -5,7 +5,7 @@ import { natSize, type Media } from './markup/overlay.tsx';
 /** The narrowest the bar gets: a narrower picture gets a bar this wide, centred on it, so the buttons fit. */
 export const BAR_MIN_PX = 360;
 
-export type BarRect = { left: number; width: number; bottom: number };
+type BarRect = { left: number; width: number; bottom: number };
 
 /**
  * Where a video's bar goes in `box` (its positioned container): over the bottom edge of the video's rendered picture

@@ -1,20 +1,19 @@
+import { EnterFullscreenIcon, ExitFullscreenIcon, PauseIcon, PencilIcon, PipIcon, PlayIcon, ReplayIcon } from '@/sdk/ui';
 import { has } from '@nota-bene/shared';
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { selectMediaComments } from '@/comments/slice.ts';
 import { selectFileVersion } from '@/files/slice.ts';
-import { useT, useAppDispatch, useAppSelector, useMedia } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, useMedia, SEEK_STEPS, seekStep, useSeekStep, type SeekStepValue } from '@/sdk';
 import { changedSince } from './markup/MediaMarks.tsx';
 import { BarButton, ChoiceMenu, SPEEDS, VolumeControl } from './PlayerControls.tsx';
 import { applyPlayerKey, startAnnotate, type Flash } from './playerKeys.ts';
-import { EnterFullscreenIcon, ExitFullscreenIcon, PauseIcon, PencilIcon, PipIcon, PlayIcon, ReplayIcon } from './playerIcons.tsx';
-import { SEEK_STEPS, seekStep, useSeekStep, type SeekStepValue } from './seekStep.ts';
 import { Timeline } from './Timeline.tsx';
 import { BAR_MIN_PX, useBarRect } from './useBarRect.ts';
 import { formatTime, type MarkerIn } from './timelineMath.ts';
 import { useMediaState } from './useMediaState.ts';
 
 /** While playing, the bar and the cursor go away after this long without the pointer moving over the player. */
-export const HIDE_AFTER_MS = 2500;
+const HIDE_AFTER_MS = 2500;
 
 /**
  * Whether the video's bar shows: always while paused, hovered, a menu is open or the timeline is being scrubbed; while

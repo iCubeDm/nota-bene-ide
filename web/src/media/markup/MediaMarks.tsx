@@ -12,7 +12,7 @@ import { selectDraft } from './slice.ts';
  * never tells a video's frame rate, and half a frame is under 40 ms for any rate above 12.5 fps, so
  * `max(0.5 / fps, 0.04)` is 0.04 in practice.
  */
-export const TIME_TOLERANCE = 0.04;
+const TIME_TOLERANCE = 0.04;
 const SENT_OPACITY = 0.35;
 /** A stroke is thin: the click target is a wider invisible stroke along it (the shapes' insides stay click-through). */
 const HIT_PX = 12;

@@ -26,7 +26,7 @@ export function setTmpDirs(next: string[] | undefined): void {
   dirs = v;
   for (const fn of listeners) fn();
 }
-export const getTmpDirs = (): string[] => dirs;
+const getTmpDirs = (): string[] => dirs;
 export const useTmpDirs = (): string[] => useSyncExternalStore(subscribe, getTmpDirs);
 
 /** An absolute image path lexically under a temp folder (no `..`, no forbidden characters). The server decides for real.
@@ -56,7 +56,7 @@ export function tmpImagePathsIn(text: string, from: string[] = dirs): string[] {
 }
 
 export type TmpLoad = { s: 'loading' } | { s: 'ok'; url: string } | { s: 'gone' } | { s: 'big' } | { s: 'error' };
-export type TmpFetched = { s: 'ok'; blob: Blob } | { s: 'gone' } | { s: 'big' } | { s: 'error' };
+type TmpFetched = { s: 'ok'; blob: Blob } | { s: 'gone' } | { s: 'big' } | { s: 'error' };
 
 /** GET `/tmpimage?...` with the key into bytes; the status maps to what the view says. */
 export async function fetchTmpImage(url: string, signal: AbortSignal): Promise<TmpFetched> {

@@ -30,7 +30,7 @@ const audio = (): AudioContext | null => {
   return ctx;
 };
 /** A user gesture lets the page's audio start (the autoplay rule): until the first one, a cue is silent. */
-export const unlockAudio = () => { const c = audio(); if (c?.state === 'suspended') void c.resume().catch(() => {}); };
+const unlockAudio = () => { const c = audio(); if (c?.state === 'suspended') void c.resume().catch(() => {}); };
 
 /** Plays a cue, generated with Web Audio (no asset). */
 export function playCue(cue: Cue): void {
@@ -53,7 +53,7 @@ export function playCue(cue: Cue): void {
 }
 
 /** The setting as the server has it now; null when it cannot be read (then nothing sounds). */
-export const readSounds = async (): Promise<Sounds | null> => (await storage.pref('sounds').read()) ?? null;
+const readSounds = async (): Promise<Sounds | null> => (await storage.pref('sounds').read()) ?? null;
 
 /** The first tab of this origin to claim a cue's key gets it; the same key again is taken already. */
 export function claim(key: string): boolean {

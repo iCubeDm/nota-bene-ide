@@ -9,15 +9,15 @@ import { showCommit } from '@/vcs/store.ts';
  * `v` bumps on every settled load, so a reload re-runs the checks even when the state stays `loaded`.
  * Keyed by `fileKey(path, ref)`: the path alone for this folder, so a.md and a.md @ feature/x never mix (M3-16).
  */
-export type FileLoad = { s: 'loading' | 'loaded' | 'gone'; v: number };
+type FileLoad = { s: 'loading' | 'loaded' | 'gone'; v: number };
 /** A file of some source: `ref` only when it is not this folder. */
-export type FileRef = { path: string; ref?: string };
+type FileRef = { path: string; ref?: string };
 /**
  * `version`: the current ETag of an open media tab's file, read when it (re)loads (only while it has a media comment
  * with a version; absent for a branch source): a media comment compares it with its anchor's for "the file has changed
  * since". No entry = unknown (tab closed): no claim either way.
  */
-export type FilesState = { load: Record<string, FileLoad>; version: Record<string, string> };
+type FilesState = { load: Record<string, FileLoad>; version: Record<string, string> };
 
 const keyOf = (f: string | FileRef) => (typeof f === 'string' ? f : fileKey(f.path, f.ref));
 

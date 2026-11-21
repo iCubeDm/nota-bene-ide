@@ -1,6 +1,5 @@
 import { useState, type Ref } from 'react';
-import { selectSession, toast, useAppSelector, useT, type TabView } from '@/sdk';
-import { renameSession } from './sessionsApi.ts';
+import { selectSession, toast, useAppSelector, useT, type TabView, renameSession } from '@/sdk';
 import { SessionPicker } from './SessionPicker.tsx';
 
 /** The session's title being edited. Enter saves, Esc or a click elsewhere cancels; a failed save stays open. */

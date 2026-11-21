@@ -1,4 +1,4 @@
-import { connections } from '@/sdk';
+import { connections } from '../sdk/connections.ts';
 
 // The Sessions menu's writes (server/src/sessions.ts), shared by the menu, the chat tab and the feed's cleared line
 

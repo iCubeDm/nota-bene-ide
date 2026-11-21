@@ -7,7 +7,7 @@ import { clearPair, indicator, selectRemote } from './slice.ts';
 import { TONE, troubleWhy, WORD } from './RemoteMenu.tsx';
 
 /** The guide's remote-access section (how to run a relay). */
-export const REMOTE_GUIDE_URL = 'https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#remote-access';
+const REMOTE_GUIDE_URL = 'https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#remote-access';
 
 
 function Section({ title, children, id }: { title: string; children: ReactNode; id: string }) {

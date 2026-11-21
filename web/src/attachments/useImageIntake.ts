@@ -7,7 +7,7 @@ import type { PendingThumb } from './Attachments.tsx';
 
 const isImage = (f: File) => f.type.startsWith('image/');
 /** the relay (remote/device.ts) holds a request body whole, up to 32 MiB: a page on another computer cannot send more */
-export const RELAY_MAX_BYTES = 32 * 1024 * 1024;
+const RELAY_MAX_BYTES = 32 * 1024 * 1024;
 
 /** What a failed file upload says: a refusal with a reason names it, anything else is the generic failure. */
 function fileFailure(f: File, e: unknown): string {

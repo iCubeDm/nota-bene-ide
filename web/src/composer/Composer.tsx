@@ -1,7 +1,6 @@
-import { useAutosize } from './autosize.ts';
 import { AgentAccount } from '@/controls/AgentAccount.tsx';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat, sendCount, sendWaiting, nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching } from '@/sdk';
+import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat, sendCount, sendWaiting, nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching, useAutosize, draggedPaths, useSeekStep } from '@/sdk';
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { CompactClear } from '@/controls/CompactClear.tsx';
 import { ModePill } from '@/controls/ModePill.tsx';
@@ -20,7 +19,6 @@ import { CtxNudge } from '@/stats/CtxNudge.tsx';
 import { ComposerAttachments } from '@/attachments/ComposerAttachments.tsx';
 import { insertPaths } from '@/attachments/file.ts';
 import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
-import { draggedPaths } from '@/files/drag.ts';
 import { addImage, selectDraft, selectBuilding, selectImages, selectUploading, setDraft, uploadFinished, uploadStarted } from './slice.ts';
 import { VOICE_KEY } from './commands.ts';
 import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';
@@ -29,7 +27,6 @@ import { onVoiceRefused } from '@/voice/inflight.ts';
 import { sendVoice } from '@/voice/send.ts';
 import { useVoiceRecorder } from '@/voice/useVoiceRecorder.ts';
 import { PLAYER_HELP } from '@/media/playerKeys.ts';
-import { useSeekStep } from '@/media/seekStep.ts';
 
 export function Composer() {
   const t = useT();
