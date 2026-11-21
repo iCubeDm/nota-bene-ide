@@ -85,6 +85,7 @@ class _UsageScreenState extends State<UsageScreen> {
       }
     } catch (e) {
       final why = switch (e) {
+        FilesError(status: null, :final cause?) => '$cause',
         FilesError(status: null) => 'offline',
         FilesError(:final status) => '$status',
         _ => '$e',

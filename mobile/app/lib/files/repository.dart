@@ -16,10 +16,12 @@ import '../chat/agent_connection.dart';
 /// The largest file the phone opens.
 const fileMaxBytes = 2000000;
 
-/// Why a route did not answer: [status] is the HTTP status, null when the host could not be reached.
+/// Why a route did not answer: [status] is the HTTP status, null when the host could not be reached; [cause] what
+/// broke, when the request or its answer failed rather than the host being offline.
 class FilesError implements Exception {
-  FilesError(this.status);
+  FilesError(this.status, [this.cause]);
   final int? status;
+  final Object? cause;
   bool get outside => status == 403;
   bool get missing => status == 404;
   @override
@@ -71,7 +73,7 @@ class Repository {
     final key =
         '${identityHashCode(_conn.link.channel)} $route${headers == null ? '' : ' $headers'}';
     return _inFlight[key] ??= http('GET', route, headers: headers)
-        .catchError((Object _) => throw FilesError(null))
+        .catchError((Object e) => throw FilesError(null, e))
         .whenComplete(() {
           _inFlight.remove(
             key,
@@ -85,8 +87,8 @@ class Repository {
     if (r.status != 200) throw FilesError(r.status);
     try {
       return jsonDecode(utf8.decode(r.body));
-    } on FormatException {
-      throw FilesError(null);
+    } on FormatException catch (e) {
+      throw FilesError(null, e);
     }
   }
 
