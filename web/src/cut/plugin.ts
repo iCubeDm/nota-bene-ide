@@ -1,4 +1,4 @@
-import { isCutAnchor } from '@nota-bene/shared';
+import { isCutAnchor, type CutAnchor } from '@nota-bene/shared';
 import { isCutPath } from '@nota-bene/shared/cut';
 import { definePlugin } from '@/sdk';
 import { CutView } from './CutBody.tsx';
@@ -6,6 +6,16 @@ import { CutCard } from './CutCard.tsx';
 import { exportResource } from './export/api.ts';
 import { liveCutState } from './live.ts';
 import { editTreeAction } from './treeMenu.tsx';
+
+declare module '@/sdk' {
+  interface Services { cut: CutService }
+}
+
+/** The edits as other plugins read them (issue 545), provided by the cut plugin. */
+export interface CutService {
+  /** how a cut comment stands in its edit as its open tab shows it; undefined while no tab shows it */
+  liveCutState(a: CutAnchor): 'ok' | 'trimmed' | 'gone' | undefined;
+}
 
 export const cutPlugin = definePlugin({
   id: 'cut',

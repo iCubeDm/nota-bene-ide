@@ -1,6 +1,6 @@
 import { BATCH_HEAD, generatedImages, isMediaAnchor } from '@nota-bene/shared';
 import { useEffect, useRef, useState, type HTMLAttributes, type KeyboardEvent } from 'react';
-import { getLang, useT, useAppDispatch, useAppSelector, useRegistry, anchorLine, anchorView, type UserPart, selectSwitching, labelOf, labelText, QUICK_LABELS, useVoice, useAttachments } from '@/sdk';
+import { getLang, useT, useAppDispatch, useAppSelector, useRegistry, anchorLine, anchorView, type UserPart, selectSwitching, labelOf, labelText, QUICK_LABELS, useService } from '@/sdk';
 import { Tooltip, TooltipTrigger, Markdown } from '@/sdk/ui';
 import { CardActions } from './CardActions.tsx';
 import { useCommentSource } from './useCommentSource.ts';
@@ -20,8 +20,8 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
   const c = useAppSelector(selectComments).find((x) => x.id === id);
   const { where, orphan, beforeCompact, version, jump } = useCommentSource(c);
   const registry = useRegistry();
-  const { ClipRow } = useVoice();
-  const { Attachments } = useAttachments();
+  const { ClipRow } = useService('voice');
+  const { Attachments } = useService('attachments');
   const [editing, setEditing] = useState(false);
   const body = useRef<HTMLDivElement>(null);
   const live = useRef(false); // true while an edit is open; guards double finish (✓ then blur)
@@ -129,7 +129,7 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
 export function SentComments({ item }: Parameters<UserPart['render']>[0]) {
   const t = useT();
   const sent = useAppSelector((s) => selectSentFor(s, item.id));
-  const { ClipRow } = useVoice();
+  const { ClipRow } = useService('voice');
   const m = BATCH_HEAD.exec(item.text);
   const raw = m ? item.text.slice(m.index + m[0].length) : '';
   if (!sent.length && !raw) return null;

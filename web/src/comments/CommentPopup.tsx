@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from 'react-redux';
 import { has, isAttachmentAnchor, isMediaAnchor, isTextAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
-import { getLang, useT, useAppDispatch, useAppSelector, anchorLine, type PendingComment, type RootState, toast, clearPageSelections, selectCapabilities, selectSwitching, labelsFor, labelText, useAutosize, dictationAsk, useVoice, useAttachments, insertPaths, hasFiles, ComposerFieldContext, type ImageEntry } from '@/sdk';
+import { getLang, useT, useAppDispatch, useAppSelector, anchorLine, type PendingComment, type RootState, toast, clearPageSelections, selectCapabilities, selectSwitching, labelsFor, labelText, useAutosize, dictationAsk, insertPaths, hasFiles, ComposerFieldContext, type ImageEntry, useService } from '@/sdk';
 import { Button, MessageInput, MicButton, Slots, Tooltip, TooltipTrigger } from '@/sdk/ui';
 import { LabelTip } from './LabelTip.tsx';
 import { EmojiMenu } from './EmojiMenu.tsx';
@@ -31,8 +31,8 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
 }) {
   const t = useT();
   const dispatch = useAppDispatch();
-  const { useRecorder, RecordBar, WhisperPrompt, ClipRow, transcribe: transcribeVoice } = useVoice();
-  const { useIntake, Attachments } = useAttachments();
+  const { useRecorder, RecordBar, WhisperPrompt, ClipRow, transcribe: transcribeVoice } = useService('voice');
+  const { useIntake, Attachments } = useService('attachments');
   // the comment set belongs to the session being left: no new comment mid-switch (the server resets it with the session)
   const switching = useAppSelector(selectSwitching);
   // read from the store at decision time: after an unmount there are no renders to refresh a ref

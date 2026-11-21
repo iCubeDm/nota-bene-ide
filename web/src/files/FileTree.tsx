@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useT, openFile, selectTabs, useAppDispatch, useAppSelector, loadSources, useSources, selectActiveTab, useComments, useRegistry } from '@/sdk';
+import { useT, openFile, selectTabs, useAppDispatch, useAppSelector, loadSources, useSources, selectActiveTab, useRegistry, useService } from '@/sdk';
 import { PanelResizer, usePanelWidth, ContextMenu, ContextMenuTrigger } from '@/sdk/ui';
 import { clearReveal, pickSource, revealFile, selectRefreshSeq, selectTree, setDirs, setTreeOpen, toggleDir } from './treeSlice.ts';
 import { useTreeEntries } from './tree/useTreeEntries.ts';
@@ -14,7 +14,7 @@ const TREE_MIN = 200;
 
 /** The left tool window, docked next to its strip: open, it narrows the middle column (R-M6-3). */
 export function FileTree() {
-  const { selectPendingCountByPath } = useComments();
+  const { selectPendingCountByPath } = useService('comments');
   const t = useT();
   const d = useAppDispatch();
   const { open, dirs, reveal, src } = useAppSelector(selectTree);

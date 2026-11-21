@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { useT, routes, storage, string, defineResource, useResource, usePagePause, reloadPage, connections } from '@/sdk';
+import { useT, routes, storage, string, defineResource, useResource, usePagePause, connections } from '@/sdk';
+import { reloadPage } from './reloadPage.ts';
 import { Popover, PopoverContent, PopoverTrigger, Markdown } from '@/sdk/ui';
 
 /** the newest version the user put off with Later */

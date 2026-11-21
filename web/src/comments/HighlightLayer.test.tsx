@@ -38,7 +38,7 @@ function setup(cs: Comment[], final = true) {
   const view = render(
     <Provider store={store}>
       <main data-chat-pane>
-        <div id="items">
+        <div id="items" data-items>
           <div data-kind="assistant" data-item-id="a1" data-final={String(final)}><p>hello brave world</p></div>
         </div>
         <HighlightLayer />

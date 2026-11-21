@@ -5,7 +5,7 @@ import { Provider } from 'react-redux';
 import { renderHook } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { PLUGINS } from '@/plugins.ts';
-import { makeStore, useAttachments, useComments, useService, useVoice } from '@/store/store.ts';
+import { makeStore, useService } from '@/store/store.ts';
 import { useComposerField } from './composerField.ts';
 import type { TabKinds } from '@/tabs/slice.ts';
 import { buildRegistry } from './registry.ts';
@@ -179,7 +179,7 @@ it('the comments\' service is provided by one plugin; a second fails the build; 
   expect(() => buildRegistry([provides('a'), provides('b')])).toThrow('two plugins provide the comments');
   const bare = makeStore({ url: 'u', connect: () => ({ send: () => true, close() {} }), plugins: [] });
   const wrapper = ({ children }: { children: ReactNode }) => createElement(Provider, { store: bare, children });
-  expect(() => renderHook(() => useComments(), { wrapper })).toThrow('no plugin provides the comments');
+  expect(() => renderHook(() => useService('comments'), { wrapper })).toThrow('no plugin provides the comments');
 });
 
 // the composer and the comment popup reach voice and attachments through the SDK (issue 545)
@@ -191,22 +191,23 @@ it('the voice and the attachments are each one plugin\'s service; a second fails
   expect(() => buildRegistry([{ id: 'a', attachments: r.attachments }, { id: 'b', attachments: r.attachments }])).toThrow('two plugins provide the attachments');
   const bare = makeStore({ url: 'u', connect: () => ({ send: () => true, close() {} }), plugins: [] });
   const wrapper = ({ children }: { children: ReactNode }) => createElement(Provider, { store: bare, children });
-  expect(() => renderHook(() => useVoice(), { wrapper })).toThrow('no plugin provides the voice');
-  expect(() => renderHook(() => useAttachments(), { wrapper })).toThrow('no plugin provides the attachments');
+  expect(() => renderHook(() => useService('voice'), { wrapper })).toThrow('no plugin provides the voice');
+  expect(() => renderHook(() => useService('attachments'), { wrapper })).toThrow('no plugin provides the attachments');
 });
 
 // other plugins' state and views are read through their owners' services, never their modules (issue 545)
-it('the files, git, projects, feed, tasks, edits and media services are each one plugin\'s, with only what the others read', () => {
+it('the files, git, projects, feed, tasks, edits, media and composer services are each one plugin\'s, with only what the others read', () => {
   const r = buildRegistry(PLUGINS);
-  const keys = (k: 'files' | 'vcs' | 'projects' | 'feedUi' | 'tasks' | 'cut' | 'media') => Object.keys(r[k]!).sort();
-  expect(keys('files')).toEqual(['diskChanged', 'jumpToFileComment', 'pickSource', 'selectDiskSeq', 'selectFileLoad', 'selectFileVersion',
-    'selectRefreshSeq', 'selectSource', 'setTreeOpen']);
+  const keys = (k: 'files' | 'vcs' | 'projects' | 'feedUi' | 'tasks' | 'cut' | 'media' | 'composer') => Object.keys(r[k]!).sort();
+  expect(keys('files')).toEqual(['diskChanged', 'inTree', 'jumpToFileComment', 'pickSource', 'selectDiskSeq', 'selectFileLoad', 'selectFileVersion',
+    'selectRefreshSeq', 'selectSource', 'selectTreeOpen', 'setTreeOpen']);
   expect(keys('vcs')).toEqual(['showCommit']);
   expect(keys('projects')).toEqual(['openFolder']);
-  expect(keys('feedUi')).toEqual(['Feed', 'revealTool']);
+  expect(keys('feedUi')).toEqual(['Feed', 'revealTool', 'selectFolds']);
   expect(keys('tasks')).toEqual(['CallMenu']);
   expect(keys('cut')).toEqual(['liveCutState']);
   expect(keys('media')).toEqual(['AttachmentMarkup', 'ChatPlayer']);
+  expect(keys('composer')).toEqual(['field']);
   expect(() => buildRegistry([{ id: 'a', files: r.files }, { id: 'b', files: r.files }])).toThrow('two plugins provide the files');
   const bare = makeStore({ url: 'u', connect: () => ({ send: () => true, close() {} }), plugins: [] });
   const wrapper = ({ children }: { children: ReactNode }) => createElement(Provider, { store: bare, children });

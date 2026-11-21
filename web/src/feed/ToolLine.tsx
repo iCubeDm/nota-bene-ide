@@ -1,7 +1,7 @@
 import { memo, useContext, useId, useMemo, useState, type ComponentProps } from 'react';
-import { useT, selectBusy, useAppDispatch, useAppSelector, useRegistry, type FeedItem, collapsedLength, rawIndexOf, openFile, ARG_KEYS, toolSrcId, type ToolRenderer, tmpImagePathsIn, selectTmpDirs } from '@/sdk';
+import { useT, selectBusy, useAppDispatch, useAppSelector, useRegistry, type FeedItem, collapsedLength, rawIndexOf, openFile, ARG_KEYS, toolSrcId, type ToolRenderer, tmpImagePathsIn, selectTmpDirs, useService } from '@/sdk';
 import { FeedScope } from './scope.ts';
-import { scopedId, selectToolAnchorEnds, selectToolCommentCounts, selectToolOpen, toggleTool } from './uiSlice.ts';
+import { scopedId, toolAnchorEnds, toolCommentCounts, selectToolOpen, toggleTool } from './uiSlice.ts';
 
 type Tool = Extract<FeedItem, { kind: 'tool' }>;
 
@@ -131,8 +131,9 @@ export const ToolLine = memo(function ToolLine({ item }: { item: Tool }) {
   const dispatch = useAppDispatch();
   const key = scopedId(useContext(FeedScope).agent, item.id); // the chat's line and a subagent's tab's line of one id are two lines
   const open = useAppSelector((s) => selectToolOpen(s, key));
-  const comments = useAppSelector((s) => selectToolCommentCounts(s)[key] ?? 0);
-  const end = useAppSelector((s) => selectToolAnchorEnds(s)[key] ?? 0);
+  const { selectComments } = useService('comments');
+  const comments = useAppSelector((s) => toolCommentCounts(selectComments(s))[key] ?? 0);
+  const end = useAppSelector((s) => toolAnchorEnds(selectComments(s))[key] ?? 0);
   const panelId = useId();
   const head = useRegistry().tools.find((r) => r.match(item));
   if (head) {

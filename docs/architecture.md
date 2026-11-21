@@ -305,12 +305,12 @@ root-level files (`main.tsx`, `App.tsx`, `plugins.ts`) are the composition root 
 
 | Folder | Role | Contents |
 |---|---|---|
-| `sdk/` | core | The facade (`index.ts`, `ui.ts`) and the core's own modules: `connections.ts`, `routes.ts`, `repository.ts`, `storage.ts`, `flags.ts`, `track.ts`, `plugin.ts`, `registry.ts`, `settings.ts` (the Settings tab's host) ([4.5](#45-sdk-and-registries)). |
+| `sdk/` | core | The facade (`index.ts`, `ui.ts`) and the core's own modules: `connections.ts`, `routes.ts`, `repository.ts`, `storage.ts`, `flags.ts`, `track.ts`, `plugin.ts`, `registry.ts`, `settings.ts` (the Settings tab's host) ([4.5](#45-sdk-and-registries)). The facade re-exports what plugins use, not every core name. |
 | `store/` | core | `store.ts` (store assembly: the core slices `feed` and `conn`, slice injection, middleware, the chat thunks), `feed.ts` (the pure reducer of the feed from `AgentEvent`, plus `prependHistory`), `chunks.ts`, `persist.ts` (the core's listeners), `send.ts` (`chat.send` over `sendParts`), `controls.ts` (the `controls` slice: mode, model, commands, the hello's protocol, a switch or restart, held sends), `message.ts` (the images of the message being written), `stats.ts`, `tasks.ts` and `subagents.ts` (server data several plugins read), `mediaController.ts` (pause and PiP between tabs), `seekStep.ts`, `sessions.ts`. |
 | `net/` | core | `socket.ts`: the WebSocket with automatic reconnection after 1 s; `open` means "connected" (the replay arrived), not the opening of the socket; after 4001 there is no reconnection, only `reconnect()` on a click. It does not enter Redux. `auth.ts`: the login (the page takes `#t=` out of the address bar, posts it to `/auth`, keeps the key) and `apiFetch`, behind `AgentConnection.fetch`. `local.ts`: whether this page is another computer's window. |
 | `tabs/` | core | The tab host over the `tabs` registry (`Panes`, `TabStrip`, `TabsMenu`), the `tabs` slice (`TabKinds`, ids, open actions, saved form, `enterRoot`), the `jump` slice (`jump.ts`: jump to a comment's source). |
 | `shell/` | core | The frame: `Header`, `Footer`, `ToolStrip` and `Slots` (the frame's own parts among the plugins' slots), the keymap (`keymap.ts`), toasts, theme, UI scale, sounds, favicon, `OneTab` ("the window is already open" / "open in another tab"), `LoginRequired`, `Stopped`, `PanelResizer`, `pagePause.ts` (the AND of every `Plugin.pause`). |
-| `anchors/` | core | Anchors as text offsets plus `quote/prefix/suffix` of 32 characters each, re-anchoring when the text changes (`resolve.ts`), the batch text of each anchor kind (`quote.ts`, the agent's contract the phone mirrors), labels, a rendered page's frame (`frame.ts`: text root, rects, selection) and scrolling. |
+| `anchors/` | core | Anchors as text offsets plus `quote/prefix/suffix` of 32 characters each, re-anchoring when the text changes (`resolve.ts`), the batch text of each anchor kind (`quote.ts`, the agent's contract the phone mirrors), labels, a rendered page's frame (`frame.ts`: text root, rects, selection), a conversation's items (`items.ts`) and scrolling. |
 | `refs/` | core | Paths in agent text (`src/a.ts:42`) and where files are: kinds and URLs (`kinds.ts`), sources (branches and worktrees), temp images, a media tab's start time. |
 | `i18n/` | core | Six languages (`LANGS` in `index.ts`), no library. The choice is saved on the server (`prefs.json`) so all windows share it. |
 | `components/`, `lib/`, `theme/` | core | UI primitives (Radix wrappers in `components/ui/`, icons, `ConfirmDialog`, `SettingsRow`, `Markdown` in `components/markdown/`, whose fenced blocks and media players come from the `codeBlocks` registry and the `media` service); small pure helpers (paths, formatting, `sha1`); theme tests. |
@@ -330,11 +330,14 @@ root-level files (`main.tsx`, `App.tsx`, `plugins.ts`) are the composition root 
 packages. A core file never imports a plugin folder. `@/testing` is imported only by test files and the listed test
 setups (`cut/testCut.tsx`); test files are exempt from the two folder rules. Text rules: no `localStorage` outside
 `sdk/` and `net/auth.ts`; no `visibilityState` and no new `useSyncExternalStore` outside `sdk/`; no comparison of a
-protocol with a number or a protocol constant in `web/src` or `mobile/app/lib`. Type-only imports count.
+protocol with a number or a protocol constant in `web/src` or `mobile/app/lib`. Type-only imports count. **The state
+rule** (issue 563): a plugin's slice is read only inside that plugin; the core's slices are anyone's, directly or through
+the SDK's selectors, and another plugin's state comes through its service.
 
 **The check.** `scripts/boundaries.test.ts` (in the `node` Vitest project, no dependency) scans every file with a
 newline-tolerant pattern after stripping comments and strings, and resolves `@/` and relative specifiers. A folder it
-does not classify fails it. The tree breaks no rule (issue 545 emptied the baseline it started with), so any violation
+does not classify fails it. A slice belongs to the folder of its `createSlice({ name })`, and a read is `s.<name>`
+(also `st.`, `state.`, `was.`, `getState().`). The tree breaks no rule (issue 545 emptied the baseline it started with), so any violation
 fails, named by its rule (`plugin→plugin: <file> -> <module>`, `<file> -> localStorage`, ...). A second test,
 `sdkReach`, follows the SDK barrels' runtime imports through the core and fails on any plugin module it reaches: a plugin
 evaluated inside the SDK's own evaluation would see `@/sdk` half-built.
@@ -454,9 +457,15 @@ thunks through their `extra`, other code with `registry(store)`.
 | `sendParts` | `SendPart { id; order; count?(s); waiting?(s); take(s, d, { voice, registry }) }` | A part of a message: the draft (composer, 10), the comments (30). See below. |
 | `settings` | `SettingsSection { id; order; title?; in?; render?({ active }); aside? }` | A section of the Settings tab, or with `in` a row of another section; the tab is the host (`SettingsContext`: one `post()`, one status line, one confirm). |
 | `resources` | `Resource` | The server data a plugin reads, by id, so a test answers it by id (`stubResources`). |
-| `comments` | `CommentsService { HighlightLayer; CommentPopup; flashRange; flashRects; selectComments; selectPendingCountByPath; selectMediaComments; openCommentCard; moveCutComment; removeComment }` | The comments as other plugins' views use them, read with `useComments()`; one plugin (comments) provides it. A drawing's `PendingComment` carries its own `discard`. |
-| `voice`, `attachments` | `VoiceService { useRecorder; RecordBar; WhisperPrompt; ClipRow; transcribe; send; onRefused }`, `AttachmentsService { useIntake; Attachments; ComposerAttachments }` | What the composer and the comment popup, two hosts of one `MessageInput` (`@/sdk/ui`), drive with their own state; read with `useVoice()`, `useAttachments()`. |
-| `files`, `vcs`, `projects`, `feedUi`, `tasks`, `cut`, `media` | `FilesService` (the tree's source, the refresh sequences, `pickSource`, `diskChanged`, `setTreeOpen`, each open file view's load and version, `jumpToFileComment`), `VcsService { showCommit }`, `ProjectsService { openFolder }`, `FeedUiService { revealTool, Feed }` (a subagent's conversation drawn as the chat's), `TasksService { CallMenu }`, `CutService { liveCutState }`, `MediaService { ChatPlayer, AttachmentMarkup }` | Another plugin's state and parts, with only what the others read; read with `useService(name)` in a view, `registry.<name>` in a thunk. Each of these `Services` is provided by one plugin. |
+| `comments` | `CommentsService { HighlightLayer; CommentPopup; flashRange; flashRects; selectComments; selectPendingCountByPath; selectMediaComments; openCommentCard; moveCutComment; removeComment }` | The comments as other plugins' views use them; one plugin (comments) provides it. A drawing's `PendingComment` carries its own `discard`. |
+| `voice`, `attachments` | `VoiceService { useRecorder; RecordBar; WhisperPrompt; ClipRow; transcribe; send; onRefused }`, `AttachmentsService { useIntake; Attachments; ComposerAttachments }` | What the composer and the comment popup, two hosts of one `MessageInput` (`@/sdk/ui`), drive with their own state. |
+| `files`, `vcs`, `projects`, `feedUi`, `tasks`, `cut`, `media`, `composer` | `FilesService` (the tree's source, open state and focus, the refresh sequences, `pickSource`, `diskChanged`, `setTreeOpen`, each open file view's load and version, `jumpToFileComment`), `VcsService { showCommit }`, `ProjectsService { openFolder }`, `FeedUiService { revealTool, Feed, selectFolds }` (a subagent's conversation drawn as the chat's), `TasksService { CallMenu }`, `CutService { liveCutState }`, `MediaService { ChatPlayer, AttachmentMarkup }`, `ComposerService { field }` | Another plugin's state and parts, with only what the others read. |
+
+Every service is read with `useService(name)` in a view, `registry.<name>` in a thunk or a plugin's `listeners(start,
+registry)`, and is provided by one plugin. Its interface lives in the provider's `plugin.ts`, which adds it to
+`Services` by declaration merging, as a slice joins `PluginState`; the SDK declares only `MediaService`, which the core's
+Markdown reads. A conversation's items are a core DOM contract (`anchors/items.ts`): a box marked `data-items`, each
+item's root `data-item-id`, found with `itemsBox`, `itemRoots`, `itemRootOf`.
 | `codeBlocks` | `CodeBlock { lang; className; draw(out, code, d); retheme?(root, d) }` | A fenced block Markdown hands to a plugin once final (diagram: `mermaid`, `svg`); a language is drawn by one plugin. |
 | `treeActions` | `TreeAction { id; order; Menu?({ row, picked, src, busy, setBusy }); drag?(path, src, dt) }` | Another plugin's part of a Files tree row: its menu items above the row's own, what its drag carries (cut: Add to edit, New edit, the timeline drag). |
 

@@ -1,6 +1,6 @@
 import type { Middleware, Slice } from '@reduxjs/toolkit';
 import type { RootState, StartListening } from '../store/store.ts';
-import type { AnchorView, AnyFeedRenderer, AnyTabView, CodeBlock, Command, FileView, SendPart, Services, SettingsSection, Slot, ToolRenderer, TreeAction, UserPart } from './registry.ts';
+import type { AnchorView, AnyFeedRenderer, AnyTabView, CodeBlock, Command, FileView, Registry, SendPart, Services, SettingsSection, Slot, ToolRenderer, TreeAction, UserPart } from './registry.ts';
 import type { Resource } from './repository.ts';
 
 /**
@@ -25,8 +25,9 @@ export interface Plugin extends Partial<Services> {
    * The plugin's listeners on the store's one listener middleware, one per concern (persist-style). The core's come
    * first: the root-change listener (it dispatches `enterRoot` with the core tabs' saved state), then the tabs' save.
    * A saving listener compares the state before and after the action, so it sees a restore an earlier one dispatched.
+   * `registry`: the store's, for another plugin's state through its service.
    */
-  listeners?: (start: StartListening) => void;
+  listeners?: (start: StartListening, registry: Registry) => void;
   /** false while the plugin holds the page busy: the page's pause (`shell/pagePause.ts`) is the AND of these */
   pause?: (s: RootState, o: { draft: boolean }) => boolean;
   /** how its tab kinds look and what they show; a kind is declared by one plugin only */

@@ -14,12 +14,15 @@ const ancestors = (p: string): string[] => {
   return parts.map((_, i) => parts.slice(0, i + 1).join('/'));
 };
 
-/** Open unless the user closed it (store.ts persists it, like the comments panel's): panels start open (R-M6-3). */
-const readTreeOpen = (): boolean => storage.local('panel:tree', bool, true).get();
+/** Open unless the user closed it (the plugin's listener saves it, like the comments panel's): panels start open (R-M6-3). */
+export const savedTreeOpen = storage.local('panel:tree', bool, true);
+
+/** The focus is in the tree sheet (`FileTree`'s `#tree-sheet`, the files plugin's own). */
+export const inTree = (el: Element | null): boolean => !!el?.closest('#tree-sheet');
 
 export const treeSlice = createSlice({
   name: 'tree',
-  initialState: (): TreeState => ({ open: readTreeOpen(), src: 'here', dirs: [], reveal: null, diskSeq: 0 }),
+  initialState: (): TreeState => ({ open: savedTreeOpen.get(), src: 'here', dirs: [], reveal: null, diskSeq: 0 }),
   reducers: {
     /** Opens the sheet and expands every ancestor of the path. */
     reveal: (s, a: PayloadAction<string>) => {

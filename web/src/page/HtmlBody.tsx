@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { isPageAnchor, isTextAnchor, type FileSource } from '@nota-bene/shared';
-import { scrollRangeIntoView, scrollRectIntoView, rangeForAnchor, useT, useAppDispatch, useAppSelector, openFile, clearJump, selectJump, editable, useFeature, type FileBar, outOf, pageRendered, useComments, type PendingComment } from '@/sdk';
+import { scrollRangeIntoView, scrollRectIntoView, rangeForAnchor, useT, useAppDispatch, useAppSelector, openFile, clearJump, selectJump, editable, useFeature, type FileBar, outOf, pageRendered, type PendingComment, useService } from '@/sdk';
 import { areaAnchor, areaRect, elementAnchor, nearOf, pickTarget, resolvePage, toUserBox } from './anchor.ts';
 import { preparePage } from './prep.ts';
 
@@ -37,7 +37,7 @@ function forward(frame: HTMLIFrameElement, e: MouseEvent | KeyboardEvent): boole
 export function HtmlBody({ text: html, path, src, fileRef, tabId, active, bar }: {
   text: string; path: string; src: string; fileRef: string | undefined; tabId: string; active: boolean; bar: FileBar;
 }) {
-  const { CommentPopup, HighlightLayer, flashRange, flashRects, selectComments } = useComments();
+  const { CommentPopup, HighlightLayer, flashRange, flashRects, selectComments } = useService('comments');
   const t = useT();
   const dispatch = useAppDispatch();
   const baseDir = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : undefined;

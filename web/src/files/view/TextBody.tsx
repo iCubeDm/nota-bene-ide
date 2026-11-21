@@ -1,5 +1,5 @@
 import type { Ref } from 'react';
-import { refClick, useT, useAppDispatch, type FileKind, useComments } from '@/sdk';
+import { refClick, useT, useAppDispatch, type FileKind, useService } from '@/sdk';
 import { CodeText } from './CodeText.tsx';
 import { useWrapLines } from '../wrap.ts';
 import type { Loaded } from './useFileLoad.ts';
@@ -10,7 +10,7 @@ export function TextBody({ data, kind, path, src, fileRef, tabId, active, url, p
   data: Loaded | null; kind: FileKind; path: string; src: string; fileRef: string | undefined; tabId: string; active: boolean; url: string;
   paneRef: Ref<HTMLDivElement>;
 }) {
-  const { HighlightLayer } = useComments();
+  const { HighlightLayer } = useService('comments');
   const t = useT();
   const dispatch = useAppDispatch();
   const wrap = useWrapLines();

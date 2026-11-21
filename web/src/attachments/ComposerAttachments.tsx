@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { has, isAttachmentAnchor } from '@nota-bene/shared';
-import { useT, useAppDispatch, useAppSelector, useComments, useService, type PendingThumb, markAttachment, removeImage, selectImages, selectMarking } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, useService, markAttachment, removeImage, selectImages, selectMarking } from '@/sdk';
+import type { PendingThumb } from './useImageIntake.ts';
 import { ConfirmDialog } from '@/sdk/ui';
 import { Attachments } from './Attachments.tsx';
 
@@ -10,8 +11,9 @@ import { Attachments } from './Attachments.tsx';
  * opens the markup overlay. Removing an image that has pending comments asks first and takes them along.
  */
 export function ComposerAttachments({ pending, onCancel }: { pending: PendingThumb[]; onCancel?: (key: string) => void }) {
-  const { removeComment, selectComments } = useComments();
+  const { removeComment, selectComments } = useService('comments');
   const { AttachmentMarkup } = useService('media');
+  const composer = useService('composer');
   const t = useT();
   const dispatch = useAppDispatch();
   const images = useAppSelector(selectImages);
@@ -37,7 +39,7 @@ export function ComposerAttachments({ pending, onCancel }: { pending: PendingThu
     dispatch(markAttachment(null));
     requestAnimationFrame(() => {
       const pen = [...document.querySelectorAll<HTMLElement>('[data-mark-for]')].find((e) => e.dataset.markFor === id);
-      (pen ?? document.getElementById('composer-input'))?.focus();
+      (pen ?? composer.field())?.focus();
     });
   };
   return (

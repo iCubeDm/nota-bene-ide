@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { has, type Anchor, type AnchorSource } from '@nota-bene/shared';
-import { makeAnchor, offsetsOf, textOf, useT, useAppDispatch, useAppSelector, editable, clearPageSelections, pageRoot, pageSelection, rangeRect, selectSwitching, labelsFor, labelText } from '@/sdk';
+import { makeAnchor, offsetsOf, textOf, useT, useAppDispatch, useAppSelector, editable, clearPageSelections, pageRoot, pageSelection, rangeRect, itemRootOf, selectSwitching, labelsFor, labelText } from '@/sdk';
 import { Button, Tooltip, TooltipTrigger } from '@/sdk/ui';
 import type { QuickLabelId } from '@nota-bene/shared';
 import { LabelTip } from './LabelTip.tsx';
@@ -32,8 +32,7 @@ function rootOf(start: Element, agentsOk: boolean): { root: HTMLElement; source:
     // protocol 7 would drop the name and file the comment under the main chat: no comments there
     const agent = pane.dataset.agent;
     if (agent && !agentsOk) return null;
-    if (!start.closest('#items, [data-items]')) return null;
-    const root = start.closest<HTMLElement>('[data-item-id]');
+    const root = itemRootOf(start);
     const id = root?.dataset.itemId;
     if (!root || !id || !pane.contains(root)) return null;
     if (id.startsWith('stream:')) return null; // an interrupted reply keeps its per-run id, unstable across restarts: a comment on it would orphan

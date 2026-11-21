@@ -1,7 +1,7 @@
-import type { WithSlice } from '@reduxjs/toolkit';
-import { bool, clearRefCache, definePlugin, enterRoot, json, storage, loadSources } from '@/sdk';
-import { filesSlice, jumpToFileComment, selectFileLoad, selectFileVersion } from './slice.ts';
-import { diskChanged, pickSource, readSavedDirs, selectRefreshSeq, setDirs, setTreeOpen, treeKey, treeSlice } from './treeSlice.ts';
+import type { UnknownAction, WithSlice } from '@reduxjs/toolkit';
+import { clearRefCache, definePlugin, enterRoot, json, storage, loadSources, type AppThunk, type RootState } from '@/sdk';
+import { filesSlice, jumpToFileComment, selectFileLoad, selectFileVersion, type FileLoad } from './slice.ts';
+import { diskChanged, inTree, pickSource, readSavedDirs, savedTreeOpen, selectRefreshSeq, setDirs, setTreeOpen, treeKey, treeSlice } from './treeSlice.ts';
 import { pushRecent, RECENT_DWELL_MS } from './recent.ts';
 import { fileTab } from './FileView.tsx';
 import { Tree } from './FileTree.tsx';
@@ -10,7 +10,35 @@ import { RecentFiles } from './RecentFiles.tsx';
 import { filesCommands } from './commands.ts';
 
 declare module '@/sdk' {
+  interface Services { files: FilesService }
   interface PluginState extends WithSlice<typeof treeSlice>, WithSlice<typeof filesSlice> {}
+}
+
+/**
+ * The Files tree and the open file views as other plugins read them (issue 545), provided by the files plugin: the
+ * source the tree shows (the git views show the same), what moves when the folder's files change, and each open file
+ * view's load and media version (keyed by path and `ref`, see `fileKey`).
+ */
+export interface FilesService {
+  /** the source the tree shows: 'here', 'ref:<branch>', 'dir:<hash>' */
+  selectSource(s: RootState): string;
+  /** moves when this folder's files changed outside a turn (a branch switch) */
+  selectDiskSeq(s: RootState): number;
+  /** moves after each live turn and each change of this folder outside one: the views that reload after a turn watch it */
+  selectRefreshSeq(s: RootState): number;
+  /** shows another source in the tree, with the folders that were open there last time */
+  pickSource(id: string): AppThunk;
+  /** this folder's files changed outside a turn: the views reload as after one */
+  diskChanged(): UnknownAction;
+  setTreeOpen(open: boolean): UnknownAction;
+  selectTreeOpen(s: RootState): boolean;
+  /** the focus is in the tree (its own keys, Esc closes it) */
+  inTree(el: Element | null): boolean;
+  selectFileLoad(s: RootState, path: string, ref?: string): FileLoad | undefined;
+  /** an open media tab's file's current ETag; undefined: unknown (tab closed), no claim either way */
+  selectFileVersion(s: RootState, path: string, ref?: string): string | undefined;
+  /** opens the comment's file (a comment made on a commit: that commit in the log) and scrolls to its fragment once loaded */
+  jumpToFileComment(path: string, id: string, ref?: string): AppThunk;
 }
 
 export const filesPlugin = definePlugin({
@@ -25,7 +53,7 @@ export const filesPlugin = definePlugin({
   commands: filesCommands,
   files: {
     selectSource: (s) => s.tree.src, selectDiskSeq: (s) => s.tree.diskSeq, selectRefreshSeq, pickSource, diskChanged, setTreeOpen,
-    selectFileLoad, selectFileVersion, jumpToFileComment,
+    selectTreeOpen: (s) => s.tree.open, inTree, selectFileLoad, selectFileVersion, jumpToFileComment,
   },
   listeners: (start) => {
     // a root's saved folders: merged on the first root (folders expanded before it was known stay), replacing after
@@ -38,7 +66,7 @@ export const filesPlugin = definePlugin({
     });
     start({
       predicate: (_a, st, was) => st.tree.open !== was.tree.open,
-      effect: (_a, api) => storage.local('panel:tree', bool, true).set(api.getState().tree.open),
+      effect: (_a, api) => savedTreeOpen.set(api.getState().tree.open),
     });
     start({
       predicate: (_a, st, was) => st.tree.dirs !== was.tree.dirs,

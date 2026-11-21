@@ -28,7 +28,7 @@ function setup(o: { protocol?: number; result?: boolean; task?: boolean; bg?: bo
   dispatch(ev({ t: 'tool-call', id: 'toolu_A', name: 'Agent', input: { subagent_type: 'Explore', description: 'Look around' }, sub: false }));
   if (o.result) dispatch(ev({ t: 'tool-update', id: 'toolu_A', text: 'Async agent launched', isError: false }));
   if (o.task !== false) dispatch(ev({ t: 'task', id: 'ag1', phase: 'started', desc: 'Look around', type: 'local_agent', call: 'toolu_A', ...(o.bg !== undefined ? { bg: o.bg } : {}) }));
-  render(<Provider store={store}><TooltipProvider><main data-chat-pane data-pane="chat"><div id="items"><Feed /></div></main></TooltipProvider></Provider>);
+  render(<Provider store={store}><TooltipProvider><main data-chat-pane data-pane="chat"><div id="items" data-items><Feed /></div></main></TooltipProvider></Provider>);
   return { sent, store, dispatch };
 }
 const menuBtn = () => document.querySelector<HTMLElement>('[data-agent-menu]');

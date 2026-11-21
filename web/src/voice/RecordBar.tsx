@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from 'react';
 import { PlaneIcon } from '@/sdk/ui';
-import { useT, modKey, useRegistry, keysFor, type RecState } from '@/sdk';
+import { useT, modKey, useRegistry, keysFor } from '@/sdk';
+import type { RecState } from './useVoiceRecorder.ts';
 import { clock } from './lang.ts';
 import { release as releasePlay } from './player.ts';
 import { VoiceView } from './VoiceView.tsx';

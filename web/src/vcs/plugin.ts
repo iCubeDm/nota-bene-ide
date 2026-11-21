@@ -1,4 +1,4 @@
-import type { WithSlice } from '@reduxjs/toolkit';
+import type { UnknownAction, WithSlice } from '@reduxjs/toolkit';
 import { definePlugin } from '@/sdk';
 import { changesTab } from './ChangesView.tsx';
 import { commitResource, logResource, logTab } from './LogView.tsx';
@@ -8,7 +8,14 @@ import { VcsToggles } from './VcsToggles.tsx';
 import { diffResource, patchResource, showCommit, vcsListeners, vcsSlice } from './store.ts';
 
 declare module '@/sdk' {
+  interface Services { vcs: VcsService }
   interface PluginState extends WithSlice<typeof vcsSlice> {}
+}
+
+/** The git views as other plugins reach them (issue 545), provided by the vcs plugin. */
+export interface VcsService {
+  /** the log shows this commit, with `path` picked (a comment on a commit asked for it) */
+  showCommit(sha: string, path: string): UnknownAction;
 }
 
 export const vcsPlugin = definePlugin({

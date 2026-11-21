@@ -1,3 +1,4 @@
+import type { AgentProvider } from '@nota-bene/shared';
 import type { WithSlice } from '@reduxjs/toolkit';
 import { definePlugin } from '@/sdk';
 import { ProjectTitle } from './ProjectSwitcher.tsx';
@@ -8,7 +9,14 @@ import { openFolder, projectsResource, projectsSlice, reasonText, selectProjects
 import { projectsSettings } from './settings.tsx';
 
 declare module '@/sdk' {
+  interface Services { projects: ProjectsService }
   interface PluginState extends WithSlice<typeof projectsSlice> {}
+}
+
+/** The projects' windows as other plugins open them (issue 545), provided by the projects plugin. */
+export interface ProjectsService {
+  /** opens the folder in a window of its own (this tab moves there); the refusal, in words, or null */
+  openFolder(dir: string, provider: AgentProvider): Promise<string | null>;
 }
 
 export const projectsPlugin = definePlugin({

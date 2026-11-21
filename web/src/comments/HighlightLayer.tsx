@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { anchorSource, isTextAnchor, type AnchorSource, type Comment } from '@nota-bene/shared';
-import { rangeForAnchor, useAppDispatch, useAppSelector, useRegistry, anchorView, fileKey, pageRoot, pageSelection, rangeRects, textRootOf } from '@/sdk';
+import { rangeForAnchor, useAppDispatch, useAppSelector, useRegistry, useService, anchorView, fileKey, itemRoots, itemsBox, pageRoot, pageSelection, rangeRects, textRootOf } from '@/sdk';
 import { openCommentCard, selectComments } from './slice.ts';
 
 const PAD_X = 2;
@@ -80,7 +80,7 @@ function rootsIn(pane: HTMLElement, file: PaneFile | null, isDiff: boolean): Map
     const root = pane.querySelector<HTMLElement>('[data-file-path]');
     if (file && root?.dataset.filePath === file.path) roots.set(`f:${fileKey(file.path, file.ref)}`, root);
   } else if (file === undefined) {
-    for (const e of pane.querySelectorAll<HTMLElement>('#items [data-item-id], [data-items] [data-item-id]')) if (e.dataset.itemId) roots.set(`m:${e.dataset.itemId}`, e);
+    for (const e of itemRoots(pane)) if (e.dataset.itemId) roots.set(`m:${e.dataset.itemId}`, e);
   } else if (file && pane.dataset.filePath === file.path && (pane.dataset.fileRef ?? '') === (file.ref ?? '')) {
     roots.set(`f:${fileKey(file.path, file.ref)}`, textRootOf(pane)); // a rendered page: its body, in the page's frame
   }
@@ -161,6 +161,8 @@ export function HighlightLayer({ pane: paneId = 'chat', diff, content: diffConte
   const paint = useRef<() => void>(() => {});
   const dispatch = useAppDispatch();
   const registry = useRegistry();
+  const { selectFileLoad } = useService('files');
+  const { selectFolds } = useService('feedUi');
   const all = useAppSelector(selectComments);
   const active = useAppSelector((s) => s.tabs.active === paneId);
   // the file this pane shows (path + ref); null = a file pane whose tab is gone
@@ -179,9 +181,9 @@ export function HighlightLayer({ pane: paneId = 'chat', diff, content: diffConte
   const file: PaneFile | null = useMemo(() => (isDiff ? diff : asChat ? undefined : path === undefined ? null : { path, ref }), [isDiff, diff, asChat, path, ref]);
   const comments = useMemo(() => (file === null ? [] : all.filter((c) => { const src = anchorSource(c.anchor); return !!src && inPane(src, file, agent); })), [all, file, agent]);
   // what moves this pane's text: the feed for the chat (the subagent's entry for its tab); a settled (re)load for a file tab
-  const stored = useAppSelector((s) => (agent ? s.subagents.byTool[agent] : paneId === 'chat' ? s.feed : path === undefined ? undefined : s.files.load[fileKey(path, ref)]));
+  const stored = useAppSelector((s) => (agent ? s.subagents.byTool[agent] : paneId === 'chat' ? s.feed : path === undefined ? undefined : selectFileLoad(s, path, ref)));
   // the chat's action panels open and close without a feed change (their roots come and go)
-  const folds = useAppSelector((s) => (asChat ? s.feedUi : undefined));
+  const folds = useAppSelector((s) => (asChat ? selectFolds(s) : undefined));
   const content = isDiff ? diffContent : stored;
   const state = useRef({ comments, active, file, isDiff });
   state.current = { comments, active, file, isDiff };
@@ -192,7 +194,7 @@ export function HighlightLayer({ pane: paneId = 'chat', diff, content: diffConte
     const host = marks.current;
     if (!el || !pane || !host) return;
     let raf = 0;
-    // layout changes that do not resize the pane: the chat's #items, and a file root's content (it is the scroll element itself)
+    // layout changes that do not resize the pane: the chat's items, and a file root's content (it is the scroll element itself)
     const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => paint.current());
     const observed = new WeakSet<Element>();
     const observe = (e: Element) => {
@@ -241,7 +243,7 @@ export function HighlightLayer({ pane: paneId = 'chat', diff, content: diffConte
     };
 
     observe(pane);
-    const items = pane.querySelector('#items, [data-items]');
+    const items = itemsBox(pane);
     if (items) observe(items);
     const onLoad = () => paint.current(); // images / video change layout once loaded
     pane.addEventListener('load', onLoad, true);

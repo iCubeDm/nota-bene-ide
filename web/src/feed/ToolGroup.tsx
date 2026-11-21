@@ -1,8 +1,8 @@
-import { useT, useAppDispatch, useAppSelector, type FeedItem } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, type FeedItem, useService } from '@/sdk';
 import { ToolLine } from './ToolLine.tsx';
 import { memo, useContext } from 'react';
 import { FeedScope } from './scope.ts';
-import { scopedId, selectGroupOpen, selectToolCommentCounts, toggleGroup } from './uiSlice.ts';
+import { scopedId, selectGroupOpen, toolCommentCounts, toggleGroup } from './uiSlice.ts';
 
 type Tool = Extract<FeedItem, { kind: 'tool' }>;
 
@@ -17,7 +17,8 @@ export const ToolGroup = memo(function ToolGroup({ items, live }: { items: Tool[
   const dispatch = useAppDispatch();
   const agent = useContext(FeedScope).agent;
   const open = useAppSelector((s) => selectGroupOpen(s, scopedId(agent, items[0]!.id)));
-  const counts = useAppSelector(selectToolCommentCounts);
+  const { selectComments } = useService('comments');
+  const counts = useAppSelector((s) => toolCommentCounts(selectComments(s)));
   const comments = items.reduce((n, it) => n + (counts[scopedId(agent, it.id)] ?? 0), 0);
   const errors = items.filter((it) => it.result?.isError).length;
   const last = items[items.length - 1]!;
