@@ -337,7 +337,7 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
     case 'hello':
     case 'occupied': // the conn slice (M7-15)
     case 'taken-over':
-    case 'send-refused': // composer/refused.ts: restores the draft, never the feed
+    case 'send-refused': // plugins/composer/refused.ts: restores the draft, never the feed
     case 'shell-refused': // the same, for a `! cmd`
     case 'server-error': // a toast (store.ts), live only, never swallowed (M0 error policy)
     case 'remote': // protocol 20: the remote slice

@@ -18,7 +18,7 @@ export const PencilIcon = () => svg(<><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 
 export const PipIcon = () => svg(<><path d="M21 9V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4" /><rect x="12" y="13" width="10" height="7" rx="1" /></>);
 export const EnterFullscreenIcon = () => svg(<><path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M21 8V5a2 2 0 0 0-2-2h-3" /><path d="M3 16v3a2 2 0 0 0 2 2h3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" /></>);
 export const ExitFullscreenIcon = () => svg(<><path d="M8 3v3a2 2 0 0 1-2 2H3" /><path d="M21 8h-3a2 2 0 0 1-2-2V3" /><path d="M3 16h3a2 2 0 0 1 2 2v3" /><path d="M16 21v-3a2 2 0 0 1 2-2h3" /></>);
-// the edit's preview (cut/Timeline.tsx): to the previous / next clip edge, one frame back / forward
+// the edit's preview (plugins/cut/Timeline.tsx): to the previous / next clip edge, one frame back / forward
 export const EdgeBackIcon = () => svg(<><polygon points="19 20 9 12 19 4 19 20" fill="currentColor" /><line x1="5" y1="19" x2="5" y2="5" /></>);
 export const EdgeForwardIcon = () => svg(<><polygon points="5 4 15 12 5 20 5 4" fill="currentColor" /><line x1="19" y1="5" x2="19" y2="19" /></>);
 export const FrameBackIcon = () => svg(<path d="m15 18-6-6 6-6" />);

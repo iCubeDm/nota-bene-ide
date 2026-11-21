@@ -1,6 +1,6 @@
 import { useStored } from '../sdk/storage.ts';
 
-// A rendered HTML page lives in its own document (the page plugin's frame, page/HtmlBody.tsx). The comment machinery works in this window's
+// A rendered HTML page lives in its own document (the page plugin's frame, plugins/page/HtmlBody.tsx). The comment machinery works in this window's
 // coordinates and DOM; these helpers carry what it reads across the frame's edge.
 
 /** The frame HtmlBody renders a page into. */
