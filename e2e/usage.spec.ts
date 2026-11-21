@@ -1,5 +1,4 @@
 import { expect, test } from '@playwright/test';
-import { compact } from '../web/src/lib/format.ts';
 
 // The Usage tab in a real browser, over the transcript e2e/serve.mjs seeds: a task, its calls, a limit hit, a reset.
 test('the Usage tab reports a task and a limit hit, and a reset keeps the data under All time @chat', async ({ page }) => {
@@ -12,7 +11,7 @@ test('the Usage tab reports a task and a limit hit, and a reset keeps the data u
   await expect(task).toBeVisible();
   await expect(page.getByRole('cell', { name: 'week', exact: true })).toBeVisible();
   await page.getByRole('img', { name: '5-hour windows' }).locator('[data-bar]').first().hover();
-  await expect(page.getByRole('status').filter({ hasText: compact(12000) })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: '12K' })).toBeVisible();
   await expect(task.getByText('demo')).toBeVisible();
   await task.click();
   await expect(page.getByText('Costliest calls')).toBeVisible();
