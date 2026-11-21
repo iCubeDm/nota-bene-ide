@@ -1,11 +1,11 @@
 import { anchorSource, isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, type AnchorSource, type Comment } from '@nota-bene/shared';
 import { useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { revealRangeSideways, scrollRangeIntoView, rangeForAnchor, activate, t, useAppDispatch, useAppSelector, type RootState } from '@/sdk';
+import { revealRangeSideways, scrollRangeIntoView, rangeForAnchor, activate, t, useAppDispatch, useAppSelector, TOOL_SRC, type RootState } from '@/sdk';
 import { jumpToFileComment, selectFileLoad, selectFileVersion } from '@/files/slice.ts';
 import { markAttachment, selectImages } from '@/composer/slice.ts';
 import { itemsOf, openSubagentTab, selectSubagent } from '@/subagent/slice.ts';
-import { revealToolOf, TOOL_SRC } from '@/feed/uiSlice.ts';
+import { revealToolOf } from '@/feed/uiSlice.ts';
 import { selectReplyLabel } from '@/store/store.ts';
 import { whereOfFile } from '../send.ts';
 import { resolvePage } from '@/page/anchor.ts';

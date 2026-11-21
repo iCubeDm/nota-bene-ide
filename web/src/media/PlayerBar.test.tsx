@@ -6,7 +6,7 @@ import { setFileVersion } from '@/files/slice.ts';
 import { setLang } from '@/i18n/index.ts';
 import { serverEvent } from '@/store/store.ts';
 import { makeStore } from '@/testing';
-import type { PipApi } from './mediaController.ts';
+import type { PipApi } from '@/store/mediaController.ts';
 import { PlayerBar } from './PlayerBar.tsx';
 import { seekStep } from './seekStep.ts';
 import { selectDraft } from './markup/slice.ts';

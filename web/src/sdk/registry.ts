@@ -2,6 +2,7 @@ import type { FC, Ref } from 'react';
 import type { I18nKey, t } from '../i18n/index.ts';
 import type { ru } from '../i18n/ru.ts';
 import type { AppStore, RootState } from '../store/store.ts';
+import type { FeedItem } from '../store/feed.ts';
 import type { Tab, TabKinds } from '../tabs/slice.ts';
 import type { Plugin } from './plugin.ts';
 
@@ -67,6 +68,42 @@ export interface Command {
   run: (c: { store: AppStore; e: KeyboardEvent }) => void;
 }
 
+type ItemOf<K extends FeedItem['kind']> = Extract<FeedItem, { kind: K }>;
+/** The kinds of feed items drawn through `feed`: all but actions, whose runs the feed draws itself (see `ToolRenderer`). */
+export type FeedKind = Exclude<FeedItem['kind'], 'tool'>;
+/** A send the server holds (issue 499), behind a pending restart or a compaction. */
+export type Held = 'restart' | 'compact';
+
+/** How the feed (`feed/Feed.tsx`) draws its items of one kind (issue 511); a kind is drawn by one plugin only. */
+export interface FeedRenderer<K extends FeedKind = FeedKind> {
+  kind: K;
+  /** `held`: a user message the server holds, drawn after the feed */
+  render: FC<{ item: ItemOf<K>; held?: Held }>;
+}
+/** A renderer of some kind, as a plugin lists it. */
+export type AnyFeedRenderer = { [K in FeedKind]: FeedRenderer<K> }[FeedKind];
+
+export type ToolItem = ItemOf<'tool'>;
+/**
+ * The head of the actions a plugin draws itself (a subagent's call is a card): the feed keeps the line's fold state, its
+ * comment count and the commentable panel of input and output under the head. The first match among the plugins wins.
+ */
+export interface ToolRenderer {
+  match(it: ToolItem): boolean;
+  /**
+   * `open`: the panel below is shown, `onToggle` folds it; `panelId` is its element's id; `comments`: on the action;
+   * `busy`: the conversation it is in still works (the chat's, or a subagent's in its tab)
+   */
+  render: FC<{ item: ToolItem; open: boolean; panelId: string; comments: number; busy: boolean; onToggle(): void }>;
+}
+
+/** A part of a user message's body under its header line (a recording, the text, the images, the comments it carried), by ascending order. */
+export interface UserPart {
+  id: string;
+  order: number;
+  render: FC<{ item: ItemOf<'user'> }>;
+}
+
 /** What the plugins contribute, built once per store from its plugins and frozen. */
 export interface Registry {
   tabs: ReadonlyMap<string, AnyTabView>;
@@ -74,6 +111,10 @@ export interface Registry {
   slots: ReadonlyMap<SlotName, readonly Slot[]>;
   /** the core's and the plugins' hotkeys by ascending order */
   commands: readonly Command[];
+  feed: ReadonlyMap<FeedKind, AnyFeedRenderer>;
+  tools: readonly ToolRenderer[];
+  /** by ascending order */
+  userParts: readonly UserPart[];
 }
 
 /**
@@ -100,8 +141,25 @@ export function buildRegistry(plugins: readonly Plugin[], core: readonly Command
     if (commands.some((x) => x.order === c.order)) throw new Error(`registry: two commands at order ${c.order}`);
     commands.push(c);
   }
-  return Object.freeze({ tabs, slots, commands: Object.freeze(commands.sort((a, b) => a.order - b.order)) });
+  const feed = new Map<FeedKind, AnyFeedRenderer>();
+  for (const r of plugins.flatMap((p) => p.feed ?? [])) {
+    if (feed.has(r.kind)) throw new Error(`registry: the feed item kind "${r.kind}" is drawn twice`);
+    feed.set(r.kind, r);
+  }
+  const userParts: UserPart[] = [];
+  for (const u of plugins.flatMap((p) => p.userParts ?? [])) {
+    if (userParts.some((x) => x.order === u.order)) throw new Error(`registry: two user message parts at order ${u.order}`);
+    userParts.push(u);
+  }
+  return Object.freeze({
+    tabs, slots, commands: Object.freeze(commands.sort((a, b) => a.order - b.order)),
+    feed, tools: Object.freeze(plugins.flatMap((p) => p.tools ?? [])), userParts: Object.freeze(userParts.sort((a, b) => a.order - b.order)),
+  });
 }
+
+/** How the feed draws items of this kind (the one place its type is narrowed to the kind's). */
+export const feedRenderer = <K extends FeedKind>(r: Registry, kind: K): FeedRenderer<K> | undefined =>
+  r.feed.get(kind) as FeedRenderer<K> | undefined;
 
 /** The view of this tab's kind (the one place its type is narrowed to the tab's). */
 export const tabView = <T extends Tab>(r: Registry, tab: T): TabView<T['kind']> | undefined =>

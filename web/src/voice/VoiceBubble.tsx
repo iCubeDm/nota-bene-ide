@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { Voice, VoiceError } from '@nota-bene/shared';
-import { useT, toast, useAppDispatch, useAppSelector } from '@/sdk';
+import { BATCH_HEAD, type Voice, type VoiceError } from '@nota-bene/shared';
+import { useT, toast, useAppDispatch, useAppSelector, type UserPart } from '@/sdk';
 import { Button } from '@/sdk/ui';
 import { selectSwitching } from '@/controls/slice.ts';
 import { dictationAsk, langName } from './lang.ts';
@@ -70,4 +70,11 @@ export function VoiceBubble({ voice, text, error, lang }: { voice: Voice; text?:
       {(open || !text || error) && <Transcript text={text} error={error} onRetry={retry} />}
     </div>
   );
+}
+
+/** A voice message's part of its user message (issue 511): the bubble, its transcript the host's or the text before the comment batch. */
+export function VoicePart({ item }: Parameters<UserPart['render']>[0]) {
+  if (!item.voice) return null;
+  const m = BATCH_HEAD.exec(item.text);
+  return <VoiceBubble voice={item.voice} text={item.voiceText ?? ((m ? item.text.slice(0, m.index) : item.text) || undefined)} error={item.voiceError} lang={item.voiceLang} />;
 }

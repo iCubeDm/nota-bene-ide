@@ -107,6 +107,13 @@ export function prependHistory(s: FeedState, p: HistoryPrepend): FeedState {
 
 export const ARG_KEYS = ['command', 'file_path', 'pattern', 'description', 'url', 'query', 'skill', 'prompt'];
 
+/** Any Agent / Task call is a subagent's: `Agent` in current Claude Code, `Task` in older ones. A card of its own in the feed, in no run of actions. */
+export const isAgentTool = (name: string, toolKind?: string): boolean => toolKind === 'agent' || name === 'Agent' || name === 'Task';
+
+/** The anchor source id of a tool's panel (R-M7-18): the tool_use id is stable across a replay and a restart. */
+export const TOOL_SRC = 'tool:';
+export const toolSrcId = (toolId: string): string => TOOL_SRC + toolId;
+
 function toolArg(input: Record<string, unknown> | undefined): string {
   for (const k of ARG_KEYS) {
     const v = input?.[k];

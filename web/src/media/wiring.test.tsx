@@ -5,7 +5,7 @@ import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/testing';
 import { App } from '@/App.tsx';
 import { activate, closeAll, closeOthers, closeRight, closeTab, fileTabId, openFile, selectTabs } from '@/tabs/slice.ts';
-import type { PipApi } from './mediaController.ts';
+import type { PipApi } from '@/store/mediaController.ts';
 
 vi.mock('mermaid', () => ({ default: { initialize: vi.fn(), render: vi.fn(async () => ({ svg: '<svg></svg>' })) } }));
 

@@ -7,7 +7,7 @@ import type { TabKinds } from '@/tabs/slice.ts';
 import { buildRegistry } from './registry.ts';
 import { CORE_COMMANDS, keyLabel, withKey } from '../shell/keymap.ts';
 import type { Plugin } from './plugin.ts';
-import type { KeyId } from './registry.ts';
+import type { FeedKind, KeyId, ToolItem } from './registry.ts';
 
 const view = (id: string): Plugin => ({ id, tabs: [{ kind: 'settings', label: () => id }] });
 
@@ -80,4 +80,28 @@ it('every command\'s tooltip key resolves through withKey and keyLabel, and ever
     .flatMap((f) => [...fs.readFileSync(path.join(src, f), 'utf8').matchAll(/\b(?:withKey\([^\n]*?|keyLabel\()'(hk_\w+)'/g)].map((m) => m[1]));
   expect(named.length).toBeGreaterThan(5);
   expect(named.filter((id) => !ids.includes(id as never))).toEqual([]);
+});
+
+it('every kind of feed item but actions is drawn by one plugin, and a kind drawn twice fails the build', () => {
+  const kinds: Record<FeedKind, true> = { user: true, assistant: true, done: true, permission: true, shell: true, marker: true, notice: true };
+  expect([...buildRegistry(PLUGINS).feed.keys()].sort()).toEqual(Object.keys(kinds).sort());
+  const notice = (id: string): Plugin => ({ id, feed: [{ kind: 'notice', render: () => null }] });
+  expect(() => buildRegistry([notice('a'), notice('b')])).toThrow('the feed item kind "notice" is drawn twice');
+});
+
+it('a subagent\'s call is the one action a plugin draws itself', () => {
+  const tool = (p: Partial<ToolItem>): ToolItem => ({ kind: 'tool', id: 't', name: 'Bash', arg: '', sub: false, input: {}, ...p });
+  const { tools } = buildRegistry(PLUGINS);
+  const drawn = (it: ToolItem) => tools.filter((r) => r.match(it)).map((r) => r.render.name);
+  expect(drawn(tool({ name: 'Agent' }))).toEqual(['AgentCard']);
+  expect(drawn(tool({ name: 'Task' }))).toEqual(['AgentCard']);
+  expect(drawn(tool({ name: 'spawn', toolKind: 'agent' }))).toEqual(['AgentCard']);
+  expect(drawn(tool({ name: 'Bash' }))).toEqual([]);
+});
+
+// today's order of a user message's body; two parts at one order fail the build
+it('a user message\'s parts come in today\'s order', () => {
+  expect(buildRegistry(PLUGINS).userParts.map((u) => `${u.order} ${u.id}`)).toEqual(['10 voice', '20 text', '30 images', '40 comments']);
+  const part = (id: string): Plugin => ({ id, userParts: [{ id, order: 10, render: () => null }] });
+  expect(() => buildRegistry([part('a'), part('b')])).toThrow('two user message parts at order 10');
 });

@@ -1,5 +1,4 @@
-import { historyPrepended, type HistoryPage } from '@/store/feed.ts';
-import { routes, type AppThunk } from '@/sdk';
+import { routes, historyPrepended, type AppThunk, type HistoryPage } from '@/sdk';
 
 /** What one «Show before compaction» click came to: prepended, failed (shown, retry possible), or stale (dropped). */
 export type EarlierResult = 'ok' | 'failed' | 'stale';
