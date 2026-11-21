@@ -5,7 +5,7 @@ import { PLUGINS } from '@/plugins.ts';
 import { makeStore } from '@/store/store.ts';
 import type { TabKinds } from '@/tabs/slice.ts';
 import { buildRegistry } from './registry.ts';
-import { keyLabel, withKey } from '../shell/keymap.ts';
+import { CORE_COMMANDS, keyLabel, withKey } from '../shell/keymap.ts';
 import type { Plugin } from './plugin.ts';
 import type { KeyId } from './registry.ts';
 
@@ -54,23 +54,23 @@ const cmd = (id: string, order: number, key: KeyId = 'hk_files'): Plugin => ({ i
 
 it('a command id two plugins declare fails the build, and so does one order taken twice', () => {
   expect(() => buildRegistry([cmd('a', 1), cmd('b', 2)])).toThrow('the command "hk_files" is declared twice');
-  expect(() => buildRegistry([cmd('a', 1, 'hk_closeTab')])).toThrow('the command "hk_closeTab" is declared twice'); // the core's own
+  expect(() => buildRegistry([cmd('a', 1, 'hk_closeTab')], CORE_COMMANDS)).toThrow('the command "hk_closeTab" is declared twice'); // the core's own
   expect(() => buildRegistry([cmd('a', 1), cmd('b', 1, 'hk_wrap')])).toThrow('two commands at order 1');
 });
 
 // the order of the ? help and of matching: today's BINDINGS, the core's and the plugins' interleaved by `order`
 it('the commands come in the help\'s order, core and plugins alike', () => {
-  expect(buildRegistry(PLUGINS).commands.map((c) => c.id)).toEqual([
+  expect(buildRegistry(PLUGINS, CORE_COMMANDS).commands.map((c) => c.id)).toEqual([
     'hk_closeTab', 'hk_reopenTab', 'hk_prevTab', 'hk_nextTab', 'hk_tabN', 'hk_recent', 'hk_projects', 'hk_promptHistory',
     'hk_promptOlder', 'hk_promptNewer', 'hk_files', 'hk_comments', 'hk_tasks', 'hk_voice', 'hk_wrap', 'hk_scaleUp',
     'hk_scaleDown', 'hk_scaleReset', 'hk_reveal', 'hk_composer',
   ]);
-  expect(Object.isFrozen(buildRegistry(PLUGINS).commands)).toBe(true);
+  expect(Object.isFrozen(buildRegistry(PLUGINS, CORE_COMMANDS).commands)).toBe(true);
 });
 
 it('every command\'s tooltip key resolves through withKey and keyLabel, and every tooltip names a command', () => {
   makeStore({ url: 'u', connect: () => ({ send: () => true, close() {} }), plugins: PLUGINS });
-  const ids = buildRegistry(PLUGINS).commands.map((c) => c.id);
+  const ids = buildRegistry(PLUGINS, CORE_COMMANDS).commands.map((c) => c.id);
   for (const id of ids) {
     expect(keyLabel(id), id).not.toBe('');
     expect(withKey('X', id)).toBe(`X (${keyLabel(id)})`);

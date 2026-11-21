@@ -275,6 +275,9 @@ run in parallel with 5–11.
   byte for byte; `Feed`, `UserMessage`, `toolComments`, `AgentCard`, Composer tests green; the anchor parity tests
   (`anchors/mobileParity`, `mobileChatParity`) and the feed fixture unchanged.
 - **Baseline:** plugin→plugin −~120 (feed's 22-folder fan-out, composer↔comments, feed↔subagent, comments→cut/page/media).
+  The SDK barrels' reach (`sdkReach` in `scripts/boundaries.test.ts`) loses `store/store.ts` → `voice/lang.ts`
+  (`dictationAsk`, with `sendParts`), `subagent/slice.ts` and `feed/uiSlice.ts` (`agentName`, `itemsOf`, `TOOL_SRC`,
+  with `selectReplyLabel`/`agentLabel`), and `media/mediaController.ts` (the controller is core: it moves to `store/`).
 
 ### 10c. File views registry
 
@@ -284,7 +287,9 @@ run in parallel with 5–11.
   `files/view/HtmlBody.tsx` → `page/`, `files/view/MediaBody.tsx` and `useMediaMarkup.ts` → `media/`.
 - **Produces:** `FileView`.
 - **Tests:** the `FileView*` tests green (jump, cut, edit, tmp); duplicate file view id throws at build; e2e.
-- **Baseline:** plugin→plugin −~20 (files↔cut, files→media/page).
+- **Baseline:** plugin→plugin −~20 (files↔cut, files→media/page). The SDK barrels' reach loses `refs/refs.ts` →
+  `files/kinds.ts`, `files/sources.ts`, `files/tmpImages.ts` (refs resolves paths through what `files` registers) and
+  `anchors/scroll.ts` → `page/frame.ts` (the frame's rect helpers move into `anchors/`): `sdkReach` is then empty.
 
 ### 11. Settings sections, resources registry, baseline to zero
 
@@ -292,7 +297,9 @@ run in parallel with 5–11.
 - **Files:** `settings/SettingsView.tsx` split into sections registered by `controls` (defaults), `voice`,
   `projects`, `update`, `shell` (theme, scale, language, sounds) with one `post()` helper; `resources` registered by
   plugins (the harness stubs by key); the remaining baseline entries; the remaining `useSyncExternalStore` singletons
-  folded per the state rule where the touched files hold them; the ~60 unused exports (inventory) removed there.
+  folded per the state rule where the touched files hold them; the ~60 unused exports (inventory) removed there;
+  the global `BINDINGS` in `shell/keymap.ts` (9c) goes: key labels come from `useRegistry().commands` through a pure
+  `keysFor(commands, id)`, so `withKey` takes the commands (`shell/keymap.test.tsx` may change then).
 - **Produces:** `SettingsSection`; the registry complete.
 - **Tests:** `SettingsView.test.tsx` per section; the boundary test with an empty (or explicitly justified) baseline.
 - **Baseline:** → 0 plugin→plugin, 0 core→plugin, 0 plugin→core outside the SDK; any survivor listed in the PR with

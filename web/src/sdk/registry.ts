@@ -2,7 +2,6 @@ import type { FC, Ref } from 'react';
 import type { I18nKey, t } from '../i18n/index.ts';
 import type { ru } from '../i18n/ru.ts';
 import type { AppStore, RootState } from '../store/store.ts';
-import { CORE_COMMANDS } from '../shell/keymap.ts';
 import type { Tab, TabKinds } from '../tabs/slice.ts';
 import type { Plugin } from './plugin.ts';
 
@@ -80,9 +79,9 @@ export interface Registry {
 /**
  * Each kind once: a kind two plugins claim is a build error, as a slice name taken twice is. So is one order taken
  * twice in a slot: the frame's order is never left to the order of `PLUGINS`. Commands alike: one id, one order each,
- * the core's (`CORE_COMMANDS`) among them.
+ * the core's own (`core`: the store passes the keymap's `CORE_COMMANDS`) among them.
  */
-export function buildRegistry(plugins: readonly Plugin[]): Registry {
+export function buildRegistry(plugins: readonly Plugin[], core: readonly Command[] = []): Registry {
   const tabs = new Map<string, AnyTabView>();
   for (const v of plugins.flatMap((p) => p.tabs ?? [])) {
     if (tabs.has(v.kind)) throw new Error(`registry: the tab kind "${v.kind}" is declared twice`);
@@ -96,7 +95,7 @@ export function buildRegistry(plugins: readonly Plugin[]): Registry {
   }
   for (const list of slots.values()) Object.freeze(list);
   const commands: Command[] = [];
-  for (const c of [...CORE_COMMANDS, ...plugins.flatMap((p) => p.commands ?? [])]) {
+  for (const c of [...core, ...plugins.flatMap((p) => p.commands ?? [])]) {
     if (commands.some((x) => x.id === c.id)) throw new Error(`registry: the command "${c.id}" is declared twice`);
     if (commands.some((x) => x.order === c.order)) throw new Error(`registry: two commands at order ${c.order}`);
     commands.push(c);
