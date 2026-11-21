@@ -248,3 +248,26 @@ describe('CommentStore: ops and revisions (protocol 19)', () => {
     expect(s.apply('k', [add(c('old-0'))])).toBeNull();
   });
 });
+
+it('every change of a stored set takes the session file\'s lock (issue 562): two windows may hold one session', async () => {
+  const { LOCK } = await import('./atomicFile.ts');
+  const s = new CommentStore({ dir });
+  s.set('abc-1', []);
+  const lock = path.join(dir, 'abc-1.v2.json.lock');
+  fs.writeFileSync(lock, `${process.ppid} other`);
+  const was = LOCK.waitMs;
+  LOCK.waitMs = 100;
+  try {
+    expect(() => s.set('abc-1', [])).toThrow(/lock/);
+    expect(() => s.merge('abc-1', [])).toThrow(/lock/);
+    expect(() => s.apply('abc-1', [])).toThrow(/lock/);
+    expect(() => s.markSent('abc-1', [], 'm')).toThrow(/lock/);
+    expect(() => s.markPending('abc-1', 'm')).toThrow(/lock/);
+    expect(s.apply(null, [])).toBeNull(); // the id-less set is in memory: no lock
+  } finally {
+    LOCK.waitMs = was;
+    fs.rmSync(lock);
+  }
+  s.markSent('abc-1', [], 'm'); // nested set inside: no self-deadlock
+  expect(fs.existsSync(lock)).toBe(false);
+});

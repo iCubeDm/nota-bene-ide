@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import { reportError } from './errors.ts';
-import { renameRetry } from './platform.ts';
+import { writeAtomic } from './atomicFile.ts';
 import type { EventHub } from './hub.ts';
 import { readCapped, refuseTooLarge } from './attachments.ts';
 
@@ -116,14 +116,7 @@ export class ProjectIconStore {
     const version = createHash('sha256').update(bytes).digest('hex').slice(0, 16);
     const name = `${this.key(root)}.${version}.${EXT[mediaType]}`;
     fs.mkdirSync(this.dir, { recursive: true, mode: 0o700 });
-    const tmp = path.join(this.dir, `${name}.tmp${process.pid}-${Math.random().toString(36).slice(2)}`);
-    try {
-      fs.writeFileSync(tmp, bytes, { mode: 0o600 });
-      renameRetry(tmp, path.join(this.dir, name));
-    } catch (e) {
-      fs.rmSync(tmp, { force: true });
-      throw e;
-    }
+    writeAtomic(path.join(this.dir, name), bytes, 0o600);
     this.sweep();
     // only pictures not newer than ours: a later one of another process stays
     const ours = this.mtime(name);

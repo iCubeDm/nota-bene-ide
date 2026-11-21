@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import { reportError } from './errors.ts';
+import { writeAtomic } from './atomicFile.ts';
 import { renameRetry } from './platform.ts';
 import type { EventHub } from './hub.ts';
 import { IMAGE_TYPES } from '@nota-bene/shared';
@@ -48,14 +49,7 @@ export class AttachmentStore {
     }
     const file = path.join(this.dir, `${id}.${EXT[mediaType]}`);
     fs.mkdirSync(this.dir, { recursive: true });
-    const tmp = `${file}.tmp${process.pid}-${Math.random().toString(36).slice(2)}`;
-    try {
-      fs.writeFileSync(tmp, bytes);
-      renameRetry(tmp, file);
-    } catch (e) {
-      fs.rmSync(tmp, { force: true });
-      throw e;
-    }
+    writeAtomic(file, bytes);
     return id;
   }
 

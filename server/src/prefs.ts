@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { EFFORT_LEVELS, ALL_MODES, isThemeId, isUiLang, isUiScale } from '@nota-bene/shared';
 import type { AgentEffort as EffortLevel, AgentMode as Mode, ModelChoice, ThemeId, UiLang, UiScale } from '@nota-bene/shared';
-import { renameRetry } from './platform.ts';
+import { withLock, writeJsonAtomic } from './atomicFile.ts';
 import { stateDir } from './state.ts';
 
 /** `idleCompact[root]`: idle compaction per project dir; absent = on (the default) */
@@ -118,14 +118,11 @@ function loadRaw(): Record<string, unknown> {
 
 export function setModePref(dir: string, mode: Mode): void {
   // merge into the raw object: unknown top-level keys and other projects' entries survive the save
-  const raw = loadRaw();
-  const modes = raw.modes && typeof raw.modes === 'object' && !Array.isArray(raw.modes) ? (raw.modes as Record<string, unknown>) : {};
-  modes[prefsKey(dir)] = mode;
-  raw.modes = modes;
-  const f = file();
-  const tmp = `${f}.tmp${process.pid}`;
-  fs.writeFileSync(tmp, JSON.stringify(raw, null, 2));
-  renameRetry(tmp, f);
+  updateRawPrefs((raw) => {
+    const modes = raw.modes && typeof raw.modes === 'object' && !Array.isArray(raw.modes) ? (raw.modes as Record<string, unknown>) : {};
+    modes[prefsKey(dir)] = mode;
+    raw.modes = modes;
+  });
 }
 
 /** the project's model choice; atomic like setModePref */
@@ -145,14 +142,14 @@ export function setIdleCompactPref(dir: string, on: boolean): void {
   });
 }
 
-/** Read-modify-write of the raw prefs object: unknown keys survive. Atomic like setModePref. */
+/** Read-modify-write of the raw prefs object, locked against other windows' (issue 562): unknown keys survive. */
 export function updateRawPrefs(fn: (raw: Record<string, unknown>) => void): void {
-  const raw = loadRaw();
-  fn(raw);
   const f = file();
-  const tmp = `${f}.tmp${process.pid}`;
-  fs.writeFileSync(tmp, JSON.stringify(raw, null, 2));
-  renameRetry(tmp, f);
+  withLock(f, () => {
+    const raw = loadRaw();
+    fn(raw);
+    writeJsonAtomic(f, raw, { space: 2 });
+  });
 }
 
 /** Settings → Defaults: the mode a project without its own entry starts in. */
