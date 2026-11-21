@@ -1,4 +1,4 @@
 import { definePlugin } from '@/sdk';
-import { usageTab } from './UsageView.tsx';
+import { usageResource, usageTab } from './UsageView.tsx';
 
-export const usagePlugin = definePlugin({ id: 'usage', tabs: [usageTab] });
+export const usagePlugin = definePlugin({ id: 'usage', tabs: [usageTab], resources: [usageResource] });

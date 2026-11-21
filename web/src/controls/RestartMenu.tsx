@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useT, selectConn, useAppDispatch, useAppSelector, routes, defineResource, useResource, usePagePause } from '@/sdk';
+import { useT, selectConn, useAppDispatch, useAppSelector, routes, defineResource, useResource, usePagePause, cancelRestart, restartAgent, restartInPause, restartServer, selectRestartPending, selectSwitching } from '@/sdk';
 import { ConfirmDialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Popover, PopoverContent, PopoverTrigger } from '@/sdk/ui';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
-import { cancelRestart, restartAgent, restartInPause, restartServer, selectRestartPending, selectSwitching } from './slice.ts';
 
 export const INFO_POLL_MS = 20_000;
 /** while a restart is pending and this page is in its pause, it asks again this often (the server may still see work) */
@@ -24,7 +23,7 @@ function useRestartInPause(pending: boolean): void {
   }, [pending, paused, switching, d]);
 }
 
-const infoResource = defineResource<void, { supervised?: unknown; codeChanged?: unknown }>({ key: () => '', route: routes.info, every: INFO_POLL_MS });
+export const infoResource = defineResource<void, { supervised?: unknown; codeChanged?: unknown }>({ id: 'controls.info', key: () => '', route: routes.info, every: INFO_POLL_MS });
 
 /**
  * `/info.supervised` and `.codeChanged`: read on load and after every reconnect (a relaunch may change them), on window

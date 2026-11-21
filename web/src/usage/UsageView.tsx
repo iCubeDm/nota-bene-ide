@@ -4,7 +4,8 @@ import { useAppSelector, getLang, useT, connections, defineResource, routes, use
 import { ViewPane } from '@/sdk/ui';
 
 const POLL_MS = 2000;
-const usageResource = defineResource<{ provider: UsageProvider; period: UsagePeriod }, UsageReport>({
+export const usageResource = defineResource<{ provider: UsageProvider; period: UsagePeriod }, UsageReport>({
+  id: 'usage.report',
   key: (a) => `${a.provider}\0${a.period}`,
   route: (a) => routes.usage(a.provider, a.period),
 });

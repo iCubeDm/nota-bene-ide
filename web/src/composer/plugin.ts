@@ -6,6 +6,8 @@ import { Composer } from './Composer.tsx';
 import { composerCommands } from './commands.ts';
 import { draftPart } from './send.ts';
 import { selectShellRunning } from './shellMode.ts';
+import { ShellBlock } from './ShellBlock.tsx';
+import { composerSettings } from './settings.tsx';
 import { composerSlice, selectBuilding, selectDraft, selectImages, selectUploading } from './slice.ts';
 
 declare module '@/sdk' {
@@ -24,4 +26,7 @@ export const composerPlugin = definePlugin({
   slots: [{ slot: 'footer', order: 20, render: Composer }],
   commands: composerCommands,
   sendParts: [draftPart],
+  // a `! cmd` run's block in the chat, and the shell it runs in on Windows
+  feed: [{ kind: 'shell', render: ShellBlock }],
+  settings: composerSettings,
 });

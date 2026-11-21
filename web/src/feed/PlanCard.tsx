@@ -1,6 +1,5 @@
 import { memo } from 'react';
-import { useT, type FeedItem, useAppDispatch, useAppSelector, chat } from '@/sdk';
-import { planApproved } from '@/controls/slice.ts';
+import { useT, type FeedItem, useAppDispatch, useAppSelector, chat, planApproved } from '@/sdk';
 import { Markdown } from './Markdown.tsx';
 
 /**

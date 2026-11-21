@@ -9,6 +9,8 @@ import type { HelloEvent } from '@/sdk/connections.ts';
 import type { SocketState } from '@/net/socket.ts';
 import { makeStore as coreStore, type AppStore } from '@/store/store.ts';
 import { PLUGINS } from '@/plugins.ts';
+import { buildRegistry } from '@/sdk/registry.ts';
+import type { Plugin } from '@/sdk/plugin.ts';
 
 type Of<K extends ServerEvent['kind']> = Extract<ServerEvent, { kind: K }>;
 
@@ -77,6 +79,19 @@ export function stubRoutes(routes: Record<string, Answer>): { calls: Request[]; 
     return typeof answer === 'function' ? answer(req) : Response.json(answer);
   };
   return { calls, restore: () => void (globalThis.fetch = prev) };
+}
+
+/**
+ * stubRoutes by the id a plugin registers a resource under (`Plugin.resources`): each answers at its route's path, built
+ * from `args[id]` when the route needs them (the query is not matched).
+ */
+export function stubResources(answers: Record<string, Answer>, args: Record<string, unknown> = {}, plugins: readonly Plugin[] = PLUGINS) {
+  const { resources } = buildRegistry(plugins);
+  return stubRoutes(Object.fromEntries(Object.entries(answers).map(([id, answer]) => {
+    const res = resources.get(id);
+    if (!res) throw new Error(`stubResources: no resource "${id}"`);
+    return [new URL(res.route(args[id] as never), location.href).pathname, answer];
+  })));
 }
 
 /** render inside the store's Provider and the TooltipProvider (also on rerender). */

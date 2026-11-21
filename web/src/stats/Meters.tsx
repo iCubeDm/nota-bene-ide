@@ -1,7 +1,6 @@
 import type { Limit } from '@nota-bene/shared';
-import { compact, money, percent, getLang, useT, useAppSelector } from '@/sdk';
+import { compact, money, percent, getLang, useT, useAppSelector, selectCapabilitiesKnown } from '@/sdk';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
-import { selectCapabilitiesKnown } from '@/controls/slice.ts';
 import { selectStats } from './slice.ts';
 
 export type Level = '' | 'warn' | 'hot';

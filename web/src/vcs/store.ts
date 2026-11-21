@@ -45,6 +45,7 @@ export function resetVcs() { ui = initial(); fire(); }
 
 /** One project, source and base's diff: one poll every 4 s however many views watch it (the tool window and the tab, issue 471). */
 export const diffResource = defineResource<{ root: string; src: string; base: string | undefined }, VcsDiff>({
+  id: 'vcs.diff',
   key: (a) => `${a.root}\0${a.src}\0${a.base ?? ''}`,
   route: (a) => routes.vcsDiff(a.src, a.base),
   every: 4_000,
@@ -53,7 +54,7 @@ export const diffResource = defineResource<{ root: string; src: string; base: st
 /** The file on screen: the one picked, or the first when that one is gone from the list. */
 export const currentFile = (files: VcsFile[], path: string | undefined) => files.find((f) => f.path === path) ?? files[0] ?? null;
 
-const patchResource = defineResource<Route, VcsPatch>({ key: (url) => url, route: (url) => url });
+export const patchResource = defineResource<Route, VcsPatch>({ id: 'vcs.patch', key: (url) => url, route: (url) => url });
 
 /** One file's patch, refreshed while shown (only this file, so a large diff costs nothing here). `failed`: the last ask; what came before stays. */
 export function usePatch(url: Route | null, on: boolean, every = 4_000) {

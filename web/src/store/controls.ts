@@ -1,6 +1,12 @@
+// The agent's session-wide state (issue 511): its mode, model, commands, what its hello announced, a running switch or
+// restart and the sends it holds. Core, not the controls plugin's: the composer, the feed, comments, voice, stats and
+// projects read it too, and plugins never import each other. The controls plugin draws it and registers its listener.
 import { createAction, type PayloadAction, createSlice } from '@reduxjs/toolkit';
 import { has, CLAUDE_CAPABILITIES, MODES, type Capabilities, type AgentEffort as EffortLevel, type HeldSend, type IdleCompact, type AgentMode as Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
-import { t, toast, connState, serverEvent, routes, type AppThunk, type RootState, type StartListening } from '@/sdk';
+import { t } from '../i18n/index.ts';
+import { toast } from '../shell/toast.ts';
+import { routes } from '../sdk/routes.ts';
+import { connState, serverEvent, type AppThunk, type RootState, type StartListening } from './store.ts';
 
 /**
  * `switching`: a `switch` we sent is in flight. `asked` from the click until the reset's `replay` (the server accepted

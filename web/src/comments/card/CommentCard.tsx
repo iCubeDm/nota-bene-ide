@@ -1,9 +1,8 @@
 import { BATCH_HEAD, generatedImages, isMediaAnchor } from '@nota-bene/shared';
 import { useEffect, useRef, useState, type HTMLAttributes, type KeyboardEvent } from 'react';
 import { Attachments } from '@/attachments/Attachments.tsx';
-import { getLang, useT, useAppDispatch, useAppSelector, useRegistry, anchorLine, anchorView, type UserPart } from '@/sdk';
+import { getLang, useT, useAppDispatch, useAppSelector, useRegistry, anchorLine, anchorView, type UserPart, selectSwitching } from '@/sdk';
 import { Tooltip, TooltipTrigger } from '@/sdk/ui';
-import { selectSwitching } from '@/controls/slice.ts';
 import { Markdown } from '@/feed/Markdown.tsx';
 import { ClipRow } from '@/voice/ClipRow.tsx';
 import { CardActions } from './CardActions.tsx';

@@ -131,6 +131,25 @@ it('each kind of anchor is shown by its plugin, with what it adds to the comment
   });
 });
 
+// Settings keeps its order of sections and Defaults rows though five plugins register them (issue 511, step 11)
+it('the Settings sections and rows come in today\'s order; one id twice, or one order twice in a section, fails the build', () => {
+  const r = buildRegistry(PLUGINS);
+  expect(r.settings.filter((s) => !s.in).map((s) => s.id)).toEqual(['windows', 'storage', 'dictation', 'defaults', 'themes', 'about']);
+  expect(r.settings.filter((s) => s.in === 'defaults').map((s) => s.id)).toEqual(['lang', 'scale', 'mode', 'updateCheck', 'updateAuto', 'audit', 'rail', 'sounds', 'shell']);
+  const part = (id: string, order: number, at?: string): Plugin => ({ id, settings: [{ id: `${id}-part`, order, ...(at ? { in: at } : {}) }] });
+  expect(() => buildRegistry([part('a', 1), { id: 'b', settings: [{ id: 'a-part', order: 2 }] }])).toThrow('the settings part "a-part" is declared twice');
+  expect(() => buildRegistry([part('a', 1), part('b', 1)])).toThrow('two settings parts at order 1');
+  expect(() => buildRegistry([part('a', 1, 'x'), part('b', 1, 'x')])).toThrow('two settings parts in "x" at order 1');
+  expect(() => buildRegistry([part('a', 1), part('b', 1, 'x')])).not.toThrow();
+});
+
+it('the plugins\' resources are registered by id; a registered one needs an id, and one id twice fails the build', () => {
+  expect([...buildRegistry(PLUGINS).resources.keys()].sort()).toEqual(['controls.info', 'cut.export', 'projects.list', 'settings.about', 'settings.storage', 'settings.windows', 'update.auto', 'update.status', 'usage.report', 'vcs.branches', 'vcs.commit', 'vcs.diff', 'vcs.log', 'vcs.patch', 'voice.dictation']);
+  const res = (id: string | undefined) => ({ ...(id ? { id } : {}), key: () => '', route: () => '/x' });
+  expect(() => buildRegistry([{ id: 'a', resources: [res(undefined)] }])).toThrow('a registered resource needs an id');
+  expect(() => buildRegistry([{ id: 'a', resources: [res('r')] }, { id: 'b', resources: [res('r')] }])).toThrow('the resource "r" is declared twice');
+});
+
 // a send takes the composer's draft first, then the comments that ride along (issue 511, step 10d)
 it('a send\'s parts come in today\'s order; one id or one order twice fails the build', () => {
   expect(buildRegistry(PLUGINS).sendParts.map((p) => `${p.order} ${p.id}`)).toEqual(['10 draft', '30 comments']);

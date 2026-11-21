@@ -1,5 +1,4 @@
-import { useT, selectConn, useAppSelector } from '@/sdk';
-import { selectRestarting, selectSwitching } from './slice.ts';
+import { useT, selectConn, useAppSelector, selectRestarting, selectSwitching } from '@/sdk';
 
 /** The header's word on the connection: connecting, offline, or the agent's switch or restart under way. */
 export function ConnNote() {

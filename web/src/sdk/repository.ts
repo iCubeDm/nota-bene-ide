@@ -10,6 +10,8 @@ import type { ServerEvent } from '@nota-bene/shared';
 import { connections, connectionsOf, type AgentConnection, type ConnectionManager, type ConnState, type Route } from './connections.ts';
 
 export interface Resource<A, T> {
+  /** its name in the registry (`Plugin.resources`), where a test answers it by name */
+  id?: string;
   key(args: A): string;
   route(args: A): Route;
   /** ms between reads while watched (a watcher may ask for another period); none: read on watch, refresh and events */

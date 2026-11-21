@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { useT, selectBusy, useAppDispatch, useAppSelector, routes, toast } from '@/sdk';
+import { useT, selectBusy, useAppDispatch, useAppSelector, routes, toast, selectSwitching, stopWindow } from '@/sdk';
 import { ConfirmDialog } from '@/sdk/ui';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { apiFetch } from '@/net/auth.ts';
 import { remotePage } from '@/net/local.ts';
 import { stopOthers } from '@/projects/api.ts';
-import { selectSwitching, stopWindow } from './slice.ts';
 
 /**
  * ⏻ in the header's corner: Stop Nota Bene. After a confirmation that warns of a running turn (here or in another window),

@@ -7,6 +7,7 @@ import type { FeedItem } from '../store/feed.ts';
 import type { FileKind } from '../refs/kinds.ts';
 import type { Tab, TabKinds } from '../tabs/slice.ts';
 import type { Plugin } from './plugin.ts';
+import type { Resource } from './repository.ts';
 
 /**
  * How a tab of one kind looks and what it shows (issue 511): the tab host (`tabs/`) renders every tab through these.
@@ -227,6 +228,23 @@ export interface SendPart {
   take(s: RootState, d: AppDispatch, o: TakeCtx): Taken | SendResult | null;
 }
 
+/**
+ * A part of the Settings tab (issue 511): a section under its heading, or, with `in`, a row of the section of that id.
+ * Sections by ascending order; a section's rows by ascending order after its own body.
+ */
+export interface SettingsSection {
+  id: string;
+  order: number;
+  /** a section's heading (a row has none) */
+  title?: I18nKey;
+  /** the section this row sits in */
+  in?: string;
+  /** `active`: the tab is shown, so a part reads its data now; none: a section of rows only */
+  render?: FC<{ active: boolean }>;
+  /** beside a section's heading (its refresh) */
+  aside?: FC<{ active: boolean }>;
+}
+
 /** What the plugins contribute, built once per store from its plugins and frozen. */
 export interface Registry {
   tabs: ReadonlyMap<string, AnyTabView>;
@@ -243,6 +261,10 @@ export interface Registry {
   anchorViews: ReadonlyMap<AnchorKind, AnchorView>;
   /** by ascending order */
   sendParts: readonly SendPart[];
+  /** sections and rows, by ascending order */
+  settings: readonly SettingsSection[];
+  /** the server data the plugins read, by id (a test answers one by its id) */
+  resources: ReadonlyMap<string, Resource<never, unknown>>;
 }
 
 /**
@@ -295,11 +317,24 @@ export function buildRegistry(plugins: readonly Plugin[], core: readonly Command
     if (sendParts.some((x) => x.order === p.order)) throw new Error(`registry: two send parts at order ${p.order}`);
     sendParts.push(p);
   }
+  const settings: SettingsSection[] = [];
+  for (const x of plugins.flatMap((p) => p.settings ?? [])) {
+    if (settings.some((y) => y.id === x.id)) throw new Error(`registry: the settings part "${x.id}" is declared twice`);
+    if (settings.some((y) => y.in === x.in && y.order === x.order)) throw new Error(`registry: two settings parts ${x.in ? `in "${x.in}" ` : ''}at order ${x.order}`);
+    settings.push(x);
+  }
+  const resources = new Map<string, Resource<never, unknown>>();
+  for (const r of plugins.flatMap((p) => p.resources ?? [])) {
+    if (!r.id) throw new Error('registry: a registered resource needs an id');
+    if (resources.has(r.id)) throw new Error(`registry: the resource "${r.id}" is declared twice`);
+    resources.set(r.id, r);
+  }
   return Object.freeze({
     tabs, slots, commands: Object.freeze(commands.sort((a, b) => a.order - b.order)),
     feed, tools: Object.freeze(plugins.flatMap((p) => p.tools ?? [])), userParts: Object.freeze(userParts.sort((a, b) => a.order - b.order)),
     fileViews: Object.freeze(fileViews.sort((a, b) => a.order - b.order)), anchorViews,
     sendParts: Object.freeze(sendParts.sort((a, b) => a.order - b.order)),
+    settings: Object.freeze(settings.sort((a, b) => a.order - b.order)), resources,
   });
 }
 

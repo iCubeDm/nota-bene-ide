@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { json, storage, useT, selectBusy, selectSession, useAppDispatch, useAppSelector } from '@/sdk';
-import { runCommand, selectCapabilities, selectSwitching } from '@/controls/slice.ts';
+import { json, storage, useT, selectBusy, selectSession, useAppDispatch, useAppSelector, runCommand, selectCapabilities, selectSwitching } from '@/sdk';
 import { REFUSED, useNote } from '@/controls/useNote.ts';
 import { selectStats } from './slice.ts';
 

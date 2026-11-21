@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { useT, useAppDispatch, useAppSelector, openFile, useResource } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, openFile, useResource, selectCapabilitiesKnown } from '@/sdk';
 import { Button } from '@/sdk/ui';
-import { selectCapabilitiesKnown } from '@/controls/slice.ts';
 import { cancelExport, EXPORT_MODES, ExportRefused, exportResource, startExport, type ExportJob, type ExportMode } from './api.ts';
 
 /** how often a running export is looked at */

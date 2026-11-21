@@ -3,7 +3,8 @@ import { ProjectTitle } from './ProjectSwitcher.tsx';
 import { ProjectRail } from './ProjectRail.tsx';
 import { Starter } from './Starter.tsx';
 import { Seen } from './seen.ts';
-import { projectsMenu } from './api.ts';
+import { projectsMenu, projectsResource } from './api.ts';
+import { projectsSettings } from './settings.tsx';
 
 export const projectsPlugin = definePlugin({
   id: 'projects',
@@ -16,4 +17,6 @@ export const projectsPlugin = definePlugin({
   ],
   // Alt+P, in a field too (also on a Mac, where Option+P types π): the project switcher in the header
   commands: [{ id: 'hk_projects', codes: ['KeyP'], mods: { alt: true }, inFields: true, order: 70, run: () => projectsMenu.toggle() }],
+  settings: projectsSettings,
+  resources: [projectsResource],
 });

@@ -16,7 +16,7 @@ const ASK_MS = 60_000;
 const INSTALLING_MS = 2_000;
 const READY_MS = 10_000;
 
-const statusResource = defineResource<void, Status>({ key: () => '', route: () => routes.systemUpdate() });
+export const statusResource = defineResource<void, Status>({ id: 'update.status', key: () => '', route: () => routes.systemUpdate() });
 
 type Phase = 'none' | 'available' | 'installing' | 'ready' | 'failed' | 'rolled-back';
 /** the server's UpdateStatus (server/src/updater.ts) */

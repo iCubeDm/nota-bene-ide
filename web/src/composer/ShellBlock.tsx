@@ -2,8 +2,8 @@ import { memo, useLayoutEffect, useRef, useState } from 'react';
 import { SHELL_OUTPUT_CAP } from '@nota-bene/shared';
 import { useT, num, type FeedItem, useAppDispatch } from '@/sdk';
 import { Button } from '@/sdk/ui';
-import { stopShell } from '@/composer/shellMode.ts';
-import { shellError } from '@/settings/shells.ts';
+import { stopShell } from './shellMode.ts';
+import { shellError } from './shells.ts';
 
 /** A `! cmd` run (protocol 11): the command, its merged output, and how it ended; Stop while it runs. */
 export const ShellBlock = memo(function ShellBlock({ item }: { item: Extract<FeedItem, { kind: 'shell' }> }) {

@@ -22,3 +22,4 @@ export { ConfirmDialog } from '../components/ConfirmDialog.tsx';
 export { ViewPane } from '../components/ViewPane.tsx';
 export { ToolButton } from '../components/ToolButton.tsx';
 export { PanelResizer, usePanelWidth } from '../shell/PanelResizer.tsx';
+export { SettingsRow, SettingsFail } from '../components/SettingsRow.tsx';

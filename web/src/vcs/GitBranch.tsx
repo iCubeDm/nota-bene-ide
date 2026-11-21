@@ -17,7 +17,7 @@ const isStatus = (v: unknown): v is GitStatus => {
 };
 
 const NO_BRANCHES: VcsBranch[] = [];
-const branchesResource = defineResource<string, VcsBranch[]>({ key: (root) => root, route: routes.vcsBranches });
+export const branchesResource = defineResource<string, VcsBranch[]>({ id: 'vcs.branches', key: (root) => root, route: routes.vcsBranches });
 
 /**
  * GET /git-status for the current root: on load, on a root change, after each live turn and on window focus, at most

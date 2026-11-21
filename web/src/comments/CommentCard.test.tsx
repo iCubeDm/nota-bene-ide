@@ -1,3 +1,4 @@
+import { switchSession } from '@/sdk';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,7 +9,6 @@ import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { serverEvent } from '@/store/store.ts';
 import { makeStore } from '@/testing';
-import { switchSession } from '@/controls/slice.ts';
 import { setFileLoad, setFileVersion } from '@/files/slice.ts';
 import { addImage, selectImages, selectMarking } from '@/composer/slice.ts';
 import { CommentCard, CommentCardPopover } from './CommentCard.tsx';
