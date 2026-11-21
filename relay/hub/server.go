@@ -351,6 +351,10 @@ func (s *Server) runHost(ctx context.Context, p *peer, _ *http.Request, ch Chall
 		return
 	}
 	defer s.unregister(hs)
+	// A closed host is offline at once, not when its handler ends after the
+	// close handshake, seconds later for a host that reads nothing: its devices
+	// learn 4404 instead of sending into a closed queue (issue 549).
+	context.AfterFunc(p.pctx, func() { s.unregister(hs) })
 
 	for {
 		typ, data, err := readMessage(ctx, p.c, s.o.MaxMessage+4, 0)
