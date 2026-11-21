@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Remote access: an outdated connector is replaced after an update from a checkout.** A window replaced the shared connector only when the package version was older, and a checkout keeps its version between releases, so after pulling a window kept a connector started on older code (with one from before 2.2.0, another computer's windows did not appear). Now a connector speaking an older protocol is replaced as well.
+
 ## 2.2.0 — 2026-11-21
 
 - **Remote access: work in another computer's projects.** With a computer paired (Remote tab, **Connect to a computer**), the project switcher and the rail list its running windows beside this computer's, with a laptop on the tile and its name; choosing one opens it in the same tab with the full interface, end-to-end encrypted through the relay, and the switcher there moves back to either computer. Its page offers no Open folder, New project, Recent, stop, Show in Finder or Remote tab, and refuses files over 32 MB before sending them. Both computers need this release. See [Working in another computer's projects](https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#working-in-another-computers-projects).

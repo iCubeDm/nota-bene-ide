@@ -10,7 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { RemoteDevice, RemoteHost, RemoteHostState, RemotePairResult, RemoteRefusalCode, RemoteState } from '@nota-bene/shared';
+import { PROTOCOL, type RemoteDevice, type RemoteHost, type RemoteHostState, type RemotePairResult, type RemoteRefusalCode, type RemoteState } from '@nota-bene/shared';
 import { renderSVG } from 'uqr';
 import { HIDDEN, renameRetry } from '../platform.ts';
 import { stateBaseDir } from '../state.ts';
@@ -101,6 +101,8 @@ const hostRelay = (c: RemoteConfig): string | null => (c.enabled !== false ? c.r
 export type KeeperOptions = {
   /** the package's version: a managed connector of another one is replaced */
   version?: string;
+  /** the protocol this code speaks (default PROTOCOL): a managed connector of an older one is replaced */
+  protocol?: number;
   /** the launcher to start (`<package>/bin/nota-bene.mjs`); the default `spawn` needs it */
   entry?: string;
   /** starts a connector (tests start one in-process) */
@@ -348,10 +350,12 @@ export class RemoteKeeper extends EventEmitter {
       }
       cfg = readConfig();
       let st = await this.#ask({ op: 'status' });
-      // a managed connector of an older version (the package was updated): replaced by one of this version. Only older: a
-      // window of the previous release still open must not replace the new one back, every few seconds
+      // a managed connector of an older version or protocol (the package was updated; a checkout, whose version stays, pulled):
+      // replaced by one of this code. Only older: a window of the previous code still open must not replace the new one back,
+      // every few seconds; a protocol it does not report is older (issue 581)
       // or one that is a host on another relay than the saved one says (`nota-bene remote --relay` while it ran as a client)
-      if (st && st.managed === true && ((this.#o.version && olderVersion(st.version, this.#o.version)) || (st.version !== undefined && hostRelay(cfg) !== (st.relay ?? null)))) {
+      const olderCode = (this.#o.version && olderVersion(st?.version, this.#o.version)) || (typeof st?.protocol === 'number' ? st.protocol : 0) < (this.#o.protocol ?? PROTOCOL);
+      if (st && st.managed === true && (olderCode || (st.version !== undefined && hostRelay(cfg) !== (st.relay ?? null)))) {
         await this.#stopConnector();
         st = null;
       }
