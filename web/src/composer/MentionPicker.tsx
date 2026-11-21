@@ -1,9 +1,9 @@
 import { FileIcon } from '@/sdk/ui';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { useT, connections, routes, setValueAndCaret, placeListFor, revealSelected } from '@/sdk';
+import { useStore } from 'react-redux';
+import { useT, connections, routes, setValueAndCaret, placeListFor, revealSelected, AT_RE, useComposerField, type RootState } from '@/sdk';
+import { selectShellMode } from './shellMode.ts';
 
-// copied from the prototype: `@` at a word start, up to the caret
-export const AT_RE = /(^|\s)@("[^"]*|[^\s"]*)$/;
 // the `:` shortcode trigger (ShortcodePicker); when it is closer to the caret than the `@`, it owns the keys
 const SHORTCODE = /(^|\s):[a-z0-9_+-]{2,}:?$/i;
 const DEBOUNCE_MS = 80;
@@ -160,4 +160,11 @@ export function MentionPicker({ target, shell }: { target: RefObject<HTMLTextAre
       })}
     </div>
   );
+}
+
+/** The mention picker of any message field (`composer.pickers`); in the composer a `! cmd` draft takes plain paths. */
+export function MentionPart() {
+  const { kind, field } = useComposerField();
+  const store = useStore<RootState>();
+  return <MentionPicker target={field} shell={kind === 'chat' ? () => selectShellMode(store.getState()) : undefined} />;
 }

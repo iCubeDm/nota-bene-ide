@@ -3,6 +3,7 @@ import { definePlugin } from '@/sdk';
 import { historyMiddleware, historySlice } from './history.ts';
 import { refusedMiddleware } from './refused.ts';
 import { Composer } from './Composer.tsx';
+import { MentionPart } from './MentionPicker.tsx';
 import { composerCommands } from './commands.ts';
 import { draftPart } from './send.ts';
 import { selectShellRunning } from './shellMode.ts';
@@ -23,7 +24,7 @@ export const composerPlugin = definePlugin({
   pause: (s, o) => !(o.draft && (selectDraft(s).trim() !== '' || selectImages(s).length > 0))
     && selectUploading(s) === 0 && !selectBuilding(s)
     && s.composer.unconfirmed === null && s.composer.shellUnconfirmed === null && selectShellRunning(s) === null,
-  slots: [{ slot: 'footer', order: 20, render: Composer }],
+  slots: [{ slot: 'footer', order: 20, render: Composer }, { slot: 'composer.pickers', order: 10, render: MentionPart }],
   commands: composerCommands,
   sendParts: [draftPart],
   // a `! cmd` run's block in the chat, and the shell it runs in on Windows

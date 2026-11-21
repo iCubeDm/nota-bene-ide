@@ -4,6 +4,9 @@ import { projectFileUrl } from '../refs/kinds.ts';
 /** The drag type of files dragged from the Files tree onto the composer (issue 461): a JSON list of project-relative paths. */
 export const PATHS_MIME = 'application/x-nota-bene-paths';
 
+/** A drag that carries files from outside the page (a drop attaches them). */
+export const hasFiles = (e: { dataTransfer: DataTransfer | null }): boolean => [...(e.dataTransfer?.types ?? [])].includes('Files');
+
 /** The project paths a drag carries from the tree, or null when it carries none. */
 export function draggedPaths(dt: DataTransfer | null): string[] | null {
   if (!dt || ![...dt.types].includes(PATHS_MIME)) return null;

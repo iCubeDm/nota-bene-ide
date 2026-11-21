@@ -14,7 +14,7 @@ import { browserPip, MediaController, type PipApi } from './mediaController.ts';
 import { toast } from '../shell/toast.ts';
 import { adoptHello } from '../sdk/storage.ts';
 import type { Plugin, PluginState } from '../sdk/plugin.ts';
-import { buildRegistry, type CommentsService, type Registry } from '../sdk/registry.ts';
+import { buildRegistry, type AttachmentsService, type CommentsService, type Registry, type VoiceService } from '../sdk/registry.ts';
 import { sendListener, type SentParts } from './send.ts';
 import { CORE_COMMANDS } from '../shell/keymap.ts';
 import { learnServerSep } from '../lib/paths.ts';
@@ -194,12 +194,15 @@ export const usePlugins = (): readonly Plugin[] => pluginsByStore.get(useStore()
 /** What the store's plugins contribute (see buildRegistry). */
 export const registry = (store: object): Registry => registryByStore.get(store)!;
 export const useRegistry = (): Registry => registry(useStore());
-/** The comments' service (issue 545): a view that shows comments needs the plugin that provides it. */
-export const useComments = (): CommentsService => {
-  const c = useRegistry().comments;
-  if (!c) throw new Error('useComments: no plugin provides the comments');
-  return c;
-};
+/** A plugin's service to other plugins (issue 545): a view that uses one needs the plugin that provides it. */
+function useService<K extends 'comments' | 'voice' | 'attachments'>(k: K): NonNullable<Registry[K]> {
+  const s = useRegistry()[k];
+  if (!s) throw new Error(`no plugin provides the ${k}`);
+  return s;
+}
+export const useComments = (): CommentsService => useService('comments');
+export const useVoice = (): VoiceService => useService('voice');
+export const useAttachments = (): AttachmentsService => useService('attachments');
 
 export const selectFeed = (s: RootState): FeedState => s.feed;
 export const selectBusy = (s: RootState): boolean => s.feed.busy;

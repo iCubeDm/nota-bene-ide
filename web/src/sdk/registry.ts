@@ -1,6 +1,6 @@
-import type { FC, MutableRefObject, Ref, SyntheticEvent } from 'react';
+import type { ClipboardEvent, FC, MutableRefObject, Ref, RefObject, SyntheticEvent } from 'react';
 import type { PayloadAction } from '@reduxjs/toolkit';
-import type { Anchor, Comment, CutAnchor, ImageRef, MediaAnchor, TextAnchor } from '@nota-bene/shared';
+import type { Anchor, Comment, CutAnchor, ImageRef, ImageType, MediaAnchor, TextAnchor, Voice, VoiceError } from '@nota-bene/shared';
 import type { I18nKey, Lang, t } from '../i18n/index.ts';
 import type { ru } from '../i18n/ru.ts';
 import type { AppDispatch, AppStore, AppThunk, RootState } from '../store/store.ts';
@@ -37,10 +37,13 @@ export type AnyTabView = { [K in keyof TabKinds]: TabView<K> }[keyof TabKinds];
  * The places in the frame a plugin fills (issue 511), each named by where it sits: the header's project title, its
  * part over the middle column (left edge on the first tab's), its right end, the settings menu (between the scale and
  * the Usage row) and the settings button's badge; the tool strips; the panels left and right of the middle column; the
- * chat pane; over the panes; the footer; the overlays after the frame.
+ * chat pane; over the panes; the footer; the overlays after the frame. The composer's (issue 545): its status line, its
+ * tools row after the keys help and at its right end, and the pickers of a message field, which the comment popup shares
+ * (a picker reads its field with `useComposerField()`).
  */
 export type SlotName = 'header.title' | 'header.center' | 'header.end' | 'header.menu' | 'header.badge' | 'strip.left' | 'strip.right'
-  | 'panel.left' | 'panel.right' | 'chat' | 'panes' | 'footer' | 'overlay';
+  | 'panel.left' | 'panel.right' | 'chat' | 'panes' | 'footer' | 'overlay'
+  | 'composer.status' | 'composer.tools' | 'composer.end' | 'composer.pickers';
 
 /** A plugin's part of the frame: rendered at `slot` by ascending `order`, with the frame's own parts (see `Slots`). */
 export interface Slot {
@@ -235,6 +238,76 @@ export interface CommentsService {
   removeComment(id: string): AppThunk;
 }
 
+/** A recording being made, as `VoiceService.useRecorder` holds it; `wav`, `ms`, `wave`: the stopped recording. */
+export type RecState =
+  | { phase: 'idle' }
+  /** `held`: the button is still down (release sends); `ms`: the length so far; `levels`: the recent input levels, newest last */
+  | { phase: 'recording'; held: boolean; ms: number; levels: number[] }
+  /**
+   * stopped, to be listened to; `url`: the recording as a playable blob URL ('' where the browser has none);
+   * `voice`: it is already uploaded (the send could not go out), so Send does not upload it again
+   */
+  | { phase: 'preview'; recording: { wav: Blob; ms: number; wave: number[] }; url: string; voice?: Voice }
+  | { phase: 'sending'; recording: { wav: Blob; ms: number; wave: number[] }; url: string; voice?: Voice };
+
+/** One recording at a time: `start(held)`, `stop` (to the preview, or uploaded), `send`, `cancel`; `restore` a refused one. */
+export interface VoiceRecorder {
+  st: RecState;
+  start(held: boolean): void;
+  restore(v: Voice): void;
+  /** the held button let go */
+  release(): void;
+  cancel(): void;
+  stop(): Promise<void>;
+  send(force?: boolean): Promise<void>;
+}
+
+/**
+ * The voice messages as the composer and the comment popup use them (issue 545), provided by the voice plugin and read
+ * with `useVoice()`: the recorder, its bar, the Whisper set-up prompt, a comment's clip, and the sends.
+ */
+export interface VoiceService {
+  /**
+   * `onDone` gets the uploaded voice (and whether Send forced) and answers false when it could not use it: the
+   * recording stays in the preview. `preview`: Stop goes to a preview; without it Stop uploads at once.
+   */
+  useRecorder(o: { onDone: (v: Voice, force: boolean) => boolean | void; notify: (msg: string) => void; preview: boolean }): VoiceRecorder;
+  /** the field while recording; `clip`: a comment's recording (Stop adds the clip) */
+  RecordBar: FC<{ state: Exclude<RecState, { phase: 'idle' }>; onCancel: () => void; onStop?: () => void; onSend: (force: boolean) => void; clip?: boolean; busy?: boolean; onEscape?: () => boolean }>;
+  /** the mic without Whisper: the prompt to set it up, anchored to the mic */
+  WhisperPrompt: FC<{ open: boolean; onOpenChange: (open: boolean) => void; anchor: RefObject<HTMLElement | null> }>;
+  /** a comment's recording with its transcript; its player stops on delete */
+  ClipRow: FC<{ voice: Voice; text?: string; error?: VoiceError; onRetry?: () => void; onDelete?: () => void }>;
+  transcribe(id: string, ask: { lang: string; detect?: true }): Promise<{ text: string; lang?: string } | { error: VoiceError }>;
+  /** a recording as a message of its own; `rides`: the pending comments go with it. False when nothing was sent */
+  send(voice: Voice, id?: string, force?: boolean, rides?: boolean): AppThunk<boolean>;
+  /** a refused voice send's recording, back to its host */
+  onRefused(fn: (v: Voice) => void): () => void;
+}
+
+/** An uploaded image of a message or a comment. */
+export type ImageEntry = { id: string; mediaType: ImageType };
+/** an upload in flight: an image's object URL thumbnail, or a file's name (issue 461) */
+export type PendingThumb = { key: string; url?: string; name?: string };
+
+/**
+ * The attachments as the composer and the comment popup take them (issue 545), provided by the attachments plugin and
+ * read with `useAttachments()`: the intake of pasted, dropped and picked files, and their thumbnails.
+ */
+export interface AttachmentsService {
+  /**
+   * A finished image goes to `onUploaded`, any other file's project path to `onFilePath`; `notify` gets the failures,
+   * `onBusy(±1)` the uploads running. `add` takes files, `cancel(key)` stops a file's upload.
+   */
+  useIntake(o: { onUploaded: (e: ImageEntry) => void; onFilePath: (path: string) => void; notify: (msg: string) => void; onBusy?: (d: 1 | -1) => void }): {
+    pending: PendingThumb[]; add(files: Iterable<File>): boolean; onPaste(e: ClipboardEvent<HTMLTextAreaElement>): void; cancel(key: string): void;
+  };
+  /** a strip of thumbnails: the uploaded `ids` (× with `onRemove`) and the uploads in flight */
+  Attachments: FC<{ ids: string[]; pending?: PendingThumb[]; onCancel?: (key: string) => void; onRemove?: (id: string) => void } & { 'data-testid'?: string }>;
+  /** the composer's strip, with each image's markup */
+  ComposerAttachments: FC<{ pending: PendingThumb[]; onCancel?: (key: string) => void }>;
+}
+
 /**
  * How a send ended (`chat.send`). 'building': a part is being made ready (a combined image); the send finishes by
  * itself. 'changed': a part changed, or the session did, while it waited; nothing went. 'blocked', 'detached', 'empty':
@@ -316,6 +389,8 @@ export interface Registry {
   resources: ReadonlyMap<string, Resource<never, unknown>>;
   /** the comments' service, when a plugin provides it */
   comments?: CommentsService;
+  voice?: VoiceService;
+  attachments?: AttachmentsService;
 }
 
 /**
@@ -380,14 +455,18 @@ export function buildRegistry(plugins: readonly Plugin[], core: readonly Command
     if (resources.has(r.id)) throw new Error(`registry: the resource "${r.id}" is declared twice`);
     resources.set(r.id, r);
   }
-  const comments = plugins.flatMap((p) => p.comments ?? []);
-  if (comments.length > 1) throw new Error('registry: the comments are provided twice');
+  const once = <K extends 'comments' | 'voice' | 'attachments'>(k: K): Plugin[K] => {
+    const all = plugins.flatMap((p) => p[k] ?? []);
+    if (all.length > 1) throw new Error(`registry: two plugins provide the ${k}`);
+    return all[0] as Plugin[K];
+  };
   return Object.freeze({
     tabs, slots, commands: Object.freeze(commands.sort((a, b) => a.order - b.order)),
     feed, tools: Object.freeze(plugins.flatMap((p) => p.tools ?? [])), userParts: Object.freeze(userParts.sort((a, b) => a.order - b.order)),
     fileViews: Object.freeze(fileViews.sort((a, b) => a.order - b.order)), anchorViews,
     sendParts: Object.freeze(sendParts.sort((a, b) => a.order - b.order)),
-    settings: Object.freeze(settings.sort((a, b) => a.order - b.order)), resources, comments: comments[0],
+    settings: Object.freeze(settings.sort((a, b) => a.order - b.order)), resources,
+    comments: once('comments'), voice: once('voice'), attachments: once('attachments'),
   });
 }
 

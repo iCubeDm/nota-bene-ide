@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { has, isAttachmentAnchor } from '@nota-bene/shared';
 import { markAttachment, removeImage, selectImages, selectMarking } from '@/composer/slice.ts';
-import { useT, useAppDispatch, useAppSelector, useComments } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, useComments, type PendingThumb } from '@/sdk';
 import { ConfirmDialog } from '@/sdk/ui';
 import { AttachmentMarkup } from './AttachmentMarkup.tsx';
-import { Attachments, type PendingThumb } from './Attachments.tsx';
+import { Attachments } from './Attachments.tsx';
 
 
 /**

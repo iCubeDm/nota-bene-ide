@@ -1,6 +1,6 @@
 import type { Middleware, Slice } from '@reduxjs/toolkit';
 import type { RootState, StartListening } from '../store/store.ts';
-import type { AnchorView, AnyFeedRenderer, AnyTabView, Command, CommentsService, FileView, SendPart, SettingsSection, Slot, ToolRenderer, UserPart } from './registry.ts';
+import type { AnchorView, AnyFeedRenderer, AnyTabView, AttachmentsService, Command, CommentsService, FileView, SendPart, SettingsSection, Slot, ToolRenderer, UserPart, VoiceService } from './registry.ts';
 import type { Resource } from './repository.ts';
 
 /**
@@ -52,6 +52,10 @@ export interface Plugin {
   resources?: Resource<never, unknown>[];
   /** the comments' service to other plugins' views; one plugin provides it */
   comments?: CommentsService;
+  /** the voice messages' service to the composer and the comment popup; one plugin provides it */
+  voice?: VoiceService;
+  /** the attachments' service to the composer and the comment popup; one plugin provides it */
+  attachments?: AttachmentsService;
 }
 
 export const definePlugin = (p: Plugin): Plugin => p;

@@ -259,7 +259,7 @@ bypassing the SDK, 74 core→plugin (shell 31, store 22, tabs 17, refs 3, anchor
   `has(protocol: number | null | undefined, f: Feature): boolean`. Re-exported from `@nota-bene/shared`.
 - `PROTOCOL` stays a literal; a test asserts it equals the largest entry, so a bump is "add an entry, raise the number".
 - The schema gets `"x-features"` beside `"x-protocol"`; the Dart generator emits `enum Feature { activity(1), …; final
-  int protocol; }` and `bool has(num? protocol, Feature f)` into `protocol.g.dart`. The existing `Capabilities`
+  int protocol; }` and `bool hasFeature(num? protocol, Feature f)` into `protocol.g.dart`. The existing `Capabilities`
   type (the provider's capabilities in `hello`) keeps its name; hence `Feature`, not `Capability`.
 - Every gate in both apps uses a name. The boundary check counts 22 web and 5 phone product files that compare a
   protocol with a number or a constant: numeric gates (`protocol >= 14`, `protocol < 16`, `< 2`, `< 1`), gates against
@@ -320,13 +320,13 @@ inventing one.
 
 | Web | Phone |
 |---|---|
-| `AgentConnection` | `AgentConnection` (`chat/agent_connection.dart`): the mux stream, open/close, reconnect, passive and takeover, `send`, `has(Feature)`; split out of `WindowTab` |
+| `AgentConnection` | `WindowConnection` (`chat/window_connection.dart`): the mux stream, open/close, reconnect, passive and takeover, `send`, `has(Feature)`; split out of `WindowTab` |
 | window state | `WindowState` (`chat/window_state.dart`, `ChangeNotifier`): feed, models/mode/effort, held sends, compaction and restart pending, stats; `apply(ServerEvent)` |
-| `WindowTab` | stays as the per-window composition (screens use it): owns one `AgentConnection`, its `Repository`, one `WindowState` and the window's feature controllers (`Comments`, voice outbox, `MediaCache`), and the event routing between the parts |
-| `repository` | `Repository` (`files/repository.dart`, issue 547), one per window as `tab.repository` over its `AgentConnection`: `/tree`, `/complete`, `/file` and the git `/vcs-*` reads, one load path (a request in flight shared by route, none while the host is offline), no cache. `/project-icon` stays with `ProjectIcons` (`hosts/project_icon.dart`): the host list sets and shows a folder's picture with no connection open, and the web has no such route. No shared poll object: the host stream pushes the window list, and the one data poll left (`/dictation` in `dictation/whisper_sheet.dart`) does not pay for one |
-| `storage` | `AppStores`: the record of stores built in `main.dart` `_load` (hosts, seen, notified, notify choice, voice outboxes, comment queues, project icons), replacing `CommentQueues.instance`, `VoiceStore.instance`, `ProjectIcons.instance` and the resets in `test/support/rig.dart:58-60`, built on one `Storage` (`store/storage.dart`, issue 547): `vault` (small values by key, the web's `storage.local`) and `files` (the app's files dir by path); `Storage.memory()` in tests. No `pref`: the phone's settings are its own. The voice language is not in it (call 31) |
+| `WindowTab` | stays as the per-window composition (screens use it): owns one `WindowConnection`, one `WindowState` and the window's feature controllers (`Comments`, voice outbox, `MediaCache`), no logic of its own |
+| `repository` | Not built (call 30, issue 547): free functions with generated types take a `WindowTab` (`files/remote.dart`: `/tree`, `/complete`, `/file`; `files/git.dart`), and `putProjectIcon`/`deleteProjectIcon` take a `WindowHttp` (`hosts/project_icon.dart`). The design was `Repository` classes over `WindowHttp` (`FilesRepository`, `GitRepository`, `IconRepository`). No shared poll object: the host stream pushes the window list, and the one data poll left (`/dictation` in `dictation/whisper_sheet.dart`) does not pay for one |
+| `storage` | `AppStores`: the record of stores built in `main.dart` `_load` (hosts, seen, notified, notify choice, voice outboxes, comment queues, project icons), replacing `CommentQueues.instance`, `VoiceStore.instance`, `ProjectIcons.instance` and the resets in `test/support/rig.dart:58-60`. The voice language is not in it (call 31). There is no storage interface: the members are the stores themselves (call 30, issue 547) |
 | `Sdk` | `Sdk` (`lib/sdk.dart`): `{ AppStores stores; Links links; Identity id; Background background }`, passed down where `_load`'s record is today |
-| capabilities | generated `Feature` (the web's `FEATURES` and `Feature` in one enum) / `has`; `AgentConnection.has(f)` |
+| capabilities | generated `Feature` / `hasFeature`; `WindowConnection.has(f)` |
 | registries | none. Events and anchors are generated sealed classes and the feed items hand-written sealed classes (`chat/feed.dart`); an exhaustive `switch` is the registry and the compiler checks completeness. Screens are pushed routes. A Dart registry would add indirection and lose that check |
 | i18n | ARB stays; the two crash-prone lookups go: `'mode_${m.toJson()}'` (`window_tab.dart:52-58`) becomes a generated exhaustive map, `m['en']!` (`strings.g.dart:40-43`) a typed accessor; the generator's hand-coded Russian plural rule uses `Intl.plural` |
 
@@ -375,7 +375,7 @@ generated classes. Each new root gets a fixture in `shared/fixtures/protocol.jso
 §4.1 "Organised by feature" becomes "Core, SDK and plugins": the folder table above, the import rule and the baseline.
 §4.2 "Store" describes `combineSlices` with injected plugin slices and `PluginState`; the 16-slice list is grouped by
 owner. A new §4.5 "SDK and registries" holds the registry table and the data/storage rules (resources, prefs, `track`,
-flags). §3.3 "Versioning" points at `FEATURES`. §2.3 names `HostWindow.id` and the phone's `Sdk`, `AgentConnection`,
+flags). §3.3 "Versioning" points at `FEATURES`. §2.3 names `HostWindow.id` and the phone's `Sdk`, `WindowConnection`,
 `WindowState`. §7 "Testing" names `web/src/testing/` and the feed fixture. AGENTS.md's project map adds one line:
 `web/src/sdk/` is the only import of a feature folder (the rule's test and baseline in `scripts/`).
 
@@ -455,32 +455,28 @@ result.
     of the folder does not move it.
 29. **Answers** (step 4b): the union variants got names (`VcsNoRepo`, `VcsRepoDiff`, `GitSwitched`, `GitSwitchRefusal`).
     The hand-parsed icon answer was `PUT /project-icon` `{ icon }`, not `/info.icon`. Parsing is strict.
-30. **The phone mirrors the web's parts** (steps 4b, 12, 13, issue 547), by the web's name:
-    - Connection: `AgentConnection` (`chat/agent_connection.dart`), renamed from `WindowConnection`.
-    - Repository: `Repository` (`files/repository.dart`), `tab.repository` over the `AgentConnection`; it replaced the
-      free functions of `files/remote.dart` and `files/git.dart`. Requests in flight are shared by route and none goes
-      while the host is offline. "Paused" is offline only, not the web's closed/occupied/taken: the phone's requests do
-      not need the tab's socket, and an occupied tab reads files as it did. Nothing is cached: the web's snapshot serves
-      its watchers and polls, and the phone has neither. `/project-icon` stays in `ProjectIcons` (see the mirror table).
-    - Storage: `Storage` (`store/storage.dart`): `vault` and `files`, under which `AppStores` is built; the keys and
-      files are those the stores always used (`test/storage_test.dart` reads the old data).
-    - Capabilities: the generated `Feature` / `has` and `AgentConnection.has` (issue 547 renamed `hasFeature`). A Dart
-      enum is the web's `FEATURES` and `Feature` in one: each value carries its protocol.
-    - Registry: none, by decision (call 16, confirmed in issue 547). The web's registries exist because plugins
-      contribute to one list (keys, slots, tab kinds); the phone has no plugin set, no key table, and each menu is one
-      screen's fixed list. Events, anchors and feed items are sealed classes whose exhaustive `switch` the compiler
-      checks; a registry would add indirection and lose that check.
+30. **The phone does not mirror the web's names** (steps 4b, 12, 13). This departs from the owner's decision that both
+    apps share one architecture and its names (Connection, Repository, Storage, Capabilities, Registry, Sdk). It awaits
+    the owner's sign-off, and issue 547 tracks closing the gap. What exists, by the web's name:
+    - Connection: `WindowConnection` (`chat/window_connection.dart`), not `AgentConnection`.
+    - Repository: none. The data helpers are free functions over a `WindowTab` (`files/remote.dart`,
+      `files/git.dart`), or over a `WindowHttp` (`putProjectIcon`, `deleteProjectIcon` in `hosts/project_icon.dart`),
+      not over the `WindowConnection` (see call 32).
+    - Storage: none. The stores are `AppStores` members.
+    - Capabilities: the generated `Feature` / `hasFeature` and `WindowConnection.has`, not `FEATURES` / `has`.
+    - Registry: none (call 16).
     - Sdk: `Sdk` and `AppStores` (`lib/sdk.dart`), as designed.
 
+    This replaces call 16's `Repository` and the mirror table's `repository` row.
 31. **`AppStores`** (step 12) leaves out the voice language and the other choices loaded before the first frame, which
     keep one owner in `main()`. `VoicePlayer.shared` and `ClipFiles.shared` stay: they are platform players, not
     stores.
-32. **`WindowTab` is thin** (step 13, issue 547): it owns a window's lifetime (the connection, the state, the comments,
-    the voice outbox and the media cache, and the event routing between them), with no forwarders; the screens read
-    `tab.connection.*` and `tab.windowState.*`. The voice retry and the reconcile after a replay are the voice outbox's
-    (`event`, `retryVoice`), the batch composition is `Comments.compose` / `composeFor`. The data helpers moved to the
-    `Repository` (call 30). The voice outbox is the app's, so a tab still closing after another replaced it forwards
-    no events to it.
+32. **`WindowTab` is not thin** (step 13): about 290 lines with about 45 one-line forwarders to `connection` and
+    `windowState`, so the screens and their tests read it unchanged. The voice retry, the comment composition and
+    the outbox reconcile after a replay stay in it. A later mechanical follow-up has the screens read
+    `tab.connection.*` / `tab.windowState.*`, drops the forwarders and moves that glue into the voice outbox and
+    comments. The data helpers of call 30 still take the `WindowTab` (or a `WindowHttp`), not the `WindowConnection`;
+    issue 547 covers moving them too.
 33. **Connection** (step 5a): the socket opens at an internal `open()` once the connection is registered. `useFeature`
     reads the `controls` slice's protocol, not a copy in `conn`. A repeated identical state is not mirrored. The
     thunk extra is `{ connections, registry, sent }`: the registry came with step 9a, the taken send parts with step
@@ -507,7 +503,7 @@ result.
     import another. `fileViews` moved to step 10c.
 40. **Slots** (step 9b): the names are the frame's real places: `header.title`, `header.center`, `header.end`,
     `header.menu`, `header.badge`, `strip.left`, `strip.right`, `panel.left`, `panel.right`, `chat`, `panes`,
-    `footer`, `overlay`. No `composer.*` slot exists yet (issue 545).
+    `footer`, `overlay`, and the composer's (issue 545, item 48).
 41. **Commands** (steps 9c, 11): `Command` has an `order`, because the help interleaves core and plugin keys. It has
     no `label`, `when` or `connection`. The core's keys are `CORE_COMMANDS`.
 42. **Feed** (step 10b): `FeedRenderer` covers every kind but `tool`, and `ToolRenderer` gets the head's props. There
@@ -532,3 +528,7 @@ result.
 47. **Comments service** (issue 545): other plugins' views reach the comments through `Plugin.comments`, a
     `CommentsService` one plugin provides, read with `useComments()` (it throws without one); a drawing's
     `PendingComment` carries `discard`. The baseline went from 119 to 97 entries.
+48. **Composer slots** (issue 545): `composer.status`, `composer.tools`, `composer.end` take the pills and meters, and
+    `composer.pickers` the mention and shortcode pickers of both message fields (`useComposerField()`). Voice and
+    attachments are services (`useVoice()`, `useAttachments()`), not slots: each host drives them with its own state.
+    `MessageInput` is core UI. The baseline went from 97 to 68 entries.

@@ -11,7 +11,7 @@ import { mic } from '@/voice/recorder.ts';
 import { resetPlayer } from '@/voice/player.ts';
 import { selectSendable } from '@/comments/send.ts';
 import { installKeymap } from '@/shell/keymap.ts';
-import { PLANE_PATH } from './MessageInput.tsx';
+import { PLANE_PATH } from '@/components/MessageInput.tsx';
 import { Composer } from './Composer.tsx';
 import { addImage, selectDraft, selectImages, setDraft } from './slice.ts';
 
