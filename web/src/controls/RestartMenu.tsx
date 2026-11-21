@@ -1,14 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
-import { ConfirmDialog } from '@/components/ConfirmDialog.tsx';
-import { cancelRestart, restartAgent, restartInPause, restartServer, selectRestartPending, selectSwitching } from '@/controls/slice.ts';
-import { usePagePause } from './pagePause.ts';
-import { selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { useT, selectConn, useAppDispatch, useAppSelector, routes, defineResource, useResource, usePagePause } from '@/sdk';
+import { ConfirmDialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Popover, PopoverContent, PopoverTrigger } from '@/sdk/ui';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
-import { routes } from '@/sdk/routes.ts';
-import { defineResource, useResource } from '@/sdk/repository.ts';
+import { cancelRestart, restartAgent, restartInPause, restartServer, selectRestartPending, selectSwitching } from './slice.ts';
 
 export const INFO_POLL_MS = 20_000;
 /** while a restart is pending and this page is in its pause, it asks again this often (the server may still see work) */

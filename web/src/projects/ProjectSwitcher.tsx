@@ -5,7 +5,7 @@
 // Recent folders come from the launcher's list and from this window's session history; one opens in a window of its agent,
 // ✕ removes one from both (the server keeps it out until it is launched again).
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { useT, shortHome, connections, routes, toast, withKey, selectSession, useAppSelector } from '@/sdk';
+import { useT, shortHome, folderName, connections, routes, toast, withKey, selectSession, useAppSelector } from '@/sdk';
 import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog } from '@/sdk/ui';
 import { ago } from '@/controls/SessionPicker.tsx';
 import { remotePage } from '@/net/local.ts';
@@ -232,4 +232,13 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
       </PopoverContent>
     </Popover>
   );
+}
+
+/** The header's title: the project, not the app, names the window, so several windows on different projects are told apart. */
+export function ProjectTitle() {
+  const session = useAppSelector(selectSession);
+  const project = (session && folderName(session.root)) || 'Nota Bene';
+  // the tab's title; the switcher puts the other projects' badge in front of it
+  const windowTitle = `${session?.title ? session.title + ' · ' : ''}${project} · Nota Bene`;
+  return <ProjectSwitcher project={project} windowTitle={windowTitle} />;
 }

@@ -1,8 +1,7 @@
-import { keysLabel, BINDINGS } from './keymap.ts';
-import { useT } from '@/i18n/index.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { DRAWER_ID, INDICATOR_ID } from '@/tasks/TasksDrawer.tsx';
-import { selectDrawerOpen, selectFinishedCount, selectRunningCount, selectWatcherCount, toggleDrawer } from '@/tasks/slice.ts';
+import { useT, useAppDispatch, useAppSelector, keysLabel } from '@/sdk';
+import { BINDINGS } from '@/shell/keymap.ts';
+import { DRAWER_ID, INDICATOR_ID } from './TasksDrawer.tsx';
+import { selectDrawerOpen, selectFinishedCount, selectRunningCount, selectWatcherCount, toggleDrawer } from './slice.ts';
 
 const hotkey = (() => { const b = BINDINGS.find((x) => x.id === 'hk_tasks'); return b ? keysLabel(b) : ''; })();
 

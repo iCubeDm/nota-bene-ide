@@ -8,7 +8,7 @@ import { serverEvent } from '@/store/store.ts';
 import { makeStore } from '@/testing';
 import { resetSources, setSources } from '@/files/sources.ts';
 import { selectTree } from '@/files/treeSlice.ts';
-import { Header } from './Header.tsx';
+import { Header } from '@/shell/Header.tsx';
 
 const SOURCES = [
   { id: 'here', kind: 'checkout', label: 'main', ref: 'main', dir: '/p/proj' },

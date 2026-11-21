@@ -1,20 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useStore } from 'react-redux';
-import { sendBatch } from './comments/send.ts';
-import { selectConn, useAppDispatch, useAppSelector, type AppStore } from './store/store.ts';
-import { selectTabs } from './tabs/slice.ts';
+import { selectConn, useAppSelector, type AppStore } from './store/store.ts';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { CommentCardPopover } from './comments/CommentCard.tsx';
-import { HighlightLayer } from './comments/HighlightLayer.tsx';
-import { CommentsPanel } from './comments/CommentsPanel.tsx';
-import { CommentPopup } from './comments/CommentPopup.tsx';
-import { SelectionButton, type PendingSelection } from './comments/SelectionButton.tsx';
-import { FileTree } from './files/FileTree.tsx';
-import { ChangesPanel } from './vcs/ChangesPanel.tsx';
-import { Feed } from './feed/Feed.tsx';
 import { Footer } from './shell/Footer.tsx';
-import { useActivity } from './controls/useActivity.ts';
-import { TasksDrawer } from './tasks/TasksDrawer.tsx';
 import { Panes } from './tabs/Panes.tsx';
 import { TabStrip } from './tabs/TabStrip.tsx';
 import { Header } from './shell/Header.tsx';
@@ -24,26 +12,20 @@ import { Stopped } from './shell/Stopped.tsx';
 import { OneTab } from './shell/OneTab.tsx';
 import { Toasts } from './shell/Toasts.tsx';
 import { useFavicon } from './shell/Favicon.ts';
-import { useSeen } from './projects/seen.ts';
 import { useSounds } from './shell/sounds.ts';
-import { RecentFiles } from '@/files/RecentFiles.tsx';
-import { Starter } from '@/projects/Starter.tsx';
-import { ProjectRail } from '@/projects/ProjectRail.tsx';
+import { Slots, type Own } from './shell/Slots.tsx';
 import { installKeymap } from './shell/keymap.ts';
 
+// the frame's own parts among the plugins' (issue 511): the strips by the panels, the toasts among the overlays
+const LEFT: readonly Own[] = [{ order: 20, render: LeftStrip }];
+const RIGHT: readonly Own[] = [{ order: 20, render: RightStrip }];
+const OVERLAYS: readonly Own[] = [{ order: 30, render: Toasts }];
+
 export function App() {
-  const dispatch = useAppDispatch();
   const store = useStore() as AppStore;
   useEffect(() => installKeymap(store), [store]);
   useFavicon();
-  useSeen();
   useSounds();
-  useActivity();
-  const sendPanel = useCallback(() => void dispatch(sendBatch(false)), [dispatch]);
-  const [pending, setPending] = useState<PendingSelection | null>(null);
-  const close = useCallback(() => setPending(null), []);
-  // another root: the tree's loaded folders belong to the old one (its open/closed state is in the store and stays)
-  const rootGen = useAppSelector((s) => selectTabs(s).rootGen);
   // another tab owns the window (M7-15): the app stays mounted but inert under the overlay
   const conn = useAppSelector(selectConn);
   const blocked = conn === 'occupied' || conn === 'taken' || conn === 'unauthorized' || conn === 'stopped';
@@ -56,40 +38,18 @@ export function App() {
         docked and narrows the middle column (tabs, panes, composer) instead of covering it.
       */}
       <div className="flex min-h-0 flex-1">
-        {/* the open projects, outermost: a stopgap before one server for every project (issue 419) */}
-        <ProjectRail />
-        <LeftStrip />
-        <FileTree key={rootGen} />
-        <ChangesPanel />
+        <Slots at="panel.left" own={LEFT} />
         <div data-center className="flex min-w-0 flex-1 flex-col">
           <TabStrip />
           <div className="relative flex min-h-0 flex-1 flex-col">
-            <Panes
-              chat={
-                <>
-                  <div
-                    id="items"
-                    className="nb-card nb-prose px-10 pt-5 pb-7 text-[0.9375rem] leading-[1.625] text-foreground/90"
-                  >
-                    <Feed />
-                  </div>
-                  <HighlightLayer />
-                </>
-              }
-            />
-            <TasksDrawer />
+            <Panes chat={<Slots at="chat" />} />
+            <Slots at="panes" />
           </div>
           <Footer />
         </div>
-        <CommentsPanel onSend={sendPanel} />
-        <RightStrip />
+        <Slots at="panel.right" own={RIGHT} />
       </div>
-      <SelectionButton onComment={setPending} />
-      {pending && <CommentPopup pending={pending} onClose={close} />}
-      <CommentCardPopover />
-      <Toasts />
-      <RecentFiles />
-      <Starter />
+      <Slots at="overlay" own={OVERLAYS} />
       </div>
       <OneTab />
       <LoginRequired />

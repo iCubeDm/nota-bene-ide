@@ -229,3 +229,12 @@ const Reply = memo(function Reply({ item: it }: { item: Extract<FeedState['items
 });
 
 const isAgentCall = (it: FeedState['items'][number]): boolean => it.kind === 'tool' && isAgentTool(it.name, it.toolKind);
+
+/** The chat pane's feed. */
+export function ChatFeed() {
+  return (
+    <div id="items" className="nb-card nb-prose px-10 pt-5 pb-7 text-[0.9375rem] leading-[1.625] text-foreground/90">
+      <Feed />
+    </div>
+  );
+}

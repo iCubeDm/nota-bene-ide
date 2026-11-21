@@ -53,3 +53,9 @@ export function useSeen(): void {
   const store = useStore<RootState>();
   useEffect(() => startSeen(store, document, window, postSeen), [store]);
 }
+
+/** useSeen as a part of the frame (a slot), rendering nothing. */
+export function Seen(): null {
+  useSeen();
+  return null;
+}

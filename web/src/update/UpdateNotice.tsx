@@ -1,13 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
-import { useT } from '@/i18n/index.ts';
+import { useT, routes, storage, string, defineResource, useResource, usePagePause, reloadPage } from '@/sdk';
+import { Popover, PopoverContent, PopoverTrigger } from '@/sdk/ui';
 import { apiFetch } from '@/net/auth.ts';
-import { routes } from '@/sdk/routes.ts';
-import { storage, string } from '@/sdk/storage.ts';
-import { defineResource, useResource } from '@/sdk/repository.ts';
 import { Markdown } from '@/feed/Markdown.tsx';
-import { usePagePause } from './pagePause.ts';
-import { reloadPage } from './reloadPage.ts';
 
 /** the newest version the user put off with Later */
 const SEEN = storage.local<string | null>('nb.updateSeen', string, null);

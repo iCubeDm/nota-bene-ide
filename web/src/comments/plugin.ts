@@ -1,6 +1,10 @@
 import type { WithSlice } from '@reduxjs/toolkit';
 import { bool, connState, definePlugin, serverEvent, storage, t, toast } from '@/sdk';
 import { commentsSlice, flushComments } from './slice.ts';
+import { CommentsToggle } from './CommentsToggle.tsx';
+import { Comments, SelectionComment } from './FrameParts.tsx';
+import { HighlightLayer } from './HighlightLayer.tsx';
+import { CommentCardPopover } from './CommentCard.tsx';
 
 declare module '@/sdk' {
   interface PluginState extends WithSlice<typeof commentsSlice> {}
@@ -9,6 +13,13 @@ declare module '@/sdk' {
 export const commentsPlugin = definePlugin({
   id: 'comments',
   slices: [commentsSlice],
+  slots: [
+    { slot: 'strip.right', order: 10, render: CommentsToggle },
+    { slot: 'panel.right', order: 10, render: Comments },
+    { slot: 'chat', order: 20, render: HighlightLayer },
+    { slot: 'overlay', order: 10, render: SelectionComment },
+    { slot: 'overlay', order: 20, render: CommentCardPopover },
+  ],
   listeners: (start) => {
     start({
       predicate: (_a, st, was) => st.comments.ui.panelOpen !== was.comments.ui.panelOpen,

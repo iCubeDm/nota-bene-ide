@@ -302,7 +302,7 @@ The directories of `web/src` are cut by feature, not by layer. Each holds its ow
 | `net/` | `socket.ts`: the WebSocket with automatic reconnection after 1 s; `open` means "connected" (the replay arrived), not the opening of the socket; after 4001 there is no reconnection, only `reconnect()` on a click. It does not enter Redux. `auth.ts`: the login (the page takes `#t=` out of the address bar, posts it to `/auth`, keeps the key) and `apiFetch`, which every request except `/file` and `/attach` goes through. |
 | `feed/` | Rendering of the feed: Markdown, ToolLine, PermissionCard, PlanCard, DoneLine, ShellBlock; `EarlierButton` "Show before compaction" and `history.ts` (`GET /history`). |
 | `diagram/` | The diagram tab (mermaid): rendering, zoom. |
-| `tasks/` | Tasks: `slice.ts` (`reduceTasks` from `shared`: running tasks and the last 20 finished, nested by `parent`; agents launched by one model response share a `group` and get an umbrella row; a workflow's agents are `inner` tasks under it), `TasksDrawer.tsx` (the bottom drawer, an overlay that does not resize the feed), `TaskButtons.tsx` (Stop, To background), `ShellView.tsx` (the `shell:<taskId>` tab over `/task-output`). Watchers (`ambient`) show in the drawer but are not counted by the indicator (`shell/TasksIndicator.tsx`), the pulse or the favicon. |
+| `tasks/` | Tasks: `slice.ts` (`reduceTasks` from `shared`: running tasks and the last 20 finished, nested by `parent`; agents launched by one model response share a `group` and get an umbrella row; a workflow's agents are `inner` tasks under it), `TasksDrawer.tsx` (the bottom drawer, an overlay that does not resize the feed), `TaskButtons.tsx` (Stop, To background), `ShellView.tsx` (the `shell:<taskId>` tab over `/task-output`). Watchers (`ambient`) show in the drawer but are not counted by the indicator (`tasks/TasksIndicator.tsx`), the pulse or the favicon. |
 | `subagent/` | The `agent:<toolUseId>` tab: a subagent's conversation, read-only, through the same `reduce()` kept apart from `feed`; polled while the agent works and the tab is visible. |
 | `composer/` | The input field, `@` mentions (`/complete`), the `/` menu (`SlashPicker`, `slashRank.ts`), the `!` shell mode (`shellMode.ts`), rollback of a refused send (`refused.ts`), the prompt history (`history.ts`: the `promptHistory` slice and the middleware that records a prompt on the server's echo, `PromptHistory.tsx`: the Alt+H list; ↑/↓ recall lives in `Composer.tsx`). |
 | `comments/` | Selection to popup to card, the panel, `HighlightLayer`, batch assembly (`compose.ts`, `send.ts`), labels, emoji. |
@@ -378,11 +378,11 @@ App
 | `files/view/useTmpImage.ts` | `GET /tmpimage?path` | A temp image through `apiFetch` into a blob URL. |
 | `files/FileView.tsx` | `/file` (HEAD, Range probe, GET) | Viewing; the ETag serves as the version for media anchors. |
 | `composer/MentionPicker.tsx`, `files/RecentFiles.tsx` | `/complete?q` | The CLI's search (`file_suggestions`) and our own file index in parallel; the results are merged. |
-| `files/sources.ts`, `shell/GitBranch.tsx` | `/sources`, `/git-status`, `/vcs-branches` | Branches and worktrees, the branch picker. |
+| `files/sources.ts`, `vcs/GitBranch.tsx` | `/sources`, `/git-status`, `/vcs-branches` | Branches and worktrees, the branch picker. |
 | `vcs/` | `/vcs-*` | Changes (panel and tab, one file at a time) and the Git log. |
 | `controls/AgentAccount.tsx` | `GET/POST /agent-account` | Codex account status and native sign-in URL; retry restarts the session. |
 | `controls/SessionPicker.tsx` | `/sessions` | Sessions of the window's provider with their cwd; native Codex list or Claude SDK list. |
-| `shell/RestartMenu.tsx`, `controls/slice.ts` | `/info`, `POST /restart-server` | The "Restart the server" item (only under the launcher). |
+| `controls/RestartMenu.tsx`, `controls/slice.ts` | `/info`, `POST /restart-server` | The "Restart the server" item (only under the launcher). |
 | `settings/SettingsView.tsx` | `/system/*` | Windows, storage, defaults, about. |
 | `usage/UsageView.tsx` | `/usage`, `/usage/reset` | The token report; polls while the first import runs. |
 | `net/auth.ts` | `POST /auth`, then the key header on every `apiFetch` | Login ([Access token](agent-reference.md#access-token)). |
