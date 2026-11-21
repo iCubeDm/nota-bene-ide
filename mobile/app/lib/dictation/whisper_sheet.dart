@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 
 import '../chat/window_tab.dart';
 import '../comments/strings.g.dart';
-import '../files/image_screen.dart' show windowHttp;
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/insets.dart';
@@ -67,10 +66,8 @@ class _WhisperSheetState extends State<WhisperSheet> {
     String path, [
     Object? json,
   ]) async {
-    final http = windowHttp(widget.tab);
-    if (http == null) return null;
     try {
-      final r = await http(
+      final r = await widget.tab.repository.write(
         method,
         path,
         headers: json == null ? null : {'content-type': 'application/json'},
@@ -92,9 +89,9 @@ class _WhisperSheetState extends State<WhisperSheet> {
   }
 
   Future<void> _ask() async {
-    final r = await _call('GET', '/dictation');
+    final b = await widget.tab.repository.dictation();
     if (!mounted) return;
-    if (r == null || r.status != 200) {
+    if (b == null) {
       // one lost answer does not end a multi-minute install: ask again
       if (_step == _Step.installing) {
         _timer = Timer(_poll, _ask);
@@ -102,7 +99,6 @@ class _WhisperSheetState extends State<WhisperSheet> {
       }
       return _show(_Step.noAnswer);
     }
-    final b = r.body;
     _dl = (b['downloadMb'] as num?)?.round() ?? 0;
     _disk = (b['diskMb'] as num?)?.round() ?? 0;
     _dir = b['dir'] is String ? b['dir'] as String : '';

@@ -20,9 +20,11 @@ class Comments extends ChangeNotifier {
   Comments(
     this._send,
     this._session, {
+    required bool Function(Feature) has,
     DateTime Function()? now,
     CommentQueue? queue,
-  }) : _now = now ?? DateTime.now,
+  }) : _has = has,
+       _now = now ?? DateTime.now,
        _queue = queue ?? CommentQueue.memory() {
     // what the disk kept from an earlier run shows, and goes once the window is there
     _queue.ready.then((_) {
@@ -33,6 +35,9 @@ class Comments extends ChangeNotifier {
 
   final bool Function(ClientMessage) _send;
   final String? Function() _session;
+
+  /// What the window speaks, as its connection knows it from the last hello.
+  final bool Function(Feature) _has;
   final DateTime Function() _now;
   final CommentQueue _queue;
 
@@ -40,9 +45,6 @@ class Comments extends ChangeNotifier {
 
   /// Whether the window takes ops (its hello); null before the first hello, when nothing goes out.
   bool? _ops;
-
-  /// The protocol of the window's last hello.
-  num? _protocol;
 
   /// The queued ops sent on this socket: each goes once, and again on the next one.
   final _wired = <String>{};
@@ -194,7 +196,7 @@ class Comments extends ChangeNotifier {
     List<String> ids,
     String lang,
   ) {
-    final items = has(_protocol, Feature.voiceComments)
+    final items = _has(Feature.voiceComments)
         ? pendingOf(ids)
         : const <Comment>[];
     if (items.isEmpty) return (text: '', images: const [], ids: const []);
@@ -208,11 +210,10 @@ class Comments extends ChangeNotifier {
     _wired.clear();
   }
 
-  /// A new socket said hello: [protocol] says how the changes go. The window says hello after its replay and set
+  /// A new socket said hello: what it speaks says how the changes go. The window says hello after its replay and set
   /// (issue 494), so the queue goes now.
-  void hello(num? protocol) {
-    _protocol = protocol;
-    _ops = has(protocol, Feature.commentOps);
+  void hello() {
+    _ops = _has(Feature.commentOps);
     _wired.clear();
     flush();
   }

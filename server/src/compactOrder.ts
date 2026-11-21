@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { HeldSend } from '@nota-bene/shared';
+import { writeJsonAtomic } from './atomicFile.ts';
 
 const ID = /^[0-9A-Za-z_-]{1,100}$/;
 /** while something is pending, held or the compaction runs, the server looks for a pause this often */
@@ -71,9 +72,7 @@ export function compactOrder(o: {
       written = null;
       if (want) {
         fs.mkdirSync(o.dir, { recursive: true, mode: 0o700 });
-        const tmp = `${file(want)}.${process.pid}.tmp`;
-        fs.writeFileSync(tmp, JSON.stringify(rec), { mode: 0o600 });
-        fs.renameSync(tmp, file(want));
+        writeJsonAtomic(file(want), rec, { mode: 0o600 });
         written = want;
       }
     } catch (e) {

@@ -4,9 +4,10 @@ import type { RequestListener, ServerResponse } from 'node:http';
 import { isMediaAnchor, MARK_MAX_BYTES } from '@nota-bene/shared';
 import type { Comment } from '@nota-bene/shared';
 import { readCapped, refuseTooLarge } from './attachments.ts';
+import { writeAtomic } from './atomicFile.ts';
 import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
-import { renameRetry, samePath } from './platform.ts';
+import { samePath } from './platform.ts';
 
 /**
  * The marks in the project folder: `<root>/.nota-bene/marks/<comment id>/{frame.jpg,layer.png,mask.png}`
@@ -160,15 +161,7 @@ export class MarkFiles {
     if (fs.realpathSync(dir) !== path.join(fs.realpathSync(root), '.nota-bene', 'marks', id)) {
       throw new Error(`mark folder escapes the project: ${dir}`);
     }
-    const file = path.join(dir, name);
-    const tmp = path.join(dir, `.${name}.tmp${process.pid}-${Math.random().toString(36).slice(2)}`);
-    try {
-      fs.writeFileSync(tmp, bytes, { flag: 'wx' });
-      renameRetry(tmp, file); // replaces `file` itself, even a symlink there, never its target
-    } catch (e) {
-      fs.rmSync(tmp, { force: true });
-      throw e;
-    }
+    writeAtomic(path.join(dir, name), bytes); // replaces the file itself, even a symlink there, never its target
   }
 
   /** Removes the comment's folder; a missing folder is fine. */

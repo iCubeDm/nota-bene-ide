@@ -8,6 +8,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
@@ -61,15 +62,16 @@ class _Para {
 
 /// Which paragraph is the target, and what its bubble and bar do. One per chat.
 class ParagraphTargets extends ChangeNotifier {
-  ParagraphTargets(this.tab);
+  ParagraphTargets(this.tab, {this.bottom});
   final WindowTab tab;
 
   /// Below the floating header: the popup keeps clear of it.
   double topInset = 0;
 
-  /// Above the floating message field with its strip and the nav bar (not the blur's fade): the popup and the snackbar
-  /// keep clear of it.
-  double bottomInset = 0;
+  /// The height of the floating message field with its strip and the nav bar (not the blur's fade), as it is measured:
+  /// the popup and the snackbar keep clear of it.
+  final ValueListenable<double>? bottom;
+  double get bottomInset => bottom?.value ?? 0;
 
   _Para? _sel;
   OverlayEntry? _entry;

@@ -6,8 +6,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:nb_channel/nb_channel.dart';
 
-import '../hosts/host_link.dart';
-import 'hosts.dart' show Hosts;
 import 'vault.dart';
 
 class Seen extends ChangeNotifier {
@@ -20,9 +18,6 @@ class Seen extends ChangeNotifier {
 
   /// Sessions kept per host: the most recently updated ones.
   static const maxPerHost = 200;
-
-  Hosts? _hosts;
-  Links? _links;
 
   static Future<Seen> load(Vault v) async => Seen._(v, await _read(v));
 
@@ -52,38 +47,6 @@ class Seen extends ChangeNotifier {
       }
     }
     return m;
-  }
-
-  /// Follows the host stream: a session met for the first time counts as seen up to its replies (recorded when the
-  /// window list arrives, never while a row is built), and the entries of an unpaired host are dropped.
-  void watch(Hosts hosts, Links links) {
-    unwatch();
-    _hosts = hosts;
-    _links = links;
-    hosts.addListener(_onHosts);
-    links.addListener(_onLinks);
-    _onHosts();
-    _onLinks();
-  }
-
-  void unwatch() {
-    _hosts?.removeListener(_onHosts);
-    _links?.removeListener(_onLinks);
-    _hosts = _links = null;
-  }
-
-  @override
-  void dispose() {
-    unwatch();
-    super.dispose();
-  }
-
-  void _onHosts() => prune({for (final h in _hosts!.all) h.id});
-
-  void _onLinks() {
-    for (final l in _links!.all) {
-      observe(l.host.id, l.windows);
-    }
   }
 
   /// The replies shown of [session]; 0 when none is stored.

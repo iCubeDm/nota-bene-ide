@@ -10,6 +10,7 @@ import 'package:nb_app/home.dart';
 import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/hosts/icon_flow.dart';
 import 'package:nb_app/hosts/project_icon.dart';
+import 'package:nb_app/store/project_icons.dart';
 import 'package:nb_app/main.dart';
 import 'package:nb_app/media/attach.dart' show Prepared, UnsupportedImage;
 import 'package:nb_app/media/gallery.dart';
