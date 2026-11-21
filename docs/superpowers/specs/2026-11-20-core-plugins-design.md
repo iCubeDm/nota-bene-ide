@@ -267,7 +267,7 @@ bypassing the SDK, 74 core→plugin (shell 31, store 22, tabs 17, refs 3, anchor
   `COMPACT_ORDER_PROTOCOL`, `DETECT_PROTOCOL`, `CUT_PROTOCOL`, `ATTACHMENT_MARKUP_PROTOCOL`, `AGENT_PROTOCOL`,
   `MASK_PROTOCOL`, `REMOTE_PROTOCOL`, `ACCESS_KEY_PROTOCOL`, `COMPUTERS_PROTOCOL`, all in use) and the 4 phone ones
   (`opsProtocol`, `imagesAloneProtocol`, `wholePictureProtocol`, `detectProtocol`), and the `SINCE` table in
-  `comments/labels.ts` (becomes a `Feature` per label). Each constant is replaced by its `FEATURES` name and deleted.
+  `comments/labels.ts` (now `anchors/labels.ts`; becomes a `Feature` per label). Each constant is replaced by its `FEATURES` name and deleted.
 - `docs/agent-reference.md` and `architecture.md` §3.3 "Versioning" say: a protocol change adds a `FEATURES` entry; a
   client checks `has(protocol, name)`.
 
