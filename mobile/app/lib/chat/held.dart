@@ -6,7 +6,7 @@ import 'package:nb_protocol/nb_protocol.dart';
 
 import '../comments/strings.g.dart';
 import '../theme.dart';
-import 'chat_screen.dart';
+import 'bubbles.dart';
 import 'feed.dart';
 import 'window_tab.dart';
 

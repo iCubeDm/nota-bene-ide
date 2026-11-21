@@ -16,7 +16,7 @@ import '../comments/strings.g.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
-import 'chat_screen.dart' show FeedItemView;
+import 'bubbles.dart' show FeedItemView;
 import 'feed.dart';
 import 'window_tab.dart';
 
