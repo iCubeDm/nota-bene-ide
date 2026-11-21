@@ -31,7 +31,7 @@ export function dayLabel(ts: number, lang: Lang, now = Date.now()): string {
 }
 
 /** An item's time, 0 for the kinds that have none (tool lines, permissions, notices). */
-export const itemTime = (it: FeedItem): number => ('ts' in it && typeof it.ts === 'number' ? it.ts : 0);
+const itemTime = (it: FeedItem): number => ('ts' in it && typeof it.ts === 'number' ? it.ts : 0);
 
 /**
  * Where the feed starts a new day: index → that item's time. The first dated item starts one, then each whose day

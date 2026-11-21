@@ -2,7 +2,7 @@ import { combineSlices, configureStore, createAction, createListenerMiddleware, 
 import { useDispatch, useSelector, useStore, type TypedUseSelectorHook } from 'react-redux';
 import type { ImageRef, ServerEvent, Voice } from '@nota-bene/shared';
 
-/** A recording a message carries, with what its dictation asks about the language (the voice plugin's `dictationAsk`). */
+/** A recording a message carries, with what its dictation asks about the language (`dictationAsk`, store/controls.ts). */
 export type VoiceSend = { voice: Voice; ask: { lang: string; detect?: true } };
 import { agentConnection, bindConnections, connectionManager, SELF, type AgentConnection, type AgentId, type Connect, type ConnectionManager, type ConnState } from '../sdk/connections.ts';
 import { t } from '../i18n/index.ts';

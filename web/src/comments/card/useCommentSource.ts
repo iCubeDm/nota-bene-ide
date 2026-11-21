@@ -57,7 +57,7 @@ function sourceState(s: RootState, src: AnchorSource | undefined): null | 'strea
 }
 
 /** What a card knows about the place its comment points at. Grows by one field per new source state. */
-export interface CommentSource {
+interface CommentSource {
   /** The label of the place ("reply 3", "src/a.ts:12"), null when unknown. */
   where: string | null;
   /** The quote can no longer be found in its source. */

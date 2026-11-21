@@ -8,7 +8,7 @@ import { routes } from '../sdk/routes.ts';
  * Where files are read from (M3-16): this checkout ('here'), other worktrees and branches, all read-only. The list
  * lives outside Redux on purpose: Markdown (rendered without a store in places) marks absolute worktree paths from it.
  */
-export const HERE: Source = { id: 'here', kind: 'checkout', label: '', ref: '' };
+const HERE: Source = { id: 'here', kind: 'checkout', label: '', ref: '' };
 const TTL = 5_000;
 
 let list: Source[] = [HERE];
@@ -77,7 +77,7 @@ export function loadSources(force = false): Promise<Source[]> {
   return p;
 }
 
-export const sourceById = (id: string): Source | undefined => list.find((s) => s.id === id);
+const sourceById = (id: string): Source | undefined => list.find((s) => s.id === id);
 /**
  * The ref a tab or comment carries for a source: none for 'here'; the branch for `ref:<branch>` (from the id itself);
  * `(detached) <folder>` for a `dir:` worktree (from the list).

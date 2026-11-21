@@ -2,7 +2,7 @@ import type { ClipboardEventHandler, KeyboardEventHandler, PointerEventHandler, 
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 
 /** The microphone drawn the same in the composer and in the comment popup. */
-export function MicIcon() {
+function MicIcon() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <rect x="9" y="3" width="6" height="11" rx="3" />

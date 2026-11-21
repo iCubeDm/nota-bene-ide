@@ -5,7 +5,7 @@ import { mic, type Recorder, type Recording } from './recorder.ts';
 import { uploadVoice } from './upload.ts';
 
 /** A press shorter than this is a click (a locked recording); a longer one records while held and sends on release. */
-export const HOLD_MS = 300;
+const HOLD_MS = 300;
 const LEVELS = 48;
 
 export type RecState =

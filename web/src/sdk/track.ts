@@ -1,7 +1,7 @@
 // A usage-event point (issue 511): the last events in memory, for tests and a future local view. Nothing is stored and
 // nothing leaves the machine.
 export type TrackProps = Record<string, string | number | boolean>;
-export type Tracked = { name: string; props?: TrackProps; at: number };
+type Tracked = { name: string; props?: TrackProps; at: number };
 
 const KEEP = 200;
 const ring: Tracked[] = [];

@@ -1,8 +1,7 @@
 import { has } from '@nota-bene/shared';
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { keysInScope, useT, useAppDispatch, useAppSelector, type AppDispatch } from '@/sdk';
+import { keysInScope, useT, useAppDispatch, useAppSelector, type AppDispatch, seekStep } from '@/sdk';
 import { setMode } from './markup/slice.ts';
-import { seekStep } from './seekStep.ts';
 
 /** YouTube's keys for a media tab (see docs: player keys). `code`, not `key`: any keyboard layout. */
 

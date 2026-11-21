@@ -38,7 +38,7 @@ export interface Snapshot<T> {
   readonly status?: number;
 }
 
-export interface WatchOptions {
+interface WatchOptions {
   /** ms between reads for this watcher (default: the resource's `every`; 0 is none) */
   every?: number;
   /** keep polling while the page is hidden (a server-side process that must be followed to its end) */

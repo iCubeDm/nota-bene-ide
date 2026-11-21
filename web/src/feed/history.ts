@@ -1,7 +1,7 @@
 import { routes, historyPrepended, type AppThunk, type HistoryPage } from '@/sdk';
 
 /** What one «Show before compaction» click came to: prepended, failed (shown, retry possible), or stale (dropped). */
-export type EarlierResult = 'ok' | 'failed' | 'stale';
+type EarlierResult = 'ok' | 'failed' | 'stale';
 
 function isPage(v: unknown): v is HistoryPage {
   const o = v as Partial<HistoryPage> | null;

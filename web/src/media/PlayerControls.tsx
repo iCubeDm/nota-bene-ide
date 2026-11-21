@@ -1,7 +1,7 @@
+import { VolumeHighIcon, VolumeLowIcon, VolumeOffIcon } from '@/sdk/ui';
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useT } from '@/sdk';
-import { VolumeHighIcon, VolumeLowIcon, VolumeOffIcon } from './playerIcons.tsx';
 import type { MediaSnapshot } from './useMediaState.ts';
 
 /** A round icon button of the bar. Keys are the player keys' (usePlayerKeys), so a pressed Space never also clicks it. */

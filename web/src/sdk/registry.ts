@@ -194,7 +194,7 @@ export interface AnchorView {
 export type SendResult = 'detached' | 'empty' | 'blocked' | 'sent' | 'offline' | 'switching' | 'building' | 'changed';
 
 /** What a part knows of the send taking it. */
-export interface TakeCtx {
+interface TakeCtx {
   /** a recording's send: no draft, nothing waits */
   voice: boolean;
   registry: Registry;

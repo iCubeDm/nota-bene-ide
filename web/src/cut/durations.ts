@@ -3,7 +3,7 @@
 // Its picture's size comes with it (issue 426: a new edit takes the first video's frame).
 
 /** What a source's metadata says: its length (null: not a finite one) and its picture's size (0 for a sound). */
-export type SrcMeta = { len: number | null; width: number; height: number };
+type SrcMeta = { len: number | null; width: number; height: number };
 
 /** ms a source's metadata may take before it is given up as unreadable: a stuck load must not hold its callers forever. */
 export const META_TIMEOUT = 10_000;

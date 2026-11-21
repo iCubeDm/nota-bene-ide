@@ -9,12 +9,12 @@ import type { RootState } from '@/store/store.ts';
  * idle is a quiet grey that asks for nothing.
  */
 export const FAV = { idle: '#6b7280', work: '#f7b267', workHi: '#f0761f', ask: '#0a84ff', done: '#22b45a', error: '#e5484d' } as const;
-export type FavState = 'idle' | 'work' | 'ask' | 'done' | 'error';
+type FavState = 'idle' | 'work' | 'ask' | 'done' | 'error';
 /** How a live turn ended while the tab was not looked at (null: nothing to announce). */
-export type Unseen = 'done' | 'error' | null;
+type Unseen = 'done' | 'error' | null;
 const BLINK_MS = 700;
 
-export const faviconSvg = (fill: string) =>
+const faviconSvg = (fill: string) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15.5" fill="${fill}"/>` +
   '<g fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">' +
   '<path d="M7.5 21.5v-11l6.5 11v-11"/><path d="M18 10.5h3.2a2.75 2.75 0 0 1 0 5.5H18z"/><path d="M18 16h3.7a2.75 2.75 0 0 1 0 5.5H18z"/></g></svg>';

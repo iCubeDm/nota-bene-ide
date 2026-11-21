@@ -11,7 +11,7 @@ import { setLang } from '@/i18n/index.ts';
 import { Header } from '@/shell/Header.tsx';
 import { makeStore } from '@/testing';
 import { ago, menuItems, SessionPicker, type SessionsView } from './SessionPicker.tsx';
-import { brief } from './sessionsApi.ts';
+import { brief } from '@/store/sessions.ts';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 

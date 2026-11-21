@@ -8,13 +8,13 @@ import { routes, emptyFeed, reduce, openAgent, type FeedItem, type FeedState, ty
  * `feed` slice, which they never touch. `session`: the conversation they were read for (an entry of another session is
  * not shown). `status`: loading (first fetch, nothing yet), ok, gone (404 / 409: not in this session), error.
  */
-export type SubagentEntry = {
+type SubagentEntry = {
   tool: string; session: string; status: 'loading' | 'ok' | 'gone' | 'error';
   feed: FeedState; running: boolean; type: string; description: string; error?: string;
   /** what the last accepted answer looked like: an identical refetch changes nothing (no re-render, no repaint) */
   sig: string;
 };
-export type SubagentsState = { byTool: Record<string, SubagentEntry> };
+type SubagentsState = { byTool: Record<string, SubagentEntry> };
 
 const sigOf = (v: SubagentView): string => `${v.events.length}|${v.running}|${JSON.stringify(v.events[v.events.length - 1] ?? null)}`;
 const blank = (tool: string, session: string): SubagentEntry => ({ tool, session, status: 'loading', feed: emptyFeed, running: false, type: '', description: '', sig: '' });
@@ -58,7 +58,7 @@ function isView(v: unknown): v is SubagentView {
 }
 
 /** What one fetch came to: the agent runs (poll again), ended, is not in this session, or failed; stale = dropped. */
-export type FetchResult = 'running' | 'done' | 'gone' | 'error' | 'stale';
+type FetchResult = 'running' | 'done' | 'gone' | 'error' | 'stale';
 
 /**
  * Reads one subagent for the current session. 404 and 409 (not in this session: switched, or never was) are `gone`,

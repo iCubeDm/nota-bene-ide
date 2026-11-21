@@ -26,7 +26,7 @@ const tell = (r: SendResult): void => {
   else if (r === 'changed') toast(t('changedWhileSending'), '');
 };
 
-export type SendOptions = {
+type SendOptions = {
   /** interrupt the agent (only while it works) */
   force?: boolean;
   /** the ids of the parts to take (default: every part) */

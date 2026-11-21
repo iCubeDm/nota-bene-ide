@@ -49,7 +49,7 @@ export function recallList(items: PromptEntry[]): PromptEntry[] {
 }
 
 /** Newest first, each text once (its newest copy): the list of the history dropdown. */
-export function distinctList(items: PromptEntry[]): PromptEntry[] {
+function distinctList(items: PromptEntry[]): PromptEntry[] {
   const seen = new Set<string>();
   const out: PromptEntry[] = [];
   for (let i = items.length - 1; i >= 0; i--) {
@@ -85,7 +85,7 @@ export function searchPrompts(items: PromptEntry[], query: string): PromptEntry[
 const warn = (what: string, e: unknown) => console.warn(`prompt history: ${what}`, e);
 
 /** Asks the server for the session's stored prompts; an answer for a session that is not the current one any more is dropped. */
-export const loadHistory = (): AppThunk => (d, getState, { connections }) => {
+const loadHistory = (): AppThunk => (d, getState, { connections }) => {
   const sid = getState().promptHistory.sid;
   connections.current().fetch(routes.prompts(sid ?? undefined))
     .then((r) => (r.ok ? (r.json() as Promise<{ session: string | null; prompts: PromptEntry[] }>) : Promise.reject(new Error(`/prompts ${r.status}`))))

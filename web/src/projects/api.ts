@@ -14,7 +14,7 @@ export type RunningRow = {
   /** issue 297: a window of a paired computer (its host id and name), opened through this computer's connector */
   remote?: { host: string; name: string };
 };
-export type RecentRow = { root: string; provider: Provider; at: number; running: boolean };
+type RecentRow = { root: string; provider: Provider; at: number; running: boolean };
 export type ProjectsList = { running: RunningRow[]; recent: RecentRow[]; /** folders removed from Recent: out of this window's history too */ hidden?: string[] };
 
 export const PROVIDER_LABEL: Record<Provider, string> = { claude: 'Claude', codex: 'Codex', omp: 'omp' };
@@ -166,18 +166,6 @@ export async function stopProject(row: RunningRow): Promise<string | null> {
     return r.ok ? null : await reasonOf(r);
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
-  }
-}
-
-/** The header's Stop Nota Bene, before this window stops itself: every other window; how many could not be stopped. */
-export async function stopOthers(): Promise<number> {
-  try {
-    const r = await postJson(routes.systemProjects('stop-others'), {});
-    if (!r.ok) return -1;
-    const j = (await r.json()) as { failed?: unknown };
-    return typeof j.failed === 'number' ? j.failed : -1;
-  } catch {
-    return -1;
   }
 }
 

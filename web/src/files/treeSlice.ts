@@ -7,7 +7,7 @@ import { bool, json, storage, type AppThunk, type RootState, enterRoot } from '@
  * consumes (scrolls to the row, then clears).
  */
 /** diskSeq: moves when this folder's files changed outside a turn (a branch switch), so the views reload as after one. */
-export type TreeState = { open: boolean; src: string; dirs: string[]; reveal: string | null; diskSeq: number };
+type TreeState = { open: boolean; src: string; dirs: string[]; reveal: string | null; diskSeq: number };
 
 const ancestors = (p: string): string[] => {
   const parts = p.split('/').slice(0, -1);

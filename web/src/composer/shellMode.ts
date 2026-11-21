@@ -7,7 +7,7 @@ import { selectDraft, selectImages, setDraft, shellDraftSent } from './slice.ts'
  * A draft that is a shell command (as in Claude Code's terminal): one line that starts with `!` at offset 0 (not `![`, a
  * markdown link or image), and the server knows `shell-run`. A pasted script of several lines is a message: it must not run on one Enter.
  */
-export const isShellDraft = (draft: string): boolean => draft.startsWith('!') && !draft.startsWith('![') && !draft.trimEnd().includes('\n'); // a paste's trailing newline is still one line
+const isShellDraft = (draft: string): boolean => draft.startsWith('!') && !draft.startsWith('![') && !draft.trimEnd().includes('\n'); // a paste's trailing newline is still one line
 export const selectShellMode = (s: RootState): boolean => has(s.controls.protocol, 'shellRun') && isShellDraft(selectDraft(s));
 
 /** The id of the `! cmd` run in progress, if the feed shows one. */
@@ -17,7 +17,7 @@ export const selectShellRunning = (s: RootState): string | null => {
 };
 
 /** The command of a shell draft: what follows the `!`, trimmed. */
-export const commandOf = (draft: string): string => draft.slice(1).trim();
+const commandOf = (draft: string): string => draft.slice(1).trim();
 
 /**
  * Enter on a shell draft. 'blocked' keeps the draft (comments or images waiting, a command still running, one too long);

@@ -1,10 +1,9 @@
-import { ICONS, Svg } from '@/sdk/ui';
+import { ICONS, Svg, FileIcon } from '@/sdk/ui';
 import { useEffect, useRef, useState } from 'react';
 import { isTextAnchor } from '@nota-bene/shared';
 import { revealRangeSideways, scrollRangeIntoView, rangeForAnchor, useT, withKey, useAppDispatch, useAppSelector, useRegistry, clearJump, selectJump, fileTabId, type TabView, fileUrl, kindOf, tmpImageUrl, isTmpTabPath, fileKey, isFixed, sourcesKnown, useSources } from '@/sdk';
 import { flashRange } from '@/comments/HighlightLayer.tsx';
 import { selectComments, selectPendingCountByPath } from '@/comments/slice.ts';
-import { FileIcon } from './FileIcon.tsx';
 import { selectFileLabels } from './fileLabels.ts';
 import { SourceChip } from './SourcePicker.tsx';
 import { HIGHLIGHT_MAX } from './view/CodeText.tsx';

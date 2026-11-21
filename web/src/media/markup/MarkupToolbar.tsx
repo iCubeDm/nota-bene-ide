@@ -13,7 +13,7 @@ const TOOL_ICONS: Record<MarkTool, ReactNode> = {
 };
 const TOOLS: MarkTool[] = ['rect', 'ellipse', 'pen', 'arrow', 'polygon'];
 /** The Mask tool's key (issue 447): not one of the other tools', the colours' or a player's (K J L M F N, Space). */
-export const MASK_KEY = 'G';
+const MASK_KEY = 'G';
 
 const Icon = ({ children }: { children: ReactNode }) => (
   <svg aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width={15} height={15}>{children}</svg>

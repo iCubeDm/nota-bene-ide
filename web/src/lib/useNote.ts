@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { t as tNow } from '@/sdk';
+import type { t as tNow } from '../i18n/index.ts';
 
 /** Why a control refused (the picker's switch, the Clear button), as the i18n key of its reason. */
 export const REFUSED: Record<'busy' | 'switching' | 'offline', Parameters<typeof tNow>[0]> = { busy: 'working', switching: 'switching', offline: 'offline' };

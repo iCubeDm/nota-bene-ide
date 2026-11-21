@@ -88,5 +88,3 @@ export function useMarkPopup({ tabId, active, marking, mediaUrl }: { tabId: stri
   }, [active, marking]);
   return { version, markPopup, setMarkPopup, closeMarkPopup, markAdded, saving, onPopupBusy };
 }
-
-export type MediaMarkup = ReturnType<typeof useMediaMarkup>;

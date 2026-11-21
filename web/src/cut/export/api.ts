@@ -15,7 +15,7 @@ export type ExportJob = {
 };
 
 /** `GET /cut/export`: ffmpeg is found (asked anew each time) and new enough, else why not (`old`: older than 4.4), and the edit's last export. */
-export type ExportState = { ffmpeg: boolean; ffmpegProblem?: 'old'; ffmpegVersion?: string; job: ExportJob | null };
+type ExportState = { ffmpeg: boolean; ffmpegProblem?: 'old'; ffmpegVersion?: string; job: ExportJob | null };
 
 /** The server refused a start: `code` as in server/src/cut/exporter.ts (`running`, `outside-project`, `missing-source`, ...). */
 export class ExportRefused extends Error {

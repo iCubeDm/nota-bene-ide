@@ -3,7 +3,7 @@ import { VOICE_BARS } from '@nota-bene/shared';
 /** What the host takes (POST /voice): 16 kHz, mono, 16-bit PCM in a WAV. */
 export const RATE = 16_000;
 /** The recording stops here, as the phone's does; the host takes up to 10 min 2 s. */
-export const MAX_MS = 600_000;
+const MAX_MS = 600_000;
 
 /**
  * Streaming downsampler by averaging: each output sample is the mean of the input it spans (box filter, which also

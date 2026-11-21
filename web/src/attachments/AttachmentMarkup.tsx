@@ -11,7 +11,7 @@ import { shapeEls, useOverlayPlacement } from '@/media/markup/overlay.tsx';
 import { clear, selectDraft, setMode } from '@/media/markup/slice.ts';
 
 /** The markup tab id of an attached image (the drawing's draft lives in the markup slice under it). */
-export const attachTabId = (imageId: string): string => `attach:${imageId}`;
+const attachTabId = (imageId: string): string => `attach:${imageId}`;
 
 /** The marks of the image's comments made so far, dimmed under the drawing; they take no clicks. */
 function Marks({ image, media }: { image: string; media: HTMLImageElement }) {

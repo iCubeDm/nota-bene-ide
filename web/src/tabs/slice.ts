@@ -5,7 +5,7 @@ import { json, storage } from '../sdk/storage.ts';
 import { sha1 } from '../lib/sha1.ts';
 
 /** `src`: the stable source id ('here', 'ref:<branch>', 'dir:<hash>'); `ref`: its branch, only when it is not 'here' (M3-16). */
-export type FileTab = { id: `file:${string}`; kind: 'file'; path: string; src: string; ref?: string };
+type FileTab = { id: `file:${string}`; kind: 'file'; path: string; src: string; ref?: string };
 export type DiagramLang = 'mermaid' | 'svg';
 /** One rendered diagram (M7-01, R-M7-12): it holds its source, so it survives a reload and needs no file. */
 export type DiagramTab = { id: `diagram:${string}`; kind: 'diagram'; source: string; lang: DiagramLang; title: string };
@@ -22,7 +22,7 @@ export type ShellTab = { id: `shell:${string}`; kind: 'shell'; task: string; tit
 /** The views with one tab each (M6-15, R-M6-4): its id is its kind; saved with the other tabs (issue 500). */
 const VIEWS = ['settings', 'usage', 'remote', 'changes', 'log'] as const;
 export type View = (typeof VIEWS)[number];
-export type ViewTab = { [K in View]: { id: K; kind: K } }[View];
+type ViewTab = { [K in View]: { id: K; kind: K } }[View];
 /**
  * Every tab kind, by its `kind` (issue 511). The data lives in the core, because the tabs' actions open them from
  * several plugins (the feed opens agent and diagram tabs, the header Settings); how a kind looks and what it shows is a
@@ -46,7 +46,7 @@ export type TabsState = { open: Tab[]; active: Tab['id']; root: string | null; r
 /** How many closed tabs Alt+Shift+T can bring back. */
 export const CLOSED_MAX = 30;
 /** A file to open: a path in this folder, or a path in another source. */
-export type FileArg = string | { path: string; src?: string; ref?: string };
+type FileArg = string | { path: string; src?: string; ref?: string };
 
 const CHAT: Tab = { id: 'chat', kind: 'chat' };
 /**
@@ -64,8 +64,8 @@ const fileTab = (a: FileArg): FileTab => {
   return { id: fileTabId(f.path, f.src), kind: 'file', ...f };
 };
 
-export const agentTabId = (tool: string) => `agent:${tool}` as const;
-export const shellTabId = (task: string) => `shell:${task}` as const;
+const agentTabId = (tool: string) => `agent:${tool}` as const;
+const shellTabId = (task: string) => `shell:${task}` as const;
 const shellTab = ({ task, title }: SavedShell): ShellTab => ({ id: shellTabId(task), kind: 'shell', task, title });
 const agentTab = ({ tool, title }: SavedAgent): AgentTab => ({ id: agentTabId(tool), kind: 'agent', tool, title });
 
@@ -223,14 +223,14 @@ export const selectActiveTab = (s: RootState): Tab => s.tabs.open.find((t) => t.
 /** A saved file tab: `src`/`ref` only for another source. */
 export type SavedFile = { path: string; src?: string; ref?: string };
 /** A saved diagram tab: its source and language (the id and title are made from them). */
-export type SavedDiagram = { source: string; lang: DiagramLang };
+type SavedDiagram = { source: string; lang: DiagramLang };
 /** A saved subagent tab: the Agent call's tool-use id and the title it had. */
-export type SavedAgent = { tool: string; title: string };
+type SavedAgent = { tool: string; title: string };
 /** A saved shell tab: the task id and the title it had. */
-export type SavedShell = { task: string; title: string };
+type SavedShell = { task: string; title: string };
 /** One saved tab, in strip order. */
-export type SavedTab = { file: SavedFile } | { view: View } | { diagram: SavedDiagram } | { agent: SavedAgent } | { shell: SavedShell };
-export type SavedTabs = { tabs: SavedTab[]; active: string };
+type SavedTab = { file: SavedFile } | { view: View } | { diagram: SavedDiagram } | { agent: SavedAgent } | { shell: SavedShell };
+type SavedTabs = { tabs: SavedTab[]; active: string };
 
 /**
  * What is stored under `tabs:<root>`: every tab but the chat, in strip order (a file with its source when not 'here', a

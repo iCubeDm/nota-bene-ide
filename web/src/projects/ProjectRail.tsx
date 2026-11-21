@@ -27,7 +27,7 @@ export const byName = (a: ProjectRow, b: ProjectRow): number =>
  * This project's tile stands for the other windows in its folder (another agent's): its badge counts only them, never this
  * window's own replies, and a click goes to the one that needs the person most (waiting, then unseen), else nowhere.
  */
-export function siblingsOf(r: ProjectRow): { badge: Badge; target: RunningRow | undefined; waiting: RunningRow | undefined } {
+function siblingsOf(r: ProjectRow): { badge: Badge; target: RunningRow | undefined; waiting: RunningRow | undefined } {
   const others = r.windows.filter((w) => !w.current && LIVE.has(w.state));
   const waiting = others.find((w) => w.state === 'waiting');
   const unseen = others.filter((w) => w.unseen > 0).sort((a, b) => b.unseen - a.unseen);

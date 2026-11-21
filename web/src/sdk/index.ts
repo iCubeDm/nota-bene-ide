@@ -21,10 +21,15 @@ export { num, compact, compactParts, percent, money, byteSize } from '../lib/for
 export { serverSep, isDrivePath, isServerDrivePath, wireAbs, underDir, folderName, shortWinHome, shortHome } from '../lib/paths.ts';
 export { keysInScope } from '../lib/keyScope.ts';
 export { editable } from '../lib/editable.ts';
+export { setValueAndCaret } from '../lib/insertText.ts';
+export { autosize, useAutosize } from '../lib/autosize.ts';
+export { placeList, placeListFor, scrollTopFor, revealSelected } from '../lib/placeList.ts';
+export { useNote, REFUSED } from '../lib/useNote.ts';
+export { PATHS_MIME, draggedPaths, downloadUrl } from '../lib/drag.ts';
 export { useFocusWithin } from '../shell/focusWithin.ts';
 export { makeAnchor } from '../anchors/resolve.ts';
 export { textOf, collapsedLength, rawIndexOf, offsetsOf, rangeForAnchor } from '../anchors/text.ts';
-export { QUICK_LABELS, labelsFor, labelText, labelOf, instructionOf, type QuickLabel } from '../anchors/labels.ts';
+export { QUICK_LABELS, labelsFor, labelText, labelOf, instructionOf } from '../anchors/labels.ts';
 export { anchorLine, batchQuote, describeShape, mediaTime, mediaLine, cutWhere, cutQuote, cutLine, pageQuote, pageLines } from '../anchors/quote.ts';
 
 // the connection
@@ -91,16 +96,18 @@ export {
 
 // the agent's session-wide state: mode, model, commands, hello, a switch or restart, held sends
 export {
-  dictationSet, dictationLangSet, planApproved, controlsListeners,
+  dictationSet, dictationLangSet, dictationAsk, planApproved, controlsListeners,
   selectMode, selectSuggestion, selectCapabilitiesKnown, selectCapabilities, selectSwitching, selectRestarting, selectRestartPending,
   selectCompactPending, selectHeld, selectOrderWaits, selectCanOrderCompact, selectModel, selectModels, selectCommands,
   selectModelSwitchable, selectIdleCompact, pickMode, pickModel, toggleIdleCompact, nextMode, reportActivity, resetActivityThrottle,
   ACTIVITY_THROTTLE_MS, runCommand, switchSession, restartAgent, stopWindow, restartServer, restartInPause, cancelCompact, cancelRestart,
-  SERVER_RESTART_TIMEOUT_MS, type ControlsState, type SwitchPhase, type CommandResult, type SwitchResult,
+  SERVER_RESTART_TIMEOUT_MS, type SwitchResult,
 } from '../store/controls.ts';
 
 export { seekAndPause, type MediaController, type PipApi } from '../store/mediaController.ts';
 export { usePagePause } from '../shell/pagePause.ts';
+export { SEEK_STEPS, seekStep, useSeekStep, type SeekStepValue } from '../store/seekStep.ts';
+export { brief, renameSession, archiveSession, deleteSession } from '../store/sessions.ts';
 
 import { answerPermission, interrupt, takeOver } from '../store/store.ts';
 import { send } from '../store/send.ts';
@@ -119,7 +126,7 @@ export const chat = {
 
 // tabs
 export {
-  openFile, openAgent, openShell, openDiagram, openChanges, openLog, openRemote, openSettings, openUsage, activate, closeTab, reopenClosed,
+  openFile, openAgent, openShell, openDiagram, openChanges, openLog, openRemote, openSettings, activate, closeTab, reopenClosed,
   setAgentTitle, selectTabs, selectActiveTab, enterRoot, fileTabId, type Tab, type TabKinds, type AgentTab, type SavedFile, type DiagramLang,
 } from '../tabs/slice.ts';
 export { requestJump, clearJump, dropJump, selectJump, type Jump } from '../tabs/jump.ts';
