@@ -1,8 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useT, openFile, selectTabs, useAppDispatch, useAppSelector, loadSources, useSources } from '@/sdk';
+import { useT, openFile, selectTabs, useAppDispatch, useAppSelector, loadSources, useSources, selectActiveTab } from '@/sdk';
 import { PanelResizer, usePanelWidth, ContextMenu, ContextMenuTrigger } from '@/sdk/ui';
 import { selectPendingCountByPath } from '@/comments/slice.ts';
-import { selectActiveTab } from '@/tabs/slice.ts';
 import { clearReveal, pickSource, revealFile, selectRefreshSeq, selectTree, setDirs, setTreeOpen, toggleDir } from './treeSlice.ts';
 import { useTreeEntries } from './tree/useTreeEntries.ts';
 import { useExpandAll } from './tree/useExpandAll.ts';

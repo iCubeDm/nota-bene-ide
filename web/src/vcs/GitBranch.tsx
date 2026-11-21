@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { openFolder, reasonText } from '@/projects/api.ts';
 import type { GitSwitchAnswer, Source, VcsBranch } from '@nota-bene/shared';
-import { useT, selectSession, selectTurnSeq, useAppDispatch, useAppSelector, routes, defineResource, useResource, loadSources, useSources } from '@/sdk';
-import { Popover, PopoverContent, PopoverTrigger } from '@/sdk/ui';
-import { apiFetch } from '@/net/auth.ts';
-import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
+import { useT, selectSession, selectTurnSeq, useAppDispatch, useAppSelector, routes, defineResource, useResource, loadSources, useSources, connections } from '@/sdk';
+import { Popover, PopoverContent, PopoverTrigger, ICONS, Svg } from '@/sdk/ui';
 import { diskChanged, pickSource, selectTree } from '@/files/treeSlice.ts';
 import { setHasRepo } from './store.ts';
 
@@ -37,7 +35,7 @@ function useGitStatus(root: string | undefined, turnSeq: number, diskSeq: number
     const fetchNow = async () => {
       last.current = Date.now();
       try {
-        const r = await apiFetch(routes.gitStatus());
+        const r = await connections.current().fetch(routes.gitStatus());
         if (!r.ok) return; // git timed out (503): keep what is shown
         const v: unknown = await r.json();
         if (mine === gen.current) setStatus(isStatus(v) ? v : null);
@@ -140,7 +138,7 @@ export function GitBranch() {
     setGoing(true);
     setErr(null);
     try {
-      const r = await apiFetch(routes.gitSwitch(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ branch: s.ref }) });
+      const r = await connections.current().fetch(routes.gitSwitch(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ branch: s.ref }) });
       const v = await r.json().catch(() => null) as GitSwitchAnswer | null;
       if (!r.ok) return setErr(refusal(t, v));
       // the folder is now that branch: show it, and reload what a finished turn reloads (status, tree, tabs, Changes, log)

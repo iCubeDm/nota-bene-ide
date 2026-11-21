@@ -24,6 +24,7 @@ export { editable } from '../lib/editable.ts';
 export { useFocusWithin } from '../shell/focusWithin.ts';
 export { makeAnchor } from '../anchors/resolve.ts';
 export { textOf, collapsedLength, rawIndexOf, offsetsOf, rangeForAnchor } from '../anchors/text.ts';
+export { QUICK_LABELS, labelsFor, labelText, labelOf, instructionOf, type QuickLabel } from '../anchors/labels.ts';
 export { anchorLine, batchQuote, describeShape, mediaTime, mediaLine, cutWhere, cutQuote, cutLine, pageQuote, pageLines } from '../anchors/quote.ts';
 
 // the connection
@@ -51,8 +52,11 @@ export { useSources, loadSources, sourcesKnown, refOf, srcIdOfRef, isCommitRef, 
 export { setTmpDirs, useTmpDirs, isTmpTabPath, tmpImageUrl, tmpImagePathsIn, fetchTmpImage, type TmpLoad } from '../refs/tmpImages.ts';
 export { setStartAt, takeStartAt, type StartAt } from '../refs/startAt.ts';
 
+// this page: another computer's window, or on the window's own computer
+export { remotePage, isLocalPage } from '../net/local.ts';
+
 // keys
-export { withKey, withKeys, keyLabel, keysLabel, modKey, isMac } from '../shell/keymap.ts';
+export { withKey, withKeys, keysFor, keysLabel, modKey, isMac } from '../shell/keymap.ts';
 
 // paths in agent text
 export { markRefs, markMentions, escapeMentions, refClick, fileOfImage, openMediaFile, clearRefCache } from '../refs/refs.ts';
@@ -114,6 +118,9 @@ export const chat = {
 };
 
 // tabs
-export { openFile, openAgent, activate, closeTab, selectTabs, enterRoot, fileTabId, type Tab, type TabKinds, type DiagramLang } from '../tabs/slice.ts';
+export {
+  openFile, openAgent, openShell, openDiagram, openChanges, openLog, openRemote, openSettings, openUsage, activate, closeTab, reopenClosed,
+  setAgentTitle, selectTabs, selectActiveTab, enterRoot, fileTabId, type Tab, type TabKinds, type AgentTab, type SavedFile, type DiagramLang,
+} from '../tabs/slice.ts';
 export { requestJump, clearJump, dropJump, selectJump, type Jump } from '../tabs/jump.ts';
 export { feedRenderer, anchorView, type AnchorView, type AnchorKind, type TabView, type Slot, type SlotName, type Command, type KeyId, type Mods, type FeedRenderer, type AnyFeedRenderer, type FeedKind, type Held, type ToolRenderer, type ToolItem, type UserPart, type FileView, type SettingsSection, type SendPart, type Taken, type SendResult, type TextFileView, type MediaFileView, type MediaLoad, type FileBar } from './registry.ts';

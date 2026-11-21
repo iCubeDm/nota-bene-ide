@@ -6,7 +6,7 @@ import { makeStore } from '@/store/store.ts';
 import type { TabKinds } from '@/tabs/slice.ts';
 import { buildRegistry } from './registry.ts';
 import { kindOf } from '../refs/kinds.ts';
-import { CORE_COMMANDS, keyLabel, withKey } from '../shell/keymap.ts';
+import { CORE_COMMANDS, keysFor, withKey } from '../shell/keymap.ts';
 import type { Plugin } from './plugin.ts';
 import type { FeedKind, KeyId, ToolItem } from './registry.ts';
 
@@ -69,16 +69,19 @@ it('the commands come in the help\'s order, core and plugins alike', () => {
   expect(Object.isFrozen(buildRegistry(PLUGINS, CORE_COMMANDS).commands)).toBe(true);
 });
 
-it('every command\'s tooltip key resolves through withKey and keyLabel, and every tooltip names a command', () => {
-  makeStore({ url: 'u', connect: () => ({ send: () => true, close() {} }), plugins: PLUGINS });
-  const ids = buildRegistry(PLUGINS, CORE_COMMANDS).commands.map((c) => c.id);
+it('every command\'s tooltip key resolves through withKey and keysFor, and every tooltip names a command', () => {
+  const { commands } = buildRegistry(PLUGINS, CORE_COMMANDS);
+  const ids = commands.map((c) => c.id);
   for (const id of ids) {
-    expect(keyLabel(id), id).not.toBe('');
-    expect(withKey('X', id)).toBe(`X (${keyLabel(id)})`);
+    expect(keysFor(commands, id), id).not.toBe('');
+    expect(withKey(commands, 'X', id)).toBe(`X (${keysFor(commands, id)})`);
   }
+  // a key no plugin of the store registers names nothing
+  expect(keysFor(CORE_COMMANDS, 'hk_files')).toBe('');
+  expect(withKey(CORE_COMMANDS, 'X', 'hk_files')).toBe('X');
   const src = path.resolve(import.meta.dirname, '..');
   const named = fs.readdirSync(src, { recursive: true, encoding: 'utf8' }).filter((f) => /\.tsx?$/.test(f) && !/\.test\./.test(f))
-    .flatMap((f) => [...fs.readFileSync(path.join(src, f), 'utf8').matchAll(/\b(?:withKey\([^\n]*?|keyLabel\()'(hk_\w+)'/g)].map((m) => m[1]));
+    .flatMap((f) => [...fs.readFileSync(path.join(src, f), 'utf8').matchAll(/\b(?:withKey|keysFor)\([^\n]*?'(hk_\w+)'/g)].map((m) => m[1]));
   expect(named.length).toBeGreaterThan(5);
   expect(named.filter((id) => !ids.includes(id as never))).toEqual([]);
 });

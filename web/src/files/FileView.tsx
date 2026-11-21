@@ -1,5 +1,5 @@
+import { ICONS, Svg } from '@/sdk/ui';
 import { useEffect, useRef, useState } from 'react';
-import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { isTextAnchor } from '@nota-bene/shared';
 import { revealRangeSideways, scrollRangeIntoView, rangeForAnchor, useT, withKey, useAppDispatch, useAppSelector, useRegistry, clearJump, selectJump, fileTabId, type TabView, fileUrl, kindOf, tmpImageUrl, isTmpTabPath, fileKey, isFixed, sourcesKnown, useSources } from '@/sdk';
 import { flashRange } from '@/comments/HighlightLayer.tsx';
@@ -49,7 +49,8 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
   const t = useT();
   const dispatch = useAppDispatch();
   const kind = kindOf(path);
-  const view = useRegistry().fileViews.find((v) => v.match(path, kind));
+  const { fileViews, commands } = useRegistry();
+  const view = fileViews.find((v) => v.match(path, kind));
   // a media view loads no text; a text view (a page, an edit's timeline) shows beside the text, its ‹Source›
   const media = view?.media ? view : undefined;
   const textView = view && !view.media ? view : undefined;
@@ -122,7 +123,7 @@ export function FileView({ path, active, src = 'here', refName }: { path: string
         )}
         {textView && <span ref={setAfter} className="contents" />}
         {kind === 'text' && !shown && (
-          <button type="button" aria-label={t('wrapLines')} aria-pressed={wrap} title={withKey(t('wrapLines'), 'hk_wrap')} onClick={wrapLines.toggle}
+          <button type="button" aria-label={t('wrapLines')} aria-pressed={wrap} title={withKey(commands, t('wrapLines'), 'hk_wrap')} onClick={wrapLines.toggle}
             className={`rounded px-1.5 hover:bg-muted hover:text-foreground ${wrap ? 'text-foreground' : ''}`}>↩</button>
         )}
         {editable && !editing && data?.s === 'text' && (

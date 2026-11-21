@@ -5,11 +5,9 @@
 // Recent folders come from the launcher's list and from this window's session history; one opens in a window of its agent,
 // ✕ removes one from both (the server keeps it out until it is launched again).
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { useT, shortHome, folderName, connections, routes, toast, withKey, selectSession, useAppSelector } from '@/sdk';
-import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog } from '@/sdk/ui';
+import { useT, shortHome, folderName, connections, routes, toast, withKey, selectSession, useAppSelector, remotePage, useRegistry } from '@/sdk';
+import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog, ICONS, Svg } from '@/sdk/ui';
 import { ago } from '@/controls/SessionPicker.tsx';
-import { remotePage } from '@/net/local.ts';
-import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { enterProject, forgetRecent, onPageRestore, openFolder, reasonText, openStarter, PROVIDER_LABEL, projectsMenu, stopProject, useProjects, type Provider } from './api.ts';
 import { ProjectSessions, type LocalSession } from './ProjectSessions.tsx';
 import { badgeOf, foldRows, rowKey, rowTitle, titlePrefix, type ProjectRow } from './rows.ts';
@@ -32,6 +30,7 @@ type RecentItem = { root: string; provider: Provider; at: number };
 
 export function ProjectSwitcher({ project, windowTitle }: { project: string; windowTitle: string }) {
   const t = useT();
+  const { commands } = useRegistry();
   const open = useSyncExternalStore(projectsMenu.subscribe, projectsMenu.get);
   const { data, reload } = useProjects(open);
   const session = useAppSelector(selectSession);
@@ -110,7 +109,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
-        <button type="button" title={withKey(t('projSwitchTip'), 'hk_projects')}
+        <button type="button" title={withKey(commands, t('projSwitchTip'), 'hk_projects')}
           className="inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1.5 rounded-md px-1 hover:bg-muted">
           <b id="proj" className="truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-foreground">{project}</b>
           {/* the badge sits right of the ▾ on the same line, out of the flow: nothing moves when it comes, goes or grows */}

@@ -1,6 +1,5 @@
+import { type TabKinds, type TabView, useTheme } from '@/sdk';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import type { TabKinds, TabView } from '@/sdk';
-import { useTheme } from '@/shell/theme.ts';
 import { renderDiagram, svgSize, type Rendered } from './render.ts';
 import { centered, fitView, zoomAt, type View } from './zoom.ts';
 

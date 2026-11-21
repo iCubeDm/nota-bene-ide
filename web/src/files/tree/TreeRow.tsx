@@ -1,8 +1,8 @@
+import { Svg } from '@/sdk/ui';
 import type { TreeEntry } from '@nota-bene/shared';
 import { isEditMedia } from '@/cut/assemble.ts';
 import { PATH_MIME } from '@/cut/drag.ts';
 import { downloadUrl, PATHS_MIME } from '@/files/drag.ts';
-import { Svg } from '@/tabs/TabStrip.tsx';
 import { FileIcon } from '../FileIcon.tsx';
 import { join } from './useExpandAll.ts';
 import { fileKey } from '@/sdk';

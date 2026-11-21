@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { bool, storage, useStored, useT, useAppDispatch } from '@/sdk';
+import { bool, storage, useStored, useT, useAppDispatch, openChanges } from '@/sdk';
 import { PanelResizer, usePanelWidth } from '@/sdk/ui';
-import { openChanges } from '@/tabs/slice.ts';
 import { StatusMark } from './DiffBody.tsx';
 import { fileTree, type TreeDir } from './fileTree.ts';
 import { currentFile, focusFile, pickBase, useVcsUi } from './store.ts';

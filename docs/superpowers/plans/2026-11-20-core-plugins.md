@@ -61,7 +61,7 @@ run in parallel with 5–11.
 
 - **Goal:** no protocol comparison in `web/src`; the 14 `*_PROTOCOL` constants are gone.
 - **Files:** the 22 files the check finds: `attachments/ComposerAttachments.tsx`, `comments/CommentPopup.tsx`,
-  `comments/SelectionButton.tsx`, `comments/labels.ts` (`SINCE` → a `Feature` per label), `comments/send.ts`,
+  `comments/SelectionButton.tsx`, `comments/labels.ts` (now `anchors/labels.ts`; `SINCE` → a `Feature` per label), `comments/send.ts`,
   `comments/slice.ts`, `composer/Composer.tsx`, `composer/shellMode.ts`, `controls/slice.ts`, `cut/CutBody.tsx`,
   `files/FileView.tsx`, `media/PlayerBar.tsx`, `media/markup/MarkupLayer.tsx`, `media/playerKeys.ts`,
   `remote/slice.ts`, `settings/SettingsView.tsx`, `subagent/AgentView.tsx`, `subagent/slice.ts`,

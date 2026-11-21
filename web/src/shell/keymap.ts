@@ -58,13 +58,6 @@ export const CORE_COMMANDS: readonly Command[] = [
   { id: 'hk_scaleReset', codes: ['Digit0', 'Numpad0'], mods: { alt: true }, inFields: 'notMac', order: 180, run: () => { uiScale.choose(1); scaled(1); } },
 ];
 
-/**
- * The commands of the app's store, in the help's order, for what names keys without a store at hand (`withKey`,
- * `keyLabel`): set as the store is built (one app, one store; a test's latest store).
- */
-export let BINDINGS: readonly Command[] = CORE_COMMANDS;
-export const setCommands = (list: readonly Command[]): void => void (BINDINGS = list);
-
 const matches = (b: Command, e: KeyboardEvent): boolean => {
   if (b.helpOnly) return false;
   // `/` by the character (a Russian PC layout types it with Shift+7; the US Slash key types "." there)
@@ -100,19 +93,19 @@ export function installKeymap(store: AppStore): () => void {
   return () => document.removeEventListener('keydown', onKey);
 }
 
-/** A control's label with its shortcut, for its tooltip: `Files (⌘⇧F)`. */
-export function withKey(label: string, id: KeyId): string {
-  const b = BINDINGS.find((x) => x.id === id);
-  return b ? withKeys(label, keysLabel(b)) : label;
-}
-
-/** A command's keys by its id, as the help shows them (`⌥T`); '' for none registered. */
-export function keyLabel(id: KeyId): string {
-  const b = BINDINGS.find((x) => x.id === id);
+/** A command's keys by its id, as the help shows them (`⌥T`); '' for none among `commands` (the store's: `useRegistry().commands`). */
+export function keysFor(commands: readonly Command[], id: KeyId): string {
+  const b = commands.find((x) => x.id === id);
   return b ? keysLabel(b) : '';
 }
 
-/** The same for a view's own keys (not in BINDINGS: they act only where the view has them, as a player's): `Play (Space, K)`. */
+/** A control's label with its shortcut, for its tooltip: `Files (⌘⇧F)`. */
+export function withKey(commands: readonly Command[], label: string, id: KeyId): string {
+  const keys = keysFor(commands, id);
+  return keys ? withKeys(label, keys) : label;
+}
+
+/** The same for a view's own keys (not registered commands: they act only where the view has them, as a player's): `Play (Space, K)`. */
 export const withKeys = (label: string, keys: string): string => `${label} (${keys})`;
 
 /** The keys of a binding as the platform shows them, for the help. */

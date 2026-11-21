@@ -1,5 +1,5 @@
+import { Svg } from '@/sdk/ui';
 import { useT } from '@/sdk';
-import { Svg } from '@/tabs/TabStrip.tsx';
 
 type Props = {
   canReveal: boolean; onReveal: () => void;

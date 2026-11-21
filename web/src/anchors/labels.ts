@@ -1,5 +1,6 @@
 import { has, type Comment, type Feature, type QuickLabelId } from '@nota-bene/shared';
-// a relative import of i18n, not @/sdk: the protocol generator loads this file in plain Node (scripts/protocol/mobileStrings.ts)
+// core (issue 511): a label's instruction is part of the batch the agent reads, like quote.ts. A relative import of
+// i18n, not @/sdk: the protocol generator loads this file in plain Node (scripts/protocol/mobileStrings.ts)
 import { t, tIn, type I18nKey, type Lang } from '../i18n/index.ts';
 
 export interface QuickLabel { id: QuickLabelId; emoji: string; /** sent to the agent, always English */ instruction?: string }

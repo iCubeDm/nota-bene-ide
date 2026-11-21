@@ -1,9 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { has, type Anchor, type AnchorSource } from '@nota-bene/shared';
-import { makeAnchor, offsetsOf, textOf, useT, useAppDispatch, useAppSelector, editable, clearPageSelections, pageRoot, pageSelection, rangeRect, selectSwitching } from '@/sdk';
+import { makeAnchor, offsetsOf, textOf, useT, useAppDispatch, useAppSelector, editable, clearPageSelections, pageRoot, pageSelection, rangeRect, selectSwitching, labelsFor, labelText } from '@/sdk';
 import { Button, Tooltip, TooltipTrigger } from '@/sdk/ui';
 import type { QuickLabelId } from '@nota-bene/shared';
-import { labelsFor, labelText } from './labels.ts';
 import { LabelTip } from './LabelTip.tsx';
 import { addComment, setPanelOpen } from './slice.ts';
 

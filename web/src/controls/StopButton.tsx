@@ -1,9 +1,6 @@
 import { useState } from 'react';
-import { useT, selectBusy, useAppDispatch, useAppSelector, routes, toast, selectSwitching, stopWindow } from '@/sdk';
-import { ConfirmDialog } from '@/sdk/ui';
-import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
-import { apiFetch } from '@/net/auth.ts';
-import { remotePage } from '@/net/local.ts';
+import { useT, selectBusy, useAppDispatch, useAppSelector, routes, toast, selectSwitching, stopWindow, remotePage, connections } from '@/sdk';
+import { ConfirmDialog, ICONS, Svg } from '@/sdk/ui';
 import { stopOthers } from '@/projects/api.ts';
 
 /**
@@ -23,7 +20,7 @@ export function StopButton() {
   const open = () => {
     setAsk(true);
     setOthersBusy(false);
-    apiFetch(routes.systemProjects()).then((r) => (r.ok ? r.json() : null)).then((j: { running?: { state?: string; current?: boolean; remote?: object }[] } | null) => {
+    connections.current().fetch(routes.systemProjects()).then((r) => (r.ok ? r.json() : null)).then((j: { running?: { state?: string; current?: boolean; remote?: object }[] } | null) => {
       setOthersBusy(!!j?.running?.some((w) => !w.current && !w.remote && w.state === 'working'));
     }).catch(() => {});
   };

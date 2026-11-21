@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useT, selectConn, useAppDispatch, useAppSelector, routes, defineResource, useResource, usePagePause, cancelRestart, restartAgent, restartInPause, restartServer, selectRestartPending, selectSwitching } from '@/sdk';
-import { ConfirmDialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Popover, PopoverContent, PopoverTrigger } from '@/sdk/ui';
-import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
+import { ConfirmDialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Popover, PopoverContent, PopoverTrigger, ICONS, Svg } from '@/sdk/ui';
 
 export const INFO_POLL_MS = 20_000;
 /** while a restart is pending and this page is in its pause, it asks again this often (the server may still see work) */

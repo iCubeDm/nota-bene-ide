@@ -23,3 +23,5 @@ export { ViewPane } from '../components/ViewPane.tsx';
 export { ToolButton } from '../components/ToolButton.tsx';
 export { PanelResizer, usePanelWidth } from '../shell/PanelResizer.tsx';
 export { SettingsRow, SettingsFail } from '../components/SettingsRow.tsx';
+export { ICONS, Svg } from '../components/icons.tsx';
+export { focusTab } from '../tabs/focus.ts';

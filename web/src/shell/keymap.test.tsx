@@ -8,7 +8,12 @@ import { App } from '@/App.tsx';
 import { promptHistoryModal } from '@/composer/historyModal.ts';
 import { recentModal } from '@/files/recent.ts';
 import { openFile, selectTabs } from '@/tabs/slice.ts';
-import { BINDINGS, keysLabel, modKey, withKey } from './keymap.ts';
+import { PLUGINS } from '@/plugins.ts';
+import { buildRegistry } from '@/sdk/registry.ts';
+import { CORE_COMMANDS, keysLabel, modKey, withKey } from './keymap.ts';
+
+/** the app's commands, as its store registers them */
+const COMMANDS = buildRegistry(PLUGINS, CORE_COMMANDS).commands;
 
 beforeEach(() => {
   localStorage.clear();
@@ -116,7 +121,7 @@ it('/ and Esc on empty space focus the composer; not inside a field, and not whe
 });
 
 it('the ? help lists every hotkey with its keys', () => {
-  expect(BINDINGS.map(keysLabel)).toEqual([
+  expect(COMMANDS.map(keysLabel)).toEqual([
     'Alt+W', 'Alt+Shift+T', 'Alt+←', 'Alt+→', 'Alt+1…9', 'Alt+E', 'Alt+P', 'Alt+H', 'Alt+↑', 'Alt+↓', 'Ctrl+Shift+F', 'Ctrl+Shift+C', 'Alt+T', 'Alt+R', 'Alt+Z', 'Alt+=', 'Alt+−', 'Alt+0', 'Alt+F1', '/, Esc',
   ]);
 });
@@ -172,8 +177,8 @@ it('on a Mac: ⌘ is the mod key, Option+letter/digit types in a field but works
     keyEv(box, { code: 'KeyE', key: 'Dead', altKey: true });
     expect(recentModal.get()).toBe(true);
     act(() => recentModal.close());
-    expect(BINDINGS.map(keysLabel).slice(0, 2)).toEqual(['⌥W', '⌥⇧T']);
-    expect(keysLabel(BINDINGS.find((b) => b.id === 'hk_files')!)).toBe('⌘⇧F');
+    expect(COMMANDS.map(keysLabel).slice(0, 2)).toEqual(['⌥W', '⌥⇧T']);
+    expect(keysLabel(COMMANDS.find((b) => b.id === 'hk_files')!)).toBe('⌘⇧F');
     expect(t('keysTip', modKey())).toContain('⌘Enter');
   } finally {
     plat.mockRestore();
@@ -263,7 +268,7 @@ it('while the window is occupied or taken (the overlay) no hotkey runs; once ope
 
 it('withKey names the key', () => {
   const plat = vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel');
-  try { expect(withKey('Files', 'hk_files')).toBe('Files (⌘⇧F)'); } finally { plat.mockRestore(); }
+  try { expect(withKey(COMMANDS, 'Files', 'hk_files')).toBe('Files (⌘⇧F)'); } finally { plat.mockRestore(); }
 });
 
 it('Alt+P opens the project switcher with its search focused, and closes it again', async () => {
