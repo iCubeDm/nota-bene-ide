@@ -279,8 +279,11 @@ export interface VoiceService {
   /** a comment's recording with its transcript; its player stops on delete */
   ClipRow: FC<{ voice: Voice; text?: string; error?: VoiceError; onRetry?: () => void; onDelete?: () => void }>;
   transcribe(id: string, ask: { lang: string; detect?: true }): Promise<{ text: string; lang?: string } | { error: VoiceError }>;
-  /** a recording as a message of its own; `rides`: the pending comments go with it. False when nothing was sent */
-  send(voice: Voice, id?: string, force?: boolean, rides?: boolean): AppThunk<boolean>;
+  /**
+   * a recording as a message of its own; `force`: it interrupts the agent, `rides`: the pending comments go with it.
+   * False when nothing was sent
+   */
+  send(voice: Voice, o?: { id?: string; force?: boolean; rides?: boolean }): AppThunk<boolean>;
   /** a refused voice send's recording, back to its host */
   onRefused(fn: (v: Voice) => void): () => void;
 }

@@ -75,7 +75,7 @@ export function Composer() {
     // sent at once, apart from the draft and the images (they stay where they are); the pending comments ride along
     // false keeps the uploaded recording in the preview: Send hands it over again
     onDone: (v, force) => {
-      const ok = dispatch(sendVoice(v, undefined, force, true));
+      const ok = dispatch(sendVoice(v, { force, rides: true }));
       if (!ok) flash(t('voiceRefused', t(switchingRef.current ? 'switching' : 'offline')));
       return ok;
     },

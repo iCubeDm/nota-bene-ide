@@ -5,12 +5,17 @@ import { CLAUDE_CAPABILITIES, type ClientMessage } from '@nota-bene/shared';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/testing';
-import { resetPlayer } from '@/voice/player.ts';
+import { release, resetPlayer } from '@/voice/player.ts';
 import { mic } from '@/voice/recorder.ts';
 import { CommentPopup } from './CommentPopup.tsx';
 import type { PendingComment } from '@/sdk';
 import type { PendingSelection } from './SelectionButton.tsx';
 
+// the clip's player, watched: a deleted clip stops and forgets it
+vi.mock('@/voice/player.ts', async (orig) => {
+  const m = await orig<typeof import('@/voice/player.ts')>();
+  return { ...m, release: vi.fn(m.release) };
+});
 vi.mock('@/attachments/image.ts', async (orig) => ({
   ...(await orig<typeof import('@/attachments/image.ts')>()),
   prepareImage: async (f: File) => f,
@@ -129,6 +134,7 @@ it('several clips keep their order; delete removes one; Esc while recording drop
   await screen.findByText('clip 2');
   fireEvent.click(within(screen.getByTestId('popup-clips')).getAllByRole('button', { name: 'Delete the clip' })[0]!);
   expect(screen.queryByText('clip 1')).toBeNull();
+  expect(release).toHaveBeenCalledWith(idOf(1)); // its player is released, whoever draws the row
   await record();
   await screen.findByText('clip 3');
   // a recording in progress, Esc: only the recording goes

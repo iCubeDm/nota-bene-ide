@@ -12,7 +12,7 @@ function setup(protocol: number, dictationLang?: string) {
   const sent: ClientMessage[] = [];
   const store = makeStore({ url: 'ws://x', connect: ((_u: unknown, _e: unknown, onState: (s: 'open') => void) => (onState('open'), { send: (m: ClientMessage) => (sent.push(m), true), close() {} })) as never });
   store.dispatch(serverEvent({ kind: 'hello', protocol, ...(dictationLang ? { dictationLang } : {}) }));
-  store.dispatch(sendVoice(voice, 'm1'));
+  store.dispatch(sendVoice(voice, { id: 'm1' }));
   return sent[0] as Extract<ClientMessage, { type: 'send' }>;
 }
 
