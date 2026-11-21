@@ -7,7 +7,7 @@ import { setLang } from '@/i18n/index.ts';
 import { serverEvent } from '@/store/store.ts';
 import { makeStore } from '@/testing';
 import { resetSources, setSources } from '@/files/sources.ts';
-import { selectTree } from '@/tree/slice.ts';
+import { selectTree } from '@/files/treeSlice.ts';
 import { Header } from './Header.tsx';
 
 const SOURCES = [

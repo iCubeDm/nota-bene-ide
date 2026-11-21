@@ -8,7 +8,7 @@ import { mediaLen } from '@/cut/mediaLen.ts';
 import { projectFileUrl } from '@/files/kinds.ts';
 import { editTargetName, useEditTarget } from '@/cut/targets.ts';
 import { isLocalPage } from '@/net/local.ts';
-import { diskChanged } from '@/tree/slice.ts';
+import { diskChanged } from '../treeSlice.ts';
 
 const folderOf = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
 

@@ -5,7 +5,7 @@ import type { ServerEvent, TreeEntry } from '@nota-bene/shared';
 import { setLang } from '@/i18n/index.ts';
 import { serverEvent } from '@/store/store.ts';
 import { makeStore } from '@/testing';
-import { diskChanged, revealInTree, setTreeOpen } from '@/tree/slice.ts';
+import { diskChanged, revealInTree, setTreeOpen } from './treeSlice.ts';
 import { openFile, selectTabs } from '@/tabs/slice.ts';
 import { FileTree } from './FileTree.tsx';
 

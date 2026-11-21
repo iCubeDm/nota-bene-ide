@@ -7,7 +7,7 @@ import type { ru } from '@/i18n/ru.ts';
 import { selectConn, type AppStore } from '@/store/store.ts';
 import { activate, closeTab, reopenClosed } from '@/tabs/slice.ts';
 import { toggleDrawer } from '@/tasks/slice.ts';
-import { revealFile, setTreeOpen } from '@/tree/slice.ts';
+import { revealFile, setTreeOpen } from '@/files/treeSlice.ts';
 import { editable } from '@/lib/editable.ts';
 import { t } from '@/i18n/index.ts';
 import { uiScale } from './uiScale.ts';

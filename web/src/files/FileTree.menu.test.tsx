@@ -5,7 +5,7 @@ import type { TreeEntry } from '@nota-bene/shared';
 import type { Cut } from '@nota-bene/shared/cut';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/testing';
-import { setTreeOpen } from '@/tree/slice.ts';
+import { setTreeOpen } from './treeSlice.ts';
 import { selectTabs } from '@/tabs/slice.ts';
 import { registerEditTarget, touchEditTarget } from '@/cut/targets.ts';
 import { getToasts, resetToasts } from '@/shell/toast.ts';

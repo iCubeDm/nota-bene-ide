@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { stubRoutes, testStore } from '@/testing';
 import { readSavedTabs, tabsKey } from '@/tabs/slice.ts';
-import { readSavedDirs, treeKey } from '@/tree/slice.ts';
+import { readSavedDirs, treeKey } from '@/files/treeSlice.ts';
 import { readRecent, recentKey } from '@/files/recent.ts';
 import { expectedCompactMs } from '@/feed/compactTiming.ts';
 import { wrapLines } from '@/files/wrap.ts';

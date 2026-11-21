@@ -13,7 +13,7 @@ const BASELINE = path.join(REPO, 'scripts/boundaries.baseline.json');
 // Every web/src folder by role (the spec's folder table). A folder not listed fails the scan until it is classified.
 const CORE = ['anchors', 'components', 'i18n', 'lib', 'net', 'refs', 'sdk', 'shell', 'store', 'tabs', 'theme'];
 const PLUGINS = ['attachments', 'comments', 'composer', 'controls', 'cut', 'diagram', 'feed', 'files', 'media', 'page',
-  'projects', 'remote', 'settings', 'stats', 'subagent', 'tasks', 'tree', 'update', 'usage', 'vcs', 'voice'];
+  'projects', 'remote', 'settings', 'stats', 'subagent', 'tasks', 'update', 'usage', 'vcs', 'voice'];
 const HARNESS = 'testing'; // test-only code, importable from tests only
 const SDK = ['sdk/index.ts', 'sdk/ui.ts'];
 // shared test setups outside the harness, held to the test files' rules

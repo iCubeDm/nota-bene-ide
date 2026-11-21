@@ -9,7 +9,7 @@ import { setLang } from '@/i18n/index.ts';
 import { serverEvent } from '@/store/store.ts';
 import { makeStore } from '@/testing';
 import { openChanges, openLog, selectTabs } from '@/tabs/slice.ts';
-import { pickSource } from '@/tree/slice.ts';
+import { pickSource } from '@/files/treeSlice.ts';
 import { ChangesPanel } from './ChangesPanel.tsx';
 import { ChangesView } from './ChangesView.tsx';
 import { LogView } from './LogView.tsx';
