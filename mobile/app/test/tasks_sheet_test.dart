@@ -46,7 +46,7 @@ Future<void> openSheet(WidgetTester t) async {
 
 void main() {
   testWidgets(
-    'the header counts the running tasks, then the finished; none: no count',
+    'the header shows the bare number of running tasks (the phrase for screen readers), then the finished; none: no count',
     (t) async {
       final r = Rig();
       addTearDown(r.dispose);
@@ -56,9 +56,10 @@ void main() {
       r.event(started('b'));
       await t.pumpAndSettle();
       expect(
-        find.descendant(of: indicator, matching: find.text('2 tasks')),
+        find.descendant(of: indicator, matching: find.text('2')),
         findsOneWidget,
       );
+      expect(find.bySemanticsLabel('2 tasks'), findsOneWidget);
       r.event(done('a'));
       r.event(done('b'));
       await t.pumpAndSettle();
