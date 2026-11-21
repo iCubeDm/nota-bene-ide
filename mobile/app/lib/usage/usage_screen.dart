@@ -122,11 +122,9 @@ class _UsageScreenState extends State<UsageScreen> {
       ),
     );
     if (ok != true || !mounted) return;
-    final http = widget.tab.connection.http;
     String? fail;
     try {
-      if (http == null) throw 'network';
-      final a = await http(
+      final a = await widget.tab.repository.write(
         'POST',
         '/usage/reset',
         headers: {'content-type': 'application/json'},

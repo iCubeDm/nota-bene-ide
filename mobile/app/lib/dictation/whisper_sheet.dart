@@ -66,10 +66,8 @@ class _WhisperSheetState extends State<WhisperSheet> {
     String path, [
     Object? json,
   ]) async {
-    final http = widget.tab.connection.http;
-    if (http == null) return null;
     try {
-      final r = await http(
+      final r = await widget.tab.repository.write(
         method,
         path,
         headers: json == null ? null : {'content-type': 'application/json'},

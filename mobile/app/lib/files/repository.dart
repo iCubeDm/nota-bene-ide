@@ -64,6 +64,9 @@ class Repository {
   final AgentConnection _conn;
   final _inFlight = <String, Future<HttpAnswer>>{};
 
+  /// Counts the writes begun and ended: a read never joins one asked for across a write.
+  var _writes = 0;
+
   /// `GET` [route] of the window; [FilesError] (no status) when the host is offline or the stream broke. A request
   /// for the same route and headers on the same channel while one is on its way gets that one's answer.
   Future<HttpAnswer> get(String route, {Map<String, String>? headers}) {
@@ -71,7 +74,7 @@ class Repository {
     if (http == null) return Future.error(FilesError(null));
     // by channel too: after a reconnect a request does not wait on one still out on the dead channel
     final key =
-        '${identityHashCode(_conn.link.channel)} $route${headers == null ? '' : ' $headers'}';
+        '${identityHashCode(_conn.link.channel)} $_writes $route${headers == null ? '' : ' $headers'}';
     return _inFlight[key] ??= http('GET', route, headers: headers)
         .catchError((Object e) => throw FilesError(null, e))
         .whenComplete(() {
@@ -79,6 +82,22 @@ class Repository {
             key,
           ); // a block: a returned future would be awaited, and this one is its own
         });
+  }
+
+  /// A write to the window ([method] is not `GET`); [FilesError] (no status) when the host is offline or the stream
+  /// broke. A read asked for during or after it does not join one asked for before it.
+  Future<HttpAnswer> write(
+    String method,
+    String route, {
+    Map<String, String>? headers,
+    List<int>? body,
+  }) {
+    final http = _conn.http;
+    if (http == null) return Future.error(FilesError(null));
+    _writes++;
+    return http(method, route, headers: headers, body: body)
+        .catchError((Object e) => throw FilesError(null, e))
+        .whenComplete(() => _writes++);
   }
 
   /// The JSON answer of [route]; [FilesError] when it did not answer 200.
