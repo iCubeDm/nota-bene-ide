@@ -1,6 +1,6 @@
 import { beforeAll, expect, it } from 'vitest';
 import { QUICK_LABEL_IDS } from '@nota-bene/shared';
-import { QUICK_LABELS, labelOf, labelText } from './labels.ts';
+import { QUICK_LABELS, labelOf, labelText } from '@/anchors/labels.ts';
 import { emojiGroups, loadEmoji, searchShortcodes } from './emoji.ts';
 import { ru } from '../i18n/ru.ts';
 import { en } from '../i18n/en.ts';

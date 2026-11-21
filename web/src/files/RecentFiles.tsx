@@ -1,12 +1,9 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { focusTab, FileIcon } from '@/sdk/ui';
+import { useEffect, useRef, useState } from 'react';
 import { Dialog as DialogPrimitive } from 'radix-ui';
-import { useT } from '@/i18n/index.ts';
-import { selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { fileTabId, openFile, selectTabs, type SavedFile } from '@/tabs/slice.ts';
-import { FileIcon } from './FileIcon.tsx';
-import { focusTab } from '@/tabs/TabStrip.tsx';
-import { readRecent, recentModal } from './recent.ts';
-import { apiFetch } from '@/net/auth.ts';
+import { useT, selectSession, useAppDispatch, useAppSelector, openFile, selectTabs, connections, routes, fileTabId, type SavedFile } from '@/sdk';
+import { readRecent } from './recent.ts';
+import { selectRecentOpen, setRecentOpen } from './slice.ts';
 
 const DEBOUNCE_MS = 120;
 const SEARCH_MAX = 30;
@@ -22,7 +19,7 @@ const dirOf = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) :
 export function RecentFiles() {
   const t = useT();
   const d = useAppDispatch();
-  const open = useSyncExternalStore(recentModal.subscribe, recentModal.get);
+  const open = useAppSelector(selectRecentOpen);
   const root = useAppSelector((s) => selectSession(s)?.root ?? null);
   const active = useAppSelector((s) => selectTabs(s).active);
   const [q, setQ] = useState('');
@@ -51,7 +48,7 @@ export function RecentFiles() {
     if (!open || !needle) { setFound([]); setAnswered(''); return; }
     const ctl = new AbortController();
     const timer = setTimeout(() => {
-      apiFetch(`/complete?q=${encodeURIComponent(needle)}`, { signal: ctl.signal })
+      connections.current().fetch(routes.complete(needle), { signal: ctl.signal })
         .then((r) => (r.ok ? (r.json() as Promise<string[]>) : []))
         .then((hits) => { setFound(hits.filter((p) => !p.endsWith('/'))); setAnswered(needle); }, (e: unknown) => {
           // offline or a server error: say so as "nothing" rather than searching forever (an abort is a newer query)
@@ -66,7 +63,7 @@ export function RecentFiles() {
   const items: SavedFile[] = [...mine, ...found.map((path) => ({ path })).filter((f) => !seen.has(key(f)))].slice(0, needle ? SEARCH_MAX : undefined);
   const cur = Math.max(0, Math.min(at, items.length - 1));
 
-  const close = () => recentModal.close();
+  const close = () => void d(setRecentOpen(false));
   const picked = useRef<string | null>(null);
   const pick = (f: SavedFile | undefined) => {
     if (!f) return;

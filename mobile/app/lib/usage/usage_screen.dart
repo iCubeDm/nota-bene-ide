@@ -22,10 +22,10 @@ const _agentsShown = 12,
     _tanksShown = 8;
 
 const _periods = [
-  (UsagePeriod.trip, 'trip', 'usagePeriodTrip'),
-  (UsagePeriod.v7d, '7d', 'usagePeriod7d'),
-  (UsagePeriod.v30d, '30d', 'usagePeriod30d'),
-  (UsagePeriod.all, 'all', 'usagePeriodAll'),
+  (UsagePeriod.trip, 'trip', UsageKey.usagePeriodTrip),
+  (UsagePeriod.v7d, '7d', UsageKey.usagePeriod7d),
+  (UsagePeriod.v30d, '30d', UsageKey.usagePeriod30d),
+  (UsagePeriod.all, 'all', UsageKey.usagePeriodAll),
 ];
 const _providers = [
   (UsageProvider.claude, 'claude', 'Claude'),
@@ -47,7 +47,7 @@ class UsageScreen extends StatefulWidget {
 
 class _UsageScreenState extends State<UsageScreen> {
   late UsageProvider _provider =
-      widget.tab.capabilities?.provider == CapabilitiesProvider.codex
+      widget.tab.windowState.capabilities?.provider == AgentProvider.codex
       ? UsageProvider.codex
       : UsageProvider.claude;
   var _period = UsagePeriod.trip;
@@ -69,7 +69,7 @@ class _UsageScreenState extends State<UsageScreen> {
     super.dispose();
   }
 
-  String _name<T>(List<(T, String, String)> l, T v) =>
+  String _name<T>(List<(T, String, Object)> l, T v) =>
       l.firstWhere((e) => e.$1 == v).$2;
 
   /// Asks for the current choice; an answer that is no longer the choice is dropped.
@@ -114,7 +114,7 @@ class _UsageScreenState extends State<UsageScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        content: Text(usageString('usageResetQ', lang)),
+        content: Text(usageString(UsageKey.usageResetQ, lang)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c, false),
@@ -122,7 +122,7 @@ class _UsageScreenState extends State<UsageScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, true),
-            child: Text(usageString('usageReset', lang)),
+            child: Text(usageString(UsageKey.usageReset, lang)),
           ),
         ],
       ),
@@ -166,10 +166,10 @@ class _UsageScreenState extends State<UsageScreen> {
     );
     return Scaffold(
       appBar: AppBar(
-        title: Text(usageString('usage', lang)),
+        title: Text(usageString(UsageKey.usage, lang)),
         actions: [
           IconButton(
-            tooltip: usageString('usageReset', lang),
+            tooltip: usageString(UsageKey.usageReset, lang),
             icon: const Icon(Icons.restart_alt),
             onPressed: _reset,
           ),
@@ -205,21 +205,21 @@ class _UsageScreenState extends State<UsageScreen> {
           const SizedBox(height: 16),
           if (_error != null)
             Text(
-              usageTemplate('usageLoadFail', lang, [_error!]),
+              usageTemplate(UsageKey.usageLoadFail, lang, [_error!]),
               style: TextStyle(color: theme.colorScheme.error, fontSize: 13),
             ),
           if (shown?.importing ?? false)
             Text(
-              usageString('usageImporting', lang),
+              usageString(UsageKey.usageImporting, lang),
               style: const TextStyle(color: Colors.orange, fontSize: 13),
             ),
           if (shown == null && _error == null)
-            Text(usageString('usageLoading', lang), style: muted),
+            Text(usageString(UsageKey.usageLoading, lang), style: muted),
           if (shown != null)
             if (_live(shown))
               _Report(r: shown, lang: lang)
             else
-              Text(usageString('usageEmpty', lang), style: muted),
+              Text(usageString(UsageKey.usageEmpty, lang), style: muted),
         ],
       ),
     );
@@ -268,10 +268,10 @@ class _Report extends StatelessWidget {
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
-            Text(usageString('usageTokens', lang)),
+            Text(usageString(UsageKey.usageTokens, lang)),
             if (r.from != null && r.period == UsagePeriod.trip)
               Text(
-                usageTemplate('usageSince', lang, [
+                usageTemplate(UsageKey.usageSince, lang, [
                   when(r.from!.toInt(), lang),
                 ]),
                 style: _small(context),
@@ -282,7 +282,7 @@ class _Report extends StatelessWidget {
         _ModelMix(r: r, lang: lang),
         const SizedBox(height: 4),
         Text(
-          usageTemplate('usageSide', lang, [
+          usageTemplate(UsageKey.usageSide, lang, [
             fmtNum(r.total.calls, lang),
             pct(r.total.sub, r.total.w, lang),
           ]),
@@ -342,12 +342,12 @@ class _Tip extends StatelessWidget {
       children: [
         Text(b.label, style: _small(context)),
         Text(
-          '${usageString('usageBarTotal', lang)} ${fmtTokens(b.w, lang)}',
+          '${usageString(UsageKey.usageBarTotal, lang)} ${fmtTokens(b.w, lang)}',
           style: _small(context),
         ),
         if (b.extra > 0 && b.w > b.extra)
           Text(
-            '${usageString('usageBarLimit', lang)} ${fmtTokens(b.w - b.extra, lang)}',
+            '${usageString(UsageKey.usageBarLimit, lang)} ${fmtTokens(b.w - b.extra, lang)}',
             style: _small(context),
           ),
         if (b.extra > 0)
@@ -356,7 +356,10 @@ class _Tip extends StatelessWidget {
             style: _small(context),
           ),
         if (b.hit)
-          Text(usageString('usageHitShort', lang), style: _small(context)),
+          Text(
+            usageString(UsageKey.usageHitShort, lang),
+            style: _small(context),
+          ),
       ],
     );
   }
@@ -378,7 +381,7 @@ class _ModelMix extends StatelessWidget {
           name: modelName(m.key),
           w: m.w,
           color: _modelColor(context, i),
-          tip: usageTemplate('usageModelTip', lang, [
+          tip: usageTemplate(UsageKey.usageModelTip, lang, [
             fmtNum(m.calls, lang),
             fmtTokens(m.out, lang),
             fmtTokens(m.write, lang),
@@ -387,7 +390,7 @@ class _ModelMix extends StatelessWidget {
         ),
       if (rest.isNotEmpty)
         (
-          name: usageString('usageRest', lang),
+          name: usageString(UsageKey.usageRest, lang),
           w: restW,
           color: _rest(context),
           tip: rest.map((m) => modelName(m.key)).join(', '),
@@ -570,18 +573,20 @@ class _LimitsState extends State<_Limits> {
         spacing: 12,
         children: [
           Text(
-            usageString('usageHits', lang),
+            usageString(UsageKey.usageHits, lang),
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
           if (marked)
             Text(
-              usageString('usageHitMark', lang) +
-                  (anyExtra ? ', ${usageString('usageExtraMark', lang)}' : ''),
+              usageString(UsageKey.usageHitMark, lang) +
+                  (anyExtra
+                      ? ', ${usageString(UsageKey.usageExtraMark, lang)}'
+                      : ''),
               style: _small(context),
             ),
           if (windows.isNotEmpty)
             _Bars(
-              title: usageString('usageByWindow', lang),
+              title: usageString(UsageKey.usageByWindow, lang),
               first: shortTime(windows.first.from.toInt(), lang),
               last: shortTime(windows.last.from.toInt(), lang),
               lang: lang,
@@ -598,7 +603,7 @@ class _LimitsState extends State<_Limits> {
             ),
           if (weeks.length > 1)
             _Bars(
-              title: usageString('usageByWeek', lang),
+              title: usageString(UsageKey.usageByWeek, lang),
               first: weekDay(weeks.first.key, lang),
               last: weekDay(weeks.last.key, lang),
               lang: lang,
@@ -624,8 +629,10 @@ class _LimitsState extends State<_Limits> {
                   onPressed: () => setState(() => _all = !_all),
                   child: Text(
                     _all
-                        ? usageString('usageShowTop', lang)
-                        : usageTemplate('usageShowAll', lang, [hits.length]),
+                        ? usageString(UsageKey.usageShowTop, lang)
+                        : usageTemplate(UsageKey.usageShowAll, lang, [
+                            hits.length,
+                          ]),
                   ),
                 ),
               ),
@@ -633,18 +640,18 @@ class _LimitsState extends State<_Limits> {
           if (extra != null)
             Text(
               [
-                usageTemplate('usageExtra', lang, [
+                usageTemplate(UsageKey.usageExtra, lang, [
                   fmtTokens(extra.w, lang),
                   extra.spent == null
-                      ? usageString('usageSumUnknown', lang)
+                      ? usageString(UsageKey.usageSumUnknown, lang)
                       : money(extra.spent!, extra.currency, lang),
                 ]),
                 if (extra.month != null)
                   extra.limit == null
-                      ? usageTemplate('usageExtraMonth', lang, [
+                      ? usageTemplate(UsageKey.usageExtraMonth, lang, [
                           money(extra.month!, extra.currency, lang),
                         ])
-                      : usageTemplate('usageExtraOf', lang, [
+                      : usageTemplate(UsageKey.usageExtraOf, lang, [
                           money(extra.month!, extra.currency, lang),
                           money(extra.limit!, extra.currency, lang),
                         ]),
@@ -702,10 +709,13 @@ class _TankTable extends StatelessWidget {
           ),
           if (tanks.any((k) => k.h5 != null))
             row(
-              usageString('usageTank5h', lang),
+              usageString(UsageKey.usageTank5h, lang),
               (k) => k.h5 == null ? '—' : fmtTokens(k.h5!.perPct, lang),
             ),
-          row(usageString('usageTank', lang), (k) => fmtTokens(k.perPct, lang)),
+          row(
+            usageString(UsageKey.usageTank, lang),
+            (k) => fmtTokens(k.perPct, lang),
+          ),
         ],
       ),
     );
@@ -731,11 +741,11 @@ class _HitRow extends StatelessWidget {
       childrenPadding: const EdgeInsets.only(left: 14, bottom: 8),
       dense: true,
       title: Text(
-        '${when(h.ts.toInt(), lang)}  ${h.kind == UsageHitKind.week ? usageString('usageWeek', lang) : usageString('usageH5', lang)}',
+        '${when(h.ts.toInt(), lang)}  ${h.kind == UsageHitKind.week ? usageString(UsageKey.usageWeek, lang) : usageString(UsageKey.usageH5, lang)}',
         style: const TextStyle(fontSize: 13),
       ),
       subtitle: Text(
-        '${fmtTokens(h.w, lang)} · ${fmtNum(h.calls, lang)} ${usageString('usageCalls', lang)}${went.isEmpty ? '' : ' · $went'}',
+        '${fmtTokens(h.w, lang)} · ${fmtNum(h.calls, lang)} ${usageString(UsageKey.usageCalls, lang)}${went.isEmpty ? '' : ' · $went'}',
         style: _small(context),
       ),
       children: [
@@ -743,10 +753,10 @@ class _HitRow extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              usageTemplate('usageHitExtra', lang, [
+              usageTemplate(UsageKey.usageHitExtra, lang, [
                 fmtTokens(h.extra!.w, lang),
                 h.extra!.spent == null
-                    ? usageString('usageSumUnknown', lang)
+                    ? usageString(UsageKey.usageSumUnknown, lang)
                     : money(h.extra!.spent!, currency, lang),
               ]),
               style: _small(context),
@@ -754,7 +764,9 @@ class _HitRow extends StatelessWidget {
           ),
         for (final k in h.tasks)
           _Line(
-            k.label.isEmpty ? usageString('usageNoLabel', lang) : k.label,
+            k.label.isEmpty
+                ? usageString(UsageKey.usageNoLabel, lang)
+                : k.label,
             fmtTokens(k.w, lang),
           ),
       ],
@@ -844,11 +856,11 @@ class _SpentState extends State<_Spent> {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
-              usageString('usageSpent', lang),
+              usageString(UsageKey.usageSpent, lang),
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             ChoiceChip(
-              label: Text(usageString('usageTasks', lang)),
+              label: Text(usageString(UsageKey.usageTasks, lang)),
               selected: _tasks,
               onSelected: (_) => setState(() {
                 _tasks = true;
@@ -856,7 +868,7 @@ class _SpentState extends State<_Spent> {
               }),
             ),
             ChoiceChip(
-              label: Text(usageString('usageProjects', lang)),
+              label: Text(usageString(UsageKey.usageProjects, lang)),
               selected: !_tasks,
               onSelected: (_) => setState(() {
                 _tasks = false;
@@ -877,7 +889,7 @@ class _SpentState extends State<_Spent> {
                   Expanded(
                     child: Text(
                       task.label.isEmpty
-                          ? usageString('usageNoLabel', lang)
+                          ? usageString(UsageKey.usageNoLabel, lang)
                           : task.label,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 13),
@@ -924,8 +936,8 @@ class _SpentState extends State<_Spent> {
               onPressed: () => setState(() => _all = !_all),
               child: Text(
                 _all
-                    ? usageString('usageShowTop', lang)
-                    : usageTemplate('usageShowAll', lang, [items]),
+                    ? usageString(UsageKey.usageShowTop, lang)
+                    : usageTemplate(UsageKey.usageShowAll, lang, [items]),
               ),
             ),
           ),
@@ -960,7 +972,7 @@ class _TaskDetail extends StatelessWidget {
         spacing: 8,
         children: [
           Text(
-            usageTemplate('usageTaskLine', lang, [
+            usageTemplate(UsageKey.usageTaskLine, lang, [
               fmtNum(task.calls, lang),
               pct(task.sub, task.w, lang),
               when(task.ts.toInt(), lang),
@@ -969,7 +981,7 @@ class _TaskDetail extends StatelessWidget {
           ),
           _Mix(parts: [for (final m in models) (m.value, color(m.key))]),
           if (task.agents.isNotEmpty) ...[
-            Text(usageString('usageSubagents', lang), style: head),
+            Text(usageString(UsageKey.usageSubagents, lang), style: head),
             for (final a in task.agents.take(_agentsShown))
               _Line(
                 a.label.isEmpty ? a.id : a.label,
@@ -977,21 +989,21 @@ class _TaskDetail extends StatelessWidget {
               ),
             if (task.agents.length > _agentsShown)
               Text(
-                usageTemplate('usageMoreAgents', lang, [
+                usageTemplate(UsageKey.usageMoreAgents, lang, [
                   task.agents.length - _agentsShown,
                 ]),
                 style: _small(context),
               ),
           ],
-          Text(usageString('usageTopCalls', lang), style: head),
+          Text(usageString(UsageKey.usageTopCalls, lang), style: head),
           for (final c in task.top)
             _Line(
               '${c.agent == null
-                  ? usageString('usageMain', lang)
+                  ? usageString(UsageKey.usageMain, lang)
                   : (agents[c.agent] ?? '').isEmpty
                   ? c.agent!
                   : agents[c.agent]!}, '
-              '${modelName(c.model)}, ${usageTemplate('usageCallLine', lang, [fmtTokens(c.out, lang), fmtTokens(c.read, lang)])}',
+              '${modelName(c.model)}, ${usageTemplate(UsageKey.usageCallLine, lang, [fmtTokens(c.out, lang), fmtTokens(c.read, lang)])}',
               fmtTokens(c.w, lang),
             ),
         ],

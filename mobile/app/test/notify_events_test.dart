@@ -15,7 +15,7 @@ HostWindow win({
   LastMessage? last,
 }) => HostWindow(
   port: 4791,
-  provider: 'claude',
+  provider: AgentProvider.claude,
   root: '/home/u/notes',
   title: title,
   session: session,
@@ -51,7 +51,7 @@ void main() {
       final e = list([win(replies: 2)]);
       expect(e.single, isA<ReplyEvent>());
       expect(
-        (e.single.hostId, e.single.session, e.single.port),
+        (e.single.hostId, e.single.session, e.single.w.port),
         (host, 's1', 4791),
       );
       expect(e.single.key, 'h1 s1');
@@ -105,7 +105,10 @@ void main() {
           list([
                 win(
                   replies: 2,
-                  last: LastMessage(role: 'assistant', text: long),
+                  last: LastMessage(
+                    role: LastMessageRole.assistant,
+                    text: long,
+                  ),
                 ),
               ]).single
               as ReplyEvent;
@@ -115,7 +118,7 @@ void main() {
           list([
                 win(
                   replies: 3,
-                  last: LastMessage(role: 'user', text: 'mine'),
+                  last: LastMessage(role: LastMessageRole.user, text: 'mine'),
                 ),
               ]).single
               as ReplyEvent;

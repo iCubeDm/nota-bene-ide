@@ -7,7 +7,8 @@ import { SelectionButton } from '@/comments/SelectionButton.tsx';
 import { whereOf } from '@/comments/send.ts';
 import { Feed } from '@/feed/Feed.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { activate, openAgent, restoreTabs, serializeTabs } from '@/tabs/slice.ts';
 import { AgentView, POLL_MS } from './AgentView.tsx';
 
@@ -437,7 +438,7 @@ describe('after a reload, with the tab closed or a poll failing', () => {
     const { store } = setup();
     await flush(0);
     await flush(POLL_MS);
-    const { itemsOf } = await import('./slice.ts');
+    const { itemsOf } = await import('@/store/subagents.ts');
     expect(store.getState().subagents.byTool[TOOL]!.status).toBe('error');
     expect(itemsOf(store.getState(), TOOL)?.length).toBeGreaterThan(0);
   });

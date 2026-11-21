@@ -1,6 +1,6 @@
+import { instructionOf, labelText } from '@/sdk';
 import type { QuickLabelId } from '@nota-bene/shared';
-import { TooltipContent } from '@/components/ui/tooltip.tsx';
-import { instructionOf, labelText } from './labels.ts';
+import { TooltipContent } from '@/sdk/ui';
 
 /** Tooltip of a quick-label chip (the chip shows only the emoji): the label, and what the agent is told. `note` replaces the instruction. */
 export function LabelTip({ id, note }: { id: QuickLabelId; note?: string }) {

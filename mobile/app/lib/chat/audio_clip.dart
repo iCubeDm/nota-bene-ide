@@ -15,10 +15,10 @@ import '../ui/nb_icon.dart';
 import '../voice/player.dart';
 import '../voice/voice_view.dart' show clock;
 import 'embed.dart';
+import 'paths.dart';
 import 'window_tab.dart';
 
-/// The sounds a reply embeds (the desktop's own list, `AUDIO` of shared/src/cutCheck.ts).
-final soundPath = RegExp(r'\.(mp3|wav|m4a|ogg)$', caseSensitive: false);
+export 'paths.dart' show soundPath;
 
 /// The largest sound the phone reads.
 const soundMaxBytes = 64000000;
@@ -131,11 +131,11 @@ Future<Written> fetchSound(
   Written failed(FetchFail f) => (path: null, fail: f);
   var gone = false;
   abandoned?.then((_) => gone = true);
-  final ch = tab.link.channel;
+  final ch = tab.connection.link.channel;
   if (ch == null) return failed(FetchFail.unreadable);
   try {
     final r = await ch.httpStream(
-      tab.port,
+      tab.connection.port,
       'GET',
       '/file?path=${Uri.encodeQueryComponent(rel)}',
     );
@@ -146,7 +146,8 @@ Future<Written> fetchSound(
       return failed(bad ?? FetchFail.tooLarge);
     }
     final ext = soundPath.firstMatch(rel)![0]!.toLowerCase();
-    final name = '${_hash('${tab.link.host.id}|${tab.port}|$rel')}$ext';
+    final name =
+        '${_hash('${tab.connection.link.host.id}|${tab.connection.port}|$rel')}$ext';
     final got = await (files ?? ClipFiles.shared).write(
       name,
       r.body,
@@ -187,7 +188,7 @@ class _AudioClipState extends State<AudioClip> {
     final shownName = embedName(widget.src);
     final id = tab == null || rel == null
         ? null
-        : 'clip|${tab.link.host.id}|${tab.port}|$rel';
+        : 'clip|${tab.connection.link.host.id}|${tab.connection.port}|$rel';
     Future<String?> open(Future<void> abandoned) async {
       final got = await fetchSound(tab!, rel!, abandoned: abandoned);
       _readFail = got.fail;

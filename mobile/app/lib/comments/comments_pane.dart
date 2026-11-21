@@ -78,7 +78,7 @@ class _CommentsPaneState extends State<CommentsPane>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              whereOf(x, tab.feed, lang),
+              whereOf(x, tab.windowState.feed, lang),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: c.mutedFg, fontSize: 11),
@@ -160,7 +160,7 @@ class _CommentsPaneState extends State<CommentsPane>
 
   /// A sent comment's group: the message it went with, as its first words.
   String _groupName(String id, AppLocalizations t, String lang) {
-    for (final it in tab.feed.items) {
+    for (final it in tab.windowState.feed.items) {
       if (it is UserItem && it.id == id) {
         final line = it.shownText
             .split('\n')
@@ -170,7 +170,7 @@ class _CommentsPaneState extends State<CommentsPane>
         break;
       }
     }
-    return webString('srcMine', lang);
+    return webString(WebKey.srcMine, lang);
   }
 
   @override
@@ -234,7 +234,7 @@ class _CommentsPaneState extends State<CommentsPane>
                       ),
                       FilledButton(
                         onPressed:
-                            tab.state == TabState.open &&
+                            tab.connection.state == TabState.open &&
                                 tab.comments.toSend > 0
                             ? () => sendPendingComments(context, tab)
                             : null,

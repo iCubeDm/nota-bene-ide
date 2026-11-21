@@ -1,0 +1,280 @@
+import { cleanup, fireEvent, render as bare, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import hljs from 'highlight.js';
+import mermaid from 'mermaid';
+import DOMPurify from 'dompurify';
+import { marked } from 'marked';
+import { Provider } from 'react-redux';
+import { describe, expect, it, vi } from 'vitest';
+import { makeStore } from '@/testing';
+import { selectActiveTab } from '@/tabs/slice.ts';
+import { textOf } from '@/anchors/text.ts';
+import { setLang, t } from '@/i18n/index.ts';
+import { theme } from '@/shell/theme.ts';
+import { Markdown } from './Markdown';
+
+vi.mock('mermaid', () => ({
+  default: {
+    initialize: vi.fn(),
+    render: vi.fn(async () => ({ svg: '<svg data-test="m"></svg>' })),
+  },
+}));
+
+const MERMAID = '```mermaid\ngraph TD; A-->B\n```';
+
+// in a store, as in the app: the diagram plugin draws the mermaid and svg blocks (issue 545)
+const render = (ui: ReactElement) => bare(ui, { wrapper: ({ children }) => <Provider store={makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) })}>{children}</Provider> });
+
+describe('Markdown', () => {
+  it('a table goes into a sideways-scrolling box once; its short row labels stay on one line (issue 453)', () => {
+    const long = 'a cell with a long sentence that may wrap freely';
+    const flags = '🇫🇷🇩🇪🇮🇹🇪🇸🇵🇹🇳🇱🇧🇪🇦🇹🇨🇭🇸🇪 take'; // 10 flags of 4 UTF-16 units each: 15 graphemes
+    const text = `| | take 1 |\n|---|---|\n| take 1, 6,8 s | ![](a.mp3) |\n| ${long} | x |\n| ${flags} | y |\n| 東京の録音 | z |`;
+    const { container, rerender } = render(<Markdown text={text} final={false} />);
+    rerender(<Markdown text={text} final />);
+    const boxes = container.querySelectorAll('.md-table');
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0]!.firstElementChild!.tagName).toBe('TABLE');
+    const marked = [...container.querySelectorAll('tr')].map((r) => [...r.children].map((c) => c.classList.contains('md-cell-short')));
+    // the first column only: the empty corner, a long sentence and CJK (no phrase to keep whole) wrap as before
+    expect(marked).toEqual([[false, false], [true, false], [false, false], [true, false], [false, false]]);
+  });
+
+  it('a colour in inline code gets a swatch of it, its text untouched', () => {
+    const { container } = render(<Markdown text={'`#ff8980`, `rgb(60 63 65 / .9)`, `#12` and `npm test`'} final />);
+    const codes = [...container.querySelectorAll<HTMLElement>(':not(pre) > code')];
+    expect(codes.map((c) => c.classList.contains('md-color'))).toEqual([true, true, false, false]);
+    expect(codes[0]!.style.getPropertyValue('--md-swatch')).toBe('#ff8980');
+    expect(codes[1]!.style.getPropertyValue('--md-swatch')).toBe('rgb(60 63 65 / .9)');
+    expect(codes[0]!.textContent).toBe('#ff8980');
+  });
+
+  it('renders code with hljs classes', () => {
+    const { container } = render(<Markdown text={'```js\nconst a = 1;\n```'} final />);
+    expect(container.querySelector('pre code.hljs')).not.toBeNull();
+    expect(container.querySelector('.hljs-keyword')).not.toBeNull();
+  });
+
+  it('final mermaid block becomes .mermaid-out', async () => {
+    const { container } = render(<Markdown text={MERMAID} final />);
+    await waitFor(() => expect(container.querySelector('.mermaid-out svg[data-test="m"]')).not.toBeNull());
+    expect(container.querySelector('pre')).toBeNull();
+  });
+
+  it('a theme switch re-renders mermaid only when the kind changes', async () => {
+    cleanup(); // earlier tests' blocks would draw again too
+    theme.choose('darcula');
+    vi.mocked(mermaid.render).mockClear();
+    const { container } = render(<Markdown text={MERMAID} final />);
+    await waitFor(() => expect(container.querySelector('.mermaid-out svg')).not.toBeNull());
+    expect(mermaid.render).toHaveBeenCalledTimes(1);
+    expect(mermaid.initialize).not.toHaveBeenCalledWith(expect.objectContaining({ theme: 'default' }));
+    theme.choose('plannotator'); // dark, like Darcula: nothing to draw again
+    await new Promise((r) => setTimeout(r, 20));
+    expect(mermaid.render).toHaveBeenCalledTimes(1);
+    theme.choose('darcula');
+    theme.reload(); // forget the unconfirmed choice, so the server's value (adopt) is taken
+    try {
+      theme.adopt('github-light'); // what the server sends: a real light kind
+      await waitFor(() => expect(mermaid.render).toHaveBeenCalledTimes(2));
+      expect(vi.mocked(mermaid.initialize).mock.calls.at(-1)![0]).toMatchObject({ theme: 'default' });
+      await waitFor(() => expect(container.querySelector('.mermaid-out > button')).not.toBeNull());
+      theme.adopt('darcula');
+      await waitFor(() => expect(mermaid.render).toHaveBeenCalledTimes(3));
+      expect(vi.mocked(mermaid.initialize).mock.calls.at(-1)![0]).toMatchObject({ theme: 'dark' });
+    } finally {
+      theme.choose('darcula');
+      theme.reload();
+    }
+  });
+
+  it('numbers a code block by source line, a token across lines reopened, the text untouched', () => {
+    const code = 'const a = `x\n\ny`;\nb();\n';
+    const { container } = render(<Markdown text={'```js\n' + code + '```'} final />);
+    const c = container.querySelector('pre code') as HTMLElement;
+    const lines = [...c.querySelectorAll('.md-line')];
+    expect(lines.map((l) => l.textContent)).toEqual(['const a = `x\n', '\n', 'y`;\n', 'b();\n']);
+    expect(c.textContent).toBe(code);
+    expect(lines[2]!.querySelector('.hljs-string')?.textContent).toBe('y`');
+    expect(c.style.getPropertyValue('--md-digits')).toBe('1');
+  });
+
+  it('a single line has no number; a block is numbered once across the final flip', () => {
+    const { container, rerender } = render(<Markdown text={'```js\na();\n```'} final />);
+    expect(container.querySelector('.md-line')).toBeNull();
+    rerender(<Markdown text={'```js\na();\nb();\n```'} final={false} />);
+    rerender(<Markdown text={'```js\na();\nb();\n```'} final />);
+    expect(container.querySelectorAll('.md-line')).toHaveLength(2);
+    expect(container.querySelectorAll('.md-line .md-line')).toHaveLength(0);
+    expect(container.querySelectorAll('.md-copy-code')).toHaveLength(1);
+  });
+
+  it('copies the code of its own block, without the last newline, and answers with a tick', async () => {
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+    try {
+      const { container } = render(<Markdown text={'```\none\ntwo\n```\n\n```\nthree\n```'} final />);
+      const buttons = container.querySelectorAll<HTMLElement>('.md-copy-code');
+      expect(buttons).toHaveLength(2);
+      buttons[0]!.click();
+      await vi.waitFor(() => expect(buttons[0]!.title).toBe('Copied'));
+      expect(writeText).toHaveBeenCalledWith('one\ntwo');
+      expect(buttons[0]!.hasAttribute('data-anchor-skip')).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('non-final mermaid stays a code block', () => {
+    const { container } = render(<Markdown text={MERMAID} final={false} />);
+    expect(container.querySelector('.mermaid-out')).toBeNull();
+    expect(container.querySelector('pre code')).not.toBeNull();
+  });
+
+  it('strips <style>, form controls and every data-* attribute (they would collide with app hooks like data-pane)', () => {
+    const evil = '<style>body{display:none}</style><p data-pane="chat" data-file-path="x" data-lightbox>hi</p>' +
+      '<form><input value="a"><button>b</button><select><option>c</option></select><textarea>d</textarea></form>';
+    const { container } = render(<Markdown text={evil} final={false} />);
+    const md = container.querySelector('.md')!;
+    expect(md.querySelector('style, form, input, button, select, textarea')).toBeNull();
+    expect(md.querySelector('p')!.attributes).toHaveLength(0);
+    expect(md.innerHTML).not.toMatch(/data-|display:none/);
+  });
+
+  it('leaves ordinary markdown exactly as the default sanitizer did', () => {
+    const doc = '# H1\n\n## H2\n\nSome *em*, **strong**, `code`, ~~del~~.\n\n- a\n- b\n  1. c\n\n> quote\n\n' +
+      '| a | b |\n|---|:-:|\n| 1 | 2 |\n\n[ext](https://x.y/z) [rel](docs/a.md) ![pic](p.png) ![v](m.mp4)\n\n---\n\n<details><summary>s</summary>t</details>\n';
+    const { container } = render(<Markdown text={doc} final={false} />);
+    const before = DOMPurify.sanitize(marked.parse(doc, { async: false }) as string, { ADD_TAGS: ['video', 'audio'], ADD_ATTR: ['controls', 'preload'] });
+    // ours on top (issue 453): the table's scroll box and its short cells' mark
+    const md = container.querySelector('.md')!.cloneNode(true) as HTMLElement;
+    md.querySelectorAll('.md-table').forEach((b) => b.replaceWith(...b.childNodes));
+    md.querySelectorAll('.md-cell-short').forEach((c) => { c.classList.remove('md-cell-short'); if (!c.classList.length) c.removeAttribute('class'); });
+    expect(md.innerHTML).toBe(before);
+  });
+
+  it('a task list keeps its boxes without an <input>', () => {
+    const { container } = render(<Markdown text={'- [x] done\n- [ ] todo'} final={false} />);
+    const md = container.querySelector('.md')!;
+    expect(md.querySelector('input')).toBeNull();
+    expect([...md.querySelectorAll('.task-box')].map((b) => b.classList.contains('checked'))).toEqual([true, false]);
+    expect(md.textContent).not.toMatch(/[☐☑]/); // the box is CSS-only: comment anchors read the same text as before
+  });
+
+  it('sanitises <script>', () => {
+    const { container } = render(<Markdown text={'hi <script>window.__x=1</script> <img src=x onerror="window.__y=1">'} final />);
+    expect(container.querySelector('script')).toBeNull();
+    expect(container.innerHTML).not.toContain('onerror');
+  });
+
+  it('external links open in a new tab; project links stay in the app', () => {
+    const { container } = render(<Markdown text={'[ext](https://example.com) [rel](docs/a.md)'} final />);
+    const [ext, rel] = container.querySelectorAll('a');
+    expect(ext.getAttribute('target')).toBe('_blank');
+    expect(ext.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(rel.hasAttribute('target')).toBe(false);
+  });
+
+  it('auto-detects untagged fences', () => {
+    const { container } = render(<Markdown text={'```\nconst a = 1;\nfunction f() { return a; }\n```'} final />);
+    expect(container.querySelector('pre code span[class^="hljs-"]')).not.toBeNull();
+  });
+
+  it('highlights a code block once across the final flip', () => {
+    const spy = vi.spyOn(hljs, 'highlightElement');
+    const text = '```js\nconst a = 1;\n```';
+    const { container, rerender } = render(<Markdown text={text} final={false} />);
+    rerender(<Markdown text={text} final />);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('.hljs-keyword .hljs-keyword')).toBeNull();
+    spy.mockRestore();
+  });
+
+  it('a mermaid failure is shown through t() in the current language', async () => {
+    setLang('ru');
+    vi.mocked(mermaid.render).mockRejectedValueOnce(new Error('bad graph'));
+    const { container } = render(<Markdown text={MERMAID} final />);
+    await waitFor(() => expect(container.querySelector('.mermaid-out')).toHaveTextContent('ошибка mermaid: bad graph'));
+  });
+
+  it('a mermaid syntax error leaves no error graphic in <body>', async () => {
+    vi.mocked(mermaid.render).mockImplementationOnce(async (id: string) => {
+      const d = document.createElement('div'); // what mermaid 10 does: its temp box with the bomb stays in body
+      d.id = `d${id}`;
+      d.innerHTML = `<svg id="${id}"></svg>`;
+      document.body.appendChild(d);
+      throw new Error('Syntax error in text');
+    });
+    const { container } = render(<Markdown text={MERMAID} final />);
+    await waitFor(() => expect(container.querySelector('.mermaid-out')).toHaveTextContent(/Syntax error in text/));
+    expect(document.body.querySelector('[id^="dm"]')).toBeNull();
+  });
+
+  it('a failed mermaid load says to reload and is retried by the next diagram (a page older than the build)', async () => {
+    setLang('ru');
+    vi.resetModules();
+    const { Markdown: Fresh } = await import('./Markdown');
+    // the fresh modules' store and context: their diagram plugin has not loaded mermaid yet
+    const { Provider: FreshProvider } = await import('react-redux');
+    const { makeStore: freshStore } = await import('@/testing');
+    const st = freshStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+    const render = (ui: ReactElement) => bare(<FreshProvider store={st}>{ui}</FreshProvider>);
+    vi.mocked(mermaid.initialize).mockImplementationOnce(() => { throw new Error('Failed to fetch dynamically imported module'); });
+    const first = render(<Fresh text={MERMAID} final />);
+    await waitFor(() => expect(first.container.querySelector('.mermaid-out')).toHaveTextContent('интерфейс обновился, перезагрузите страницу'));
+    const second = render(<Fresh text={MERMAID} final />);
+    await waitFor(() => expect(second.container.querySelector('.mermaid-out svg[data-test="m"]')).not.toBeNull());
+  });
+
+  describe('the open-diagram button (M7-01)', () => {
+    const SVG = '```svg\n<svg viewBox="0 0 10 10"><rect width="5" height="5"/></svg>\n```';
+    const store = () => makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+
+    it('every rendered diagram gets a button that is skipped by comment anchors', async () => {
+      const { container } = render(<Markdown text={`${MERMAID}\n\n${SVG}`} final />);
+      await waitFor(() => expect(container.querySelector('.mermaid-out svg')).not.toBeNull());
+      const buttons = container.querySelectorAll('.mermaid-out > button, .svg-out > button');
+      expect(buttons).toHaveLength(2);
+      for (const b of buttons) {
+        expect(b).toHaveAttribute('data-anchor-skip');
+        expect(b).toHaveAttribute('aria-label', t('openDiagram'));
+      }
+      expect(textOf(container.querySelector('.md')!)).not.toContain('⤢');
+    });
+
+    it('a diagram that failed to render has no button', async () => {
+      vi.mocked(mermaid.render).mockRejectedValueOnce(new Error('bad graph'));
+      const { container } = render(<Markdown text={MERMAID} final />);
+      await waitFor(() => expect(container.querySelector('.mermaid-out')).toHaveTextContent('bad graph'));
+      expect(container.querySelector('button')).toBeNull();
+    });
+
+    it('a click opens the diagram tab with its source and language', async () => {
+      const st = store();
+      const { container } = render(<Provider store={st}><Markdown text={MERMAID} final /></Provider>);
+      await waitFor(() => expect(container.querySelector('.mermaid-out > button')).not.toBeNull());
+      fireEvent.click(container.querySelector('.mermaid-out > button')!);
+      expect(selectActiveTab(st.getState())).toMatchObject({ kind: 'diagram', lang: 'mermaid', source: 'graph TD; A-->B' });
+    });
+
+    it('with no plugin nothing draws: the block stays highlighted code, nothing throws', () => {
+      const st = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }), plugins: [] });
+      const { container } = bare(<Provider store={st}><Markdown text={SVG} final /></Provider>);
+      expect(container.querySelector('.svg-out')).toBeNull();
+      expect(container.querySelector('pre code')).not.toBeNull();
+    });
+  });
+});
+
+describe('a path the composer inserts (issue 461)', () => {
+  it('a sound or video embed in a user message plays (spaces too); a file in code is a ref', async () => {
+    const { escapeMentions } = await import('@/refs/refs.ts');
+    const { pathText } = await import('@/lib/insertText.ts');
+    const text = [pathText('attachments/my take.mp3'), pathText('clips/a.mp4'), pathText('attachments/a b.zip')].join(' ');
+    const { container } = render(<Markdown text={escapeMentions(text)} final breaks mentions noHtml />);
+    expect(container.querySelector('audio')?.getAttribute('src')).toBe('/file?path=attachments%2Fmy%20take.mp3');
+    expect(container.querySelector('video')?.getAttribute('src')).toBe('/file?path=clips%2Fa.mp4');
+    expect(container.querySelector('code.ref')).toHaveAttribute('data-path', 'attachments/a b.zip');
+    cleanup();
+  });
+});

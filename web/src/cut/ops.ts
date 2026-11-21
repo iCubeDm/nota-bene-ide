@@ -466,7 +466,7 @@ export function snapMove(at: number, len: number, points: readonly number[], tol
 /** The whole frame, a clip's place when it has none. */
 export const FULL: CutPlace = { x: 0, y: 0, w: 1, h: 1 };
 /** The smallest side of a place, a fraction of the frame. */
-export const MIN_PLACE = 0.05;
+const MIN_PLACE = 0.05;
 const r4 = (x: number) => Math.round(x * 10000) / 10000;
 const within = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 

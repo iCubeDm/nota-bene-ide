@@ -1,38 +1,30 @@
-import { useEffect, useState } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { PanelResizer, usePanelWidth } from '@/shell/PanelResizer.tsx';
-import { openChanges } from '@/tabs/slice.ts';
-import { selectTree } from '@/tree/slice.ts';
+import { useState } from 'react';
+import { bool, storage, useStored, useT, useAppDispatch, openChanges } from '@/sdk';
+import { PanelResizer, usePanelWidth } from '@/sdk/ui';
 import { StatusMark } from './DiffBody.tsx';
 import { fileTree, type TreeDir } from './fileTree.ts';
-import { currentFile, focusFile, loadDiff, pickBase, setPanel, useVcsUi } from './store.ts';
+import { currentFile, focusFile, pickBase, useVcsUi } from './store.ts';
 import { useLiveDiff } from './useLiveDiff.ts';
 
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
 const dir = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
-const TREE_KEY = 'panel:changes:tree';
-const readTree = () => { try { return localStorage.getItem(TREE_KEY) === '1'; } catch { return false; } };
+/** the list as a folder tree, remembered */
+const treeView = storage.local('panel:changes:tree', bool, false);
 
 /** The tool window next to Files: what changed, from where. Clicking a file jumps to it in the Changes tab. */
 export function ChangesPanel() {
   const t = useT();
   const d = useAppDispatch();
   const { panel, focus } = useVcsUi();
-  const treeOpen = useAppSelector(selectTree).open;
-  const { root, src, base: picked, data } = useLiveDiff(panel);
+  const { root, src, base: picked, data, refresh } = useLiveDiff(panel);
   const repo = data?.repo ? data : null;
   const files = repo?.files ?? [];
   const size = usePanelWidth('panel:changes:width', 300, 200);
   const [filter, setFilter] = useState('');
-  const [tree, setTreeView] = useState(readTree);
+  const tree = useStored(treeView);
   const [shut, setShut] = useState<ReadonlySet<string>>(new Set()); // folders of the tree folded by hand
-  const setTree = (on: boolean) => {
-    setTreeView(on);
-    try { localStorage.setItem(TREE_KEY, on ? '1' : '0'); } catch { /* storage unavailable: not persisted */ }
-  };
+  const setTree = (on: boolean) => treeView.set(on);
   const toggle = (path: string) => setShut((s) => { const n = new Set(s); if (!n.delete(path)) n.add(path); return n; });
-  useEffect(() => { if (treeOpen) setPanel(false); }, [treeOpen]); // a reveal opened Files
   if (!panel) return null;
   const add = files.reduce((n, f) => n + (f.add ?? 0), 0), del = files.reduce((n, f) => n + (f.del ?? 0), 0);
   const cur = currentFile(files, focus?.path);
@@ -40,7 +32,7 @@ export function ChangesPanel() {
   const value = picked === 'BASE' || (picked && repo?.candidates.includes(picked)) ? picked : ''; // a stored branch may be gone
   const how = value === 'BASE' && repo?.how === 'reflog' ? t('vcsHowReflog') : value === 'BASE' && repo?.how === 'default' ? t('vcsHowDefault') : '';
   const fileRow = (f: (typeof files)[number], depth?: number) => (
-    <button key={f.path} type="button" onClick={() => { d(openChanges()); focusFile(f.path); }} style={depth === undefined ? undefined : { paddingLeft: 6 + depth * 14 }} className={`flex h-[26px] w-full items-center gap-1.5 rounded px-1.5 text-left text-[0.78125rem] hover:bg-muted ${cur === f ? 'bg-primary/15' : ''}`}>
+    <button key={f.path} type="button" onClick={() => { d(openChanges()); d(focusFile(f.path)); }} style={depth === undefined ? undefined : { paddingLeft: 6 + depth * 14 }} className={`flex h-[26px] w-full items-center gap-1.5 rounded px-1.5 text-left text-[0.78125rem] hover:bg-muted ${cur === f ? 'bg-primary/15' : ''}`}>
       <StatusMark s={f.status} />
       <span className="flex-none truncate text-foreground">{base(f.path)}</span>
       {depth === undefined && <span className="min-w-0 truncate text-[0.6875rem] text-muted-foreground">{dir(f.path)}</span>}
@@ -52,13 +44,13 @@ export function ChangesPanel() {
       <div className="flex h-9 flex-none items-center gap-2 px-3 text-[0.8125rem] font-semibold text-foreground">
         {t('vcsChanges')}
         <span className="flex-1" />
-        <button type="button" title={t('vcsRefresh')} aria-label={t('vcsRefresh')} onClick={() => void loadDiff(root, src, picked)} className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-muted">↻</button>
+        <button type="button" title={t('vcsRefresh')} aria-label={t('vcsRefresh')} onClick={refresh} className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-muted">↻</button>
       </div>
       {!repo ? data && <p className="p-3 text-xs text-muted-foreground">{t('vcsNoRepo')}</p> : (
         <>
           <label className="mx-2 flex flex-none flex-col gap-1 text-[0.6875rem] text-muted-foreground">
             <span>{t('vcsShow')}{how && ` · ${how}`}</span>
-            <select aria-label={t('vcsCompare')} value={value} onChange={(e) => pickBase(root, src, e.target.value || null)} className="h-[30px] truncate rounded-lg border border-transparent bg-muted/50 px-2 text-[0.78125rem] text-foreground outline-0 focus:border-input-focus-soft focus:ring-2 focus:ring-input-ring">
+            <select aria-label={t('vcsCompare')} value={value} onChange={(e) => d(pickBase(root, src, e.target.value || null))} className="h-[30px] truncate rounded-lg border border-transparent bg-muted/50 px-2 text-[0.78125rem] text-foreground outline-0 focus:border-input-focus-soft focus:ring-2 focus:ring-input-ring">
               <option value="">{repo.live ? t('vcsUncommitted') : repo.detected ? t('vcsWholeBranch', repo.detected) : t('vcsNoBase')}</option>
               {repo.live && repo.detected && <option value="BASE">{t('vcsWholeBranch', repo.detected)}</option>}
               {repo.candidates.map((b) => <option key={b} value={b}>{t('vcsWholeBranch', b)}</option>)}

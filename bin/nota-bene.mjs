@@ -53,7 +53,7 @@ import { parseProvider } from '../server/src/agent/provider.ts';
 import { RELEASE, isNewer } from '../server/src/update.ts';
 import { packageVersion as ownVersion } from '../server/src/version.ts';
 import {
-  liveWindows, pidAlive, probeInfo, readWindows, registerWindow, restartingWindows, setBuilding, unregisterWindow,
+  liveWindows, pidAlive, probeInfo, readWindows, registerWindow, restartingWindows, rootHash, setBuilding, unregisterWindow,
 } from '../server/src/windows.ts';
 
 const REPO = fileURLToPath(new URL('..', import.meta.url));
@@ -452,14 +452,15 @@ export function ensureBuildAsync(repo, env = process.env, stdio = 'inherit', loc
 // --- one window per folder ------------------------------------------------------------------------------------
 
 /**
- * The folder's launch lock: an mkdir of <stateDir>/locks/<sha1(root)[0,16]> holding a pid file. Held from before the
- * port pick until the window answers /info and is registered, so a second launch on the folder waits, then finds that
- * window instead of starting another (two launchers' bind tests can overlap, so the port alone is no arbiter).
+ * The folder's launch lock: an mkdir of <stateDir>/locks/<rootHash(root)> (the hash in the window id) holding a pid
+ * file. Held from before the port pick until the window answers /info and is registered, so a second launch on the
+ * folder waits, then finds that window instead of starting another (two launchers' bind tests can overlap, so the port
+ * alone is no arbiter).
  * A lock whose owner is dead, or older than LOCK_STALE_MS, is broken; after LOCK_WAIT_MS we go on unguarded.
  * Returns the release function (idempotent; removes the lock only while it is still ours).
  */
 export async function acquireLaunchLock(root, waitMs = LOCK_WAIT_MS) {
-  const lock = path.join(stateDir(), 'locks', createHash('sha1').update(root).digest('hex').slice(0, 16));
+  const lock = path.join(stateDir(), 'locks', rootHash(root));
   const pidFile = path.join(lock, 'pid');
   const owner = () => {
     try {

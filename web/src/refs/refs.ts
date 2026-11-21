@@ -1,8 +1,8 @@
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { t } from '@/i18n/index.ts';
-import { fileUrl, isPath } from '@/files/kinds.ts';
-import { isTmpImagePath } from '@/files/tmpImages.ts';
-import { getSources, loadSources, refOf, sourceForAbs } from '@/files/sources.ts';
+import { fileUrl, isPath } from './kinds.ts';
+import { isTmpImagePath } from './tmpImages.ts';
+import { getSources, loadSources, refOf, sourceForAbs } from './sources.ts';
 import { isServerDrivePath, serverSep, slashRel, wireAbs } from '@/lib/paths.ts';
 import type { AppThunk } from '@/store/store.ts';
 import { openFile } from '@/tabs/slice.ts';
@@ -38,13 +38,13 @@ function mark(el: HTMLElement, first: string | null, src?: string, alt?: string 
  * isPath still refuses absolute paths: this is a separate check, with the same forbidden characters. On a Windows
  * server a drive path (`C:\a`, `C:/a`) is taken in the wire form `C:/a`; a UNC one (`\\host`) never.
  */
-function markAbs(el: HTMLElement, raw: string): void {
+function markAbs(el: HTMLElement, raw: string, tmpDirs: readonly string[]): void {
   if (!(raw.startsWith('/') || isServerDrivePath(raw)) || raw.startsWith('//') || /[\n`<>|*]/.test(raw)) return;
   const abs = wireAbs(raw);
   const hit = sourceForAbs(abs);
   if (hit) return mark(el, hit.path, hit.src);
   // an image of a temp folder (the agent's screenshot): the path stays absolute, `data-tmp` tells openRef not to look in a source
-  if (isTmpImagePath(abs)) {
+  if (isTmpImagePath(abs, tmpDirs)) {
     el.classList.add('ref');
     el.dataset.path = abs;
     el.dataset.tmp = '1';
@@ -56,13 +56,13 @@ function markAbs(el: HTMLElement, raw: string): void {
  * Only classes and data attributes are added, never text or elements, so comment anchors (textOf) are unaffected.
  * `baseDir` is the directory of the md file being shown (none = project root). There a relative path has two readings:
  * inline code is project-relative first (docs name files from the root), then file-relative (`data-alt`); a link is
- * file-relative first, as a browser would read it, then project-relative.
+ * file-relative first, as a browser would read it, then project-relative. `tmpDirs`: the temp folders an image may be in.
  */
-export function markRefs(root: HTMLElement, baseDir?: string): void {
+export function markRefs(root: HTMLElement, baseDir?: string, tmpDirs: readonly string[] = []): void {
   root.querySelectorAll<HTMLElement>('code').forEach((c) => {
     if (c.closest('pre, a')) return;
     const text = slashRel(stripLine((c.textContent ?? '').trim())).replace(/^\.\//, '');
-    if (text.startsWith('/') || isServerDrivePath(text)) return markAbs(c, text);
+    if (text.startsWith('/') || isServerDrivePath(text)) return markAbs(c, text, tmpDirs);
     if (!text || !isPath(text)) return;
     mark(c, normalize(text), undefined, baseDir ? normalize(text, baseDir) : null);
   });
@@ -77,7 +77,7 @@ export function markRefs(root: HTMLElement, baseDir?: string): void {
     } catch {
       // keep raw
     }
-    if (p.startsWith('/') || drive) return markAbs(a, p);
+    if (p.startsWith('/') || drive) return markAbs(a, p, tmpDirs);
     p = slashRel(p);
     if (p) mark(a, normalize(p, baseDir), undefined, baseDir ? normalize(p) : null);
   });
@@ -86,7 +86,7 @@ export function markRefs(root: HTMLElement, baseDir?: string): void {
 type Part = { text: string } | { mention: string };
 
 /** Like splitMentions, but a mention also carries its source text (`@"a b.md"`), so rendering can keep the text unchanged. */
-export function splitMentionsRaw(text: string): ({ text: string } | { mention: string; raw: string })[] {
+function splitMentionsRaw(text: string): ({ text: string } | { mention: string; raw: string })[] {
   const out: ({ text: string } | { mention: string; raw: string })[] = [];
   const re = /(^|\s)@("[^"]+"|[^\s"]+)/g;
   let last = 0;
@@ -147,7 +147,7 @@ export function splitMentions(text: string): Part[] {
 
 const HEAD_TTL = 10_000;
 const heads = new Map<string, { at: number; ok: Promise<boolean> }>();
-/** Test hook. */
+/** Drops the HEAD answers: another root's paths are other files (the files plugin, on `enterRoot`). */
 export const clearRefCache = () => heads.clear();
 
 function exists(path: string, src = 'here'): Promise<boolean> {

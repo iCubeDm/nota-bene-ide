@@ -1,9 +1,7 @@
+import { Svg } from '@/sdk/ui';
 import hljs from 'highlight.js';
 import { memo, useMemo, useState } from 'react';
-import { useAppDispatch } from '@/store/store.ts';
-import { openFile } from '@/tabs/slice.ts';
-import { Svg } from '@/tabs/TabStrip.tsx';
-import { useT } from '@/i18n/index.ts';
+import { useAppDispatch, openFile, useT } from '@/sdk';
 import type { VcsFile } from '@nota-bene/shared';
 import type { Hunk, ParsedPatch, Row } from './parse.ts';
 

@@ -1,15 +1,7 @@
-import { memo, useContext, useId, useMemo, useState } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { selectBusy, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { ARG_KEYS, type FeedItem } from '@/store/feed.ts';
-import { collapsedLength, rawIndexOf } from '@/anchors/text.ts';
-import { openAgent, openFile } from '@/tabs/slice.ts';
-import { tmpImagePathsIn, useTmpDirs } from '@/files/tmpImages.ts';
-import { isAgentTool, selectSubagent } from '@/subagent/slice.ts';
-import { CardMenu } from '@/tasks/CardMenu.tsx';
-import { selectCallEnd, selectLiveCalls } from '@/tasks/slice.ts';
+import { memo, useContext, useId, useMemo, useState, type ComponentProps } from 'react';
+import { useT, selectBusy, useAppDispatch, useAppSelector, useRegistry, type FeedItem, collapsedLength, rawIndexOf, openFile, ARG_KEYS, toolSrcId, type ToolRenderer, tmpImagePathsIn, selectTmpDirs } from '@/sdk';
 import { FeedScope } from './scope.ts';
-import { scopedId, selectToolAnchorEnds, selectToolCommentCounts, selectToolOpen, toggleTool, toolSrcId } from './uiSlice.ts';
+import { scopedId, selectToolAnchorEnds, selectToolCommentCounts, selectToolOpen, toggleTool } from './uiSlice.ts';
 
 type Tool = Extract<FeedItem, { kind: 'tool' }>;
 
@@ -93,62 +85,6 @@ function Panel({ item, id, end }: { item: Tool; id: string; end: number }) {
   );
 }
 
-const str = (v: unknown): string => (typeof v === 'string' ? v : '');
-
-/**
- * The head of a subagent's call (Agent, or Task in older Claude Code): a card with its type, what it was asked, its
- * status and an «open» button for its conversation tab. The chevron still folds the call's own input and output, so
- * both stay commentable like any action's.
- */
-function AgentCard({ item, open, panelId, comments, onToggle }: { item: Tool; open: boolean; panelId: string; comments: number; onToggle: () => void }) {
-  const t = useT();
-  const dispatch = useAppDispatch();
-  const scope = useContext(FeedScope);
-  const mainBusy = useAppSelector(selectBusy);
-  const busy = scope.agent ? !!scope.busy : mainBusy;
-  const sub = useAppSelector((s) => selectSubagent(s, item.id));
-  // a task of this call is still live: a background agent answers at once ("launched") and goes on
-  const live = useAppSelector((s) => selectLiveCalls(s).has(item.id));
-  // a background agent's placeholder result says "launched"; how its task really ended is the task's word
-  const ended = useAppSelector((s) => selectCallEnd(s, item.id));
-  const type = str(item.input.subagent_type) || sub?.type || 'general-purpose';
-  const description = str(item.input.description) || sub?.description || '';
-  const status = item.result?.isError || (!live && ended === 'failed') ? 'error' : live ? 'running' : ended === 'stopped' ? 'stopped' : item.result ? 'done' : busy ? 'running' : 'stopped';
-  const color = status === 'error' ? 'text-destructive' : status === 'running' ? 'text-nb-accent' : 'text-muted-foreground';
-  return (
-    <div
-      data-kind="agent-card"
-      data-status={status}
-      className="my-2.5 flex items-center gap-2 rounded-md border border-border-soft bg-muted/30 py-1 pr-1.5 pl-2 font-mono text-[0.71875rem] leading-normal"
-    >
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={open ? panelId : undefined}
-        onClick={onToggle}
-        data-anchor-skip
-        className="min-w-0 flex-1 cursor-pointer truncate rounded-sm text-left text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-      >
-        <span aria-hidden="true">{open ? '▾' : '▸'}</span> <span data-agent-type className="text-foreground/80">{type}</span>
-        {description ? <span data-agent-desc> · {description}</span> : ''}
-        {!open && comments > 0 && <span className="text-nb-accent"> · {t('nComments', comments)}</span>}
-      </button>
-      <span data-anchor-skip data-agent-status className={color}>{t(status === 'running' ? 'agentRunning' : status === 'error' ? 'agentError' : status === 'stopped' ? 'agentStopped' : 'agentDone')}</span>
-      <CardMenu call={item.id} />
-      <button
-        type="button"
-        data-anchor-skip
-        data-agent-open
-        title={t('agentOpenTip')}
-        onClick={() => dispatch(openAgent({ tool: item.id, title: description || type }))}
-        className="flex-none cursor-pointer rounded border border-border-soft px-2 py-0.5 text-foreground hover:border-border hover:bg-muted"
-      >
-        {t('agentOpen')}
-      </button>
-    </div>
-  );
-}
-
 const TMP_ARGS = ['file_path', 'path', 'notebook_path', 'command'];
 const TMP_LINKS_MAX = 3;
 
@@ -156,7 +92,7 @@ const TMP_LINKS_MAX = 3;
 function TmpImages({ input }: { input: Record<string, unknown> }) {
   const t = useT();
   const dispatch = useAppDispatch();
-  const dirs = useTmpDirs();
+  const dirs = useAppSelector(selectTmpDirs);
   const paths = useMemo(() => {
     const out: string[] = [];
     for (const k of TMP_ARGS) {
@@ -178,6 +114,17 @@ function TmpImages({ input }: { input: Record<string, unknown> }) {
   );
 }
 
+/**
+ * A plugin's head for an action, with whether its conversation still works: read here, so a plain action's line does not
+ * re-render when the chat's busy flag flips (issue 471).
+ */
+function ToolHead({ head, ...p }: Omit<ComponentProps<ToolRenderer['render']>, 'busy'> & { head: ToolRenderer }) {
+  const scope = useContext(FeedScope);
+  const mainBusy = useAppSelector(selectBusy);
+  const Head = head.render;
+  return <Head {...p} busy={scope.agent ? !!scope.busy : mainBusy} />;
+}
+
 /** One action: its line, and below it, while open (state in `feedUi`), the panel. A closed line names its comments. */
 export const ToolLine = memo(function ToolLine({ item }: { item: Tool }) {
   const t = useT();
@@ -187,10 +134,11 @@ export const ToolLine = memo(function ToolLine({ item }: { item: Tool }) {
   const comments = useAppSelector((s) => selectToolCommentCounts(s)[key] ?? 0);
   const end = useAppSelector((s) => selectToolAnchorEnds(s)[key] ?? 0);
   const panelId = useId();
-  if (isAgentTool(item.name, item.toolKind)) {
+  const head = useRegistry().tools.find((r) => r.match(item));
+  if (head) {
     return (
       <div data-kind="tool">
-        <AgentCard item={item} open={open} panelId={panelId} comments={comments} onToggle={() => dispatch(toggleTool(key))} />
+        <ToolHead head={head} item={item} open={open} panelId={panelId} comments={comments} onToggle={() => dispatch(toggleTool(key))} />
         {open && <Panel item={item} id={panelId} end={end} />}
       </div>
     );

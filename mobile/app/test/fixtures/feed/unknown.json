@@ -1,0 +1,66 @@
+{
+ "events": [
+  {
+   "kind": "from-a-newer-server",
+   "x": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "from-a-newer-agent"
+   },
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "mode",
+    "mode": "plan"
+   },
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "task",
+    "id": "k1",
+    "phase": "started"
+   },
+   "ts": 1
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "suggestion",
+    "text": "next?"
+   },
+   "ts": 1
+  },
+  {
+   "kind": "restart-pending",
+   "pending": true
+  },
+  {
+   "kind": "server-error",
+   "where": "x",
+   "message": "y"
+  },
+  {
+   "kind": "agent",
+   "e": {
+    "t": "message",
+    "id": "m1:0",
+    "text": "still here"
+   },
+   "ts": 1
+  }
+ ],
+ "items": [
+  {
+   "kind": "assistant",
+   "id": "m1:0",
+   "text": "still here",
+   "final": true
+  }
+ ]
+}

@@ -4,7 +4,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'package:nb_protocol/nb_protocol.dart' show CapabilitiesProvider;
+import 'package:nb_protocol/nb_protocol.dart' show AgentProvider;
 
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
@@ -14,13 +14,12 @@ import 'context_sheet.dart' show contextColor;
 import 'session_state.dart';
 import 'window_tab.dart';
 
-/// The avatar letter of a provider: `claude` C, `codex` X, `omp` O, else the first letter or `?`.
-String providerLetter(String? provider) => switch (provider) {
-  'claude' => 'C',
-  'codex' => 'X',
-  'omp' => 'O',
-  null || '' => '?',
-  final p => p.substring(0, 1).toUpperCase(),
+/// The avatar letter of a provider: `claude` C, `codex` X, `omp` O, else `?`.
+String providerLetter(AgentProvider? provider) => switch (provider) {
+  AgentProvider.claude => 'C',
+  AgentProvider.codex => 'X',
+  AgentProvider.omp => 'O',
+  AgentProvider.$unknown || null => '?',
 };
 
 /// The web's level of a limit meter (web/src/stats/Meters.tsx): 0 below 60%, 1 (warn) from 60%, 2 (hot) from 85%.
@@ -58,10 +57,10 @@ class ChatHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
-    final f = tab.feed;
-    final ctx = tab.stats?.stats.context;
+    final f = tab.windowState.feed;
+    final ctx = tab.windowState.stats?.stats.context;
     // without a live link the avatar and the ring dim; the ring keeps the last value
-    final live = tab.state == TabState.open;
+    final live = tab.connection.state == TabState.open;
     final shape = StadiumBorder(side: BorderSide(color: c.border));
     final fill = c.popover.withValues(alpha: 0.92);
     final content = MediaQuery.withClampedTextScaling(
@@ -78,27 +77,19 @@ class ChatHeader extends StatelessWidget {
                 clipBehavior: Clip.none,
                 children: [
                   ListenableBuilder(
-                    listenable: tab.link,
+                    listenable: tab.connection.link,
                     builder: (_, _) => ProjectIconAvatar(
-                      link: tab.link,
-                      port: tab.port,
-                      icon: tab.link.windows
-                          .where((w) => w.port == tab.port)
-                          .firstOrNull
-                          ?.icon,
+                      icons: tab.stores.icons,
+                      link: tab.connection.link,
+                      port: tab.connection.port,
+                      icon: tab.connection.window?.icon,
                       size: 28,
                       semanticLabel: providerName(
-                        switch (tab.capabilities?.provider) {
-                          CapabilitiesProvider.$unknown || null => null,
-                          final p => p.name,
-                        },
+                        tab.windowState.capabilities?.provider,
                       ),
                       badge: ProviderBadge(
                         letter: providerLetter(
-                          switch (tab.capabilities?.provider) {
-                            CapabilitiesProvider.$unknown || null => null,
-                            final p => p.name,
-                          },
+                          tab.windowState.capabilities?.provider,
                         ),
                         size: 13,
                         fill: c.muted,
@@ -114,10 +105,9 @@ class ChatHeader extends StatelessWidget {
                           shape: BoxShape.circle,
                         ),
                         child: Text(
-                          providerLetter(switch (tab.capabilities?.provider) {
-                            CapabilitiesProvider.$unknown || null => null,
-                            final p => p.name,
-                          }),
+                          providerLetter(
+                            tab.windowState.capabilities?.provider,
+                          ),
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -127,7 +117,7 @@ class ChatHeader extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (live && tab.busy)
+                  if (live && tab.windowState.busy)
                     Positioned(
                       right: -1,
                       bottom: -1,
@@ -208,7 +198,7 @@ class ChatHeader extends StatelessWidget {
                     : InkWell(onTap: onTapTitle, child: content),
               ),
             ),
-            if (tab.capabilities != null || ctx != null) ...[
+            if (tab.windowState.capabilities != null || ctx != null) ...[
               const SizedBox(width: 8),
               ContextRing(
                 pct: ctx?.pct,
@@ -255,15 +245,15 @@ class _StateLineState extends State<_StateLine> {
   @override
   void initState() {
     super.initState();
-    widget.tab.link.addListener(_relink);
+    widget.tab.connection.link.addListener(_relink);
   }
 
   @override
   void didUpdateWidget(_StateLine old) {
     super.didUpdateWidget(old);
-    if (old.tab.link != widget.tab.link) {
-      old.tab.link.removeListener(_relink);
-      widget.tab.link.addListener(_relink);
+    if (old.tab.connection.link != widget.tab.connection.link) {
+      old.tab.connection.link.removeListener(_relink);
+      widget.tab.connection.link.addListener(_relink);
     }
   }
 
@@ -274,7 +264,7 @@ class _StateLineState extends State<_StateLine> {
 
   @override
   void dispose() {
-    widget.tab.link.removeListener(_relink);
+    widget.tab.connection.link.removeListener(_relink);
     _tick?.cancel();
     super.dispose();
   }
@@ -286,9 +276,9 @@ class _StateLineState extends State<_StateLine> {
     final c = Theme.of(context).extension<NbColors>()!;
     final locale = Localizations.localeOf(context).languageCode;
     // a second for the elapsed time of a turn, half a minute for "seen N min ago"
-    final every = tab.state == TabState.open && tab.busy
+    final every = tab.connection.state == TabState.open && tab.windowState.busy
         ? const Duration(seconds: 1)
-        : tab.state == TabState.offline
+        : tab.connection.state == TabState.offline
         ? const Duration(seconds: 30)
         : null;
     if (every != _every) {
@@ -301,7 +291,7 @@ class _StateLineState extends State<_StateLine> {
             });
     }
     return Text(
-      sessionLine(t, tab, tab.clock(), locale),
+      sessionLine(t, tab, tab.windowState.clock(), locale),
       key: const ValueKey('state-line'),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,

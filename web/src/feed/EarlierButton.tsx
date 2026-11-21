@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { useT, useAppDispatch, useAppSelector } from '@/sdk';
 import { loadEarlier } from './history.ts';
 
 /**

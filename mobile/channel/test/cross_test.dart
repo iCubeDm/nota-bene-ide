@@ -71,6 +71,7 @@ void main() {
   late Directory home;
   late Host host;
   late int port;
+  late String root;
   late KeyPair key;
   late Uri relay;
   late Uint8List hostPub;
@@ -79,7 +80,9 @@ void main() {
   setUpAll(() async {
     home = await Directory.systemTemp.createTemp('nb-cross-home-');
     host = await Host.start(home.path);
-    port = (await host.next('ready'))['port'] as int;
+    final ready = await host.next('ready');
+    port = ready['port'] as int;
+    root = ready['root'] as String;
     key = await generateKeyPair();
   });
 
@@ -107,7 +110,14 @@ void main() {
     deviceId = (await host.next('paired'))['id'] as String;
     final list = await ch.windows.firstWhere((l) => l.isNotEmpty);
     expect(list.single.port, port);
-    expect(list.single.provider, 'claude');
+    expect(list.single.provider, AgentProvider.claude);
+    // issue 511: the stable id, the hash of the folder (server/src/windows.ts windowKey)
+    final hash = (await Sha1().hash(utf8.encode(root))).bytes
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join()
+        .substring(0, 16);
+    expect(list.single.key, 'claude:$hash');
+    expect(ch.iconsSupported, isTrue);
     await ch.close();
   });
 

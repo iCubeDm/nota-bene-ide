@@ -1,23 +1,11 @@
-import { generatedImages, isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, isTextAnchor } from '@nota-bene/shared';
-import { useCutState } from '@/cut/live.ts';
-import { cutLine } from '@/cut/quote.ts';
-import { pageQuote } from '@/page/quote.ts';
+import { BATCH_HEAD, generatedImages, isMediaAnchor } from '@nota-bene/shared';
 import { useEffect, useRef, useState, type HTMLAttributes, type KeyboardEvent } from 'react';
-import { Attachments } from '@/attachments/Attachments.tsx';
-import { mediaTypeOf } from '@/attachments/image.ts';
-import { addImage } from '@/composer/slice.ts';
-import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { selectSwitching } from '@/controls/slice.ts';
-import { Markdown } from '@/feed/Markdown.tsx';
-import { getLang, useT } from '@/i18n/index.ts';
-import { mediaTime } from '@/media/markup/geometry.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { ClipRow } from '@/voice/ClipRow.tsx';
+import { getLang, useT, useAppDispatch, useAppSelector, useRegistry, anchorLine, anchorView, type UserPart, selectSwitching, labelOf, labelText, QUICK_LABELS, useVoice, useAttachments } from '@/sdk';
+import { Tooltip, TooltipTrigger, Markdown } from '@/sdk/ui';
 import { CardActions } from './CardActions.tsx';
 import { useCommentSource } from './useCommentSource.ts';
-import { labelText, QUICK_LABELS } from '../labels.ts';
 import { LabelTip } from '../LabelTip.tsx';
-import { editComment, removeComment, selectComments } from '../slice.ts';
+import { editComment, removeComment, selectComments, selectSentFor } from '../slice.ts';
 
 /**
  * One comment: number, where, quote (click = jump to source), text with inline edit, label chip.
@@ -30,10 +18,10 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
   // the comment set belongs to the session being left: edit and delete wait for the new one
   const switching = useAppSelector(selectSwitching);
   const c = useAppSelector(selectComments).find((x) => x.id === id);
-  const { where, orphan, beforeCompact, version, attached, jump } = useCommentSource(c);
-  const cut = c && isCutAnchor(c.anchor) ? c.anchor : null;
-  // a cut comment's clip is gone from the edit: known while the edit's tab shows it (issue 430)
-  const gone = useCutState(cut) === 'gone';
+  const { where, orphan, beforeCompact, version, jump } = useCommentSource(c);
+  const registry = useRegistry();
+  const { ClipRow } = useVoice();
+  const { Attachments } = useAttachments();
   const [editing, setEditing] = useState(false);
   const body = useRef<HTMLDivElement>(null);
   const live = useRef(false); // true while an edit is open; guards double finish (✓ then blur)
@@ -50,7 +38,9 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
   if (!c) return null;
   const sent = c.status === 'sent';
   const media = isMediaAnchor(c.anchor) ? c.anchor : null;
-  const onImage = isAttachmentAnchor(c.anchor) ? c.anchor : null;
+  // the place as its kind shows it (a picture, a clip), else as one line
+  const View = anchorView(registry, c.anchor)?.Card;
+  const go = popover || beforeCompact ? undefined : jump;
   const changed = !!media?.version && version !== undefined && version !== media.version;
   // a media comment's leading images are generated (the frame with the shapes = the thumbnail, in old comments also the layer);
   // only the pasted ones after them go to the strip
@@ -92,55 +82,12 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
         </span>
         {!sent && <CardActions editing={editing} switching={switching} start={start} finish={finish} remove={() => dispatch(removeComment(c.id))} />}
       </div>
-      {media ? (
-        <div
-          data-media-thumb
-          onClick={popover ? undefined : jump}
-          className={`flex items-end gap-2 border-l-2 border-nb-accent pl-2 text-xs text-muted-foreground ${popover ? '' : 'cursor-pointer'}`}
-        >
-          {c.images?.[0] && <img src={`/attach/${c.images[0]}`} alt="" loading="lazy" draggable={false} className="max-h-24 max-w-[60%] flex-none rounded border border-border-soft object-contain" />}
-          <span className="min-w-0 truncate font-mono text-[0.6875rem]">
-            {media.source.path.slice(media.source.path.lastIndexOf('/') + 1)}{media.time !== undefined ? ` @ ${mediaTime(media.time)}` : ''}
-          </span>
-        </div>
-      ) : onImage ? (
-        <div
-          data-media-thumb
-          onClick={popover || !attached ? undefined : jump}
-          className={`flex items-end gap-2 border-l-2 border-nb-accent pl-2 text-xs text-muted-foreground ${popover || !attached ? '' : 'cursor-pointer'}`}
-        >
-          {c.images?.[0] && <img src={`/attach/${c.images[0]}`} alt="" loading="lazy" draggable={false} className="max-h-24 max-w-[60%] flex-none rounded border border-border-soft object-contain" />}
-          {!sent && !attached && (
-            <span className="flex min-w-0 flex-col items-start gap-1">
-              <span data-detached className="rounded bg-warn/15 px-1 text-[0.6875rem] text-warn">{t('attachDetached')}</span>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); dispatch(addImage({ id: onImage.image, mediaType: mediaTypeOf(onImage.image) })); }}
-                className="rounded px-1 text-[0.6875rem] text-nb-accent hover:bg-muted"
-              >
-                {t('attachReattach')}
-              </button>
-            </span>
-          )}
-        </div>
-      ) : cut ? (
-        <div
-          data-cut-quote
-          onClick={popover ? undefined : jump}
-          className={`line-clamp-3 border-l-2 border-nb-accent pl-2 font-mono text-[0.6875rem] text-muted-foreground ${popover ? '' : 'cursor-pointer'}`}
-        >
-          {cutLine(cut, getLang())}
-        </div>
-      ) : (
-        <div
-          onClick={popover || beforeCompact ? undefined : jump}
-          className={`line-clamp-3 border-l-2 border-nb-accent pl-2 text-xs text-muted-foreground ${popover || beforeCompact ? '' : 'cursor-pointer'}`}
-        >
-          {isMediaAnchor(c.anchor) || isAttachmentAnchor(c.anchor) ? null : isPageAnchor(c.anchor) ? pageQuote(c.anchor, getLang()) : isTextAnchor(c.anchor) ? c.anchor.quote : null}
+      {View ? <View comment={c} jump={go} /> : (
+        <div onClick={go} className={`line-clamp-3 border-l-2 border-nb-accent pl-2 text-xs text-muted-foreground ${go ? 'cursor-pointer' : ''}`}>
+          {anchorLine(c.anchor, getLang())}
         </div>
       )}
       {orphan && <div className="mt-1 text-[0.6875rem] text-destructive">({t('orphaned')})</div>}
-      {gone && <div data-cut-gone className="mt-1 text-[0.6875rem] text-warn">{t('cutGoneTag')}</div>}
       {changed && <div className="mt-1 text-[0.6875rem] text-warn">{t('fileChanged')}</div>}
       <div
         key={String(editing)}
@@ -172,5 +119,37 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
         </Tooltip>
       )}
     </div>
+  );
+}
+
+/**
+ * The comments a user message carried, folded under it (issue 511): each one's quote, label, text and recordings; a
+ * replay that has no comment records shows the batch text after its head instead.
+ */
+export function SentComments({ item }: Parameters<UserPart['render']>[0]) {
+  const t = useT();
+  const sent = useAppSelector((s) => selectSentFor(s, item.id));
+  const { ClipRow } = useVoice();
+  const m = BATCH_HEAD.exec(item.text);
+  const raw = m ? item.text.slice(m.index + m[0].length) : '';
+  if (!sent.length && !raw) return null;
+  return (
+    <details data-anchor-skip className="mt-1.5 text-[0.8125rem] text-muted-foreground">
+      <summary className="cursor-pointer">{sent.length ? t('nComments', sent.length) : t('commentsLc')}</summary>
+      {sent.length
+        ? sent.map((c) => (
+            <div key={c.id} className="mt-1.5">
+              {/* the quote is text the user selected in rendered output: plain, never re-read as markdown */}
+              <blockquote className="whitespace-pre-wrap break-words border-l-2 border-nb-accent pl-2">{anchorLine(c.anchor, getLang())}</blockquote>
+              <div className="md-tight flex items-baseline gap-1">
+                <span className="flex-none">→</span>
+                {c.label && <span className="flex-none rounded bg-muted px-1">{labelOf(c)}</span>}
+                <div className="min-w-0 flex-1"><Markdown text={c.text} final={false} breaks noHtml /></div>
+              </div>
+              {c.voice?.length ? <div className="mt-1 flex flex-col gap-1">{c.voice.map((v) => <ClipRow key={v.id} voice={v} text={v.text} />)}</div> : null}
+            </div>
+          ))
+        : <div className="md-tight mt-1.5"><Markdown text={raw} final={false} breaks noHtml /></div>}
+    </details>
   );
 }

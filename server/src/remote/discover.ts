@@ -10,7 +10,8 @@ import { helperCredential, proveListener, readPrivateFile } from '../auth.ts';
 import { stateBaseDir } from '../state.ts';
 import { pidAlive, readWindows } from '../windows.ts';
 
-export type HostWindow = { port: number; provider: AgentProvider; root: string; bearer: string; nonce: string };
+/** A listed window the host proved (its /hello) and can reach: the bearer for its launch. Never sent to a phone. */
+export type ProvedWindow = { port: number; provider: AgentProvider; root: string; bearer: string; nonce: string };
 
 const PROVIDERS: AgentProvider[] = ['claude', 'codex', 'omp'];
 const TOKEN_RE = /^[0-9a-f]{64}$/;
@@ -21,13 +22,13 @@ export function providerToken(dir: string): string | null {
   return readPrivateFile(path.join(dir, 'token'), TOKEN_RE, 'a token (64 hex characters)', 'delete it to make a new token (every open window then has to be reopened)');
 }
 
-const same = (a: HostWindow, b: HostWindow) => a.port === b.port && a.provider === b.provider && a.nonce === b.nonce && a.root === b.root;
+const same = (a: ProvedWindow, b: ProvedWindow) => a.port === b.port && a.provider === b.provider && a.nonce === b.nonce && a.root === b.root;
 
 /** Events: `change(list)` when the set of windows or a launch changes, `warn(message)` for an unusable token file. */
 export class Windows extends EventEmitter {
   #pollMs: number;
   #fetchFn: typeof fetch | undefined;
-  #list = new Map<number, HostWindow>();
+  #list = new Map<number, ProvedWindow>();
   #timer: NodeJS.Timeout | undefined;
   #polling: Promise<void> | undefined;
 
@@ -48,11 +49,11 @@ export class Windows extends EventEmitter {
     clearInterval(this.#timer);
   }
 
-  list(): HostWindow[] {
+  list(): ProvedWindow[] {
     return [...this.#list.values()].sort((a, b) => a.port - b.port);
   }
 
-  get(port: number): HostWindow | undefined {
+  get(port: number): ProvedWindow | undefined {
     return this.#list.get(port);
   }
 
@@ -62,7 +63,7 @@ export class Windows extends EventEmitter {
   }
 
   /** A fresh /hello for one window (its bearer was refused): the new launch, or undefined and the window dropped. */
-  async reprove(port: number): Promise<HostWindow | undefined> {
+  async reprove(port: number): Promise<ProvedWindow | undefined> {
     const old = this.#list.get(port);
     if (!old) return undefined;
     let token: string | null = null;
@@ -77,13 +78,13 @@ export class Windows extends EventEmitter {
     return w;
   }
 
-  async #prove(port: number, provider: AgentProvider, root: string, token: string): Promise<HostWindow | undefined> {
+  async #prove(port: number, provider: AgentProvider, root: string, token: string): Promise<ProvedWindow | undefined> {
     const nonce = await proveListener({ dial: port, timeoutMs: PROVE_MS, token, ...(this.#fetchFn ? { fetchFn: this.#fetchFn } : {}) });
     return nonce === null ? undefined : { port, provider, root, nonce, bearer: `Bearer ${helperCredential(token, port, nonce)}` };
   }
 
   async #poll(): Promise<void> {
-    const found: HostWindow[] = [];
+    const found: ProvedWindow[] = [];
     await Promise.all(PROVIDERS.map(async (provider) => {
       const dir = providerStateDir(stateBaseDir(), provider);
       if (!fs.existsSync(dir)) return;
@@ -99,12 +100,12 @@ export class Windows extends EventEmitter {
       const proved = await Promise.all(entries.map(([port, w]) => this.#prove(Number(port), provider, w.root, token)));
       for (const w of proved) if (w) found.push(w);
     }));
-    const next = new Map<number, HostWindow>();
+    const next = new Map<number, ProvedWindow>();
     for (const w of found.sort((a, b) => PROVIDERS.indexOf(a.provider) - PROVIDERS.indexOf(b.provider))) if (!next.has(w.port)) next.set(w.port, w);
     this.#set(next);
   }
 
-  #set(next: Map<number, HostWindow>): void {
+  #set(next: Map<number, ProvedWindow>): void {
     const changed = next.size !== this.#list.size || [...next.values()].some((w) => {
       const o = this.#list.get(w.port);
       return !o || !same(o, w);
@@ -115,7 +116,7 @@ export class Windows extends EventEmitter {
 }
 
 /** GET /info of a window with its bearer: the window's fields, or null. */
-export async function windowInfo(w: HostWindow, fetchFn: typeof fetch = fetch): Promise<Record<string, unknown> | null> {
+export async function windowInfo(w: ProvedWindow, fetchFn: typeof fetch = fetch): Promise<Record<string, unknown> | null> {
   try {
     const r = await fetchFn(`http://127.0.0.1:${w.port}/info`, { headers: { authorization: w.bearer }, signal: AbortSignal.timeout(2000), redirect: 'error' });
     if (!r.ok) return null;

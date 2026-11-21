@@ -1,12 +1,9 @@
+import { FileIcon } from '@/sdk/ui';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { setValueAndCaret } from '@/comments/insertText.ts';
-import { FileIcon } from '@/files/FileIcon.tsx';
-import { placeListFor, revealSelected } from './placeList.ts';
-import { apiFetch } from '@/net/auth.ts';
+import { useStore } from 'react-redux';
+import { useT, connections, routes, setValueAndCaret, placeListFor, revealSelected, AT_RE, useComposerField, type RootState } from '@/sdk';
+import { selectShellMode } from './shellMode.ts';
 
-// copied from the prototype: `@` at a word start, up to the caret
-export const AT_RE = /(^|\s)@("[^"]*|[^\s"]*)$/;
 // the `:` shortcode trigger (ShortcodePicker); when it is closer to the caret than the `@`, it owns the keys
 const SHORTCODE = /(^|\s):[a-z0-9_+-]{2,}:?$/i;
 const DEBOUNCE_MS = 80;
@@ -24,7 +21,7 @@ export function highlight(text: string, q: string): ReactNode[] {
  * while open, keys are taken at WINDOW capture so Enter/Tab/Esc never reach the host's own handlers.
  */
 /** A path as a shell word: as it is when it is safe, else in single quotes. */
-export const shellWord = (p: string): string => (/^[\w@%+=:,./-]+$/.test(p) ? p : `'${p.replaceAll("'", "'\\''")}'`);
+const shellWord = (p: string): string => (/^[\w@%+=:,./-]+$/.test(p) ? p : `'${p.replaceAll("'", "'\\''")}'`);
 
 /** `shell`: the field holds a `! cmd` draft right now; the pick is then the plain path (a shell word), not an `@` mention the shell would not know. */
 export function MentionPicker({ target, shell }: { target: RefObject<HTMLTextAreaElement | null>; shell?: () => boolean }) {
@@ -56,7 +53,7 @@ export function MentionPicker({ target, shell }: { target: RefObject<HTMLTextAre
       const mine = ++seq;
       ctl?.abort();
       ctl = new AbortController();
-      apiFetch(`/complete?q=${encodeURIComponent(q)}`, { signal: ctl.signal })
+      connections.current().fetch(routes.complete(q), { signal: ctl.signal })
         .then((r) => (r.ok ? (r.json() as Promise<string[]>) : Promise.reject(new Error(String(r.status)))))
         .then((items) => {
           if (mine !== seq) return; // a newer keystroke won
@@ -163,4 +160,11 @@ export function MentionPicker({ target, shell }: { target: RefObject<HTMLTextAre
       })}
     </div>
   );
+}
+
+/** The mention picker of any message field (`composer.pickers`); in the composer a `! cmd` draft takes plain paths. */
+export function MentionPart() {
+  const { kind, field } = useComposerField();
+  const store = useStore<RootState>();
+  return <MentionPicker target={field} shell={kind === 'chat' ? () => selectShellMode(store.getState()) : undefined} />;
 }

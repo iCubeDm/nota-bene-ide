@@ -5,7 +5,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:markdown/markdown.dart' as md;
-import 'package:nb_protocol/nb_protocol.dart' show AnchorSourceFile, TextAnchor;
+import 'package:nb_protocol/nb_protocol.dart'
+    show AnchorSourceFile, TextAnchor, VcsFile, VcsFileStatus, VcsPatch;
 
 import '../comments/strings.g.dart';
 import '../chat/code.dart' show CodeMark, highlightSpans, paintMarks;
@@ -19,7 +20,7 @@ import '../theme.dart';
 import '../ui/nb_icon.dart';
 import '../ui/pinch_scale.dart';
 import 'git.dart';
-import 'remote.dart';
+import 'repository.dart';
 import 'text_file_screen.dart' show ErrorRetry;
 
 /// A diff of more rows than this waits for "Show anyway" (the desktop's limit).
@@ -42,10 +43,10 @@ class DiffScreen extends StatefulWidget {
     this.ref,
   });
   final WindowTab tab;
-  final GitFile file;
+  final VcsFile file;
 
   /// Reads the patch (the working diff's or a commit's).
-  final Future<Patch> Function() load;
+  final Future<VcsPatch> Function() load;
 
   /// The commit's short hash for a commit's diff: part of the comment's anchor source.
   final String? ref;
@@ -55,7 +56,7 @@ class DiffScreen extends StatefulWidget {
 }
 
 class _DiffScreenState extends State<DiffScreen> {
-  Patch? _patch;
+  VcsPatch? _patch;
   ParsedPatch? _parsed;
   FilesError? _error;
   bool _force = false;
@@ -78,7 +79,7 @@ class _DiffScreenState extends State<DiffScreen> {
       _parsed = null;
       _error = null;
     });
-    Patch? patch;
+    VcsPatch? patch;
     FilesError? error;
     try {
       patch = await widget.load();
@@ -90,7 +91,7 @@ class _DiffScreenState extends State<DiffScreen> {
     if (!mounted) return;
     setState(() {
       _patch = patch;
-      _parsed = patch == null ? null : parsePatch(patch.text);
+      _parsed = patch == null ? null : parsePatch(patch.patch);
       _index(_parsed);
       _error = error;
     });
@@ -198,14 +199,16 @@ class _DiffScreenState extends State<DiffScreen> {
     if (p == null || patch == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (widget.file.binary || p.binary) return _note(webString('binary', lang));
+    if (widget.file.binary || p.binary) {
+      return _note(webString(WebKey.binary, lang));
+    }
     if (p.hunks.isEmpty) {
       return _note(
         patch.truncated
-            ? webString('vcsTooBig', lang)
-            : widget.file.status == 'A'
-            ? webString('vcsEmptyFile', lang)
-            : webString('vcsOnlyMeta', lang),
+            ? webString(WebKey.vcsTooBig, lang)
+            : widget.file.status == VcsFileStatus.a
+            ? webString(WebKey.vcsEmptyFile, lang)
+            : webString(WebKey.vcsOnlyMeta, lang),
       );
     }
     if (p.size > bigDiffRows && !_force) {
@@ -213,10 +216,10 @@ class _DiffScreenState extends State<DiffScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(batchTemplate('vcsBigDiff', lang, [p.size])),
+            Text(batchTemplate(BatchKey.vcsBigDiff, lang, [p.size])),
             TextButton(
               onPressed: () => setState(() => _force = true),
-              child: Text(webString('vcsShowAnyway', lang)),
+              child: Text(webString(WebKey.vcsShowAnyway, lang)),
             ),
           ],
         ),
@@ -228,7 +231,7 @@ class _DiffScreenState extends State<DiffScreen> {
           Padding(
             padding: const EdgeInsets.all(8),
             child: Text(
-              webString('vcsTooBig', lang),
+              webString(WebKey.vcsTooBig, lang),
               style: TextStyle(color: c.accent),
             ),
           ),
@@ -301,7 +304,7 @@ class _DiffScreenState extends State<DiffScreen> {
                   onPressed: _patch == null
                       ? null
                       : () => Clipboard.setData(
-                          ClipboardData(text: _patch!.text),
+                          ClipboardData(text: _patch!.patch),
                         ),
                 ),
               ],

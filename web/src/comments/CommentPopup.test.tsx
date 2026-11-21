@@ -1,3 +1,4 @@
+import { switchSession } from '@/sdk';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -5,11 +6,12 @@ import { parseClientMessage, type ClientMessage, type MediaAnchor } from '@nota-
 import { Composer } from '@/composer/Composer.tsx';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/store/store.ts';
-import { switchSession } from '@/controls/slice.ts';
+import { makeStore } from '@/testing';
 import { getToasts, resetToasts } from '@/shell/toast.ts';
-import { CommentPopup, type PendingComment } from './CommentPopup.tsx';
-import { labelText, QUICK_LABELS } from './labels.ts';
+import { CommentPopup } from './CommentPopup.tsx';
+import type { PendingComment } from '@/sdk';
+import { deleteMarks } from '@/media/markup/createMediaComment.ts';
+import { labelText, QUICK_LABELS } from '@/anchors/labels.ts';
 import { setPanelOpen } from './slice.ts';
 import type { PendingSelection } from './SelectionButton.tsx';
 
@@ -158,8 +160,8 @@ it('⌘Enter in the popup does not reach the composer', async () => {
   expect(screen.getByPlaceholderText(/Message the agent/)).toHaveValue('draft');
 });
 
-vi.mock('@/attachments/image.ts', async (orig) => ({
-  ...(await orig<typeof import('@/attachments/image.ts')>()),
+vi.mock('@/lib/image.ts', async (orig) => ({
+  ...(await orig<typeof import('@/lib/image.ts')>()),
   prepareImage: async (f: File) => f,
   uploadImage: async () => ({ id: 'e'.repeat(64), mediaType: 'image/png' }),
 }));
@@ -199,7 +201,7 @@ it('issue 497: an older server would refuse images or a drawing alone, so Add wa
   expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled();
   cleanup();
   const prepare = vi.fn(async () => ({ images: [FRAME, LAYER] }));
-  const { comments, onClose } = setup({ ...pending, anchor: mediaAnchor(), id: MID, prepare }, undefined, 25);
+  const { comments, onClose } = setup({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare }, undefined, 25);
   expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled();
   // Cmd+Enter neither saves the drawing's files nor closes the popup: nothing is left behind or lost
   fireEvent.keyDown(box(), { key: 'Enter', metaKey: true });
@@ -263,6 +265,8 @@ it('opened by typing: the typed letter is in the field, the caret after it', asy
 // ---- media comments (Task 6) ----
 
 const MID = '0f8fad5b-d9cb-469f-a165-70867728950e';
+/** what the media view gives a drawing to drop its folder with (issue 545) */
+const discard = () => deleteMarks(MID);
 const mediaAnchor = (over: Partial<MediaAnchor> = {}): MediaAnchor => ({
   kind: 'media', source: { kind: 'file', path: 'media/scene_v6.png' }, width: 1000, height: 500,
   shapes: [
@@ -279,26 +283,26 @@ const deferred = <T,>() => {
 const FRAME = '1'.repeat(64), LAYER = '2'.repeat(64);
 
 it('the popup quote for a media anchor shows the file and the shape count, not a text quote', () => {
-  setup({ ...pending, anchor: mediaAnchor(), id: MID, prepare: async () => ({ images: [] }) });
+  setup({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare: async () => ({ images: [] }) });
   expect(screen.getByText('scene_v6.png · 2 shapes')).toBeInTheDocument();
   expect(screen.queryByText(/«/)).toBeNull();
 });
 
 it('issue 494: a comment on the whole picture (no shapes) shows the file alone', () => {
-  setup({ ...pending, anchor: mediaAnchor({ shapes: [] }), id: MID, prepare: async () => ({ images: [] }) });
+  setup({ ...pending, anchor: mediaAnchor({ shapes: [] }), id: MID, discard, prepare: async () => ({ images: [] }) });
   expect(screen.getByText('scene_v6.png')).toBeInTheDocument();
 });
 
 it('a video quote has the time; one shape is singular', () => {
   const a = mediaAnchor({ source: { kind: 'file', path: 'clip.mp4' }, time: 4.24, shapes: [mediaAnchor().shapes[0]!] });
-  setup({ ...pending, anchor: a, id: MID, prepare: async () => ({ images: [] }) });
+  setup({ ...pending, anchor: a, id: MID, discard, prepare: async () => ({ images: [] }) });
   expect(screen.getByText('clip.mp4 @ 0:04.240 · 1 shape')).toBeInTheDocument();
 });
 
 it('Add on a media comment: no text needed; awaits prepare with a disabled spinner button, then adds with the id and [frame, layer]', async () => {
   const d = deferred<{ images: string[] }>();
   const onAdded = vi.fn();
-  const { comments, onClose } = setup({ ...pending, anchor: mediaAnchor(), id: MID, prepare: () => d.promise }, onAdded);
+  const { comments, onClose } = setup({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare: () => d.promise }, onAdded);
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
   const add = screen.getByRole('button', { name: 'Add' });
   expect(add).toBeDisabled();
@@ -313,7 +317,7 @@ it('Add on a media comment: no text needed; awaits prepare with a disabled spinn
 });
 
 it('a quick label on a media comment adds it labelled, after prepare', async () => {
-  const { comments } = setup({ ...pending, anchor: mediaAnchor(), id: MID, prepare: async () => ({ images: [FRAME, LAYER] }) });
+  const { comments } = setup({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare: async () => ({ images: [FRAME, LAYER] }) });
   fireEvent.change(box(), { target: { value: 'sit here' } });
   await act(async () => void fireEvent.click(screen.getByRole('button', { name: 'Verify this' })));
   expect(comments()[0]).toMatchObject({ id: MID, text: 'sit here', label: 'verify', images: [FRAME, LAYER] });
@@ -321,7 +325,7 @@ it('a quick label on a media comment adds it labelled, after prepare', async () 
 
 it('a failed prepare shows the error and keeps the popup open; nothing is added', async () => {
   const onAdded = vi.fn();
-  const { comments, onClose } = setup({ ...pending, anchor: mediaAnchor(), id: MID, prepare: async () => { throw new Error('marks 500'); } }, onAdded);
+  const { comments, onClose } = setup({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare: async () => { throw new Error('marks 500'); } }, onAdded);
   fireEvent.change(box(), { target: { value: 'keep me' } });
   await act(async () => void fireEvent.click(screen.getByRole('button', { name: 'Add' })));
   expect(screen.getByText(/Could not save the drawing.*marks 500/)).toBeInTheDocument();
@@ -335,7 +339,7 @@ it('a failed prepare shows the error and keeps the popup open; nothing is added'
 it('while Add saves, Esc and a click outside are ignored: the popup stays and the comment is added with the text', async () => {
   const d = deferred<{ images: string[] }>();
   const onAdded = vi.fn();
-  const { comments, onClose } = setup({ ...pending, anchor: mediaAnchor(), id: MID, prepare: () => d.promise }, onAdded);
+  const { comments, onClose } = setup({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare: () => d.promise }, onAdded);
   fireEvent.change(box(), { target: { value: 'keep me' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
   expect(fireEvent.keyDown(document, { key: 'Escape' })).toBe(false); // still taken (never reaches the agent), no close
@@ -355,7 +359,7 @@ it('the popup unmounted while Add saves (its tab closed): the save still finishe
   try {
     const d = deferred<{ images: string[] }>();
     const onAdded = vi.fn();
-    const { comments } = setup({ ...pending, anchor: mediaAnchor(), id: MID, prepare: () => d.promise }, onAdded);
+    const { comments } = setup({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare: () => d.promise }, onAdded);
     fireEvent.change(box(), { target: { value: 'keep me' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     cleanup();
@@ -372,7 +376,7 @@ it('the popup unmounted while Add saves (its tab closed): the save still finishe
 it('the popup unmounted while Add saves and the save fails: a toast says so and carries the typed text', async () => {
   resetToasts();
   const d = deferred<{ images: string[] }>();
-  const { comments } = setup({ ...pending, anchor: mediaAnchor(), id: MID, prepare: () => d.promise });
+  const { comments } = setup({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare: () => d.promise });
   fireEvent.change(box(), { target: { value: 'keep me' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
   cleanup();
@@ -386,7 +390,7 @@ it('a session switch that starts after the popup unmounted still aborts the save
   vi.stubGlobal('fetch', fetchMock);
   try {
     const d = deferred<{ images: string[] }>();
-    const { comments, store } = setup({ ...pending, anchor: mediaAnchor(), id: MID, prepare: () => d.promise });
+    const { comments, store } = setup({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare: () => d.promise });
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     cleanup(); // the tab closed: no more renders, so a render-time ref would never see the switch
     store.dispatch(switchSession('x', '/r'));
@@ -400,7 +404,7 @@ it('a session switch that starts after the popup unmounted still aborts the save
 
 it('a save that finishes after the user moved on (unmounted) leaves the DOM selection and the panel alone', async () => {
   const d = deferred<{ images: string[] }>();
-  const { comments, store } = setup({ ...pending, anchor: mediaAnchor(), id: MID, prepare: () => d.promise });
+  const { comments, store } = setup({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare: () => d.promise });
   store.dispatch(setPanelOpen(false));
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
   cleanup();
@@ -419,7 +423,7 @@ it('a save that finishes after the user moved on (unmounted) leaves the DOM sele
 
 it('a save that finishes while the popup is hidden (its tab in the background) leaves the selection and the panel alone', async () => {
   const d = deferred<{ images: string[] }>();
-  const { comments, store, rerender } = setupHidable({ ...pending, anchor: mediaAnchor(), id: MID, prepare: () => d.promise });
+  const { comments, store, rerender } = setupHidable({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare: () => d.promise });
   store.dispatch(setPanelOpen(false));
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
   rerender(true);
@@ -434,7 +438,7 @@ it('a save that finishes while the popup is hidden (its tab in the background) l
 
 it('the anchor patch from prepare (scale, version, the exact time) lands on the comment', async () => {
   const { comments } = setup({
-    ...pending, anchor: mediaAnchor({ time: 1 }), id: MID,
+    ...pending, anchor: mediaAnchor({ time: 1 }), id: MID, discard,
     prepare: async () => ({ images: [FRAME, LAYER], anchor: { scale: 0.75, version: 'W/"5-1"', time: 4.241 } }),
   });
   await act(async () => void fireEvent.click(screen.getByRole('button', { name: 'Add' })));
@@ -447,7 +451,7 @@ it('a session switch during prepare: no comment, and the popup stays busy until 
   vi.stubGlobal('fetch', fetchMock);
   try {
     const d = deferred<{ images: string[] }>();
-    const { comments, store } = setup({ ...pending, anchor: mediaAnchor(), id: MID, prepare: () => d.promise });
+    const { comments, store } = setup({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare: () => d.promise });
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     act(() => void store.dispatch(switchSession('x', '/r')));
     await act(async () => d.resolve({ images: [FRAME, LAYER] }));
@@ -463,7 +467,7 @@ it('a session switch during prepare: no comment, and the popup stays busy until 
 
 it('two clicks on Add in one tick start one prepare', async () => {
   const prepare = vi.fn(async () => ({ images: [FRAME, LAYER] }));
-  const { comments } = setup({ ...pending, anchor: mediaAnchor(), id: MID, prepare });
+  const { comments } = setup({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare });
   const add = screen.getByRole('button', { name: 'Add' });
   await act(async () => { add.click(); add.click(); }); // no re-render between them: only the ref can tell
   expect(prepare).toHaveBeenCalledTimes(1);

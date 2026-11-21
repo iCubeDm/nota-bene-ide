@@ -1,0 +1,84 @@
+{
+ "events": [
+  {
+   "kind": "shell-start",
+   "id": "s1",
+   "cmd": "ls",
+   "ts": 1
+  },
+  {
+   "kind": "shell-out",
+   "id": "s1",
+   "text": "a",
+   "truncated": false
+  },
+  {
+   "kind": "shell-out",
+   "id": "s1",
+   "text": "a\nb",
+   "truncated": false
+  },
+  {
+   "kind": "shell-end",
+   "id": "s1",
+   "cmd": "ls",
+   "output": "a\nb\n",
+   "truncated": false,
+   "code": 0,
+   "ts": 2
+  },
+  {
+   "kind": "shell-out",
+   "id": "s1",
+   "text": "late frame",
+   "truncated": false
+  },
+  {
+   "kind": "shell-end",
+   "id": "s2",
+   "cmd": "false",
+   "output": "",
+   "truncated": false,
+   "code": 1,
+   "ts": 3
+  },
+  {
+   "kind": "shell-start",
+   "id": "s3",
+   "cmd": "sleep 9",
+   "ts": 4
+  },
+  {
+   "kind": "shell-start",
+   "id": "s3",
+   "cmd": "sleep 9 again",
+   "ts": 5
+  }
+ ],
+ "items": [
+  {
+   "kind": "shell",
+   "id": "s1",
+   "cmd": "ls",
+   "output": "a\nb\n",
+   "running": false,
+   "code": 0
+  },
+  {
+   "kind": "shell",
+   "id": "s2",
+   "cmd": "false",
+   "output": "",
+   "running": false,
+   "code": 1
+  },
+  {
+   "kind": "shell",
+   "id": "s3",
+   "cmd": "sleep 9 again",
+   "output": "",
+   "running": true,
+   "code": null
+  }
+ ]
+}

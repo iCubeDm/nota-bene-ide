@@ -3,7 +3,7 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { CommentPopup } from './CommentPopup.tsx';
 import { loadEmoji } from './emoji.ts';
 import type { PendingSelection } from './SelectionButton.tsx';

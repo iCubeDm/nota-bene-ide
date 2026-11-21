@@ -24,6 +24,62 @@ void main() {
     for (final item in fixtures('usage')) {
       expect(UsageReport.fromJson(item).toJson(), equals(item));
     }
+    for (final item in fixtures('host')) {
+      expect(HostStreamMessage.fromJson(item).toJson(), equals(item));
+    }
+  });
+
+  test('a host window without an id (a host before issue 511) parses', () {
+    final m = HostStreamMessage.fromJson(fixtures('host')[1]);
+    expect(m.windows.single.id, isNull);
+    expect(m.windows.single.port, 4781);
+    expect(m.windows.single.provider, AgentProvider.omp);
+  });
+
+  test('every HTTP answer fixture round-trips', () {
+    final answers = asMap(
+      jsonDecode(
+        File('../../shared/fixtures/protocol.json').readAsStringSync(),
+      ),
+    )['answers'];
+    final parse = <String, Object? Function(Map<String, Object?>)>{
+      'VcsDiff': VcsDiff.fromJson,
+      'VcsPatch': VcsPatch.fromJson,
+      'VcsLog': VcsLog.fromJson,
+      'VcsCommitDetail': VcsCommitDetail.fromJson,
+      'GitSwitchAnswer': GitSwitchAnswer.fromJson,
+      'TreeEntry': TreeEntry.fromJson,
+      'ProjectIconAnswer': ProjectIconAnswer.fromJson,
+    };
+    for (final MapEntry(:key, :value) in asMap(answers).entries) {
+      for (final item in value as List) {
+        if (key == 'CompleteAnswer') {
+          expect(item, isA<List>());
+          final CompleteAnswer hits = List<String>.from(item as List);
+          expect(hits, item);
+          continue;
+        }
+        final json = asMap(item);
+        expect(
+          (parse[key]!(json) as dynamic).toJson(),
+          equals(json),
+          reason: key,
+        );
+      }
+    }
+  });
+
+  test('vcs answers parse to their variants', () {
+    expect(VcsDiff.fromJson({'repo': false}), isA<VcsNoRepo>());
+    expect(
+      GitSwitchAnswer.fromJson({'error': 'busy'}),
+      isA<GitSwitchRefusal>().having(
+        (r) => r.error,
+        'error',
+        GitSwitchError.busy,
+      ),
+    );
+    expect(GitSwitchAnswer.fromJson({'branch': 'main'}), isA<GitSwitched>());
   });
 
   test('a nested replay parses to its own variants', () {
@@ -48,6 +104,18 @@ void main() {
     expect(e.mode, AgentMode.$unknown);
   });
 
+  test('a refusal for a reason not known yet is a refusal', () {
+    final a = GitSwitchAnswer.fromJson({'error': 'from-the-future'});
+    expect((a as GitSwitchRefusal).error, GitSwitchError.$unknown);
+    // and it goes back as it came, not as a throw
+    expect(a.toJson(), {'error': 'from-the-future'});
+    expect(
+      () => const GitSwitchRefusal(error: GitSwitchError.$unknown).toJson(),
+      throwsStateError,
+      reason: 'one made here has nothing to send',
+    );
+  });
+
   test('\$unknown cannot be sent', () {
     expect(() => AgentMode.$unknown.toJson(), throwsStateError);
   });
@@ -62,5 +130,12 @@ void main() {
     final out = ServerEvent.fromJson(session).toJson();
     expect(out.containsKey('title'), isTrue);
     expect(out['title'], isNull);
+  });
+
+  test('has: at, below and above its protocol, and with none', () {
+    expect(has(Feature.voice.protocol, Feature.voice), isTrue);
+    expect(has(Feature.voice.protocol - 1, Feature.voice), isFalse);
+    expect(has(protocolVersion, Feature.voice), isTrue);
+    expect(has(null, Feature.activity), isFalse);
   });
 }

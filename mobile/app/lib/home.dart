@@ -7,6 +7,7 @@ import 'package:nb_channel/nb_channel.dart';
 
 import 'hosts/host_link.dart';
 import 'hosts/icon_flow.dart';
+import 'hosts/project_icon.dart' show ProjectIcons;
 import 'hosts/hosts_screen.dart';
 import 'hosts/rename_host.dart';
 import 'l10n/app_localizations.dart';
@@ -21,6 +22,7 @@ class Home extends StatefulWidget {
     super.key,
     required this.hosts,
     required this.seen,
+    required this.icons,
     required this.links,
     required this.onPair,
     required this.chat,
@@ -31,6 +33,7 @@ class Home extends StatefulWidget {
 
   final Hosts hosts;
   final Seen seen;
+  final ProjectIcons icons;
   final DateTime Function() clock;
   final Links links;
   final VoidCallback onPair;
@@ -58,7 +61,7 @@ class _HomeState extends State<Home> {
     widget.hosts.addListener(_changed);
     widget.seen.addListener(_changed);
     _tapped = widget.opened?.listen((p) {
-      _want = '${p.hostId} ${p.port} ${p.root}';
+      _want = '${p.hostId} ${p.window}';
       _lastTried = false;
       _openLast();
     });
@@ -85,7 +88,7 @@ class _HomeState extends State<Home> {
   void _openLast() {
     if (_lastTried || !mounted) return;
     final last = (_want ?? widget.hosts.lastChat)?.split(' ');
-    if (last == null || last.length < 3) {
+    if (last == null || last.length < 2) {
       _lastTried = true;
       return;
     }
@@ -97,10 +100,15 @@ class _HomeState extends State<Home> {
     if (link.state == LinkState.connecting) return; // wait for the first answer
     _lastTried = true;
     if (link.state != LinkState.online) return;
-    final port = int.tryParse(last[1]);
+    // `hostId key`; before issue 511 `hostId port root`, found once by port and folder and saved anew on open
+    final port = last.length > 2 ? int.tryParse(last[1]) : null;
     final root = last.sublist(2).join(' ');
     final w = link.windows
-        .where((w) => w.port == port && w.root == root)
+        .where(
+          (w) => port == null
+              ? w.key == last[1]
+              : w.port == port && w.root == root,
+        )
         .firstOrNull;
     if (w != null) _open(link, w);
   }
@@ -108,7 +116,7 @@ class _HomeState extends State<Home> {
   void _open(HostLink link, HostWindow w) {
     _lastTried = true;
     _want = null;
-    unawaited(widget.hosts.setLastChat('${link.host.id} ${w.port} ${w.root}'));
+    unawaited(widget.hosts.setLastChat('${link.host.id} ${w.key}'));
     Navigator.of(context)
       ..popUntil((r) => r.isFirst)
       ..push(
@@ -159,6 +167,7 @@ class _HomeState extends State<Home> {
           : HostsList(
               links: widget.links.all,
               seen: widget.seen,
+              icons: widget.icons,
               clock: widget.clock,
               onOpen: _open,
               onForget: (l) => widget.hosts.forget(l.host.id),

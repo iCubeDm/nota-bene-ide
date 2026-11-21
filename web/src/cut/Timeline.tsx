@@ -1,10 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type DragEvent, type PointerEvent, type ReactNode, type RefObject } from 'react';
+import { EdgeBackIcon, EdgeForwardIcon, FrameBackIcon, FrameForwardIcon, PauseIcon, PlayIcon } from '@/sdk/ui';
+import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type PointerEvent, type ReactNode, type RefObject } from 'react';
 import { clipLength, type Cut } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
-import { projectFileUrl } from '@/files/kinds.ts';
-import { useT } from '@/i18n/index.ts';
-import { EdgeBackIcon, EdgeForwardIcon, FrameBackIcon, FrameForwardIcon, PauseIcon, PlayIcon } from '@/media/playerIcons.tsx';
-import { isMac, withKeys } from '@/shell/keymap.ts';
+import { useT, isMac, withKeys, projectFileUrl, useStored } from '@/sdk';
 import { PATH_MIME } from './drag.ts';
 import { flashStyle, type CutFlash } from './changes.ts';
 import type { Editing } from './editing.ts';
@@ -410,7 +408,7 @@ function NoteTick({ n, pps, onNote }: { n: CutNote; pps: number; onNote?: (n: Cu
 }
 
 // the parts that move with the clock re-render on their own, not the whole timeline on each frame
-const usePlayerState = (p: CutPlayer) => useSyncExternalStore(p.subscribe, p.state);
+const usePlayerState = (p: CutPlayer) => useStored({ subscribe: p.subscribe, get: p.state });
 
 function Head({ player, pps, children, ...rest }: { player: CutPlayer; pps: number; className: string; children?: ReactNode; 'data-playhead'?: boolean }) {
   const { t } = usePlayerState(player);

@@ -1,10 +1,6 @@
 import type { RemoteState } from '@nota-bene/shared';
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu.tsx';
-import { useT } from '@/i18n/index.ts';
-import { remotePage } from '@/net/local.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { openRemote } from '@/tabs/slice.ts';
-import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
+import { useT, useAppDispatch, useAppSelector, openRemote, remotePage } from '@/sdk';
+import { DropdownMenuItem, MENU_ROW, ICONS, Svg } from '@/sdk/ui';
 import { indicator, selectRemote, type Indicator } from './slice.ts';
 
 const DOT: Record<Indicator, string> = { off: '', connecting: 'bg-warn', online: 'bg-success', trouble: 'bg-destructive' };
@@ -23,7 +19,7 @@ export function troubleWhy(s: RemoteState | null, t: ReturnType<typeof useT>): s
  * The settings menu's Remote access row: the connector's state at a glance; it opens the Remote tab. Not on another
  * computer's page shown through this one (issue 297): its proxy refuses /remote, the access is that computer's to change.
  */
-export function RemoteMenuItem({ className }: { className: string }) {
+export function RemoteMenuRow() {
   const t = useT();
   const d = useAppDispatch();
   const { supported, state } = useAppSelector(selectRemote);
@@ -31,7 +27,7 @@ export function RemoteMenuItem({ className }: { className: string }) {
   const ind = indicator(state);
   const phones = state?.devices.filter((x) => x.online).length ?? 0;
   return (
-    <DropdownMenuItem id="remoteMenu" data-state={ind} onSelect={() => d(openRemote())} className={className}>
+    <DropdownMenuItem id="remoteMenu" data-state={ind} onSelect={() => d(openRemote())} className={MENU_ROW}>
       <Svg size={15}>{ICONS.remote}</Svg>
       <span className="flex-1">{t('remoteMenu')}</span>
       <span className={`flex items-center gap-1.5 ${TONE[ind]}`}>

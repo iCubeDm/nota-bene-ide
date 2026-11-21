@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
-import { useAppDispatch } from '@/store/store.ts';
-import { reportActivity } from './slice.ts';
+import { pageVisible, useAppDispatch, reportActivity } from '@/sdk';
 
 const EVENTS = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'scroll', 'focus'] as const;
 
@@ -12,7 +11,7 @@ export function useActivity(): void {
   const dispatch = useAppDispatch();
   useEffect(() => {
     const on = () => {
-      if (document.visibilityState === 'visible') dispatch(reportActivity());
+      if (pageVisible()) dispatch(reportActivity());
     };
     for (const e of EVENTS) window.addEventListener(e, on, { capture: true, passive: true });
     document.addEventListener('visibilitychange', on);
@@ -21,4 +20,10 @@ export function useActivity(): void {
       document.removeEventListener('visibilitychange', on);
     };
   }, [dispatch]);
+}
+
+/** useActivity as a part of the frame (a slot), rendering nothing. */
+export function Activity(): null {
+  useActivity();
+  return null;
 }

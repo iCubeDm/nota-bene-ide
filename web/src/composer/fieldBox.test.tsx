@@ -6,13 +6,13 @@ import type { ClientMessage, PromptEntry } from '@nota-bene/shared';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { CommentPopup } from '@/comments/CommentPopup.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { Composer } from './Composer.tsx';
 import { historySlice } from './history.ts';
-import { promptHistoryModal } from './historyModal.ts';
 
 beforeEach(() => { setLang('en'); vi.stubGlobal('fetch', vi.fn(async () => new Response('{"prompts":[]}'))); });
-afterEach(() => { cleanup(); promptHistoryModal.close(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 function store() {
   const s = makeStore({ url: 'ws://x', connect: ((_u: unknown, _e: unknown, onState: (st: 'open') => void) => (onState('open'), { send: (_m: ClientMessage) => true, close() {} })) as never });

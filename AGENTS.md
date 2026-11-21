@@ -18,6 +18,7 @@ result does not need.
 - `mobile/protocol/`: Dart types generated from `shared/`; after a protocol change run `npm run gen:protocol` (CI fails on stale output).
 - `server/`: Node server, SessionManager, agent backends, files/auth/persistence.
 - `web/`: React/Redux UI. `bin/`: launcher. `plugin/`: Claude Code `/nb` plugin.
+- `web/src/sdk/`: the only core module a feature folder imports; `scripts/boundaries.test.ts` enforces it with a baseline that only shrinks.
 - Architecture: [docs/architecture.md](docs/architecture.md).
 - Development, launcher and packaging: [agent reference](docs/agent-reference.md#rebuild-root).
 - Auth, state, socket and protocol invariants: [agent reference](docs/agent-reference.md#access-token).

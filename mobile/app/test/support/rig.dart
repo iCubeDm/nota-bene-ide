@@ -5,8 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/chat_route.dart';
 import 'package:nb_app/chat/mermaid.dart';
 import 'package:nb_app/chat/window_tab.dart';
-import 'package:nb_app/comments/queue.dart';
 import 'package:nb_app/hosts/host_link.dart';
+import 'package:nb_app/sdk.dart';
 import 'package:nb_app/main.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/notify/visible.dart';
@@ -14,7 +14,6 @@ import 'package:nb_app/store/seen.dart';
 import 'package:nb_app/store/sizes.dart';
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_app/store/voice_lang.dart';
-import 'package:nb_app/voice/outbox.dart';
 import 'package:nb_channel/nb_channel.dart';
 
 import 'fakes.dart';
@@ -26,6 +25,9 @@ class Rig {
   late FakeChannel ch;
   late HostLink link;
   WindowTab? tab;
+
+  /// The app's stores, in memory: each [open] starts with empty ones unless it keeps them.
+  AppStores? stores;
 
   /// The Settings choice of the voice language; none follows the app's.
   VoiceLang? voiceLang;
@@ -40,9 +42,11 @@ class Rig {
     Seen? seen,
     AppVisible? visible,
     HostWindow? win,
+    // false: a desktop from before project pictures (its list never carries `icon`)
+    bool icons = true,
     // false when something on screen animates for good (a pulsing dot)
     bool settle = true,
-    // the same app run: the voice outboxes keep what they have
+    // the same app run: the voice outboxes and comment queues keep what they have ([stores], when the test put them)
     bool keepStore = false,
     // false: the window said hello and has not replayed yet (the tab is still connecting)
     bool replay = true,
@@ -50,13 +54,12 @@ class Rig {
     // comments, hello)
     bool greet = true,
   }) async {
-    // the voice outboxes and the comment queues are the app's: each test starts with an empty disk
-    if (!keepStore) {
-      VoiceStore.instance = VoiceStore(MemoryOutFiles());
-      CommentQueues.instance = CommentQueues(MemoryQueueFile());
-    }
+    final stores = this.stores = keepStore
+        ? this.stores ?? await memoryStores()
+        : await memoryStores();
     final f = FakeFactory();
-    ch = FakeChannel([win ?? window(4791, '/home/u/notes')]);
+    ch = FakeChannel([win ?? window(4791, '/home/u/notes')])
+      ..iconsSupported = icons;
     f.results.add(ch);
     link = HostLink(
       PairedHost(
@@ -78,8 +81,8 @@ class Rig {
           renderer: FakeMermaid(),
           child: ChatRoute(
             link: link,
-            port: 4791,
-            root: '/home/u/notes',
+            window: window(4791, '/home/u/notes'),
+            stores: stores,
             seen: seen,
             visible: visible,
             onTab: (x) => tab = x,

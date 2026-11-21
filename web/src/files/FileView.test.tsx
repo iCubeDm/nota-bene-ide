@@ -4,12 +4,13 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Comment, ServerEvent } from '@nota-bene/shared';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { addShape, selectDraft, setTool } from '@/media/markup/slice.ts';
 import { dismissToast, getToasts } from '@/shell/toast.ts';
 import { FileView } from './FileView.tsx';
 import { jumpToFileComment, selectFileVersion } from './slice.ts';
-import { setStartAt } from './startAt.ts';
+import { setStartAt } from '@/refs/startAt.ts';
 import { wrapLines } from './wrap.ts';
 
 // like the real one: awaits the version request it was handed and returns it in the anchor patch
@@ -20,6 +21,7 @@ const prepareMediaComment = vi.fn(async (_id: string, _el: unknown, _a: unknown,
 vi.mock('@/media/markup/createMediaComment.ts', () => ({
   prepareMediaComment: (...a: Parameters<typeof prepareMediaComment>) => prepareMediaComment(...a),
   deleteMarks: vi.fn(async () => {}),
+  composite: vi.fn(),
 }));
 vi.mock('mermaid', () => ({ default: { initialize: vi.fn(), render: vi.fn(async () => ({ svg: '<svg></svg>' })) } }));
 
@@ -67,7 +69,6 @@ it('renders a text file in a data-file-path root, toolbar outside it', async () 
 
 it('long lines wrap by default; the header switch (and Alt+Z) turns it off for every view, remembered', async () => {
   localStorage.removeItem('nb.wrap');
-  wrapLines.reload();
   spec.body = 'x'.repeat(500) + '\n';
   const { r } = setup('notes.txt');
   const pre = await waitFor(() => { const p = r.container.querySelector('[data-file-path] pre'); expect(p?.textContent).toContain('xxx'); return p!; });
@@ -78,7 +79,6 @@ it('long lines wrap by default; the header switch (and Alt+Z) turns it off for e
   expect(pre.className).not.toContain('whitespace-pre-wrap');
   expect(pre.className).toContain('overflow-x-auto');
   expect(localStorage.getItem('nb.wrap')).toBe('0');
-  wrapLines.reload();
   expect(wrapLines.get()).toBe(false);
   act(() => wrapLines.toggle());
   expect(pre.className).toContain('whitespace-pre-wrap');
@@ -487,7 +487,7 @@ it('jump seeks and pauses the video, once its metadata is loaded', () => {
   const pause = vi.spyOn(v, 'pause').mockImplementation(() => {});
   act(() => { store.dispatch(jumpToFileComment('v.mp4', 'm1')); });
   expect(pause).toHaveBeenCalled();
-  expect(store.getState().files.jump).toBeNull(); // consumed
+  expect(store.getState().jump).toBeNull(); // consumed
   expect(v.currentTime).toBe(0); // no metadata yet: a seek now would be lost
   ready = 1;
   fireEvent(v, new Event('loadedmetadata'));
@@ -506,7 +506,7 @@ it('jump on a video with metadata seeks at once; on an image it only opens the t
   const img = setup('p.png');
   act(() => { img.store.dispatch(serverEvent({ kind: 'comments', items: [mediaOn('p.png')] })); });
   act(() => { img.store.dispatch(jumpToFileComment('p.png', 'm1')); });
-  expect(img.store.getState().files.jump).toBeNull();
+  expect(img.store.getState().jump).toBeNull();
   expect(img.store.getState().tabs.active).toBe('file:p.png');
 });
 

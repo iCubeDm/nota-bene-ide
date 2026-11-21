@@ -24,7 +24,7 @@ class CompactPendingChip extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              webString('compactPending', lang),
+              webString(WebKey.compactPending, lang),
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -33,10 +33,10 @@ class CompactPendingChip extends StatelessWidget {
             ),
           ),
           TextButton(
-            onPressed: tab.state == TabState.open
-                ? () => tab.send(const ClientMessageCompactCancel())
+            onPressed: tab.connection.state == TabState.open
+                ? () => tab.connection.send(const ClientMessageCompactCancel())
                 : null,
-            child: Text(webString('compactCancel', lang)),
+            child: Text(webString(WebKey.compactCancel, lang)),
           ),
         ],
       ),
@@ -57,7 +57,7 @@ class HeldBubble extends StatelessWidget {
     final lang = Localizations.localeOf(context).languageCode;
     // the web's label is a suffix of the bubble's header (" · waits for …")
     final label = webString(
-      restart ? 'youHeldRestart' : 'youHeldCompact',
+      restart ? WebKey.youHeldRestart : WebKey.youHeldCompact,
       lang,
     ).replaceFirst(RegExp(r'^\s*·\s*'), '');
     return Opacity(

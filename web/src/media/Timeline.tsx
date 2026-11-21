@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { useT } from '@/i18n/index.ts';
+import { useT, seekAndPause } from '@/sdk';
 import { formatTime, layoutMarkers, type MarkerIn } from './timelineMath.ts';
-import { seekAndPause } from './mediaController.ts';
 import type { MediaSnapshot } from './useMediaState.ts';
 
 type Hover = { x: number; time: number } | { x: number; marker: number };

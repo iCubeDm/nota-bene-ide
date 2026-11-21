@@ -1,6 +1,6 @@
 // A project's look, shared by the header's switcher and the rail: its tile (two letters on a colour of its own, with the
 // state dot) and its one badge; the state names and which states have a window to move to.
-import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
+import { ICONS, Svg } from '@/sdk/ui';
 import type { ProjectState } from './api.ts';
 import { initials, type Badge } from './rows.ts';
 

@@ -1,11 +1,8 @@
 import { useState } from 'react';
-import type { Voice, VoiceError } from '@nota-bene/shared';
-import { Button } from '@/components/ui/button.tsx';
-import { useT } from '@/i18n/index.ts';
-import { toast } from '@/shell/toast.ts';
-import { selectSwitching } from '@/controls/slice.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { dictationAsk, langName } from './lang.ts';
+import { BATCH_HEAD, type Voice, type VoiceError } from '@nota-bene/shared';
+import { useT, toast, useAppDispatch, useAppSelector, type UserPart, selectSwitching, dictationAsk } from '@/sdk';
+import { Button } from '@/sdk/ui';
+import { langName } from './lang.ts';
 import { sendVoice } from './send.ts';
 import { VoiceView } from './VoiceView.tsx';
 
@@ -72,4 +69,11 @@ export function VoiceBubble({ voice, text, error, lang }: { voice: Voice; text?:
       {(open || !text || error) && <Transcript text={text} error={error} onRetry={retry} />}
     </div>
   );
+}
+
+/** A voice message's part of its user message (issue 511): the bubble, its transcript the host's or the text before the comment batch. */
+export function VoicePart({ item }: Parameters<UserPart['render']>[0]) {
+  if (!item.voice) return null;
+  const m = BATCH_HEAD.exec(item.text);
+  return <VoiceBubble voice={item.voice} text={item.voiceText ?? ((m ? item.text.slice(0, m.index) : item.text) || undefined)} error={item.voiceError} lang={item.voiceLang} />;
 }

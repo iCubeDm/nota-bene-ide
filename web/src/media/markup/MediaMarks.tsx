@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { openCommentCard, selectMediaComments, type MediaComment } from '@/comments/slice.ts';
-import { selectFileVersion } from '@/files/slice.ts';
-import { useT } from '@/i18n/index.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { useT, useAppDispatch, useAppSelector, useComments, type MediaComment, useService } from '@/sdk';
 import { shapePath } from './geometry.ts';
 import { shapeEls, STROKE_PX, useOverlayPlacement, type Media } from './overlay.tsx';
 import { selectDraft } from './slice.ts';
@@ -13,7 +10,7 @@ import { selectDraft } from './slice.ts';
  * never tells a video's frame rate, and half a frame is under 40 ms for any rate above 12.5 fps, so
  * `max(0.5 / fps, 0.04)` is 0.04 in practice.
  */
-export const TIME_TOLERANCE = 0.04;
+const TIME_TOLERANCE = 0.04;
 const SENT_OPACITY = 0.35;
 /** A stroke is thin: the click target is a wider invisible stroke along it (the shapes' insides stay click-through). */
 const HIT_PX = 12;
@@ -54,11 +51,13 @@ function usePausedAt(media: Media): number | null {
 export function MediaMarks({ tabId, media, fit, path, refName: ref }: {
   tabId: string; media: Media; fit: 'contain' | 'natural'; path: string; refName?: string;
 }) {
+  const { openCommentCard, selectMediaComments } = useComments();
   const t = useT();
   const dispatch = useAppDispatch();
   const all = useAppSelector((s) => selectMediaComments(s, path, ref));
   const marking = useAppSelector((s) => selectDraft(s, tabId).on);
-  const current = useAppSelector((s) => selectFileVersion(s, path, ref));
+  const files = useService('files');
+  const current = useAppSelector((s) => files.selectFileVersion(s, path, ref));
   const at = usePausedAt(media);
   const video = media instanceof HTMLVideoElement;
   const shown = useMemo(() => {

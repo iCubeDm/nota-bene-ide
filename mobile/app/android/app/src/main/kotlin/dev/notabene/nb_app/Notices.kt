@@ -48,8 +48,7 @@ object Notices {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
             if (place != null) {
                 putExtra("hostId", place["hostId"] as String)
-                putExtra("port", (place["port"] as Number).toInt())
-                putExtra("root", place["root"] as String)
+                putExtra("window", place["window"] as String)
             }
         }
         return PendingIntent.getActivity(
@@ -208,9 +207,8 @@ class BackgroundChannel(private val activity: MainActivity, messenger: BinaryMes
 
         fun placeOf(i: Intent?): Map<String, Any?>? {
             val host = i?.getStringExtra("hostId") ?: return null
-            val root = i.getStringExtra("root") ?: return null
-            if (!i.hasExtra("port")) return null
-            return mapOf("hostId" to host, "port" to i.getIntExtra("port", 0), "root" to root)
+            val window = i.getStringExtra("window") ?: return null
+            return mapOf("hostId" to host, "window" to window)
         }
     }
 }

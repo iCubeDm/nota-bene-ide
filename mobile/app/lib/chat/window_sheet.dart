@@ -38,13 +38,14 @@ String? runWindowCommand(
 ) {
   // a Compact while the agent works waits for its next pause on a window of protocol 27 (issue 499)
   final ordered =
-      name == ClientMessageCommandName.compact && tab.canOrderCompact;
-  if ((tab.busy && !ordered) ||
-      (name == ClientMessageCommandName.clear && tab.orderWaits)) {
-    return webString('working', lang);
+      name == ClientMessageCommandName.compact &&
+      tab.connection.has(Feature.compactOrder);
+  if ((tab.windowState.busy && !ordered) ||
+      (name == ClientMessageCommandName.clear && tab.windowState.orderWaits)) {
+    return webString(WebKey.working, lang);
   }
-  if (!tab.send(ClientMessageCommand(name: name))) {
-    return webString('offline', lang);
+  if (!tab.connection.send(ClientMessageCommand(name: name))) {
+    return webString(WebKey.offline, lang);
   }
   return null;
 }
@@ -70,12 +71,12 @@ class WindowSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     // the link too: the icon changes while the sheet is open
-    listenable: Listenable.merge([tab, tab.link]),
+    listenable: Listenable.merge([tab, tab.connection.link]),
     builder: (context, _) {
       final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;
       final lang = Localizations.localeOf(context).languageCode;
-      final open = tab.state == TabState.open;
+      final open = tab.connection.state == TabState.open;
       final modes = offeredModes(tab);
       final mode = shownMode(tab);
       final label = TextStyle(
@@ -84,9 +85,7 @@ class WindowSheet extends StatelessWidget {
         color: c.mutedFg,
       );
       final gap = const SizedBox(height: 16);
-      final win = tab.link.windows
-          .where((w) => w.port == tab.port && w.root == tab.root)
-          .firstOrNull;
+      final win = tab.connection.window;
       return SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -106,7 +105,7 @@ class WindowSheet extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Text(
-                tab.feed.title ?? t.untitled,
+                tab.windowState.feed.title ?? t.untitled,
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w600,
@@ -115,13 +114,14 @@ class WindowSheet extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                tab.feed.root ?? tab.root,
+                tab.windowState.feed.root ?? tab.connection.root,
                 style: TextStyle(fontSize: 12, color: c.mutedFg),
               ),
               if (modelSwitchable(tab)) ...[
                 gap,
                 _ModelRow(tab: tab),
-              ] else if (tab.model ?? tab.feed.model case final model?) ...[
+              ] else if (tab.windowState.model ?? tab.windowState.feed.model
+                  case final model?) ...[
                 gap,
                 Text(t.windowSheetModel, style: label),
                 const SizedBox(height: 4),
@@ -140,15 +140,16 @@ class WindowSheet extends StatelessWidget {
                     description: modeDescription(m, lang),
                     selected: m == mode,
                     danger: modeWithoutPrompts(m),
-                    onTap: open ? () => tab.setMode(m) : null,
+                    onTap: open ? () => tab.windowState.setMode(m) : null,
                   ),
               ],
-              if (win != null && (win.iconSupported || win.icon != null)) ...[
+              if (win != null &&
+                  (tab.connection.link.iconsSupported || win.icon != null)) ...[
                 gap,
                 // the same picker and calls as a row of the sessions list; its flows keep the chat's context, not the sheet's
                 Row(
                   children: [
-                    if (win.iconSupported)
+                    if (tab.connection.link.iconsSupported)
                       Expanded(
                         child: SheetTile(
                           NbGlyph.image,
@@ -156,13 +157,13 @@ class WindowSheet extends StatelessWidget {
                           enabled: open,
                           onTap: () {
                             Navigator.pop(context);
-                            setProjectIconFlow(outer, tab.link, win);
+                            setProjectIconFlow(outer, tab.connection.link, win);
                           },
                         ),
                       ),
-                    if (win.iconSupported && win.icon != null)
-                      const SizedBox(width: 8),
-                    if (win.icon != null)
+                    if (win.icon != null) ...[
+                      if (tab.connection.link.iconsSupported)
+                        const SizedBox(width: 8),
                       Expanded(
                         child: SheetTile(
                           NbGlyph.trash,
@@ -170,10 +171,15 @@ class WindowSheet extends StatelessWidget {
                           enabled: open,
                           onTap: () {
                             Navigator.pop(context);
-                            removeProjectIconFlow(outer, tab.link, win);
+                            removeProjectIconFlow(
+                              outer,
+                              tab.connection.link,
+                              win,
+                            );
                           },
                         ),
                       ),
+                    ],
                   ],
                 ),
               ],
@@ -272,10 +278,14 @@ class _ModelRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
-    final value = tab.model ?? tab.feed.model;
+    final value = tab.windowState.model ?? tab.windowState.feed.model;
     final name =
-        tab.models.where((m) => m.value == value).firstOrNull?.name ?? value;
-    final effort = tab.effort;
+        tab.windowState.models
+            .where((m) => m.value == value)
+            .firstOrNull
+            ?.name ??
+        value;
+    final effort = tab.windowState.effort;
     return Material(
       color: c.card,
       borderRadius: BorderRadius.circular(12),

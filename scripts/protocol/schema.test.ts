@@ -1,6 +1,6 @@
-import { PROTOCOL } from '@nota-bene/shared';
+import { FEATURES, PROTOCOL } from '@nota-bene/shared';
 import { expect, it } from 'vitest';
-import { buildSchema, serialize } from './schema.ts';
+import { ANSWERS, buildSchema, serialize } from './schema.ts';
 
 function refs(v: unknown, out: string[] = []): string[] {
   if (Array.isArray(v)) v.forEach((x) => refs(x, out));
@@ -16,13 +16,17 @@ function refs(v: unknown, out: string[] = []): string[] {
 // building the schema compiles protocol.ts: seconds on a loaded CI runner
 it('holds every root and what it reaches', () => {
   const s = buildSchema();
-  for (const k of ['ClientMessage', 'ServerEvent', 'UsageReport', 'Comment', 'Anchor', 'WireAgentEvent']) expect(s.definitions).toHaveProperty(k);
+  for (const k of ['ClientMessage', 'ServerEvent', 'UsageReport', 'Comment', 'Anchor', 'WireAgentEvent', ...ANSWERS]) expect(s.definitions).toHaveProperty(k);
   const missing = refs(s).filter((r) => !(r.replace('#/definitions/', '') in s.definitions));
   expect(missing).toEqual([]);
 }, 60_000);
 
 it('carries the protocol version', () => {
   expect(buildSchema()['x-protocol']).toBe(PROTOCOL);
+}, 60_000);
+
+it('carries the feature table', () => {
+  expect(buildSchema()['x-features']).toEqual(FEATURES);
 }, 60_000);
 
 it('is deterministic', () => {

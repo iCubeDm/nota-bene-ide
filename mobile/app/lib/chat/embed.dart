@@ -9,7 +9,10 @@ import '../l10n/app_localizations.dart';
 import '../media/fetch.dart';
 import '../theme.dart';
 import 'files.dart';
+import 'paths.dart';
 import 'window_tab.dart';
+
+export 'paths.dart' show embedPath;
 
 /// The project file [src] (as the text wrote it) names in [root], relative to [base] (a folder of the project, `''`
 /// for its root), or null when it is none (outside the project included).
@@ -28,9 +31,6 @@ String? embedFile(String root, String src, {String base = ''}) {
   }
   return projectPath(root, out.join('/'));
 }
-
-/// [src] without its `?query` or `#fragment` (`shot.png?v=2` is `shot.png`; issue 459).
-String embedPath(String src) => src.split(RegExp(r'[?#]')).first;
 
 /// The file name [src] shows: its last segment, decoded.
 String embedName(String src) => decodedName(embedPath(src).split('/').last);
@@ -69,7 +69,9 @@ class EmbedScope extends InheritedWidget {
   final tab = scope?.tab ?? FileOpener.of(context);
   return (
     tab: tab,
-    rel: tab == null ? null : embedFile(tab.root, src, base: scope?.base ?? ''),
+    rel: tab == null
+        ? null
+        : embedFile(tab.connection.root, src, base: scope?.base ?? ''),
   );
 }
 
@@ -104,7 +106,8 @@ class _EmbeddedMediaState extends State<EmbeddedMedia> {
   bool _undecodable = false;
 
   void _read(WindowTab tab, String rel) {
-    final key = '${tab.link.host.id}|${tab.port}|$rel|${widget.video}';
+    final key =
+        '${tab.connection.link.host.id}|${tab.connection.port}|$rel|${widget.video}';
     if (key == _key) return;
     _key = key;
     _undecodable = false;

@@ -4,10 +4,11 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Comment, MediaAnchor, ServerEvent } from '@nota-bene/shared';
 import { setFileVersion } from '@/files/slice.ts';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
-import type { PipApi } from './mediaController.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
+import type { PipApi } from '@/store/mediaController.ts';
 import { PlayerBar } from './PlayerBar.tsx';
-import { seekStep } from './seekStep.ts';
+import { seekStep } from '@/store/seekStep.ts';
 import { selectDraft } from './markup/slice.ts';
 
 const rect = (w: number) => ({ x: 0, y: 0, width: w, height: 20, left: 0, top: 0, right: w, bottom: 20, toJSON() { return this; } }) as DOMRect;
@@ -16,7 +17,6 @@ const TAB = `file:${PATH}`;
 
 beforeEach(() => {
   localStorage.clear();
-  seekStep.reload();
   setLang('en');
   // every element is 1000 px wide: the timeline's track too
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => rect(1000));

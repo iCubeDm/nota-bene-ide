@@ -1,17 +1,12 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { anchorSource, isCutAnchor, isMediaAnchor, type Comment, type CommentOp, type CutAnchor, type MediaAnchor } from '@nota-bene/shared';
-import { fileKey } from '../files/sources.ts';
-// store.ts imports this file for the reducer; every use of serverEvent below is lazy (inside callbacks), so the cycle is safe.
-import { connState, serverEvent, type AppThunk, type RootState } from '../store/store.ts';
+import { has, anchorSource, isCutAnchor, isMediaAnchor, type Comment, type CommentOp, type CutAnchor } from '@nota-bene/shared';
+// every use of serverEvent below is lazy (inside callbacks): this file may load inside the store's import cycle.
+import { bool, connState, serverEvent, storage, type AppThunk, type MediaComment, type RootState, fileKey } from '@/sdk';
 
 export type CommentCard = { id: string; x: number; y: number };
 /** a local change on its way to the server (protocol 19): it shows at once and is sent until the server acks or refuses it */
-export type QueuedOp = { opId: string; sessionId: string | null; ops: CommentOp[] };
-/** the server that takes comment ops */
-export const OPS_PROTOCOL = 19;
-/** the server that takes a comment with images and no words (issue 497): a drawing, pasted images */
-export const IMAGES_ALONE_PROTOCOL = 26;
-export type CommentsState = {
+type QueuedOp = { opId: string; sessionId: string | null; ops: CommentOp[] };
+type CommentsState = {
   /** what the user sees: the server's set with the queued changes of this session on top */
   items: Comment[];
   /** protocol 19 (from `hello`): changes go as ops; before it, as the whole set */
@@ -24,13 +19,7 @@ export type CommentsState = {
    */
   queue: QueuedOp[]; wired: string[]; /** a local change the server has not received */ unsynced: boolean; /** local set re-sent on reconnect; the server's initial (stale) push is still to come and must be ignored once */ resent: boolean; /** ids handed to the socket whose `comments` echo has not arrived yet (client-only; keeps a double send out) */ sendingIds: string[]; ui: { panelOpen: boolean; card: CommentCard | null } };
 
-const readPanelOpen = (): boolean => {
-  try {
-    return typeof localStorage === 'undefined' || localStorage.getItem('panel:comments') !== '0';
-  } catch {
-    return true; // storage unavailable: the default, open
-  }
-};
+const readPanelOpen = (): boolean => storage.local('panel:comments', bool, true).get();
 
 export const commentsSlice = createSlice({
   name: 'comments',
@@ -65,7 +54,7 @@ export const commentsSlice = createSlice({
     }).addCase(serverEvent, (s, a) => {
       const ev = a.payload;
       if (ev.kind === 'hello') {
-        s.ops = ev.protocol >= OPS_PROTOCOL;
+        s.ops = has(ev.protocol, 'commentOps');
         if (s.ops && !s.unsynced) s.items = view(s);
         if (!s.ops && s.queue.length) {
           // an older server after all (a downgrade): what is queued goes as the whole set, as before protocol 19
@@ -136,7 +125,7 @@ function fold(items: Comment[], o: CommentOp): Comment[] {
 }
 
 /** Sends the queued changes not on the wire yet, in order (protocol 19); an offline whole set goes first. */
-export const flushComments = (): AppThunk => (d, getState, { send }) => {
+export const flushComments = (): AppThunk => (d, getState, { connections }) => {
   const st = getState().comments;
   // a whole set changed offline before the server was known to take ops goes first, as a whole set (a 19 server merges it)
   if (st.unsynced || !st.ops) d(resyncComments());
@@ -144,7 +133,7 @@ export const flushComments = (): AppThunk => (d, getState, { send }) => {
   const wired: string[] = [];
   for (const q of st.queue) {
     if (st.wired.includes(q.opId)) continue;
-    if (!send({ type: 'comment-op', opId: q.opId, sessionId: q.sessionId, ops: q.ops })) break;
+    if (!connections.current().send({ type: 'comment-op', opId: q.opId, sessionId: q.sessionId, ops: q.ops })) break;
     wired.push(q.opId);
   }
   if (wired.length) d(commentsSlice.actions.setWired(wired));
@@ -159,15 +148,15 @@ const change = (op: CommentOp, items: Comment[]): AppThunk => (d, getState) => {
 
 /** Update locally first, then send the FULL set; a closed socket keeps the local change for the next sync. */
 // Accepted race: two edits within one round trip can see the first echo overwrite the second locally until the second echo lands.
-const sync = (items: Comment[]): AppThunk => (d, getState, { send }) => {
+const sync = (items: Comment[]): AppThunk => (d, getState, { connections }) => {
   d(commentsSlice.actions.setItems(items));
-  d(commentsSlice.actions.setUnsynced(!send({ type: 'comments', sessionId: getState().feed.session?.id ?? null, items })));
+  d(commentsSlice.actions.setUnsynced(!connections.current().send({ type: 'comments', sessionId: getState().feed.session?.id ?? null, items })));
 };
 
 /** On socket open: re-send local changes made while offline (local wins; last-writer-wins between windows is accepted). */
-export const resyncComments = (): AppThunk => (d, getState, { send }) => {
+const resyncComments = (): AppThunk => (d, getState, { connections }) => {
   const st = getState().comments;
-  if (st.unsynced && send({ type: 'comments', sessionId: getState().feed.session?.id ?? null, items: st.items })) d(commentsSlice.actions.markResent());
+  if (st.unsynced && connections.current().send({ type: 'comments', sessionId: getState().feed.session?.id ?? null, items: st.items })) d(commentsSlice.actions.markResent());
 };
 
 /** `id`: caller-given (a media comment's mark folder is named by it, so it exists before the comment); else a fresh one. */
@@ -220,7 +209,6 @@ export const selectPendingCountByPath = createSelector([selectComments], (items)
   return m;
 });
 
-export type MediaComment = Comment & { anchor: MediaAnchor };
 /** The media comments on one file of one source (`ref` only for another source), in store order. Memoised per (path, ref). */
 export const selectMediaComments = createSelector(
   [selectComments, (_s: RootState, path: string) => path, (_s: RootState, _p: string, ref?: string) => ref ?? ''],

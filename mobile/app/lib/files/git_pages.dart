@@ -1,6 +1,14 @@
 // The Files pane's Changes and Log tabs: the working tree's changed files, and the branch's commits with each
 // commit's files. A file opens its diff full screen (`DiffScreen`).
 import 'package:flutter/material.dart';
+import 'package:nb_protocol/nb_protocol.dart'
+    show
+        VcsCommit,
+        VcsCommitDetail,
+        VcsFile,
+        VcsFileStatus,
+        VcsPatch,
+        VcsRepoDiff;
 
 import '../chat/window_tab.dart';
 import '../comments/strings.g.dart';
@@ -9,21 +17,21 @@ import '../theme.dart';
 import '../ui/insets.dart';
 import 'diff_screen.dart';
 import 'git.dart';
-import 'remote.dart';
+import 'repository.dart';
 import 'text_file_screen.dart' show ErrorRetry;
 
-Color statusColor(NbColors c, String status) => switch (status) {
-  'A' => c.success,
-  'D' => c.destructive,
-  'R' => c.link,
+Color statusColor(NbColors c, VcsFileStatus status) => switch (status) {
+  VcsFileStatus.a => c.success,
+  VcsFileStatus.d => c.destructive,
+  VcsFileStatus.r => c.link,
   _ => c.accent,
 };
 
 void openDiff(
   BuildContext context,
   WindowTab tab,
-  GitFile file,
-  Future<Patch> Function() load, {
+  VcsFile file,
+  Future<VcsPatch> Function() load, {
   String? ref,
 }) => Navigator.of(context, rootNavigator: true).push(
   MaterialPageRoute<void>(
@@ -34,7 +42,7 @@ void openDiff(
 /// A file row: its status letter, name over folder, and the lines added and removed.
 class GitFileRow extends StatelessWidget {
   const GitFileRow({super.key, required this.file, required this.onTap});
-  final GitFile file;
+  final VcsFile file;
   final VoidCallback onTap;
 
   @override
@@ -49,7 +57,7 @@ class GitFileRow extends StatelessWidget {
       leading: SizedBox(
         width: 16,
         child: Text(
-          file.status,
+          file.letter,
           textAlign: TextAlign.center,
           style: TextStyle(
             fontFamily: 'monospace',
@@ -104,7 +112,7 @@ class ChangesPage extends StatefulWidget {
 }
 
 class _ChangesPageState extends State<ChangesPage> {
-  Changes? _changes;
+  VcsRepoDiff? _changes;
   bool _loaded = false;
   FilesError? _error;
   int _turn = -1;
@@ -112,7 +120,7 @@ class _ChangesPageState extends State<ChangesPage> {
   @override
   void initState() {
     super.initState();
-    _turn = widget.tab.feed.turnSeq;
+    _turn = widget.tab.windowState.feed.turnSeq;
     widget.tab.addListener(_tabChanged);
     _load();
   }
@@ -125,18 +133,18 @@ class _ChangesPageState extends State<ChangesPage> {
 
   /// A turn ended: the agent may have changed files.
   void _tabChanged() {
-    if (widget.tab.feed.turnSeq != _turn) {
-      _turn = widget.tab.feed.turnSeq;
+    if (widget.tab.windowState.feed.turnSeq != _turn) {
+      _turn = widget.tab.windowState.feed.turnSeq;
       _load(quiet: true);
     }
   }
 
   Future<void> _load({bool quiet = false}) async {
     if (!quiet) setState(() => _error = null);
-    Changes? changes;
+    VcsRepoDiff? changes;
     FilesError? error;
     try {
-      changes = await fetchChanges(widget.tab);
+      changes = await widget.tab.repository.changes();
     } on FilesError catch (e) {
       error = e;
     } on Object {
@@ -165,14 +173,14 @@ class _ChangesPageState extends State<ChangesPage> {
         child: ErrorRetry(message: failText(t, _error!), onRetry: _load),
       );
     } else if (ch == null) {
-      body = Center(child: Text(webString('vcsNoRepo', lang)));
+      body = Center(child: Text(webString(WebKey.vcsNoRepo, lang)));
     } else {
       final name = ch.branch ?? 'HEAD';
       final head = ch.uncommitted
-          ? batchTemplate('vcsOnlyUncommitted', lang, [name])
+          ? batchTemplate(BatchKey.vcsOnlyUncommitted, lang, [name])
           : ch.base == null
           ? name
-          : '$name ${batchTemplate('vcsAgainst', lang, [ch.base!])}';
+          : '$name ${batchTemplate(BatchKey.vcsAgainst, lang, [ch.base!])}';
       final lead = <Widget>[
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -182,14 +190,14 @@ class _ChangesPageState extends State<ChangesPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              webString('vcsFailed', lang),
+              webString(WebKey.vcsFailed, lang),
               style: TextStyle(color: c.accent, fontSize: 12),
             ),
           ),
         if (ch.files.isEmpty)
           Padding(
             padding: const EdgeInsets.all(24),
-            child: Center(child: Text(webString('vcsNoChanges', lang))),
+            child: Center(child: Text(webString(WebKey.vcsNoChanges, lang))),
           ),
       ];
       // the files are built as they scroll
@@ -206,7 +214,7 @@ class _ChangesPageState extends State<ChangesPage> {
               context,
               widget.tab,
               f,
-              () => fetchChangePatch(widget.tab, f),
+              () => widget.tab.repository.changePatch(f),
             ),
           );
         },
@@ -216,8 +224,8 @@ class _ChangesPageState extends State<ChangesPage> {
   }
 }
 
-String when(BuildContext context, int seconds) {
-  final d = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
+String when(BuildContext context, num seconds) {
+  final d = DateTime.fromMillisecondsSinceEpoch((seconds * 1000).toInt());
   return '${MaterialLocalizations.of(context).formatShortDate(d)} '
       '${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(d), alwaysUse24HourFormat: true)}';
 }
@@ -231,7 +239,7 @@ class LogPage extends StatefulWidget {
 }
 
 class _LogPageState extends State<LogPage> {
-  List<GitCommit>? _commits;
+  List<VcsCommit>? _commits;
   bool _more = false;
   FilesError? _error;
   int _turn = -1;
@@ -239,7 +247,7 @@ class _LogPageState extends State<LogPage> {
   @override
   void initState() {
     super.initState();
-    _turn = widget.tab.feed.turnSeq;
+    _turn = widget.tab.windowState.feed.turnSeq;
     widget.tab.addListener(_tabChanged);
     _load();
   }
@@ -251,18 +259,18 @@ class _LogPageState extends State<LogPage> {
   }
 
   void _tabChanged() {
-    if (widget.tab.feed.turnSeq != _turn) {
-      _turn = widget.tab.feed.turnSeq;
+    if (widget.tab.windowState.feed.turnSeq != _turn) {
+      _turn = widget.tab.windowState.feed.turnSeq;
       _load();
     }
   }
 
   Future<void> _load() async {
-    List<GitCommit>? commits;
+    List<VcsCommit>? commits;
     bool more = false;
     FilesError? error;
     try {
-      final r = await fetchLog(widget.tab);
+      final r = await widget.tab.repository.log();
       commits = r.commits;
       more = r.more;
     } on FilesError catch (e) {
@@ -294,7 +302,7 @@ class _LogPageState extends State<LogPage> {
     } else if (commits == null) {
       body = const Center(child: CircularProgressIndicator());
     } else if (commits.isEmpty) {
-      body = Center(child: Text(webString('vcsNoCommits', lang)));
+      body = Center(child: Text(webString(WebKey.vcsNoCommits, lang)));
     } else {
       final lead = _error == null ? 0 : 1;
       // the commits are built as they scroll
@@ -307,7 +315,7 @@ class _LogPageState extends State<LogPage> {
             return Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Text(
-                webString('vcsFailed', lang),
+                webString(WebKey.vcsFailed, lang),
                 style: TextStyle(color: c.accent, fontSize: 12),
               ),
             );
@@ -317,7 +325,7 @@ class _LogPageState extends State<LogPage> {
               padding: const EdgeInsets.all(12),
               child: Center(
                 child: Text(
-                  batchTemplate('vcsLogCut', lang, [commits.length]),
+                  batchTemplate(BatchKey.vcsLogCut, lang, [commits.length]),
                   style: TextStyle(color: c.mutedFg, fontSize: 12),
                 ),
               ),
@@ -361,14 +369,14 @@ class _LogPageState extends State<LogPage> {
 class CommitPage extends StatefulWidget {
   const CommitPage({super.key, required this.tab, required this.commit});
   final WindowTab tab;
-  final GitCommit commit;
+  final VcsCommit commit;
 
   @override
   State<CommitPage> createState() => _CommitPageState();
 }
 
 class _CommitPageState extends State<CommitPage> {
-  CommitDetail? _detail;
+  VcsCommitDetail? _detail;
   FilesError? _error;
 
   @override
@@ -379,10 +387,10 @@ class _CommitPageState extends State<CommitPage> {
 
   Future<void> _load() async {
     setState(() => _error = null);
-    CommitDetail? detail;
+    VcsCommitDetail? detail;
     FilesError? error;
     try {
-      detail = await fetchCommit(widget.tab, widget.commit.sha);
+      detail = await widget.tab.repository.commit(widget.commit.sha);
     } on FilesError catch (e) {
       error = e;
     } on Object {
@@ -443,7 +451,7 @@ class _CommitPageState extends State<CommitPage> {
                     context,
                     widget.tab,
                     f,
-                    () => fetchCommitPatch(widget.tab, d.sha, f),
+                    () => widget.tab.repository.commitPatch(d.sha, f),
                     ref: d.sha.substring(0, 7),
                   ),
                 );

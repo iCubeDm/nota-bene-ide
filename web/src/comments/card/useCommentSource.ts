@@ -1,18 +1,8 @@
-import { anchorSource, isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, type AnchorSource, type Comment } from '@nota-bene/shared';
+import { anchorSource, isAttachmentAnchor, isMediaAnchor, type AnchorSource, type Comment } from '@nota-bene/shared';
 import { useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { revealRangeSideways, scrollRangeIntoView } from '@/anchors/scroll.ts';
-import { rangeForAnchor } from '@/anchors/text.ts';
-import { jumpToFileComment, selectFileLoad, selectFileVersion } from '@/files/slice.ts';
-import { markAttachment, selectImages } from '@/composer/slice.ts';
-import { activate } from '@/tabs/slice.ts';
-import { itemsOf, openSubagentTab, selectSubagent } from '@/subagent/slice.ts';
-import { revealToolOf, TOOL_SRC } from '@/feed/uiSlice.ts';
-import { t } from '@/i18n/index.ts';
-import { selectReplyLabel, useAppDispatch, useAppSelector, type RootState } from '@/store/store.ts';
-import { whereOfFile } from '../send.ts';
-import { resolvePage } from '@/page/anchor.ts';
-import { pageRoot, textRootOf, usePageGen } from '@/page/frame.ts';
+import { revealRangeSideways, scrollRangeIntoView, rangeForAnchor, activate, t, useAppDispatch, useAppSelector, useRegistry, useService, anchorView, TOOL_SRC, type RootState, textRootOf, usePageGen, selectImages, itemsOf, openSubagentTab, selectSubagent } from '@/sdk';
+import { selectReplyLabel, whereOfFile } from '../send.ts';
 
 /** How many times (100 ms apart) a jump into a subagent's tab waits for its conversation to be on screen. */
 const JUMP_TRIES = 40;
@@ -63,7 +53,7 @@ function sourceState(s: RootState, src: AnchorSource | undefined): null | 'strea
 }
 
 /** What a card knows about the place its comment points at. Grows by one field per new source state. */
-export interface CommentSource {
+interface CommentSource {
   /** The label of the place ("reply 3", "src/a.ts:12"), null when unknown. */
   where: string | null;
   /** The quote can no longer be found in its source. */
@@ -75,11 +65,6 @@ export interface CommentSource {
   beforeCompact: boolean;
   /** A media comment: the file's current version, known while its tab is open (undefined = unknown, no claim). */
   version: string | undefined;
-  /**
-   * An attachment comment (protocol 17): whether its image is still in the composer (attached) or not (detached: it stays
-   * pending, is never sent, and the image can be attached again). undefined for any other comment.
-   */
-  attached: boolean | undefined;
   /** Show the source: open its file tab, or scroll the chat to the fragment. */
   jump: () => void;
 }
@@ -101,14 +86,16 @@ export function useCommentSource(c: Comment | undefined): CommentSource {
     const a = c?.anchor;
     return a && isAttachmentAnchor(a) ? selectImages(s).findIndex((im) => im.id === a.image) + 1 : undefined;
   });
-  const attached = ownNo === undefined ? undefined : ownNo > 0;
   const att = c && isAttachmentAnchor(c.anchor) ? c.anchor : undefined;
   const where = att ? (ownNo ? t('srcAttachment', ownNo, att.width, att.height) : null) : beforeCompact ? t('srcBeforeCompact') : label;
   // a file source: its open view's load state; undefined (tab closed / not loaded yet) means "unknown", not orphaned
-  const fileLoad = useAppSelector((s) => (anchorSrc?.kind === 'file' ? selectFileLoad(s, anchorSrc.path, anchorSrc.ref) : undefined));
+  const files = useService('files');
+  const fileLoad = useAppSelector((s) => (anchorSrc?.kind === 'file' ? files.selectFileLoad(s, anchorSrc.path, anchorSrc.ref) : undefined));
   // a media comment: the file's current version, known while its tab is open (undefined = unknown, no claim)
-  const version = useAppSelector((s) => (c && isMediaAnchor(c.anchor) ? selectFileVersion(s, c.anchor.source.path, c.anchor.source.ref) : undefined));
+  const version = useAppSelector((s) => (c && isMediaAnchor(c.anchor) ? files.selectFileVersion(s, c.anchor.source.path, c.anchor.source.ref) : undefined));
   const [orphan, setOrphan] = useState(false);
+  const registry = useRegistry();
+  const { revealTool } = useService('feedUi');
   // a rendered page loads after its text (its frame): judged again once it is on screen
   const pageGen = usePageGen();
 
@@ -118,18 +105,14 @@ export function useCommentSource(c: Comment | undefined): CommentSource {
   useEffect(() => {
     const src = anchorSrc;
     if (!c || src?.kind !== 'file') return;
-    if (isMediaAnchor(c.anchor)) return setOrphan(false); // a media mark is drawn from relative coordinates: never orphaned
-    if (isCutAnchor(c.anchor)) return setOrphan(false); // a place on an edit's timeline (issue 430): its clip, not its text; a gone clip is the card's own note
+    // its kind's own judgement (a mark on a picture, a clip: never orphaned; a page place: against the page as rendered)
+    const judge = anchorView(registry, c.anchor)?.orphan;
+    if (judge === false) return setOrphan(false);
     if (!fileLoad || fileLoad.s === 'loading') return setOrphan(false);
     if (fileLoad.s === 'gone') return setOrphan(true);
     const pane = fileRoot(src.path, src.ref);
-    if (isPageAnchor(c.anchor)) {
-      // a page place is judged only against the page as rendered: the source view (or a page still loading) makes no claim
-      const page = pane && pageRoot(pane);
-      return setOrphan(!!page && !resolvePage(page.ownerDocument, c.anchor));
-    }
-    setOrphan(!!pane && !rangeForAnchor(textRootOf(pane), c.anchor));
-  }, [c, fileLoad, pageGen]);
+    setOrphan(!!pane && (judge ? judge(c, pane) : !rangeForAnchor(textRootOf(pane), c.anchor)));
+  }, [c, fileLoad, pageGen, registry]);
   useEffect(() => {
     const src = anchorSrc;
     if (src?.kind === 'file') return;
@@ -140,11 +123,12 @@ export function useCommentSource(c: Comment | undefined): CommentSource {
   }, [c, srcState, beforeCompact]);
 
   const jump = () => {
-    if (c && isAttachmentAnchor(c.anchor)) return void (attached && dispatch(markAttachment(c.anchor.image))); // the markup of its image, while the image is in the composer
+    const reveal = c && anchorView(registry, c.anchor)?.reveal;
+    if (reveal) return void dispatch(reveal(c));
     const src = anchorSrc;
     if (!c || !src) return;
-    // a file: open (or activate) its tab; the view scrolls once its text is loaded (files.jump)
-    if (src.kind === 'file') return void dispatch(jumpToFileComment(src.path, c.id, src.ref));
+    // a file: open (or activate) its tab; the view scrolls once its text is loaded (the jump)
+    if (src.kind === 'file') return void dispatch(files.jumpToFileComment(src.path, c.id, src.ref));
     // an action's panel exists only while it and its group are open (R-M7-19): open both, and render, before looking
     const tool = src.id.startsWith(TOOL_SRC);
     const agent = src.agent;
@@ -153,19 +137,19 @@ export function useCommentSource(c: Comment | undefined): CommentSource {
       // looked for until it is on screen, or give up after a few seconds (an orphan: the tab stays open)
       flushSync(() => dispatch(openSubagentTab(agent)));
       const attempt = (left: number) => {
-        if (tool) flushSync(() => dispatch(revealToolOf(src.id.slice(TOOL_SRC.length), agent)));
+        if (tool) flushSync(() => dispatch(revealTool(src.id.slice(TOOL_SRC.length), (s) => itemsOf(s, agent), agent)));
         const root = itemRoot(src.id, agent);
         if (root) return void showAt(root, c);
         if (left > 0) setTimeout(() => attempt(left - 1), 100);
       };
       return attempt(JUMP_TRIES);
     }
-    if (tool) flushSync(() => { dispatch(activate('chat')); dispatch(revealToolOf(src.id.slice(TOOL_SRC.length))); });
+    if (tool) flushSync(() => { dispatch(activate('chat')); dispatch(revealTool(src.id.slice(TOOL_SRC.length), (s) => itemsOf(s))); });
     const root = itemRoot(src.id);
     if (!root) return;
     if (!tool) flushSync(() => dispatch(activate('chat'))); // a hidden chat pane cannot scroll: show it before measuring
     showAt(root, c);
   };
 
-  return { where, orphan, beforeCompact, version, attached, jump };
+  return { where, orphan, beforeCompact, version, jump };
 }

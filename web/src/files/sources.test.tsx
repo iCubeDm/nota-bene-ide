@@ -3,15 +3,16 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { anchorSource, type ClientMessage, type Comment, type ServerEvent, type Source } from '@nota-bene/shared';
 import { App } from '@/App.tsx';
-import { Markdown } from '@/feed/Markdown.tsx';
+import { Markdown } from '@/components/markdown/Markdown.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { clearRefCache, refClick } from '@/refs/refs.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore, renderWith } from '@/testing';
 import { activate, fileTabId, openFile, selectActiveTab, selectTabs } from '@/tabs/slice.ts';
 import { setPanelOpen } from '@/comments/slice.ts';
 import { sendBatch, whereOf } from '@/comments/send.ts';
 import { FileView } from './FileView.tsx';
-import { getSources, loadSources, resetSources, setSources, sourceForAbs, useSources } from './sources.ts';
+import { getSources, loadSources, resetSources, setSources, sourceForAbs, useSources } from '@/refs/sources.ts';
 
 function Probe({ onRender }: { onRender: () => void }) {
   useSources();
@@ -173,7 +174,7 @@ it('an absolute path inside a worktree dir in a reply opens from that worktree',
 });
 
 it('an absolute ref is marked once the sources arrive', async () => {
-  render(<Markdown text={'see `/p/main/.worktrees/x/only-x.md`'} final />);
+  renderWith(<Markdown text={'see `/p/main/.worktrees/x/only-x.md`'} final />);
   expect(document.querySelector('code.ref')).toBeNull();
   act(() => setSources(SOURCES));
   await waitFor(() => expect(document.querySelector<HTMLElement>('code.ref')?.dataset.src).toBe('ref:feature/x'));

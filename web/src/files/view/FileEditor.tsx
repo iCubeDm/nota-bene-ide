@@ -1,35 +1,26 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { modKey, withKeys } from '@/shell/keymap.ts';
-import { apiFetch } from '@/net/auth.ts';
+import { useT, modKey, withKeys, connections, json, routes, storage } from '@/sdk';
 import { useWrapLines } from '../wrap.ts';
 
 type Draft = { text: string; base: string | null };
 
 const draftKey = (path: string) => `nb.edit.${path}`;
 
-function readDraft(path: string): Draft | null {
-  try {
-    const raw = localStorage.getItem(draftKey(path));
-    return raw === null ? null : JSON.parse(raw) as Draft;
-  } catch {
-    return null;
-  }
-}
+const saved = (path: string) => storage.local<Draft | null>(draftKey(path), json<Draft | null>(), null);
+const readDraft = (path: string): Draft | null => saved(path).get();
 export const hasDraft = (path: string): boolean => readDraft(path) !== null;
 
+/** no storage, or the file is too big for it: the edit lives as long as the tab */
 function keepDraft(path: string, draft: Draft | null): void {
-  try {
-    if (draft) localStorage.setItem(draftKey(path), JSON.stringify(draft));
-    else localStorage.removeItem(draftKey(path));
-  } catch { /* no storage, or the file is too big for it: the edit lives as long as the tab */ }
+  if (draft) saved(path).set(draft);
+  else saved(path).remove();
 }
 
 const CHOICE = 'rounded px-2 py-0.5 text-foreground hover:bg-muted disabled:opacity-50';
 const PRIMARY = 'rounded bg-primary px-2 py-0.5 text-primary-foreground disabled:opacity-50';
 
 /**
- * A file by hand. What is typed and not saved stays in localStorage, so a closed tab or a reload keeps it. `base` is the version
+ * A file by hand. What is typed and not saved stays in the browser's storage, so a closed tab or a reload keeps it. `base` is the version
  * the edit started from: the server refuses a save over anything newer, and only "overwrite" goes past that.
  */
 export function FileEditor({ path, onClose }: { path: string; onClose: (saved: boolean) => void }) {
@@ -48,7 +39,7 @@ export function FileEditor({ path, onClose }: { path: string; onClose: (saved: b
   const fetchDisk = async () => {
     setProblem(null);
     try {
-      const r = await apiFetch(`/edit?path=${encodeURIComponent(path)}`);
+      const r = await connections.current().fetch(routes.edit(path));
       if (!r.ok) return setProblem(r.status === 415 ? t('binary') : r.status === 413 ? t('tooLarge') : r.status === 404 ? t('fileGone') : `${r.status} ${r.statusText}`.trim());
       const j = await r.json() as { text: string; base: string };
       const shown = j.text.replace(/\r\n/g, '\n'); // a text box's value has no other line end
@@ -76,7 +67,7 @@ export function FileEditor({ path, onClose }: { path: string; onClose: (saved: b
     setBusy(true);
     setProblem(null);
     try {
-      const r = await apiFetch('/edit', {
+      const r = await connections.current().fetch(routes.edit(), {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path, text, base: overwrite ? null : base.current }),
       });
       if (r.status === 409) return setConflict(true);

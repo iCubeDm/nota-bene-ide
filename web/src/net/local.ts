@@ -1,7 +1,8 @@
 import { apiFetch } from './auth.ts';
+import { routes } from '../sdk/routes.ts';
 
 /** Another computer's window shown through this one's connector (issue 297): that computer's host id and name. */
-export type RemotePage = { host: string; name: string };
+type RemotePage = { host: string; name: string };
 
 /** What `GET /system/remote/page` said at start; a seam for the tests. */
 export const page: { remote: RemotePage | null } = { remote: null };
@@ -12,7 +13,7 @@ export const page: { remote: RemotePage | null } = { remote: null };
  */
 export async function loadRemotePage(fetchFn: typeof fetch = fetch): Promise<void> {
   try {
-    const r = await apiFetch('/system/remote/page', { cache: 'no-store' }, fetchFn);
+    const r = await apiFetch(routes.systemRemotePage(), { cache: 'no-store' }, fetchFn);
     const j = r.ok ? ((await r.json()) as Partial<RemotePage> | null) : null;
     page.remote = j && typeof j.host === 'string' && typeof j.name === 'string' ? { host: j.host, name: j.name } : null;
   } catch {

@@ -1,8 +1,6 @@
+import { setValueAndCaret, placeListFor, revealSelected, AT_RE, useComposerField } from '@/sdk';
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { loadEmoji, searchShortcodes } from './emoji.ts';
-import { setValueAndCaret } from './insertText.ts';
-import { AT_RE } from '@/composer/MentionPicker.tsx';
-import { placeListFor, revealSelected } from '@/composer/placeList.ts';
 
 // `:` at a word start + >=2 chars, up to the caret; optionally already closed by a second colon
 const TOKEN = /(^|\s):([a-z0-9_+-]{2,})(:?)$/i;
@@ -141,3 +139,6 @@ export function ShortcodePicker({ target }: { target: RefObject<HTMLTextAreaElem
     </div>
   );
 }
+
+/** The shortcode picker of any message field (`composer.pickers`). */
+export const ShortcodePart = () => <ShortcodePicker target={useComposerField().field} />;

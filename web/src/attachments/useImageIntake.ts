@@ -1,14 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent } from 'react';
-import type { ImageEntry } from '@/composer/slice.ts';
-import { t } from '@/i18n/index.ts';
-import { isLocalPage } from '@/net/local.ts';
+import { t, isLocalPage, prepareImage, uploadImage, type ImageEntry, type PendingThumb } from '@/sdk';
 import { uploadFile, UploadError } from './file.ts';
-import { prepareImage, uploadImage } from './image.ts';
-import type { PendingThumb } from './Attachments.tsx';
 
 const isImage = (f: File) => f.type.startsWith('image/');
 /** the relay (remote/device.ts) holds a request body whole, up to 32 MiB: a page on another computer cannot send more */
-export const RELAY_MAX_BYTES = 32 * 1024 * 1024;
+const RELAY_MAX_BYTES = 32 * 1024 * 1024;
 
 /** What a failed file upload says: a refusal with a reason names it, anything else is the generic failure. */
 function fileFailure(f: File, e: unknown): string {
@@ -16,8 +12,6 @@ function fileFailure(f: File, e: unknown): string {
   if (e instanceof UploadError && e.status === 413) return isLocalPage() ? t('fileTooLarge', f.name) : t('fileTooLargeRelay', f.name);
   return t('fileFail', f.name);
 }
-
-export const hasFiles = (e: { dataTransfer: DataTransfer | null }): boolean => [...(e.dataTransfer?.types ?? [])].includes('Files');
 
 /**
  * Paste / drop / pick → prepare → upload at once. Pending uploads are local (object URL thumbnails, a name chip for a

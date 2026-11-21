@@ -1,12 +1,7 @@
 import { useEffect } from 'react';
 import { useStore } from 'react-redux';
-import { useT } from '@/i18n/index.ts';
-import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
-import { Feed } from '@/feed/Feed.tsx';
-import { useAppDispatch, useAppSelector, type AppStore } from '@/store/store.ts';
-import { setAgentTitle, type AgentTab } from '@/tabs/slice.ts';
-import { selectLiveCalls } from '@/tasks/slice.ts';
-import { AGENT_PROTOCOL, OLD_SERVER, fetchSubagent, selectSubagent, selectToolResulted } from './slice.ts';
+import { useT, useAppDispatch, useAppSelector, type AppStore, type TabView, setAgentTitle, type AgentTab, useComments, selectLiveCalls, selectSubagent, useService } from '@/sdk';
+import { OLD_SERVER, fetchSubagent, knownOld, selectToolResulted } from './slice.ts';
 
 /** How often a running subagent is read again while its tab is the visible one. */
 export const POLL_MS = 1500;
@@ -19,13 +14,15 @@ export const POLL_MS = 1500;
  * not in the current conversation, or a failed read, is said in a line, never an empty pane; both are tried again with a backoff while the tab is visible.
  */
 export function AgentView({ tab, active }: { tab: AgentTab; active: boolean }) {
+  const { HighlightLayer } = useComments();
+  const { Feed } = useService('feedUi');
   const t = useT();
   const dispatch = useAppDispatch();
   const store = useStore() as AppStore;
   const session = useAppSelector((s) => s.feed.session?.id ?? null);
   const entry = useAppSelector((s) => selectSubagent(s, tab.tool));
   // protocol 0: no `hello` yet, nothing to claim
-  const noComment = useAppSelector((s) => s.controls.protocol > 0 && s.controls.protocol < AGENT_PROTOCOL);
+  const noComment = useAppSelector((s) => knownOld(s.controls.protocol));
   const { tool } = tab;
   // keep reading only while something says it works: a live task of its call, or the call has no result yet. The
   // server's `running` alone is not enough (a meta without `finished` proves nothing)
@@ -93,3 +90,11 @@ export function AgentView({ tab, active }: { tab: AgentTab; active: boolean }) {
     </main>
   );
 }
+
+/** A subagent's tab: named by its Agent call's description. */
+export const agentTab: TabView<'agent'> = {
+  kind: 'agent',
+  label: (tab, t) => tab.title || t('agentTab'),
+  detail: (_tab, t) => t('agentTab'),
+  render: ({ tab, active, rootGen }) => <AgentView key={rootGen} tab={tab} active={active} />,
+};

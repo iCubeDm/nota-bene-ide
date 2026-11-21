@@ -1,7 +1,8 @@
 import { act } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ServerEvent } from '@nota-bene/shared';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { claim, SETTLE_MS, startSounds, type Cue, type Sounds } from './sounds.ts';
 
 let stops: (() => void)[] = [];

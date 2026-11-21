@@ -7,10 +7,12 @@ import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { Feed } from '@/feed/Feed.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { getToasts, resetToasts } from '@/shell/toast.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { openFile } from '@/tabs/slice.ts';
 import { Composer } from './Composer.tsx';
-import { addImage, setDraft } from './slice.ts';
+import { setDraft } from './slice.ts';
+import { addImage } from '@/store/message.ts';
 
 beforeEach(() => { setLang('en'); localStorage.clear(); localStorage.setItem('panel:comments', '0'); resetToasts(); });
 afterEach(cleanup);

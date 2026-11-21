@@ -1,15 +1,6 @@
 import DOMPurify from 'dompurify';
-import { t } from '@/i18n/index.ts';
-import { theme } from '@/shell/theme.ts';
+import { t, type DiagramLang, theme, HARDEN } from '@/sdk';
 
-/**
- * Markdown from any repo branch is rendered, so it is hostile input: no <style> (global CSS), no form controls, and no
- * data-* attributes at all (content data-pane / data-file-path / data-lightbox would collide with app hooks; markRefs and
- * hljs add their own data-* after sanitizing).
- */
-export const HARDEN = { FORBID_TAGS: ['style', 'form', 'input', 'button', 'select', 'textarea'], ALLOW_DATA_ATTR: false };
-
-export type DiagramLang = 'mermaid' | 'svg';
 /** An svg string safe to put in the DOM, or the message to show instead (already in the current language). */
 export type Rendered = { svg: string } | { error: string };
 

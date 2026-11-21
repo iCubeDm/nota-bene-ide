@@ -1,12 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { VcsCommitDetail, VcsLog } from '@nota-bene/shared';
-import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
-import { useT } from '@/i18n/index.ts';
-import { apiFetch } from '@/net/auth.ts';
-import { PanelResizer, usePanelWidth } from '@/shell/PanelResizer.tsx';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { pickSource, selectRefreshSeq, selectTree } from '@/tree/slice.ts';
-import { useSources } from '@/files/sources.ts';
+import { useT, defineResource, routes, useResource, useAppDispatch, useAppSelector, type TabView, useSources, useComments, useService } from '@/sdk';
+import { PanelResizer, usePanelWidth } from '@/sdk/ui';
 import { FileDiff, StatusMark } from './DiffBody.tsx';
 import { SplitToggle, viewOf } from './ChangesView.tsx';
 import { layout, COLORS, STEP, ROW } from './graph.ts';
@@ -14,6 +9,9 @@ import { currentFile, usePatch, useVcsUi } from './store.ts';
 
 const when = (s: number) => new Date(s * 1000).toLocaleString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 const refName = (r: string) => r.replace('HEAD -> ', '').replace('tag: ', '');
+
+export const logResource = defineResource<{ src: string; all: boolean }, VcsLog>({ id: 'vcs.log', key: (a) => `${a.src}\0${a.all}`, route: (a) => routes.vcsLog(a.src, a.all), every: 6_000 });
+export const commitResource = defineResource<string, VcsCommitDetail>({ id: 'vcs.commit', key: (sha) => sha, route: routes.vcsCommit });
 
 function Lanes({ r, width }: { r: ReturnType<typeof layout>[number]; width: number }) {
   const x = (i: number) => i * STEP + STEP / 2;
@@ -29,50 +27,24 @@ function Lanes({ r, width }: { r: ReturnType<typeof layout>[number]; width: numb
 
 /** The commit graph on top, the picked commit's diff under it. */
 export function LogView({ active }: { active: boolean }) {
+  const { HighlightLayer } = useComments();
   const t = useT();
   const d = useAppDispatch();
-  const { src } = useAppSelector(selectTree);
-  const turn = useAppSelector(selectRefreshSeq);
+  const tree = useService('files');
+  const src = useAppSelector(tree.selectSource);
+  const turn = useAppSelector(tree.selectRefreshSeq);
   const { split, commit } = useVcsUi();
   const sources = useSources();
   const [all, setAll] = useState(true);
-  const [loaded, setLoaded] = useState<{ key: string; log: VcsLog } | null>(null);
-  const [failed, setFailed] = useState(false);
   const [sha, setSha] = useState<string | null>(null);
-  const [detail, setDetail] = useState<VcsCommitDetail | null>(null);
   const [filter, setFilter] = useState('');
   const [pick, setPick] = useState<string | undefined>();
-  const key = `${src}\0${all}`;
-  const log = loaded?.key === key ? loaded.log : null; // another source's graph is never shown under this one's name
-  useEffect(() => {
-    if (!active) return;
-    let gone = false;
-    let running = false;
-    const run = async () => {
-      if (running) return;
-      running = true;
-      try {
-        const r = await apiFetch(`/vcs-log?${new URLSearchParams({ src, all: all ? '1' : '0' })}`);
-        if (gone) return;
-        setFailed(!r.ok);
-        if (r.ok) { const v = await r.json() as VcsLog; if (!gone) setLoaded({ key, log: v }); }
-      } catch { /* keep */ } finally { running = false; }
-    };
-    void run();
-    const id = setInterval(() => { if (document.visibilityState === 'visible') void run(); }, 6_000);
-    return () => { gone = true; clearInterval(id); };
-  }, [active, src, all, turn]);
-  useEffect(() => {
-    setDetail(null);
-    if (!sha) return;
-    let gone = false;
-    void apiFetch(`/vcs-commit?sha=${sha}`).then(async (r) => {
-      if (gone) return;
-      setFailed(!r.ok);
-      if (r.ok) { const v = await r.json() as VcsCommitDetail; if (!gone) setDetail(v); }
-    }, () => {});
-    return () => { gone = true; };
-  }, [sha]);
+  // another source's graph is never shown under this one's name
+  const logGot = useResource(logResource, { src, all }, { on: active, refreshOn: turn });
+  const commitGot = useResource(commitResource, sha);
+  const log = logGot.data;
+  const detail = commitGot.data;
+  const failed = logGot.failed || commitGot.failed;
   // a comment on a commit asked for it
   useEffect(() => {
     if (!commit) return;
@@ -85,7 +57,7 @@ export function LogView({ active }: { active: boolean }) {
   const side = usePanelWidth('panel:commit:width', 256, 180);
   const files = detail?.files ?? [];
   const cur = currentFile(files, pick);
-  const url = detail && cur ? `/vcs-commit-file?${new URLSearchParams({ sha: detail.sha, path: cur.path, ...(cur.old ? { old: cur.old } : {}) })}` : null;
+  const url = detail && cur ? routes.vcsCommitFile(detail.sha, cur.path, cur.old) : null;
   const got = usePatch(url, active, 0);
   const view = useMemo(() => (cur && got && (got.patch || !got.failed) ? viewOf(cur, got.patch) : null), [cur?.path, got]); // eslint-disable-line react-hooks/exhaustive-deps
   const ref = detail?.sha.slice(0, 7);
@@ -113,7 +85,7 @@ export function LogView({ active }: { active: boolean }) {
               <Lanes r={rows[i]!} width={width} />
               {c.refs.filter((x) => !x.endsWith('/HEAD')).map((x) => {
                 const id = srcOfRef(refName(x));
-                return <span key={x} role={id ? 'link' : undefined} title={id ? undefined : x} onClick={id ? (e) => { e.stopPropagation(); d(pickSource(id)); } : undefined} className={`flex-none rounded px-1 font-mono text-[0.65625rem] leading-4 ${x.startsWith('HEAD') ? 'bg-nb-accent/20 text-nb-accent' : x.startsWith('tag:') ? 'bg-muted text-muted-foreground' : 'bg-primary/15 text-link'}`}>{refName(x)}</span>;
+                return <span key={x} role={id ? 'link' : undefined} title={id ? undefined : x} onClick={id ? (e) => { e.stopPropagation(); d(tree.pickSource(id)); } : undefined} className={`flex-none rounded px-1 font-mono text-[0.65625rem] leading-4 ${x.startsWith('HEAD') ? 'bg-nb-accent/20 text-nb-accent' : x.startsWith('tag:') ? 'bg-muted text-muted-foreground' : 'bg-primary/15 text-link'}`}>{refName(x)}</span>;
               })}
               <span className={`min-w-0 flex-1 truncate ${c.sha === log.tip ? 'font-semibold text-foreground' : 'text-foreground/85'}`}>{c.subject}</span>
               <span className="flex-none text-[0.6875rem] text-muted-foreground">{c.author}</span>
@@ -150,3 +122,10 @@ export function LogView({ active }: { active: boolean }) {
     </div>
   );
 }
+
+/** The Log tab: one per window, another view for another root. */
+export const logTab: TabView<'log'> = {
+  kind: 'log',
+  label: (_tab, t) => t('vcsLog'),
+  render: ({ active, rootGen }) => <LogView key={rootGen} active={active} />,
+};

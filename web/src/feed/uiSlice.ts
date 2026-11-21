@@ -1,15 +1,13 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { anchorSource } from '@nota-bene/shared';
-import type { AppThunk, RootState } from '../store/store.ts';
-import type { FeedItem } from '../store/feed.ts';
-import { isAgentTool, itemsOf } from '../subagent/slice.ts';
+import { isAgentTool, TOOL_SRC, type AppThunk, type RootState, type FeedItem } from '@/sdk';
 
 /**
  * Which action groups and tool panels are open (R-M7-19). In the store, not in the components, so a jump from a comment
  * card can open them before it resolves the range. A group is keyed by its FIRST tool id, which stays the same while
  * later actions join the run. Not persisted: a reload starts with everything folded.
  */
-export type FeedUiState = { openTools: string[]; openGroups: string[] };
+type FeedUiState = { openTools: string[]; openGroups: string[] };
 
 const initialState: FeedUiState = { openTools: [], openGroups: [] };
 
@@ -35,10 +33,6 @@ export const { toggleTool, toggleGroup, revealTool } = feedUiSlice.actions;
 export const selectToolOpen = (s: RootState, id: string): boolean => s.feedUi.openTools.includes(id);
 export const selectGroupOpen = (s: RootState, id: string): boolean => s.feedUi.openGroups.includes(id);
 
-/** The anchor source id of a tool's panel (R-M7-18): the tool_use id is stable across a replay and a restart. */
-export const TOOL_SRC = 'tool:';
-export const toolSrcId = (toolId: string): string => TOOL_SRC + toolId;
-
 /**
  * The key of a tool (or a group's first tool) in the fold state and the comment counts: its id, scoped by the subagent
  * whose conversation it is in. The SDK forwards a foreground subagent's tool calls into the main stream too, so the same
@@ -60,11 +54,14 @@ export function groupOf(items: FeedItem[], toolId: string): string | null {
   return end - first > 1 ? (items[first] as Extract<FeedItem, { kind: 'tool' }>).id : null;
 }
 
-/** Opens an action's panel and its group, read from the feed at call time (a jump from a comment card); an action not in the feed opens nothing. */
-export const revealToolOf = (toolId: string, agent?: string): AppThunk => (d, getState) => {
-  const items = itemsOf(getState(), agent) ?? [];
-  if (!items.some((it) => it.kind === 'tool' && it.id === toolId)) return;
-  const group = groupOf(items, toolId);
+/**
+ * Opens an action's panel and its group, read from its conversation's `items` at call time (a jump from a comment card);
+ * an action not in them opens nothing. `agent`: the subagent whose conversation it is in.
+ */
+export const revealToolOf = (toolId: string, items: (s: RootState) => FeedItem[] | null, agent?: string): AppThunk => (d, getState) => {
+  const all = items(getState()) ?? [];
+  if (!all.some((it) => it.kind === 'tool' && it.id === toolId)) return;
+  const group = groupOf(all, toolId);
   d(revealTool({ tool: scopedId(agent, toolId), group: group && scopedId(agent, group) }));
 };
 

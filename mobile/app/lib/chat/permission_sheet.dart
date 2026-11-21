@@ -67,28 +67,30 @@ class PermissionWatcher {
 
   void _check() {
     final f = _for;
-    if (f != null && tab.state != TabState.open) {
+    if (f != null && tab.connection.state != TabState.open) {
       // the window went (offline, taken): an answer could not go; the ask opens again when it is back
       _handled.remove(f);
       _close();
       return;
     }
     if (f != null) {
-      final it = tab.feed.items
+      final it = tab.windowState.feed.items
           .whereType<PermissionItem>()
           .where((p) => p.id == f)
           .firstOrNull;
       if (it == null || it.answer != null) _close();
       return;
     }
-    final next = tab.feed.items.whereType<PermissionItem>().where(
+    final next = tab.windowState.feed.items.whereType<PermissionItem>().where(
       (p) =>
           p.prompt == null &&
           p.answer == null &&
           !p.archived &&
           !_handled.contains(p.id),
     );
-    if (next.isNotEmpty && tab.state == TabState.open) open(next.first);
+    if (next.isNotEmpty && tab.connection.state == TabState.open) {
+      open(next.first);
+    }
   }
 
   void _close() {
@@ -108,7 +110,9 @@ class PermissionWatcher {
       builder: (c) => _Sheet(
         item: p,
         onAnswer: (allow) {
-          if (!tab.send(ClientMessagePermission(id: p.id, allow: allow))) {
+          if (!tab.connection.send(
+            ClientMessagePermission(id: p.id, allow: allow),
+          )) {
             _handled.remove(p.id);
           }
           _close();
@@ -374,7 +378,7 @@ class _PromptCardState extends State<PromptCard> {
                         missing &&
                             !const ['cancel', 'decline', 'deny'].contains(ch.id)
                         ? null
-                        : () => widget.tab.send(
+                        : () => widget.tab.connection.send(
                             ClientMessagePermission(
                               id: p.id,
                               allow: true,

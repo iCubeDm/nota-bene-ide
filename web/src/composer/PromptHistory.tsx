@@ -1,13 +1,8 @@
-import { type ReactElement, type RefObject, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Button } from '@/components/ui/button.tsx';
-import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover.tsx';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { ago } from '@/controls/SessionPicker.tsx';
-import { useT } from '@/i18n/index.ts';
-import { withKey } from '@/shell/keymap.ts';
-import { useAppSelector } from '@/store/store.ts';
-import { searchPrompts, selectPromptItems } from './history.ts';
-import { promptHistoryModal } from './historyModal.ts';
+import { type ReactElement, type RefObject, useEffect, useMemo, useRef, useState } from 'react';
+import { useStore } from 'react-redux';
+import { useT, withKey, type RootState, useAppDispatch, useAppSelector, useRegistry, ago } from '@/sdk';
+import { Button, Popover, PopoverAnchor, PopoverContent, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
+import { searchPrompts, selectHistoryOpen, selectPromptItems, setHistoryOpen } from './history.ts';
 
 /** how many rows an empty query draws (the whole history can hold a thousand) */
 const SHOWN_MAX = 200;
@@ -18,7 +13,11 @@ const SHOWN_MAX = 200;
  */
 export function PromptHistory({ onPick, onClosed, anchor }: { onPick: (text: string) => void; onClosed: () => void; anchor?: RefObject<HTMLElement | null> }) {
   const t = useT();
-  const open = useSyncExternalStore(promptHistoryModal.subscribe, promptHistoryModal.get);
+  const { commands } = useRegistry();
+  const d = useAppDispatch();
+  const store = useStore<RootState>();
+  const open = useAppSelector(selectHistoryOpen);
+  const setOpen = (o: boolean) => void d(setHistoryOpen(o));
   const items = useAppSelector(selectPromptItems);
   const [q, setQ] = useState('');
   const [at, setAt] = useState(0);
@@ -26,9 +25,10 @@ export function PromptHistory({ onPick, onClosed, anchor }: { onPick: (text: str
   const picked = useRef(false);
   // a recording hides the button: the list must not wait open behind it, nor pop up when the button returns
   useEffect(() => {
-    promptHistoryModal.close();
-    return () => promptHistoryModal.close();
-  }, []);
+    const close = () => { if (selectHistoryOpen(store.getState())) d(setHistoryOpen(false)); };
+    close();
+    return close;
+  }, [d, store]);
   useEffect(() => {
     if (open) { setQ(''); setAt(0); picked.current = false; }
   }, [open]);
@@ -38,12 +38,12 @@ export function PromptHistory({ onPick, onClosed, anchor }: { onPick: (text: str
   const pick = (text: string | undefined) => {
     if (text === undefined) return;
     picked.current = true;
-    promptHistoryModal.close();
+    setOpen(false);
     onPick(text);
   };
 
   return (
-    <Popover open={open} onOpenChange={(o) => (o ? promptHistoryModal.open() : promptHistoryModal.close())}>
+    <Popover open={open} onOpenChange={setOpen}>
       {anchor && <PopoverAnchor virtualRef={anchor as RefObject<HTMLElement>} />}
       <PopoverAnchorOr own={!anchor}>
         <span className="inline-flex">
@@ -56,7 +56,7 @@ export function PromptHistory({ onPick, onClosed, anchor }: { onPick: (text: str
                 disabled={!items.length}
                 aria-label={t('promptHistory')}
                 aria-expanded={open}
-                onClick={() => (open ? promptHistoryModal.close() : promptHistoryModal.open())}
+                onClick={() => setOpen(!open)}
                 className="h-8 bg-transparent px-2 text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -65,7 +65,7 @@ export function PromptHistory({ onPick, onClosed, anchor }: { onPick: (text: str
                 </svg>
               </Button>
             </TooltipTrigger>
-            <TooltipContent className="whitespace-pre-line">{withKey(t('promptHistory'), 'hk_promptHistory')}</TooltipContent>
+            <TooltipContent className="whitespace-pre-line">{withKey(commands, t('promptHistory'), 'hk_promptHistory')}</TooltipContent>
           </Tooltip>
         </span>
       </PopoverAnchorOr>

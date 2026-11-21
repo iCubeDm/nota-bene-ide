@@ -1,16 +1,9 @@
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { isCutAnchor, type Comment, type CutAnchor } from '@nota-bene/shared';
+import { has, isCutAnchor, type Comment, type CutAnchor } from '@nota-bene/shared';
 import { AUDIO, isPhotoSrc, validateCut, type Cut, type CutIssue } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
-import { projectFileUrl } from '@/files/kinds.ts';
-import { useT } from '@/i18n/index.ts';
-import { CommentPopup, type PendingComment } from '@/comments/CommentPopup.tsx';
-import { labelText } from '@/comments/labels.ts';
-import { moveCutComment, selectComments } from '@/comments/slice.ts';
-import { clearJump, selectJump } from '@/files/slice.ts';
-import { mediaTime } from '@/media/markup/geometry.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { useT, useAppDispatch, useAppSelector, mediaTime, clearJump, selectJump, projectFileUrl, type TextFileView, labelText, useComments, type PendingComment, useStored } from '@/sdk';
 import { srcLength } from './durations.ts';
 import { appendMedia } from './assemble.ts';
 import { mediaLen, PHOTO_LEN } from './mediaLen.ts';
@@ -31,7 +24,7 @@ import { useCutDoc } from './useCutDoc.ts';
 import { useCutKeys } from './useCutKeys.ts';
 import { useMissing } from './useMissing.ts';
 import { setLiveCut } from './live.ts';
-import { CUT_PROTOCOL, followAnchor, pinAnchor, timeOf } from './pin.ts';
+import { followAnchor, pinAnchor, timeOf } from './pin.ts';
 import type { CutNote } from './Timeline.tsx';
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -50,6 +43,7 @@ const clipIndex = (path: string) => /^clips\[(\d+)\]/.exec(path)?.[1];
  * (C, cuts the clip under a click); any number of clips selected, moved, nudged, duplicated and deleted together.
  */
 export function CutBody({ text, src, path, tabId, active }: { text: string; src: string; path?: string; tabId: string; active: boolean }) {
+  const { CommentPopup, moveCutComment, selectComments } = useComments();
   const t = useT();
   const listId = useId();
   const parsed = useMemo((): { v: unknown } | { error: string } => {
@@ -102,7 +96,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   const committed = draft ? null : playable;
   useEffect(() => { if (committed) copies.want(reversedParts(committed), src); }, [copies, committed, src]);
   // a copy made: the player looks its clips up again, the timeline its marks
-  const made = useSyncExternalStore(copies.subscribe, copies.version);
+  const made = useStored({ subscribe: copies.subscribe, get: copies.version });
   useEffect(() => player.setCut(playable, draw.end), [player, playable, draw.end, made]);
 
   useEffect(() => player.setLive(active), [player, active]);
@@ -242,7 +236,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
     const k = c.anchor.clip?.id;
     if (k !== undefined && cut?.clips.some((x) => x.id === k)) setSel([k]);
   };
-  // the card's "jump to source" (FileView leaves a comment on the timeline to this view)
+  // the card's "jump to source" (the file tab leaves a comment on the timeline to this view)
   const jump = useAppSelector(selectJump);
   useEffect(() => {
     if (!active || path === undefined || jump?.path !== path || jump.src !== src || jump.ref !== undefined) return;
@@ -250,7 +244,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
     dispatch(clearJump());
     goTo(jump.id);
   });
-  const canComment = protocol >= CUT_PROTOCOL && path !== undefined;
+  const canComment = has(protocol, 'cutAnchors') && path !== undefined;
   const comment = () => {
     if (!cut || path === undefined) return;
     const anchor = pinAnchor(cut, { kind: 'file', path }, player.time(), selected?.id ?? null);
@@ -400,3 +394,8 @@ function useSrcLens(srcs: string[], fileSrc: string): ReadonlyMap<string, number
   }, [key, fileSrc]);
   return lens;
 }
+
+/** The timeline as a file tab's view: an edit of another source is shown read-only, without its comments. */
+export const CutView: TextFileView['render'] = ({ text, src, path, tabId, active }) => (
+  <CutBody text={text} src={src} path={src === 'here' ? path : undefined} tabId={tabId} active={active} />
+);

@@ -4,19 +4,10 @@
 // Another project's windows are stopped from its row (⏻, after a confirm); this one's from the header's Stop Nota Bene.
 // Recent folders come from the launcher's list and from this window's session history; one opens in a window of its agent,
 // ✕ removes one from both (the server keeps it out until it is launched again).
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
-import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
-import { ago } from '@/controls/SessionPicker.tsx';
-import { shortHome } from '@/lib/paths.ts';
-import { apiFetch } from '@/net/auth.ts';
-import { remotePage } from '@/net/local.ts';
-import { toast } from '@/shell/toast.ts';
-import { withKey } from '@/shell/keymap.ts';
-import { selectSession, useAppSelector } from '@/store/store.ts';
-import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
-import { enterProject, forgetRecent, onPageRestore, openFolder, reasonText, openStarter, PROVIDER_LABEL, projectsMenu, stopProject, useProjects, type Provider } from './api.ts';
+import { useEffect, useState } from 'react';
+import { useT, shortHome, folderName, connections, routes, toast, withKey, selectSession, useAppDispatch, useAppSelector, remotePage, useRegistry, ago } from '@/sdk';
+import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog, ICONS, Svg } from '@/sdk/ui';
+import { enterProject, forgetRecent, onPageRestore, openFolder, reasonText, openStarter, PROVIDER_LABEL, selectProjectsMenu, setProjectsMenu, stopProject, useProjects, type Provider } from './api.ts';
 import { ProjectSessions, type LocalSession } from './ProjectSessions.tsx';
 import { badgeOf, foldRows, rowKey, rowTitle, titlePrefix, type ProjectRow } from './rows.ts';
 import { BadgeView, folderOf, LIVE, rowBadge, STATE_KEY, Tile } from './Tile.tsx';
@@ -38,7 +29,10 @@ type RecentItem = { root: string; provider: Provider; at: number };
 
 export function ProjectSwitcher({ project, windowTitle }: { project: string; windowTitle: string }) {
   const t = useT();
-  const open = useSyncExternalStore(projectsMenu.subscribe, projectsMenu.get);
+  const { commands } = useRegistry();
+  const d = useAppDispatch();
+  const open = useAppSelector(selectProjectsMenu);
+  const close = () => void d(setProjectsMenu(false));
   const { data, reload } = useProjects(open);
   const session = useAppSelector(selectSession);
   const [q, setQ] = useState('');
@@ -52,7 +46,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
   const badge = badgeOf(running);
   useEffect(() => { document.title = titlePrefix(badge) + windowTitle; }, [badge, windowTitle]);
   // issue 449: a page brought back by Back after a move from the menu (Recent) comes with it still open
-  useEffect(() => onPageRestore(() => { projectsMenu.close(); setQ(''); }), []);
+  useEffect(() => onPageRestore(() => { d(setProjectsMenu(false)); setQ(''); }), [d]);
   const own = running.find((r) => r.current);
   const myProvider: Provider = own?.provider ?? 'claude';
   // another computer's page (issue 297): that computer's projects and this one's, to move to; nothing to open, start or stop
@@ -63,7 +57,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
     if (!open) return;
     setExpanded(new Set(session?.root ? [rowKey(session.root, here?.host)] : []));
     let gone = false;
-    apiFetch('/sessions').then((r) => (r.ok ? r.json() : null)).then((v: { sessions?: LocalSession[] } | null) => {
+    connections.current().fetch(routes.sessions()).then((r) => (r.ok ? r.json() : null)).then((v: { sessions?: LocalSession[] } | null) => {
       if (!gone && v && Array.isArray(v.sessions)) setLocal(v.sessions.filter((x) => typeof x?.cwd === 'string' && typeof x.id === 'string'));
     }).catch(() => {});
     return () => { gone = true; };
@@ -80,7 +74,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
     if (!runningRoots.has(s.cwd) && !hidden.has(s.cwd) && !recentAll.has(s.cwd)) recentAll.set(s.cwd, { root: s.cwd, provider: myProvider, at: s.at });
   }
   const recent = here ? [] : [...recentAll.values()].filter((e) => hit(e.root, ...local.filter((s) => s.cwd === e.root).map((s) => s.title))).slice(0, RECENT_SHOWN);
-  const onOpenChange = (o: boolean) => { if (o) projectsMenu.open(); else { projectsMenu.close(); setQ(''); } };
+  const onOpenChange = (o: boolean) => { if (o) d(setProjectsMenu(true)); else { close(); setQ(''); } };
   const toggle = (root: string) => setExpanded((s) => { const n = new Set(s); if (n.has(root)) n.delete(root); else n.add(root); return n; });
   const openRecent = async (e: RecentItem, sessionId?: string) => {
     setBusy(true);
@@ -100,7 +94,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
     if (r.current) return toggle(r.key);
     const w = r.windows.find((x) => LIVE.has(x.state));
     if (!w) return;
-    projectsMenu.close();
+    close();
     void enterProject(w);
   };
   const stopRow = async (r: ProjectRow) => {
@@ -111,12 +105,12 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
     }
     reload();
   };
-  const starter = (mode: 'open' | 'new') => { projectsMenu.close(); openStarter(mode); };
+  const starter = (mode: 'open' | 'new') => { close(); openStarter(mode); };
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
-        <button type="button" title={withKey(t('projSwitchTip'), 'hk_projects')}
+        <button type="button" title={withKey(commands, t('projSwitchTip'), 'hk_projects')}
           className="inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1.5 rounded-md px-1 hover:bg-muted">
           <b id="proj" className="truncate text-[0.9375rem] font-semibold leading-5 tracking-[-0.01em] text-foreground">{project}</b>
           {/* the badge sits right of the ▾ on the same line, out of the flow: nothing moves when it comes, goes or grows */}
@@ -170,7 +164,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
                       )}
                       {sessions && <Chevron open={isOpen} label={t('projExpand', folder)} onClick={() => toggle(r.key)} />}
                     </div>
-                    {isOpen && sessions && <ProjectSessions root={r.root} windows={r.windows} local={local} setLocal={setLocal} onDone={() => projectsMenu.close()} />}
+                    {isOpen && sessions && <ProjectSessions root={r.root} windows={r.windows} local={local} setLocal={setLocal} onDone={close} />}
                   </div>
                 );
               })}
@@ -238,4 +232,13 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
       </PopoverContent>
     </Popover>
   );
+}
+
+/** The header's title: the project, not the app, names the window, so several windows on different projects are told apart. */
+export function ProjectTitle() {
+  const session = useAppSelector(selectSession);
+  const project = (session && folderName(session.root)) || 'Nota Bene';
+  // the tab's title; the switcher puts the other projects' badge in front of it
+  const windowTitle = `${session?.title ? session.title + ' · ' : ''}${project} · Nota Bene`;
+  return <ProjectSwitcher project={project} windowTitle={windowTitle} />;
 }

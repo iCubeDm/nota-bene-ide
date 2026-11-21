@@ -4,14 +4,14 @@
 // One sound plays at a time, across the voice bubbles, the recorder's clips and the sounds embedded in replies; the
 // player is the one all of them listen to.
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'files.dart';
 import 'recorder.dart' show Microphone;
 
-const playChannel = MethodChannel('nb/play');
+export 'files.dart' show DiskVoiceFiles, VoiceFiles, playChannel;
 
 /// The bytes of a voice, fetched when it is not cached yet.
 typedef LoadVoice = Future<Uint8List?> Function();
@@ -41,49 +41,13 @@ enum SoundStart {
   blocked,
 }
 
-/// The WAVs the player has, by voice id.
-abstract class VoiceFiles {
-  Future<String?> find(String id);
-  Future<String> save(String id, Uint8List bytes);
-  Future<void> delete(String id);
-}
-
-/// In the app's cache dir (the platform clears it when it needs room); the same voice is fetched once.
-class DiskVoiceFiles implements VoiceFiles {
-  Future<File> _file(String id) async {
-    final dir = await playChannel.invokeMethod<String>('dir');
-    return File('$dir/${id.replaceAll(RegExp(r'[^0-9A-Za-z_-]'), '_')}.wav');
-  }
-
-  @override
-  Future<String?> find(String id) async {
-    final f = await _file(id);
-    return await f.exists() ? f.path : null;
-  }
-
-  @override
-  Future<String> save(String id, Uint8List bytes) async {
-    final f = await _file(id);
-    // written aside and renamed: a half-written file must never be taken for the voice
-    final part = File('${f.path}.part');
-    await part.writeAsBytes(bytes, flush: true);
-    await part.rename(f.path);
-    return f.path;
-  }
-
-  @override
-  Future<void> delete(String id) async {
-    final f = await _file(id);
-    if (await f.exists()) await f.delete();
-  }
-}
-
-class VoicePlayer extends ChangeNotifier {
+class VoicePlayer extends ChangeNotifier implements Sounds {
   VoicePlayer({VoiceFiles? files}) : files = files ?? DiskVoiceFiles();
 
   /// The player every bubble uses; a test puts its own.
   static VoicePlayer shared = VoicePlayer();
 
+  @override
   final VoiceFiles files;
 
   /// The voice that has the speaker: loading, playing or paused; null when none.
@@ -295,6 +259,7 @@ class VoicePlayer extends ChangeNotifier {
   }
 
   /// Stops [voice] if it has the speaker, and forgets its file.
+  @override
   Future<void> drop(String voice) async {
     if (id == voice) await stop();
     await files.delete(voice).catchError((Object _) {});

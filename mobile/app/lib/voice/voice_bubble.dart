@@ -1,9 +1,14 @@
 // What a voice message shows inside a bubble: the play row, and under it the transcript (open until the "Aa" folds
 // it), or why there is none yet: "Transcribing…" with a pulsing dot, the error with Retry, or the phone's own
 // sending and failed upload.
-import 'package:flutter/material.dart';
-import 'package:nb_protocol/nb_protocol.dart' show VoiceError;
+import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
+import 'package:nb_protocol/nb_protocol.dart' show Voice, VoiceError;
+
+import '../chat/files.dart' show FileOpener;
+import '../chat/window_tab.dart';
+import '../files/image_screen.dart' show windowHttp;
 import '../l10n/app_localizations.dart';
 import '../store/voice_lang.dart';
 import '../theme.dart';
@@ -235,6 +240,35 @@ class VoiceLangBadge extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// How the player fetches voice [id] of [tab]'s window.
+LoadVoice voiceLoader(WindowTab? tab, String id) => () async {
+  final http = tab == null ? null : windowHttp(tab);
+  if (http == null) return null;
+  try {
+    final r = await http('GET', '/voice/$id');
+    return r.status == 200 ? Uint8List.fromList(r.body) : null;
+  } on Object {
+    return null;
+  }
+};
+
+/// The Retry of a failed voice bubble: the same recording as a new message, once. Says so when the window is out of
+/// reach.
+void retryVoice(BuildContext context, Voice voice) {
+  final tab = FileOpener.of(context);
+  if (tab == null) return;
+  final lang = voiceLangOf(context);
+  if (!tab.voiceOutbox.retryVoice(
+    voice,
+    lang,
+    detect: voiceDetectOf(context),
+  )) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppLocalizations.of(context).cannotSend)),
     );
   }
 }

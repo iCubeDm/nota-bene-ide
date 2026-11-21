@@ -1,5 +1,4 @@
-import { openSettings } from '@/tabs/slice.ts';
-import type { AppDispatch } from '@/store/store.ts';
+import { type AppDispatch, openSettings } from '@/sdk';
 
 /** The mic without Whisper: opens the Settings tab and brings the Dictation section into view (it may mount a moment later). */
 export function openDictationSettings(dispatch: AppDispatch): void {

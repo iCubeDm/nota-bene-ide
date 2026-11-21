@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/feed.dart';
+import 'package:nb_app/chat/session_state.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 ServerEvent ev(Map<String, Object?> j) => ServerEvent.fromJson(j);
@@ -11,6 +12,69 @@ Map<String, Object?> agent(Map<String, Object?> e) => {
   'e': e,
   'ts': 1,
 };
+
+/// The fields both feeds hold, as web/src/store/feedParity.test.ts projects the desktop's items.
+Map<String, Object?> project(FeedItem i) => switch (i) {
+  UserItem() => {
+    'kind': 'user',
+    'id': i.id,
+    'text': i.text,
+    'force': i.force,
+    'duringWork': i.duringWork,
+    'idle': i.idle,
+    'voice': i.voice?.id,
+    'voiceText': i.voiceText,
+    'voiceError': i.voiceError?.toJson(),
+    'voiceLang': i.voiceLang,
+  },
+  AssistantItem() => {
+    'kind': 'assistant',
+    'id': i.id,
+    'text': i.text,
+    'final': i.final_,
+  },
+  ToolItem() => {
+    'kind': 'tool',
+    'id': i.id,
+    'name': i.name,
+    'arg': i.arg,
+    'sub': i.sub,
+    'result': i.result,
+    'isError': i.isError,
+    'phase': toolPhase(i)?.name,
+  },
+  MarkerItem() => {
+    'kind': 'marker',
+    'key': i.key,
+    'what': i.what.name,
+    'pre': i.pre,
+    'error': i.error,
+  },
+  DoneItem() => {
+    'kind': 'done',
+    'key': i.key,
+    'secs': i.secs,
+    'status': i.status.toJson(),
+    'error': i.error,
+  },
+  PermissionItem() => {
+    'kind': 'permission',
+    'id': i.id,
+    'toolName': i.toolName,
+    'answer': i.answer,
+    'archived': i.archived,
+  },
+  ShellItem() => {
+    'kind': 'shell',
+    'id': i.id,
+    'cmd': i.cmd,
+    'output': i.output,
+    'running': i.running,
+    'code': i.code,
+  },
+  NoticeItem() => {'kind': 'notice', 'key': i.key, 'text': i.text},
+};
+
 Feed run(List<Map<String, Object?>> events) {
   final f = Feed();
   for (final e in events) {
@@ -20,6 +84,22 @@ Feed run(List<Map<String, Object?>> events) {
 }
 
 void main() {
+  // the desktop's reduce() wrote these (UPDATE_FIXTURES=1 in web/src/store/feedParity.test.ts)
+  final cases =
+      Directory('test/fixtures/feed').listSync().whereType<File>().toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+  test('has the desktop feed fixtures', () {
+    // as many as web/src/store/feedParity.test.ts writes (it fails on a file no case produces)
+    expect(cases.length, 11);
+  });
+  for (final file in cases) {
+    test('the feed of ${file.uri.pathSegments.last} matches the desktop', () {
+      final doc = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+      final f = run((doc['events'] as List).cast<Map<String, Object?>>());
+      expect(f.items.map(project).toList(), doc['items']);
+    });
+  }
+
   test('every server fixture applies without throwing', () {
     final doc =
         jsonDecode(

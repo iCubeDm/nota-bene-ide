@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { validateCut, type Cut } from '@nota-bene/shared/cut';
-import { apiFetch } from '@/net/auth.ts';
+import { connections, routes } from '@/sdk';
 import { cutChanges, isNoChange, type CutChanges } from './changes.ts';
 import { commit, redo as redoStep, start, undo as undoStep, type History } from './history.ts';
 
@@ -9,7 +9,7 @@ export const SAVE_DELAY = 400;
 /** The edit as the editor writes it: two-space JSON and a final newline. */
 export const serialize = (c: Cut): string => `${JSON.stringify(c, null, 2)}\n`;
 
-export type DocStatus = 'saved' | 'unsaved' | 'saving' | 'conflict' | 'error';
+type DocStatus = 'saved' | 'unsaved' | 'saving' | 'conflict' | 'error';
 export type CutDoc = {
   /** the edit being edited; null while it cannot be (not yet read, invalid, another source, no /edit) */
   cut: Cut | null;
@@ -87,7 +87,7 @@ export function useCutDoc({ text, path }: { text: string; path: string | undefin
     const w = writes.current;
     let j: { text: string; base: string };
     try {
-      const r = await apiFetch(`/edit?path=${encodeURIComponent(path)}`);
+      const r = await connections.current().fetch(routes.edit(path));
       if (!r.ok) return;
       j = await r.json() as { text: string; base: string };
       if (typeof j.text !== 'string' || typeof j.base !== 'string') return;
@@ -114,7 +114,7 @@ export function useCutDoc({ text, path }: { text: string; path: string | undefin
       writes.current++;
       setSaving(true);
       try {
-        const r = await apiFetch('/edit', {
+        const r = await connections.current().fetch(routes.edit(), {
           method: 'POST', keepalive, headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ path, text: body, base: overwrite ? null : disk.current.base }),
         });

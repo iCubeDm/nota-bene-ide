@@ -1,46 +1,10 @@
 // The comment changes made here that the window has not acked yet (protocol 19), kept on disk so that they outlive the
-// app: one JSON file, `filesDir/comment-ops.json`, for every window by host and session, written whole (.part, rename).
+// app: one JSON file in the app's [Files], `comment-ops.json`, for every window by host and session, written whole.
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:nb_protocol/nb_protocol.dart';
 
-import '../voice/player.dart' show playChannel;
-
-/// Where the queues are kept; the app's files dir on the phone.
-abstract class QueueFile {
-  Future<String?> read();
-  Future<void> write(String json);
-}
-
-/// `filesDir/comment-ops.json`, beside `nb/play`'s `outDir`; where the platform has none (tests), nothing is kept.
-class DiskQueueFile implements QueueFile {
-  Future<File?> _file() async {
-    try {
-      final p = await playChannel.invokeMethod<String>('outDir');
-      return p == null
-          ? null
-          : File('${Directory(p).parent.path}/comment-ops.json');
-    } on Object {
-      return null;
-    }
-  }
-
-  @override
-  Future<String?> read() async {
-    final f = await _file();
-    return f != null && await f.exists() ? f.readAsString() : null;
-  }
-
-  @override
-  Future<void> write(String json) async {
-    final f = await _file();
-    if (f == null) return;
-    final part = File('${f.path}.part');
-    await part.writeAsString(json, flush: true);
-    await part.rename(f.path);
-  }
-}
+import '../store/storage.dart';
 
 /// One window's queued changes, oldest first.
 class CommentQueue {
@@ -60,21 +24,20 @@ class CommentQueue {
 
 /// All the queues of the app, by window (host and session).
 class CommentQueues {
-  CommentQueues(this.file) {
+  CommentQueues(this.files) {
     ready = _load();
   }
 
-  /// The one the app uses; tests put their own.
-  static CommentQueues instance = CommentQueues(DiskQueueFile());
+  static const path = 'comment-ops.json';
 
-  final QueueFile file;
+  final Files files;
   late final Future<void> ready;
   final _queues = <String, CommentQueue>{};
   Future<void> _writes = Future.value();
 
   Future<void> _load() async {
     try {
-      final s = await file.read();
+      final s = await files.readText(path);
       if (s == null) return;
       final m = (jsonDecode(s) as Map).cast<String, Object?>();
       for (final MapEntry(:key, :value) in m.entries) {
@@ -96,7 +59,8 @@ class CommentQueues {
     _writes = _writes
         .then((_) => ready)
         .then(
-          (_) => file.write(
+          (_) => files.writeText(
+            path,
             jsonEncode({
               for (final MapEntry(:key, :value) in _queues.entries)
                 if (value.ops.isNotEmpty)

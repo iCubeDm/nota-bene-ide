@@ -1,13 +1,8 @@
 import { useRef, useState } from 'react';
 import { shortModel, type AgentEffort as EffortLevel, type ModelOption } from '@nota-bene/shared';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu.tsx';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { useT } from '@/i18n/index.ts';
-import { compact } from '@/lib/format.ts';
-import { selectStats } from '@/stats/slice.ts';
-import { selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { useT, compact, selectSession, useAppDispatch, useAppSelector, pickModel, selectModel, selectModelSwitchable, selectModels, selectSwitching, selectStats } from '@/sdk';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { EffortSlider } from './EffortSlider.tsx';
-import { pickModel, selectModel, selectModelSwitchable, selectModels, selectSwitching } from './slice.ts';
 
 /**
  * The row for the model id in use. The CLI reports resolved ids, the list has aliases, and two rows can resolve to one

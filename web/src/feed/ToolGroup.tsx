@@ -1,6 +1,4 @@
-import { useT } from '@/i18n/index.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import type { FeedItem } from '@/store/feed.ts';
+import { useT, useAppDispatch, useAppSelector, type FeedItem } from '@/sdk';
 import { ToolLine } from './ToolLine.tsx';
 import { memo, useContext } from 'react';
 import { FeedScope } from './scope.ts';

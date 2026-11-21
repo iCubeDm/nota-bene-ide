@@ -50,15 +50,15 @@ class ContextSheet extends StatelessWidget {
       final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;
       final lang = Localizations.localeOf(context).languageCode;
-      final caps = tab.capabilities;
-      final open = tab.state == TabState.open;
-      final st = tab.stats?.stats;
+      final caps = tab.windowState.capabilities;
+      final open = tab.connection.state == TabState.open;
+      final st = tab.windowState.stats?.stats;
       final ctx = st?.context;
       final limits = st?.limits;
       final five = limits?.fiveHour;
       final week = limits?.sevenDay;
       final cost = st?.cost;
-      final idle = tab.idleCompact;
+      final idle = tab.windowState.idleCompact;
       final canCompact = caps?.compact ?? true;
       final label = TextStyle(
         fontSize: 12,
@@ -155,7 +155,7 @@ class ContextSheet extends StatelessWidget {
                   ),
                   value: idle.on && !idle.blocked,
                   onChanged: open && !idle.blocked
-                      ? (_) => tab.toggleIdleCompact()
+                      ? (_) => tab.windowState.toggleIdleCompact()
                       : null,
                 ),
               ],
@@ -167,12 +167,13 @@ class ContextSheet extends StatelessWidget {
                       child: SheetTile(
                         NbGlyph.compact,
                         t.tileCompact,
-                        tooltip: webString('compactTip', lang),
+                        tooltip: webString(WebKey.compactTip, lang),
                         // while the agent works: ordered for its next pause (protocol 27), once
                         enabled:
                             open &&
-                            !tab.compactPending &&
-                            (!tab.busy || tab.canOrderCompact),
+                            !tab.windowState.compactPending &&
+                            (!tab.windowState.busy ||
+                                tab.connection.has(Feature.compactOrder)),
                         onTap: () {
                           // the web shows no note for a refused Compact; the phone says why, as it does for Clear
                           final messenger = ScaffoldMessenger.maybeOf(outer);
@@ -197,8 +198,11 @@ class ContextSheet extends StatelessWidget {
                       child: SheetTile(
                         NbGlyph.clear,
                         t.tileClear,
-                        tooltip: webString('clearTip', lang),
-                        enabled: open && !tab.busy && !tab.orderWaits,
+                        tooltip: webString(WebKey.clearTip, lang),
+                        enabled:
+                            open &&
+                            !tab.windowState.busy &&
+                            !tab.windowState.orderWaits,
                         onTap: () => _clear(context),
                       ),
                     ),
@@ -236,8 +240,8 @@ class ContextSheet extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text(webString('clearTitle', lang)),
-        content: Text(webString('clearQ', lang)),
+        title: Text(webString(WebKey.clearTitle, lang)),
+        content: Text(webString(WebKey.clearQ, lang)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c, false),
@@ -245,7 +249,7 @@ class ContextSheet extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, true),
-            child: Text(webString('clearBtn', lang)),
+            child: Text(webString(WebKey.clearBtn, lang)),
           ),
         ],
       ),
@@ -256,7 +260,7 @@ class ContextSheet extends StatelessWidget {
     final why = runWindowCommand(tab, ClientMessageCommandName.clear, lang);
     if (why != null) {
       messenger?.showSnackBar(
-        SnackBar(content: Text(webString('clearFail', lang) + why)),
+        SnackBar(content: Text(webString(WebKey.clearFail, lang) + why)),
       );
     }
   }

@@ -4,9 +4,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { cleanup, render } from '@testing-library/react';
+import { Provider } from 'react-redux';
 import { afterEach, expect, it, vi } from 'vitest';
 import { textOf } from '@/anchors/text.ts';
-import { Markdown } from '@/feed/Markdown.tsx';
+import { Markdown } from '@/components/markdown/Markdown.tsx';
+import { makeStore } from '@/testing';
 
 vi.mock('mermaid', () => ({
   default: { initialize: vi.fn(), render: vi.fn(async () => ({ svg: '<svg><text>A</text></svg>' })) },
@@ -22,8 +24,9 @@ it('has the fixtures', () => expect(names.length).toBeGreaterThanOrEqual(5));
 for (const name of names) {
   it(`the rendered text of ${name}`, async () => {
     const md = fs.readFileSync(path.join(dir, name), 'utf8');
-    // as TextBody shows a Markdown file
-    const { container } = render(<div className="nb-card nb-prose"><Markdown text={md} final src="here" /></div>);
+    // as TextBody shows a Markdown file, in the app's store (its plugins draw the diagrams)
+    const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+    const { container } = render(<Provider store={store}><div className="nb-card nb-prose"><Markdown text={md} final src="here" /></div></Provider>);
     await new Promise((r) => setTimeout(r, 50)); // a mermaid block renders after a tick; its SVG labels are text here, the phone skips the picture
     const text = textOf(container);
     const out = path.join(dir, name.replace(/\.md$/, '.txt'));

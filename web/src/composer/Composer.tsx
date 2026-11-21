@@ -1,48 +1,29 @@
-import { useAutosize } from './autosize.ts';
-import { AgentAccount } from '@/controls/AgentAccount.tsx';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { Button } from '@/components/ui/button.tsx';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { useT } from '@/i18n/index.ts';
-import { selectSendable, sendBatch } from '@/comments/send.ts';
-import { selectPending } from '@/comments/slice.ts';
-import { CompactClear } from '@/controls/CompactClear.tsx';
-import { ModePill } from '@/controls/ModePill.tsx';
-import { nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching } from '@/controls/slice.ts';
-import { ShortcodePicker } from '@/comments/ShortcodePicker.tsx';
-import { MentionPicker } from './MentionPicker.tsx';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat, sendCount, sendWaiting, nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching, useAutosize, draggedPaths, useSeekStep, useVoice, useAttachments, insertPaths, hasFiles, ComposerFieldContext, addImage, selectBuilding, selectImages, selectUploading, uploadFinished, uploadStarted, PLAYER_HELP } from '@/sdk';
+import { Button, MessageInput, MicButton, SendIcon, Slots, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { SlashPicker } from './SlashPicker.tsx';
 import { selectShellMode } from './shellMode.ts';
 import { PromptHistory } from './PromptHistory.tsx';
-import { MessageInput, MicButton, SendIcon } from './MessageInput.tsx';
-import type { PromptEntry } from '@nota-bene/shared';
-import { recallList, selectPromptItems, selectPromptSid } from './history.ts';
-import { Meters } from '@/stats/Meters.tsx';
-import { CtxNudge } from '@/stats/CtxNudge.tsx';
-import { ComposerAttachments } from '@/attachments/ComposerAttachments.tsx';
-import { insertPaths } from '@/attachments/file.ts';
-import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
-import { draggedPaths } from '@/files/drag.ts';
-import { addImage, selectDraft, selectBuilding, selectImages, selectUploading, setDraft, uploadFinished, uploadStarted } from './slice.ts';
-import { interrupt, selectBusy, selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { BINDINGS, keysLabel, modKey, VOICE_KEY, withKey } from '@/shell/keymap.ts';
-import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';
-import { RecordBar } from '@/voice/RecordBar.tsx';
-import { onVoiceRefused } from '@/voice/inflight.ts';
-import { sendVoice } from '@/voice/send.ts';
-import { useVoiceRecorder } from '@/voice/useVoiceRecorder.ts';
-import { PLAYER_HELP } from '@/media/playerKeys.ts';
-import { useSeekStep } from '@/media/seekStep.ts';
+import { has } from '@nota-bene/shared';
+import { selectPromptItems, selectPromptSid } from './history.ts';
+import { usePromptRecall } from './usePromptRecall.ts';
+import { useComposerKeys } from './useComposerKeys.ts';
+import { selectDraft, setDraft } from './slice.ts';
+import { VOICE_KEY } from './commands.ts';
 
 export function Composer() {
   const t = useT();
+  const registry = useRegistry();
+  const { useRecorder, RecordBar, WhisperPrompt, send: sendVoice, onRefused: onVoiceRefused } = useVoice();
+  const { useIntake, ComposerAttachments } = useAttachments();
+  const { commands } = registry;
   const seekStep = useSeekStep();
   const dispatch = useAppDispatch();
   const busy = useAppSelector(selectBusy);
   const conn = useAppSelector(selectConn);
   const onAgentTab = useAppSelector((s) => s.tabs.active.startsWith('agent:')); // the message goes to the main agent, not the subagent on screen
-  const nPending = useAppSelector(selectSendable).length;
-  const anyPending = useAppSelector(selectPending).length; // also comments detached from the composer: Send stays on to say why they wait
+  const nPending = useAppSelector((s) => sendCount(registry, s));
+  const anyPending = useAppSelector((s) => sendWaiting(registry, s)); // also comments detached from the composer: Send stays on to say why they wait
   const mode = useAppSelector(selectMode);
   const caps = useAppSelector(selectCapabilities);
   const text = useAppSelector(selectDraft);
@@ -55,8 +36,6 @@ export function Composer() {
   const switching = useAppSelector(selectSwitching);
   const suggestion = useAppSelector(selectSuggestion);
   const shellMode = useAppSelector(selectShellMode); // a one-line draft that starts with `!` is a shell command: Enter runs it
-  const shellModeRef = useRef(shellMode);
-  shellModeRef.current = shellMode;
   const showSug = !!suggestion && !text && !busy && !switching;
   const [failed, setFailed] = useState(false);
   const [note, setNote] = useState('');
@@ -70,34 +49,11 @@ export function Composer() {
   }, [busy]);
   const ref = useRef<HTMLTextAreaElement>(null);
   const fieldBox = useRef<HTMLDivElement>(null);
-  // ↑/↓ through the prompts sent before (newest first): `id` is the recalled one (null = not browsing), `stash` the draft it replaced
-  // (a list choice or a search makes one); `query` is the text a search walk started from (null = the whole list is walked)
-  const recall = useMemo(() => recallList(items), [items]);
-  const recallRef = useRef(recall);
-  recallRef.current = recall;
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
-  const browse = useRef<{ id: string | null; stash: string; query: string | null }>({ id: null, stash: '', query: null });
-  useEffect(() => void (browse.current = { id: null, stash: '', query: null }), [sid]);
-  // where the draft is in the list: the recalled entry (by id, so a list that grows under the walk keeps the place), else
-  // the entry with that text (a repeat collapsed away); -1 = not browsing, the draft is no recalled prompt any more
-  const walkList = (): PromptEntry[] => {
-    const query = browse.current.query;
-    if (query === null) return recallRef.current;
-    const q = query.toLowerCase();
-    // the typed text itself is no step: the first ↑ always changes the field
-    return recallList(itemsRef.current.filter((x) => x.text !== query && x.text.toLowerCase().includes(q)));
-  };
-  const placeOf = (value: string): number => {
-    const list = walkList();
-    const b = browse.current;
-    if (b.id === null) return -1;
-    const at = list.findIndex((x) => x.id === b.id);
-    if (at >= 0 && list[at]!.text === value) return at;
-    return list.findIndex((x) => x.text === value);
-  };
+  const host = useMemo(() => ({ kind: 'chat' as const, field: ref }), []);
+  // ↑/↓ through the prompts sent before, and a prompt picked in the history list
+  const { stepHistory, pickHistory, placeOf, reset: endRecall } = usePromptRecall({ items, sid, text, ref });
   // voice messages: only a server that speaks protocol 14 has the mic; without Whisper it opens Settings → Dictation
-  const voiceOk = useAppSelector((s) => s.controls.protocol >= 14);
+  const voiceOk = useAppSelector((s) => has(s.controls.protocol, 'voice'));
   const whisper = caps.dictation === 'whisper';
   const fileIn = useRef<HTMLInputElement>(null);
   // the mic without Whisper asks to set it up in a prompt anchored to the mic
@@ -112,13 +68,13 @@ export function Composer() {
     noteTimer.current = setTimeout(() => setNote(''), 3000);
   };
   useEffect(() => () => clearTimeout(noteTimer.current), []);
-  const rec = useVoiceRecorder({
+  const rec = useRecorder({
     preview: true,
     notify: flash,
     // sent at once, apart from the draft and the images (they stay where they are); the pending comments ride along
     // false keeps the uploaded recording in the preview: Send hands it over again
     onDone: (v, force) => {
-      const ok = dispatch(sendVoice(v, undefined, force, true));
+      const ok = dispatch(sendVoice(v, { force, rides: true }));
       if (!ok) flash(t('voiceRefused', t(switchingRef.current ? 'switching' : 'offline')));
       return ok;
     },
@@ -178,7 +134,7 @@ export function Composer() {
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
   };
-  const intake = useImageIntake({
+  const intake = useIntake({
     onUploaded: (im) => void dispatch(addImage(im)),
     // any other file (issue 461): its path in the project's attachments/, at the caret
     onFilePath: (p) => { if (ref.current) insertPaths(ref.current, [p]); },
@@ -188,7 +144,7 @@ export function Composer() {
 
   // the mic shows while the field has no text; an image (also one still uploading) is something to send, as on the phone
   const hasText = !!text.trim();
-  const canSend = hasText || images.length > 0 || intake.pending.length > 0 || anyPending > 0;
+  const canSend = hasText || images.length > 0 || intake.pending.length > 0 || anyPending;
 
   // Send goes off once there is nothing left (a send, or the field emptied): keep the caret in the field if the button that
   // had it lost it (a disabled button, or one that finished after its composite images were built)
@@ -250,111 +206,22 @@ export function Composer() {
       return;
     }
     setAskForce(false);
-    browse.current = { id: null, stash: '', query: null };
-    const r = dispatch(sendBatch(force));
+    endRecall();
+    const r = dispatch(chat.send('', { force }));
     if (r === 'empty' || r === 'detached' || r === 'blocked' || r === 'switching' || r === 'building' || r === 'changed') return;
     setFailed(r === 'offline');
     if (r === 'sent') ref.current?.focus();
   };
 
-  // true when the key was a history step. A walk starts from an empty field (the whole list) or from a single-line draft (the
-  // prompts containing it; ↓ past the newest brings the draft back); it goes on while the draft is still exactly the recalled
-  // prompt: any edit ends it. `always` (Alt+↑/↓) ignores the caret, a selection and a multi-line draft: a multi-line draft
-  // is stashed and the whole list walked
-  const stepHistory = (e: KeyboardEvent<HTMLTextAreaElement>, always: boolean): boolean => {
-    const el = e.currentTarget;
-    const b = browse.current;
-    const { selectionStart: from, selectionEnd: to, value } = el;
-    let list = walkList();
-    const at = placeOf(value);
-    if (at < 0) { b.id = null; b.query = null; list = recallRef.current; }
-    if (from !== to && !always) return false;
-    const show = (to: number, draft: string) => {
-      b.id = to >= 0 ? list[to]!.id : null;
-      if (to < 0) b.query = null;
-      dispatch(setDraft(draft));
-      // the controlled value lands on the next render; the caret goes after it, unless typing changed the value meanwhile
-      requestAnimationFrame(() => {
-        const el = ref.current;
-        if (el?.value === draft) el.setSelectionRange(draft.length, draft.length);
-      });
-    };
-    if (e.key === 'ArrowUp') {
-      if (!list.length) return false;
-      if (at < 0) {
-        if (value === '') {
-          b.stash = '';
-          show(0, list[0]!.text);
-          return true;
-        }
-        if (always) {
-          // Alt: the whole list, newest first, whatever the draft (no search, a draft with no match too)
-          b.query = null;
-          b.stash = value;
-          show(0, list[0]!.text);
-          return true;
-        }
-        if (value.includes('\n')) return false;
-        // typed text: the prompts that contain it; none = the field's own
-        b.query = value;
-        list = walkList();
-        if (!list.length) { b.query = null; return false; }
-        b.stash = value;
-        show(0, list[0]!.text);
-        return true;
-      }
-      if (!always && value.slice(0, from).includes('\n')) return false; // not on the first line: the field's own
-      if (at + 1 < list.length) show(at + 1, list[at + 1]!.text);
-      return true;
-    }
-    if (at < 0 || (!always && value.indexOf('\n', from) !== -1)) return false; // ↓ is the field's own unless on the last line of a recall
-    if (at > 0) show(at - 1, list[at - 1]!.text);
-    else show(-1, b.stash);
-    return true;
-  };
-
-  // a prompt chosen in the history list becomes the draft; the draft it replaced is the stash, so ↓ brings it back
-  const pickHistory = (picked: string) => {
-    const at = placeOf(text);
-    const entry = recallRef.current.find((x) => x.text === picked);
-    browse.current = { id: entry?.id ?? null, stash: at >= 0 ? browse.current.stash : text, query: null };
-    dispatch(setDraft(picked));
-    requestAnimationFrame(() => {
-      ref.current?.focus({ preventScroll: true });
-      ref.current?.setSelectionRange(picked.length, picked.length);
-    });
-  };
-
-  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // an open @ / : / picker takes Tab at window capture and stops it, so this is only reached with no picker to serve
-    if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !e.nativeEvent.isComposing && showSug) {
-      e.preventDefault();
-      dispatch(setDraft(suggestion));
-      // the controlled value lands on the next render; put the caret after it
-      requestAnimationFrame(() => ref.current?.setSelectionRange(suggestion.length, suggestion.length));
-      return;
-    }
-    if (e.key === 'Tab' && e.shiftKey && !e.nativeEvent.isComposing && mode && caps.modes.length > 1) {
-      e.preventDefault();
-      dispatch(pickMode(nextMode(mode, caps.modes)));
-      return;
-    }
-    if (e.key === 'Escape' && askForce) {
-      e.preventDefault(); // the document hotkeys skip it
-      setAskForce(false);
-      return;
-    }
-    // Alt+↑/↓ (Option on a Mac) always walk the history; an open / or @ list took the key at window capture before this
-    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.nativeEvent.isComposing && stepHistory(e, e.altKey)) {
-      e.preventDefault();
-      return;
-    }
-    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
-    const force = e.metaKey || e.ctrlKey;
-    if (e.shiftKey && !force) return;
-    e.preventDefault();
-    submit(force);
-  };
+  const onKeyDown = useComposerKeys({
+    ref,
+    suggestion: showSug ? suggestion : null,
+    pickNextMode: mode && caps.modes.length > 1 ? () => dispatch(pickMode(nextMode(mode, caps.modes))) : null,
+    askForce,
+    setAskForce,
+    stepHistory,
+    submit,
+  });
 
   // files dragged from the Files tree (issue 461): their paths at the caret
   const treeOver = (e: React.DragEvent) => {
@@ -385,7 +252,7 @@ export function Composer() {
         )}
         {failed && conn !== 'open' && <span className="text-warn">{t('offline')}</span>}
         {note && <span className="text-warn">{note}</span>}
-        <CtxNudge />
+        <Slots at="composer.status" />
       </div>
       {askForce && (
         <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-foreground">
@@ -438,7 +305,7 @@ export function Composer() {
               anchor={micBox}
               disabled={switching}
               label={t('voiceMic')}
-              tip={withKey(t('voiceMic'), 'hk_voice')}
+              tip={withKey(registry.commands, t('voiceMic'), 'hk_voice')}
               onPointerDown={micDown}
               onClick={(e) => (whisper ? e.detail === 0 && rec.start(false) : setSetup((o) => !o))}
             />
@@ -457,7 +324,7 @@ export function Composer() {
               variant="ghost"
               disabled={!busy}
               aria-label={t('stopTip')}
-              onClick={() => dispatch(interrupt())}
+              onClick={() => dispatch(chat.interrupt())}
               className="h-10 bg-muted px-2.5 enabled:bg-destructive/15 enabled:text-destructive enabled:hover:bg-destructive/25 disabled:opacity-35"
             >
               <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden>
@@ -466,9 +333,8 @@ export function Composer() {
             </Button>
           }
         >
-          <MentionPicker target={ref} shell={() => shellModeRef.current} />
+          <ComposerFieldContext.Provider value={host}><Slots at="composer.pickers" /></ComposerFieldContext.Provider>
           <SlashPicker target={ref} suppress={() => placeOf(ref.current?.value ?? '') >= 0} />
-          <ShortcodePicker target={ref} />
         </MessageInput>
         {voiceOk && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={hasText ? ref : micBox} />}
       </div>
@@ -494,17 +360,16 @@ export function Composer() {
               </svg>
             </Button>
           </TooltipTrigger>
-          <TooltipContent className="whitespace-pre-line">{`${t('keysTip', modKey())}\n\n${t('hkTitle')}\n${BINDINGS.map((b) => `${keysLabel(b)} — ${t(b.id)}`).join('\n')}\n\n${t('pkTitle')}\n${PLAYER_HELP.map(([k, id]) => `${k} — ${t(id, seekStep)}`).join('\n')}`}</TooltipContent>
+          <TooltipContent className="whitespace-pre-line">{`${t('keysTip', modKey())}\n\n${t('hkTitle')}\n${commands.map((b) => `${keysLabel(b)} — ${t(b.id)}`).join('\n')}\n\n${t('pkTitle')}\n${PLAYER_HELP.map(([k, id]) => `${k} — ${t(id, seekStep)}`).join('\n')}`}</TooltipContent>
         </Tooltip>
-        <ModePill />
+        <Slots at="composer.tools" />
         <Button type="button" variant="ghost" size="icon-sm" aria-label={t('attach', modKey())} onClick={() => fileIn.current?.click()}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" />
           </svg>
         </Button>
         <span className="grow" />
-        <AgentAccount /><Meters />
-        <CompactClear />
+        <Slots at="composer.end" />
       </div>
     </div>
   );

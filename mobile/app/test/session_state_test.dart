@@ -57,7 +57,7 @@ void main() {
     t,
   ) async {
     await r.open(t);
-    r.tab!.clock = () => DateTime(2026, 5, 1, 12, 4);
+    r.tab!.windowState.clock = () => DateTime(2026, 5, 1, 12, 4);
     r.event(user('u1'));
     r.event(turnEnd());
     await flush(t);
@@ -71,7 +71,7 @@ void main() {
   ) async {
     await r.open(t);
     var now = DateTime(2026, 5, 1, 12);
-    r.tab!.clock = () => now;
+    r.tab!.windowState.clock = () => now;
     r.event(user('u1'));
     r.event(tool('t1', 'Read'));
     await flush(t);
@@ -84,7 +84,7 @@ void main() {
 
   testWidgets('the phase follows the tool kind', (t) async {
     await r.open(t);
-    r.tab!.clock = () => DateTime.now();
+    r.tab!.windowState.clock = () => DateTime.now();
     r.event(user('u1'));
     final cases = {
       'Grep': 'searching',
@@ -107,6 +107,36 @@ void main() {
     }
   });
 
+  testWidgets('the normalized tool kind decides before the name', (t) async {
+    await r.open(t);
+    r.tab!.windowState.clock = () => DateTime.now();
+    r.event(user('u1'));
+    r.event(
+      agent({
+        't': 'tool-call',
+        'id': 't1',
+        'name': 'run',
+        'input': {'command': 'ls'},
+        'sub': false,
+        'toolKind': 'command',
+      }),
+    );
+    await flush(t);
+    expect(lineText(t), startsWith('working · running commands · '));
+    r.event(
+      agent({
+        't': 'tool-call',
+        'id': 't2',
+        'name': 'Read',
+        'input': {'url': 'x'},
+        'sub': false,
+        'toolKind': 'search',
+      }),
+    );
+    await flush(t);
+    expect(lineText(t), startsWith('working · searching · '));
+  });
+
   testWidgets('working with no known phase: just working', (t) async {
     await r.open(t);
     r.event(user('u1'));
@@ -120,7 +150,7 @@ void main() {
   testWidgets('the elapsed time ticks every second', (t) async {
     await r.open(t);
     var now = DateTime(2026, 5, 1, 12);
-    r.tab!.clock = () => now;
+    r.tab!.windowState.clock = () => now;
     r.event(user('u1'));
     r.event(tool('t1', 'Read'));
     await flush(t);
@@ -223,7 +253,7 @@ void main() {
     await t.pumpAndSettle();
     expect(lineText(t), 'offline · seen just now');
     final base = DateTime.now();
-    r.tab!.clock = () => base.add(const Duration(minutes: 4));
+    r.tab!.windowState.clock = () => base.add(const Duration(minutes: 4));
     await t.pump(const Duration(seconds: 31));
     expect(lineText(t), 'offline · seen 4 min ago');
   });

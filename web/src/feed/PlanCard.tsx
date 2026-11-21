@@ -1,9 +1,6 @@
 import { memo } from 'react';
-import { useT } from '@/i18n/index.ts';
-import type { FeedItem } from '@/store/feed.ts';
-import { answerPermission, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { planApproved } from '@/controls/slice.ts';
-import { Markdown } from './Markdown.tsx';
+import { useT, type FeedItem, useAppDispatch, useAppSelector, chat, planApproved } from '@/sdk';
+import { Markdown } from '@/sdk/ui';
 
 /**
  * ExitPlanMode: the plan as commentable markdown plus approve / keep planning. The commentable root is the plan body
@@ -33,7 +30,7 @@ export const PlanCard = memo(function PlanCard({ item }: { item: Extract<FeedIte
           <button
             className={`${btn} bg-primary text-primary-foreground hover:opacity-90`}
             onClick={() => {
-              dispatch(answerPermission(item.id, true));
+              dispatch(chat.answer(item.id, true));
               dispatch(planApproved());
             }}
           >
@@ -41,7 +38,7 @@ export const PlanCard = memo(function PlanCard({ item }: { item: Extract<FeedIte
           </button>{' '}
           <button
             className={`${btn} bg-muted text-muted-foreground hover:text-foreground`}
-            onClick={() => dispatch(answerPermission(item.id, false))}
+            onClick={() => dispatch(chat.answer(item.id, false))}
           >
             {t('keepPlanning')}
           </button>

@@ -5,16 +5,8 @@
 // This window's sessions are renamed and archived from their row (the time gives way on hover); delete stays in the
 // Sessions menu (▾ on the chat tab). Another window's are only opened: its server takes no write from this one.
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
-import { ago, ArchiveIcon } from '@/controls/SessionPicker.tsx';
-import { switchSession } from '@/controls/slice.ts';
-import { REFUSED } from '@/controls/useNote.ts';
-import { archiveSession, renameSession } from '@/controls/sessionsApi.ts';
-import { apiFetch } from '@/net/auth.ts';
-import { remotePage } from '@/net/local.ts';
-import { toast } from '@/shell/toast.ts';
-import { useAppDispatch } from '@/store/store.ts';
+import { useT, connections, routes, toast, useAppDispatch, switchSession, remotePage, REFUSED, archiveSession, renameSession, ago } from '@/sdk';
+import { ConfirmDialog, ArchiveIcon } from '@/sdk/ui';
 import { enterProject, openFolder, postJson, PROVIDER_LABEL, reasonText, type Provider, type RunningRow } from './api.ts';
 
 export type LocalSession = { id: string; title: string; at: number; cwd: string; archived?: true };
@@ -44,7 +36,7 @@ export function ProjectSessions({ root, windows, local, setLocal, onDone }: {
     let gone = false;
     void Promise.all(live.filter((w) => !w.current).map(async (w) => {
       try {
-        const r = await postJson('/system/projects/sessions', { provider: w.provider, port: w.port, root: w.root });
+        const r = await postJson(routes.systemProjects('sessions'), { provider: w.provider, port: w.port, root: w.root });
         if (!r.ok) return [];
         const v = (await r.json()) as { sessions?: { id: string; title: string; at: number; archived?: true }[] };
         return (v.sessions ?? []).filter((x) => !x.archived).map((x) => ({ id: x.id, title: x.title, at: x.at, window: w }));
@@ -52,7 +44,7 @@ export function ProjectSessions({ root, windows, local, setLocal, onDone }: {
         return [];
       }
     })).then((lists) => { if (!gone) setOthers(lists.flat()); });
-    apiFetch('/system/agents').then((r) => (r.ok ? r.json() : null)).then((j: { agents?: Provider[] } | null) => {
+    connections.current().fetch(routes.systemAgents()).then((r) => (r.ok ? r.json() : null)).then((j: { agents?: Provider[] } | null) => {
       if (!gone && j && Array.isArray(j.agents)) setAgents(j.agents);
     }).catch(() => {});
     return () => { gone = true; };

@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
 import { MARK_COLORS, type MarkColor } from '@nota-bene/shared';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { useT } from '@/i18n/index.ts';
-import { isMac, withKeys } from '@/shell/keymap.ts';
+import { useT, isMac, withKeys } from '@/sdk';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import type { Draft, MarkTool } from './slice.ts';
 
 const TOOL_ICONS: Record<MarkTool, ReactNode> = {
@@ -14,7 +13,7 @@ const TOOL_ICONS: Record<MarkTool, ReactNode> = {
 };
 const TOOLS: MarkTool[] = ['rect', 'ellipse', 'pen', 'arrow', 'polygon'];
 /** The Mask tool's key (issue 447): not one of the other tools', the colours' or a player's (K J L M F N, Space). */
-export const MASK_KEY = 'G';
+const MASK_KEY = 'G';
 
 const Icon = ({ children }: { children: ReactNode }) => (
   <svg aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width={15} height={15}>{children}</svg>
@@ -48,7 +47,7 @@ const shell = 'pointer-events-auto flex max-w-full flex-wrap items-center justif
 
 /** The media tab's top-right overlay: the "Mark up" toggle, or, while marking, tools, colours, undo, Comment, ✕ (all off while `disabled`: a drawing is being saved). */
 export function MarkupToolbar({ draft, disabled = false, mask = false, onEnter, onTool, onColor, onUndo, onComment, onLeave }: {
-  /** `mask`: the server takes polygons (MASK_PROTOCOL), so the Mask tool is offered */
+  /** `mask`: the server takes polygons (`polygons`), so the Mask tool is offered */
   draft: Draft; disabled?: boolean; mask?: boolean; onEnter: () => void; onTool: (t: MarkTool) => void; onColor: (c: MarkColor) => void;
   onUndo: () => void; onComment: () => void; onLeave: () => void;
 }) {

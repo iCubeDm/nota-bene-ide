@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/comments/comments.dart';
 import 'package:nb_app/comments/queue.dart';
+import 'package:nb_app/store/storage.dart';
 import 'package:nb_channel/nb_channel.dart' show b64u;
 import 'package:nb_protocol/nb_protocol.dart';
 
@@ -30,13 +31,13 @@ Comment c(
 );
 
 /// A file whose first read waits for [loaded].
-class SlowFile extends MemoryQueueFile {
+class SlowFile extends MemoryFiles {
   final loaded = Completer<void>();
 
   @override
-  Future<String?> read() async {
+  Future<String?> readText(String path) async {
     await loaded.future;
-    return this.json;
+    return super.readText(path);
   }
 }
 
@@ -225,7 +226,7 @@ void main() {
     test(
       'changes made offline outlive the app and go to the window of the next run',
       () async {
-        final file = MemoryQueueFile();
+        final file = MemoryFiles();
         final before = Window(queue: CommentQueues(file).of('h|s1'))
           ..open = false;
         before.cs.apply([c('a'), c('b')]);
@@ -261,7 +262,7 @@ void main() {
       'a change made before the file was read keeps what the file had',
       () async {
         final file = SlowFile();
-        final old = Window(queue: CommentQueues(MemoryQueueFile()).of('k'));
+        final old = Window(queue: CommentQueues(MemoryFiles()).of('k'));
         old.cs.add(c('x').anchor, 'old', null, id: 'o');
         file.json = jsonEncode({
           'k': [for (final o in old.ops) o.toJson()],
@@ -331,13 +332,13 @@ void main() {
         sessionId: null,
         ops: [CommentOpAdd(comment: c('n'))],
       );
-      CommentQueues.instance = CommentQueues(
-        MemoryQueueFile()
-          ..json = jsonEncode({
-            '${b64u(List.filled(32, 1))}|/home/u/notes': [queued.toJson()],
-          }),
-      );
-      final r = Rig();
+      final r = Rig()
+        ..stores = await memoryStores(
+          files: MemoryFiles()
+            ..json = jsonEncode({
+              '${b64u(List.filled(32, 1))}|/home/u/notes': [queued.toJson()],
+            }),
+        );
       await r.open(t, keepStore: true, greet: false, settle: false);
       expect([for (final x in r.tab!.comments.all) x.id], ['n']);
       r.event({'kind': 'replay', 'events': <Object?>[]});

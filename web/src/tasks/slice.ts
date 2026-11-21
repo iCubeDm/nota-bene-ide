@@ -1,18 +1,8 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { orderedTasks, reduceTasks, type Task, type TaskStatus, type TasksState } from '@nota-bene/shared';
-import { serverEvent, type AppThunk, type RootState } from '../store/store.ts';
+import { has, orderedTasks, type Task, type TaskStatus, type TasksState } from '@nota-bene/shared';
+import { serverEvent, type AppThunk, type RootState } from '@/sdk';
 
 export type { Task, TasksState } from '@nota-bene/shared';
-
-export const tasksSlice = createSlice({
-  name: 'tasks',
-  initialState: {} as TasksState,
-  reducers: {},
-  extraReducers: (b) => b.addCase(serverEvent, (s, a) => reduceTasks(s as TasksState, a.payload)),
-});
-
-/** The first protocol whose server takes `task-stop` / `task-background` and serves `/task-output`: below it the controls are absent, not disabled. */
-export const TASKS_PROTOCOL = 8;
 
 /** The drawer's state: whether it is open (the rows come from `tasks`), and how many task refusals the server has sent. */
 export const tasksUiSlice = createSlice({
@@ -28,11 +18,7 @@ export const tasksUiSlice = createSlice({
 export const { setDrawer, toggleDrawer } = tasksUiSlice.actions;
 export const selectDrawerOpen = (s: RootState): boolean => s.tasksUi.open;
 
-/** The tool-use ids of the Agent calls whose task is still running (the card's "running"). */
-export const selectLiveCalls = createSelector([(s: RootState) => s.tasks], (t): ReadonlySet<string> =>
-  new Set(Object.values(t).flatMap((x) => (x.call && x.status === 'running' ? [x.call] : []))));
-
-export const selectTasks = (s: RootState): TasksState => s.tasks;
+const selectTasks = (s: RootState): TasksState => s.tasks;
 /** How many tasks run (what the indicator, the pulse and the favicon count; a workflow's agents count as their workflow). */
 export const selectRunningCount = createSelector([selectTasks], (t) => Object.values(t).filter((x) => x.status === 'running' && !x.ambient && !x.inner).length);
 /** Running watchers (`ambient`): only they exist => the indicator shows a quiet variant, so the drawer stays reachable. */
@@ -44,12 +30,12 @@ export const selectFinishedCount = createSelector([selectTasks], (t) => Object.v
  * A swarm: the agents one model response launched, as one row. `live`: the running members, the ones Stop all stops.
  * Counted from the members still kept: past FINISHED_CAP the oldest finished ones are gone, and with one left there is no umbrella.
  */
-export type TaskGroup = {
+type TaskGroup = {
   key: string; ids: string[]; live: string[]; status: TaskStatus;
   total: number; running: number; done: number; failed: number; stopped: number; tokens: number;
   /** the first start; `end`, the last end, once none runs */ start: number; end?: number;
 };
-export type TaskRow = { id: string; depth: number } & ({ task: Task; group?: undefined } | { group: TaskGroup; task?: undefined });
+type TaskRow = { id: string; depth: number } & ({ task: Task; group?: undefined } | { group: TaskGroup; task?: undefined });
 
 function swarm(key: string, members: [string, Task][]): TaskGroup {
   const ts = members.map(([, x]) => x);
@@ -113,14 +99,8 @@ export const selectTaskRows = createSelector([selectTasks], (t): TaskRow[] => {
 export const selectTaskIdByCall = (s: RootState, call: string): string | undefined =>
   Object.entries(s.tasks).find(([, x]) => x.call === call && x.status === 'running')?.[0];
 
-/** How the task that started the tool call `call` ended, when it ended badly (the card says so instead of "done"). */
-export const selectCallEnd = (s: RootState, call: string): 'failed' | 'stopped' | undefined => {
-  const e = Object.values(s.tasks).find((x) => x.call === call && (x.status === 'failed' || x.status === 'stopped'));
-  return e?.status === 'failed' || e?.status === 'stopped' ? e.status : undefined;
-};
-
 /** The ids of the tool calls that have their result, in the chat and in every loaded subagent feed: one scan per change, not one per button. */
-export const selectResultedIds = createSelector(
+const selectResultedIds = createSelector(
   [(s: RootState) => s.feed.items, (s: RootState) => s.subagents.byTool],
   (items, byTool): ReadonlySet<string> => {
     const ids = new Set<string>();
@@ -144,11 +124,11 @@ export const selectForeground = (s: RootState, id: string): boolean => {
 };
 
 /** The server understands the task controls (stop, to background, shell output). */
-export const selectTaskControls = (s: RootState): boolean => s.controls.protocol >= TASKS_PROTOCOL;
+export const selectTaskControls = (s: RootState): boolean => has(s.controls.protocol, 'taskControl');
 
-export const stopTask = (id: string | string[]): AppThunk => (_d, getState, { send }) => {
-  if (selectTaskControls(getState())) for (const one of typeof id === 'string' ? [id] : id) send({ type: 'task-stop', id: one });
+export const stopTask = (id: string | string[]): AppThunk => (_d, getState, { connections }) => {
+  if (selectTaskControls(getState())) for (const one of typeof id === 'string' ? [id] : id) connections.current().send({ type: 'task-stop', id: one });
 };
-export const backgroundTask = (toolUseId: string): AppThunk => (_d, getState, { send }) => {
-  if (selectTaskControls(getState())) send({ type: 'task-background', toolUseId });
+export const backgroundTask = (toolUseId: string): AppThunk => (_d, getState, { connections }) => {
+  if (selectTaskControls(getState())) connections.current().send({ type: 'task-background', toolUseId });
 };

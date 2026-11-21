@@ -9,6 +9,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
+import 'package:nb_protocol/nb_protocol.dart'
+    show AgentProvider, ProjectIconAnswer;
 
 import '../media/attach.dart' show Prepared, UnsupportedImage;
 import '../media/media_comment.dart' show WindowHttp;
@@ -74,11 +76,10 @@ Future<String> putProjectIcon(WindowHttp http, Prepared p) async {
   );
   if (res.status != 200) throw IconError('/project-icon ${res.status}');
   try {
-    if (jsonDecode(utf8.decode(res.body)) case {'icon': final String v}) {
-      return v;
-    }
-  } on FormatException {
-    // falls through
+    final j = jsonDecode(utf8.decode(res.body));
+    return ProjectIconAnswer.fromJson(j as Map<String, Object?>).icon;
+  } on Object {
+    // not JSON, or not the answer's shape: falls through
   }
   throw IconError('bad reply');
 }
@@ -93,8 +94,6 @@ Future<void> deleteProjectIcon(WindowHttp http) async {
 /// The pictures fetched so far, by version (a version is the hash of the bytes, so it is the same picture on any host).
 class ProjectIcons {
   ProjectIcons({this.capacity = 48});
-
-  static final instance = ProjectIcons();
 
   final int capacity;
   final _bytes =
@@ -149,7 +148,7 @@ class ProjectIconAvatar extends StatefulWidget {
     required this.fallback,
     this.badge,
     this.semanticLabel,
-    this.icons,
+    required this.icons,
   });
 
   final HostLink link;
@@ -165,7 +164,9 @@ class ProjectIconAvatar extends StatefulWidget {
 
   /// What a screen reader says of the avatar, picture or letter: the provider's name.
   final String? semanticLabel;
-  final ProjectIcons? icons;
+
+  /// The pictures fetched so far, the app's.
+  final ProjectIcons icons;
 
   @override
   State<ProjectIconAvatar> createState() => _ProjectIconAvatarState();
@@ -174,8 +175,6 @@ class ProjectIconAvatar extends StatefulWidget {
 class _ProjectIconAvatarState extends State<ProjectIconAvatar> {
   Uint8List? _bytes;
   bool _loading = false;
-
-  ProjectIcons get _icons => widget.icons ?? ProjectIcons.instance;
 
   @override
   void initState() {
@@ -219,13 +218,13 @@ class _ProjectIconAvatarState extends State<ProjectIconAvatar> {
   void _load() {
     final v = widget.icon;
     if (v == null) return;
-    final have = _icons.cached(v);
+    final have = widget.icons.cached(v);
     if (have != null) {
       _bytes = have;
       return;
     }
     _loading = true;
-    _icons.load(v, _http).then((b) {
+    widget.icons.load(v, _http).then((b) {
       _loading = false;
       if (!mounted || widget.icon != v) return;
       if (b != null) setState(() => _bytes = b);
@@ -272,12 +271,11 @@ class _ProjectIconAvatarState extends State<ProjectIconAvatar> {
 }
 
 /// The provider's name for a screen reader (product names, not translated).
-String providerName(String? provider) => switch (provider) {
-  'claude' => 'Claude',
-  'codex' => 'Codex',
-  'omp' => 'omp',
-  null || '' => '',
-  final p => p,
+String providerName(AgentProvider? provider) => switch (provider) {
+  AgentProvider.claude => 'Claude',
+  AgentProvider.codex => 'Codex',
+  AgentProvider.omp => 'omp',
+  AgentProvider.$unknown || null => '',
 };
 
 /// A small round badge with the provider's letter, over a picture.

@@ -2,22 +2,30 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setLang, t } from '@/i18n/index.ts';
-import { connState, makeStore, serverEvent } from '@/store/store.ts';
+import { connState, serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { App } from '@/App.tsx';
-import { promptHistoryModal } from '@/composer/historyModal.ts';
-import { recentModal } from '@/files/recent.ts';
+import { setRecentOpen } from '@/files/slice.ts';
 import { openFile, selectTabs } from '@/tabs/slice.ts';
-import { BINDINGS, keysLabel, modKey, withKey } from './keymap.ts';
+import { PLUGINS } from '@/plugins.ts';
+import { buildRegistry } from '@/sdk/registry.ts';
+import { CORE_COMMANDS, keysLabel, modKey, withKey } from './keymap.ts';
+
+/** the app's commands, as its store registers them */
+const COMMANDS = buildRegistry(PLUGINS, CORE_COMMANDS).commands;
 
 beforeEach(() => {
   localStorage.clear();
   setLang('en');
   vi.stubGlobal('fetch', vi.fn(async () => new Response('[]', { status: 200 })));
 });
-afterEach(() => { cleanup(); act(() => { recentModal.close(); promptHistoryModal.close(); }); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+// the store a test made last: the dialogs' open flags are its state
+let current: ReturnType<typeof makeStore>;
+const mk = (...a: Parameters<typeof makeStore>) => (current = makeStore(...a));
 
 function setup(files: string[] = ['a.ts', 'b.ts', 'c.ts']) {
-  const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+  const store = mk({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
   act(() => void store.dispatch(serverEvent({ kind: 'session', id: 's1', root: '/p', title: null, model: null })));
   for (const f of files) store.dispatch(openFile(f));
   render(<Provider store={store}><App /></Provider>);
@@ -79,11 +87,11 @@ it('Ctrl+Shift+F and Ctrl+Shift+C toggle the panels; Alt+E toggles recent files;
   key('KeyC', { mod: true, shift: true });
   expect(s.getState().comments.ui.panelOpen).toBe(!panel);
   key('KeyE', { mod: true }); // Ctrl/⌘+E is not ours (Claude in Chrome takes ⌘E)
-  expect(recentModal.get()).toBe(false);
+  expect(current.getState().files.recentOpen).toBe(false);
   key('KeyE', { alt: true });
   expect(await screen.findByRole('listbox', { name: /^Recent files/ })).toBeInTheDocument();
-  expect(recentModal.get()).toBe(true);
-  act(() => recentModal.close());
+  expect(current.getState().files.recentOpen).toBe(true);
+  act(() => void current.dispatch(setRecentOpen(false)));
   key('F1', { alt: true });
   expect(s.getState().tree.open).toBe(true);
   expect(s.getState().tree.reveal).toBe('src/deep/x.ts');
@@ -115,7 +123,7 @@ it('/ and Esc on empty space focus the composer; not inside a field, and not whe
 });
 
 it('the ? help lists every hotkey with its keys', () => {
-  expect(BINDINGS.map(keysLabel)).toEqual([
+  expect(COMMANDS.map(keysLabel)).toEqual([
     'Alt+W', 'Alt+Shift+T', 'Alt+←', 'Alt+→', 'Alt+1…9', 'Alt+E', 'Alt+P', 'Alt+H', 'Alt+↑', 'Alt+↓', 'Ctrl+Shift+F', 'Ctrl+Shift+C', 'Alt+T', 'Alt+R', 'Alt+Z', 'Alt+=', 'Alt+−', 'Alt+0', 'Alt+F1', '/, Esc',
   ]);
 });
@@ -167,12 +175,12 @@ it('on a Mac: ⌘ is the mod key, Option+letter/digit types in a field but works
     expect(active(s)).toBe('file:b.ts');
     // Option+E (the ´ dead key) opens recent files, also from the composer; ⌘E does not
     keyEv(document.body, { code: 'KeyE', key: 'e', metaKey: true });
-    expect(recentModal.get()).toBe(false);
+    expect(current.getState().files.recentOpen).toBe(false);
     keyEv(box, { code: 'KeyE', key: 'Dead', altKey: true });
-    expect(recentModal.get()).toBe(true);
-    act(() => recentModal.close());
-    expect(BINDINGS.map(keysLabel).slice(0, 2)).toEqual(['⌥W', '⌥⇧T']);
-    expect(keysLabel(BINDINGS.find((b) => b.id === 'hk_files')!)).toBe('⌘⇧F');
+    expect(current.getState().files.recentOpen).toBe(true);
+    act(() => void current.dispatch(setRecentOpen(false)));
+    expect(COMMANDS.map(keysLabel).slice(0, 2)).toEqual(['⌥W', '⌥⇧T']);
+    expect(keysLabel(COMMANDS.find((b) => b.id === 'hk_files')!)).toBe('⌘⇧F');
     expect(t('keysTip', modKey())).toContain('⌘Enter');
   } finally {
     plat.mockRestore();
@@ -213,11 +221,11 @@ it('Alt+H toggles the prompt history, also from the composer field, and is not t
   setup();
   const box = document.getElementById('composer-input')!;
   key('KeyH', { mod: true }, box);
-  expect(promptHistoryModal.get()).toBe(false);
+  expect(current.getState().promptHistory.open).toBe(false);
   key('KeyH', { alt: true }, box);
-  expect(promptHistoryModal.get()).toBe(true);
+  expect(current.getState().promptHistory.open).toBe(true);
   key('KeyH', { alt: true }, box);
-  expect(promptHistoryModal.get()).toBe(false);
+  expect(current.getState().promptHistory.open).toBe(false);
 });
 it('behind a modal dialog only Alt+E runs: the tabs behind the overlay stay', async () => {
   const s = setup();
@@ -228,12 +236,12 @@ it('behind a modal dialog only Alt+E runs: the tabs behind the overlay stay', as
   expect(ids(s)).toHaveLength(4);
   expect(active(s)).toBe('file:c.ts');
   key('KeyE', { alt: true }, box); // toggles its own dialog
-  expect(recentModal.get()).toBe(false);
+  expect(current.getState().files.recentOpen).toBe(false);
 });
 
 it('Esc on empty space focuses the composer and does not stop a busy agent', () => {
   const sent: unknown[] = [];
-  const store = makeStore({ url: 'ws://x', connect: () => ({ send: (m: unknown) => (sent.push(m), true), close() {} }) });
+  const store = mk({ url: 'ws://x', connect: () => ({ send: (m: unknown) => (sent.push(m), true), close() {} }) });
   act(() => void store.dispatch(serverEvent({ kind: 'session', id: 's1', root: '/p', title: null, model: null })));
   act(() => void store.dispatch(serverEvent({ kind: 'user', id: 'u1', text: 'hi', ts: 1 } as never)));
   render(<Provider store={store}><App /></Provider>);
@@ -253,7 +261,7 @@ it('while the window is occupied or taken (the overlay) no hotkey runs; once ope
     key('KeyE', { alt: true });
     key('KeyF', { mod: true, shift: true });
     expect(s.getState()).toBe(before);
-    expect(recentModal.get()).toBeFalsy();
+    expect(current.getState().files.recentOpen).toBeFalsy();
   }
   act(() => void s.dispatch(connState('open')));
   key('ArrowRight', { alt: true });
@@ -262,7 +270,7 @@ it('while the window is occupied or taken (the overlay) no hotkey runs; once ope
 
 it('withKey names the key', () => {
   const plat = vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel');
-  try { expect(withKey('Files', 'hk_files')).toBe('Files (⌘⇧F)'); } finally { plat.mockRestore(); }
+  try { expect(withKey(COMMANDS, 'Files', 'hk_files')).toBe('Files (⌘⇧F)'); } finally { plat.mockRestore(); }
 });
 
 it('Alt+P opens the project switcher with its search focused, and closes it again', async () => {

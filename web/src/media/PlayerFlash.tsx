@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Flash } from './playerKeys.ts';
+import type { Flash } from '@/sdk';
 
 const SHOW_MS = 600;
 

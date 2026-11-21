@@ -4,10 +4,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ServerEvent } from '@nota-bene/shared';
 import { setLang, t } from '@/i18n/index.ts';
 import { getToasts } from '@/shell/toast.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { page } from '@/net/local.ts';
 import type { ProjectsList, RunningRow } from './api.ts';
-import { enterFailure, nav, projectsMenu, setStarter } from './api.ts';
+import { enterFailure, nav, setProjectsMenu, setStarter } from './api.ts';
 import { ProjectSwitcher } from './ProjectSwitcher.tsx';
 
 const S1 = '11111111-1111-4111-8111-111111111111';
@@ -80,10 +80,14 @@ beforeEach(() => {
   }));
   vi.spyOn(nav, 'go').mockImplementation(() => {});
 });
-afterEach(() => { cleanup(); act(() => projectsMenu.close()); vi.unstubAllGlobals(); vi.restoreAllMocks(); page.remote = null; });
+// the store a test made last: the switcher's menu is its state
+let current: ReturnType<typeof makeStore>;
+const mk = (...a: Parameters<typeof makeStore>) => (current = makeStore(...a));
+
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); page.remote = null; });
 
 function setup() {
-  const store = makeStore({ url: 'ws://x', connect: (_u, onEvent, onState) => {
+  const store = mk({ url: 'ws://x', connect: (_u, onEvent, onState) => {
     queueMicrotask(() => { (onState as (s: string) => void)('open'); onEvent({ kind: 'session', id: S1, root: '/w/notes', title: 'Weekly notes', model: null } as ServerEvent); });
     return { send: () => true, close() {} };
   } });
@@ -93,7 +97,7 @@ function setup() {
 const openMenu = async () => {
   setup();
   await waitFor(() => expect(calls.some((c) => c.url === '/system/projects')).toBe(true));
-  act(() => projectsMenu.open());
+  act(() => void current.dispatch(setProjectsMenu(true)));
   return screen.findByRole('textbox', { name: t('projSearch') });
 };
 const projectRow = (name: string) => within(screen.getByRole('group', { name: t('projProjects') })).getByRole('button', { name: new RegExp(`^${name} ·`) });
@@ -168,7 +172,7 @@ it('New session: one entry; the dialog picks the agent; with its window there it
   expect(within(agent).getByRole('radio', { name: 'Claude' })).toBeChecked(); // this window's agent first
   fireEvent.click(within(dlg).getByRole('button', { name: t('projNewSessStart') }));
   await waitFor(() => expect(calls.find((c) => c.url === '/system/projects/enter')?.body).toEqual({ provider: 'claude', port: 4795, root: '/w/blog', session: 'new' }));
-  act(() => projectsMenu.open());
+  act(() => void current.dispatch(setProjectsMenu(true)));
   fireEvent.click(screen.getByRole('button', { name: t('projExpand', 'blog') }));
   const again = await screen.findByRole('group', { name: t('projSessionsOf', 'blog') });
   fireEvent.click(within(again).getByRole('button', { name: t('projNewSess') }));
@@ -200,8 +204,8 @@ it('✕ removes a folder from Recent, one from the launcher\'s list and one from
   await waitFor(() => expect(within(recent()).queryByRole('button', { name: /^archive-x\b/ })).toBeNull());
   expect(within(recent()).getByRole('button', { name: /^web\b/ })).toBeInTheDocument();
   // the next poll keeps them out: the server lists them as hidden
-  act(() => projectsMenu.close());
-  act(() => projectsMenu.open());
+  act(() => void current.dispatch(setProjectsMenu(false)));
+  act(() => void current.dispatch(setProjectsMenu(true)));
   await screen.findByRole('textbox', { name: t('projSearch') });
   await waitFor(() => expect(calls.filter((c) => c.url === '/system/projects').length).toBeGreaterThan(2));
   expect(within(recent()).queryByRole('button', { name: /^(old|archive-x)\b/ })).toBeNull();
@@ -230,8 +234,8 @@ it('Open folder and New project close the menu and open the starter in that mode
     await openMenu();
     fireEvent.click(screen.getByRole('button', { name: t('projNew') }));
     expect(modes).toEqual(['new']);
-    expect(projectsMenu.get()).toBe(false);
-    act(() => projectsMenu.open());
+    expect(current.getState().projects.menu).toBe(false);
+    act(() => void current.dispatch(setProjectsMenu(true)));
     fireEvent.click(await screen.findByRole('button', { name: t('projOpenFolder') }));
     expect(modes).toEqual(['new', 'open']);
   } finally {
@@ -241,13 +245,13 @@ it('Open folder and New project close the menu and open the starter in that mode
 
 it('a session of this window asks first, then switches here', async () => {
   const sent: unknown[] = [];
-  const store = makeStore({ url: 'ws://x', connect: (_u, onEvent, onState) => {
+  const store = mk({ url: 'ws://x', connect: (_u, onEvent, onState) => {
     queueMicrotask(() => { (onState as (s: string) => void)('open'); onEvent({ kind: 'session', id: S1, root: '/w/notes', title: 'Weekly notes', model: null } as ServerEvent); });
     return { send: (m: unknown) => { sent.push(m); return true; }, close() {} };
   } });
   render(<Provider store={store}><ProjectSwitcher project="notes" windowTitle="notes" /></Provider>);
   await waitFor(() => expect(calls.some((c) => c.url === '/system/projects')).toBe(true));
-  act(() => projectsMenu.open());
+  act(() => void current.dispatch(setProjectsMenu(true)));
   const mine = await screen.findByRole('group', { name: t('projSessionsOf', 'notes') });
   fireEvent.click(await within(mine).findByRole('button', { name: /^Older notes/ }));
   const dlg = await screen.findByRole('dialog', { name: t('openQ', 'Older notes') });
@@ -257,13 +261,13 @@ it('a session of this window asks first, then switches here', async () => {
 
 it('a new session with this window\'s agent warns like a switch and starts here', async () => {
   const sent: unknown[] = [];
-  const store = makeStore({ url: 'ws://x', connect: (_u, onEvent, onState) => {
+  const store = mk({ url: 'ws://x', connect: (_u, onEvent, onState) => {
     queueMicrotask(() => { (onState as (s: string) => void)('open'); onEvent({ kind: 'session', id: S1, root: '/w/notes', title: 'Weekly notes', model: null } as ServerEvent); });
     return { send: (m: unknown) => { sent.push(m); return true; }, close() {} };
   } });
   render(<Provider store={store}><ProjectSwitcher project="notes" windowTitle="notes" /></Provider>);
   await waitFor(() => expect(calls.some((c) => c.url === '/system/projects')).toBe(true));
-  act(() => projectsMenu.open());
+  act(() => void current.dispatch(setProjectsMenu(true)));
   const mine = await screen.findByRole('group', { name: t('projSessionsOf', 'notes') });
   fireEvent.click(within(mine).getByRole('button', { name: t('projNewSess') }));
   const dlg = await screen.findByRole('dialog', { name: t('newQ') });
@@ -314,9 +318,9 @@ it('another project stops from its row after a confirm, each live window of it; 
 // issue 449: Back to this page after a move from Recent brings it from the back/forward cache with the menu still open
 it('a page restored by Back has the menu closed', async () => {
   await openMenu();
-  expect(projectsMenu.get()).toBe(true);
+  expect(current.getState().projects.menu).toBe(true);
   act(() => { window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })); });
-  expect(projectsMenu.get()).toBe(false);
+  expect(current.getState().projects.menu).toBe(false);
 });
 
 it('issue 297: another computer\'s window is a row of its own, with the laptop and its name; it opens through the connector', async () => {
@@ -360,7 +364,7 @@ it('issue 297: on another computer\'s page, a move is a navigation to its proxy;
   expect(screen.queryByRole('button', { name: t('projExpand', 'blog') })).toBeNull();
   fireEvent.click(projectRow('blog'));
   expect(nav.go).toHaveBeenCalledWith('/system/remote/enter?provider=claude&port=4795&root=%2Fw%2Fblog');
-  act(() => projectsMenu.open());
+  act(() => void current.dispatch(setProjectsMenu(true)));
   fireEvent.click(await screen.findByRole('button', { name: /^far ·/ }));
   expect(nav.go).toHaveBeenCalledWith('/system/remote/enter?host=h1&port=4777');
   expect(calls.some((c) => c.url === '/system/projects/enter' || c.url === '/system/remote/open')).toBe(false);
@@ -371,7 +375,7 @@ it('issue 297: the connector\'s refusals are said in words, never its raw text',
   await openMenu();
   fireEvent.click(await screen.findByRole('button', { name: /^three ·/ }));
   await waitFor(() => expect(getToasts().some((x) => x.title === t('projEnterFailed', t('whyNotConnected')))).toBe(true));
-  act(() => projectsMenu.open());
+  act(() => void current.dispatch(setProjectsMenu(true)));
   fireEvent.click(await screen.findByRole('button', { name: /^four ·/ }));
   await waitFor(() => expect(getToasts().some((x) => x.title === t('projEnterFailed', t('whyRemoteFailed')))).toBe(true));
   expect(getToasts().some((x) => x.title.includes('EACCES'))).toBe(false);

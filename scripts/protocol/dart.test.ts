@@ -3,7 +3,7 @@ import { expect, it } from 'vitest';
 import { schemaToDart } from './dart.ts';
 import { buildSchema, type ProtocolSchema } from './schema.ts';
 
-const schema = (definitions: Record<string, JSONSchema7Definition>): ProtocolSchema => ({ $schema: 'http://json-schema.org/draft-07/schema#', 'x-protocol': 7, definitions });
+const schema = (definitions: Record<string, JSONSchema7Definition>): ProtocolSchema => ({ $schema: 'http://json-schema.org/draft-07/schema#', 'x-protocol': 7, 'x-features': { a: 1 }, definitions });
 const lit = (value: string): JSONSchema7Definition => ({ type: 'string', const: value });
 const obj = (properties: Record<string, JSONSchema7Definition>, required: string[]): JSONSchema7Definition => ({ type: 'object', properties, required });
 
@@ -43,6 +43,66 @@ it('a union with one variant lacking the discriminator', () => {
   expect(dart).toContain('final class TextAnchor extends Anchor');
   expect(dart).toContain('final class MediaAnchor extends Anchor');
   expect(dart).toContain("'media' => MediaAnchor.fromJson(json),");
+});
+
+it('a union told apart by a boolean', () => {
+  const dart = schemaToDart(schema({
+    Diff: { anyOf: [{ $ref: '#/definitions/NoRepo' }, { $ref: '#/definitions/RepoDiff' }] },
+    NoRepo: obj({ repo: { type: 'boolean', const: false } }, ['repo']),
+    RepoDiff: obj({ repo: { type: 'boolean', const: true }, n: { type: 'number' } }, ['repo', 'n']),
+  }));
+  expect(dart).toContain('final class NoRepo extends Diff');
+  expect(dart).toContain('false => NoRepo.fromJson(json),');
+  expect(dart).toContain('true => RepoDiff.fromJson(json),');
+  expect(dart).toContain("return {'repo': false};");
+});
+
+it('a union told apart by an enum one variant lacks', () => {
+  const dart = schemaToDart(schema({
+    Answer: { anyOf: [{ $ref: '#/definitions/Done' }, { $ref: '#/definitions/Refusal' }] },
+    Done: obj({ branch: { type: 'string' } }, ['branch']),
+    Refusal: obj({ error: { $ref: '#/definitions/Why' }, detail: { type: 'string' } }, ['error']),
+    Why: { type: 'string', enum: ['busy', 'git'] },
+  }));
+  expect(dart).toContain("if (!json.containsKey('error')) return Done.fromJson(json);");
+  expect(dart).toContain('final Why error;');
+  // a reason this side does not know is still a refusal, its error \$unknown: no Unknown variant to fall into, and
+  // its known reasons need no arms of their own
+  expect(dart).toContain("if (!json.containsKey('error')) return Done.fromJson(json);\n    return Refusal.fromJson(json);\n  }");
+  expect(dart).not.toContain('AnswerUnknown');
+  // one read with an unknown reason goes back as it came
+  expect(dart).toContain('if (v.error == Why.$unknown) _raws[v] = json;');
+  expect(dart).toContain('    final raw = _raws[this];\n    if (raw != null) return raw;');
+  expect(dart).toContain('final _raws = Expando<Map<String, Object?>>();');
+});
+
+it('beside a literal-tagged variant, the enum-tagged one is the default and has no arms', () => {
+  const dart = schemaToDart(schema({
+    Answer: { anyOf: [{ $ref: '#/definitions/Done' }, { $ref: '#/definitions/Refusal' }] },
+    Done: obj({ error: lit('none') }, ['error']),
+    Refusal: obj({ error: { $ref: '#/definitions/Why' } }, ['error']),
+    Why: { type: 'string', enum: ['busy', 'git'] },
+  }));
+  expect(dart).toContain("return switch (json['error']) {\n      'none' => Done.fromJson(json),\n      _ => Refusal.fromJson(json),\n    };");
+});
+
+it('a union without an enum tag keeps no raw JSON of its variants', () => {
+  const dart = schemaToDart(schema({
+    E: { anyOf: [obj({ kind: lit('x') }, ['kind']), obj({ kind: lit('y') }, ['kind'])] },
+  }));
+  expect(dart).not.toContain('_raws');
+});
+
+it('an arm too long for a line splits between values, not inside one', () => {
+  const long = 'x'.repeat(30);
+  const dart = schemaToDart(schema({
+    E: { anyOf: [obj({ kind: { type: 'string', enum: [`${long} || a`, `${long}b`, `${long}c`] } }, ['kind']), obj({ kind: lit('y') }, ['kind'])] },
+  }));
+  expect(dart).toContain(`      '${long} || a' ||\n      '${long}b' ||\n`);
+});
+
+it('a list answer as a typedef', () => {
+  expect(schemaToDart(schema({ Hits: { type: 'array', items: { type: 'string' } } }))).toContain('typedef Hits = List<String>;');
 });
 
 it('an enum with $unknown', () => {
@@ -112,5 +172,14 @@ it('the real schema converts', () => {
   expect(dart).toContain('final class TextAnchor extends Anchor');
   expect(dart).toContain('final class MediaShapeRectOrEllipse extends MediaShape');
   expect(dart).toContain('enum AgentMode');
+  expect(dart).toContain('sealed class VcsDiff');
+  expect(dart).toContain('final class GitSwitchRefusal extends GitSwitchAnswer');
+  expect(dart).toContain('typedef CompleteAnswer = List<String>;');
   expect(schemaToDart(buildSchema())).toBe(dart);
 }, 60_000);
+
+it('the feature table as an enum, numbers shared', () => {
+  const dart = schemaToDart({ ...schema({}), 'x-features': { held: 27, voice: 14, compactOrder: 27 } });
+  expect(dart).toContain('enum Feature {\n  voice(14),\n  held(27),\n  compactOrder(27);\n\n  const Feature(this.protocol);\n  final int protocol;\n}');
+  expect(dart).toContain('bool has(num? protocol, Feature f) => (protocol ?? 0) >= f.protocol;');
+});

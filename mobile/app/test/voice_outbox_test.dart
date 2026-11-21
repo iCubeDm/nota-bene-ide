@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_app/chat/window_state.dart';
 import 'package:nb_app/voice/outbox.dart';
 import 'package:nb_app/voice/player.dart';
+import 'package:nb_app/store/storage.dart';
 import 'package:nb_channel/nb_channel.dart' show HttpAnswer;
 import 'package:nb_protocol/nb_protocol.dart';
 
@@ -12,7 +14,7 @@ import 'support/voice_fakes.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  late MemoryOutFiles disk;
+  late MemoryFiles disk;
   late VoiceStore store;
   late List<ClientMessage> sent;
   late Completer<HttpAnswer>? upload;
@@ -50,9 +52,9 @@ void main() {
   }
 
   setUp(() {
-    disk = MemoryOutFiles();
-    store = VoiceStore(disk);
+    disk = MemoryFiles();
     VoicePlayer.shared = VoicePlayer(files: MemoryVoiceFiles());
+    store = VoiceStore(disk, sounds: VoicePlayer.shared);
     sent = [];
     upload = null;
     open = true;
@@ -116,7 +118,7 @@ void main() {
       upload!.complete(ok());
       await settle();
       detectOk = false;
-      final next = VoiceStore(disk);
+      final next = VoiceStore(disk, sounds: VoicePlayer.shared);
       box = attach(next);
       await next.ready;
       box.opened();
@@ -139,7 +141,7 @@ void main() {
       upload!.complete(ok());
       await settle();
       detectOk = true;
-      final next = VoiceStore(disk);
+      final next = VoiceStore(disk, sounds: VoicePlayer.shared);
       box = attach(next);
       await next.ready;
       box.opened();
@@ -177,7 +179,7 @@ void main() {
       expect(box.entries.single.stage, OutStage.uploading);
       expect(box.entries.single.voice, isNotNull);
       // the app dies and starts again
-      final next = VoiceStore(disk);
+      final next = VoiceStore(disk, sounds: VoicePlayer.shared);
       box = attach(next);
       await next.ready;
       expect(box.entries, hasLength(1));
@@ -198,7 +200,7 @@ void main() {
       await settle();
       expect(box.heldIds, {'c1'});
       box.detach(owner);
-      final next = VoiceStore(disk);
+      final next = VoiceStore(disk, sounds: VoicePlayer.shared);
       upload = null;
       final again = attach(next);
       await next.ready;
@@ -218,7 +220,7 @@ void main() {
     box.submit(wavOf(1000), 'en');
     await settle();
     box.detach(owner);
-    final next = VoiceStore(disk);
+    final next = VoiceStore(disk, sounds: VoicePlayer.shared);
     upload = null;
     final again = attach(next);
     await next.ready;
@@ -238,7 +240,7 @@ void main() {
       await settle();
       expect(box.entries.single.stage, OutStage.failed);
       box.detach(owner);
-      final next = VoiceStore(disk);
+      final next = VoiceStore(disk, sounds: VoicePlayer.shared);
       box = attach(next);
       await next.ready;
       expect(box.entries.single.stage, OutStage.failed);
@@ -278,6 +280,26 @@ void main() {
       await settle();
       final first = (sent.first as ClientMessageSend).id;
       box.reconcile({first});
+      expect(box.entries.single.stage, OutStage.failed);
+      box.detach(owner);
+    },
+  );
+
+  test(
+    'on protocol 27 a replay waits for compact-pending before it judges what was sent',
+    () async {
+      final box = attach();
+      box.submit(wavOf(1000), 'en');
+      await settle();
+      final state = WindowState(send: (_) => true, http: () => null);
+      addTearDown(state.dispose);
+      box.event(const ServerEventReplay(events: []), state, holdsUntold: true);
+      expect(box.entries.single.stage, OutStage.sent);
+      box.event(
+        const ServerEventCompactPending(pending: false, held: []),
+        state,
+        holdsUntold: true,
+      );
       expect(box.entries.single.stage, OutStage.failed);
       box.detach(owner);
     },

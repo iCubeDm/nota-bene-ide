@@ -1,3 +1,4 @@
+import { nextMode } from '@/sdk';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
@@ -6,8 +7,7 @@ import { CLAUDE_CAPABILITIES, type Capabilities, type ClientMessage, type Server
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { Composer } from '@/composer/Composer.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/store/store.ts';
-import { nextMode } from './slice.ts';
+import { makeStore } from '@/testing';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 

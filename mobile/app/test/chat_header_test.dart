@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
+import 'package:nb_protocol/nb_protocol.dart' show AgentMode, AgentProvider;
 import 'package:nb_app/chat/chat_header.dart';
 import 'package:nb_app/chat/chat_screen.dart';
 import 'package:nb_app/chat/window_tab.dart';
@@ -35,12 +36,11 @@ Map<String, Object?> context(num pct, {num used = 1000, num max = 200000}) => {
 
 void main() {
   test('the provider letter', () {
-    expect(providerLetter('claude'), 'C');
-    expect(providerLetter('codex'), 'X');
-    expect(providerLetter('omp'), 'O');
-    expect(providerLetter('gemini'), 'G');
+    expect(providerLetter(AgentProvider.claude), 'C');
+    expect(providerLetter(AgentProvider.codex), 'X');
+    expect(providerLetter(AgentProvider.omp), 'O');
+    expect(providerLetter(AgentProvider.$unknown), '?');
     expect(providerLetter(null), '?');
-    expect(providerLetter(''), '?');
   });
 
   late Rig rig;
@@ -110,22 +110,22 @@ void main() {
 
   testWidgets('no modes, no mode in the header', (t) async {
     await modeHeader(t, [], 'default');
-    expect(find.text(webString('mode_default', 'en')), findsNothing);
+    expect(find.text(modeLabel(AgentMode.default_, 'en')), findsNothing);
   });
 
   testWidgets('one mode, no mode in the header', (t) async {
     await modeHeader(t, ['default'], 'default');
-    expect(find.text(webString('mode_default', 'en')), findsNothing);
+    expect(find.text(modeLabel(AgentMode.default_, 'en')), findsNothing);
   });
 
   testWidgets('two modes, the current one under Chat', (t) async {
     await modeHeader(t, ['default', 'plan'], 'plan');
-    expect(find.text(webString('mode_plan', 'en')), findsOneWidget);
+    expect(find.text(modeLabel(AgentMode.plan, 'en')), findsOneWidget);
   });
 
   testWidgets('a mode the agent does not offer is not shown', (t) async {
     await modeHeader(t, ['default', 'plan'], 'acceptEdits');
-    expect(find.text(webString('mode_acceptEdits', 'en')), findsNothing);
+    expect(find.text(modeLabel(AgentMode.acceptEdits, 'en')), findsNothing);
   });
 
   testWidgets('no title reads untitled', (t) async {
@@ -191,11 +191,11 @@ void main() {
     expect(
       find.descendant(
         of: find.byType(ChatHeader),
-        matching: find.text(webString('mode_plan', 'en')),
+        matching: find.text(modeLabel(AgentMode.plan, 'en')),
       ),
       findsNothing,
     );
-    expect(find.text(webString('mode_plan', 'en')), findsOneWidget);
+    expect(find.text(modeLabel(AgentMode.plan, 'en')), findsOneWidget);
   });
 
   testWidgets('a long title and model ellipsize, the buttons keep size', (
@@ -214,7 +214,12 @@ void main() {
   ) async {
     await rig.open(t, events: [session(title: 'Spec work')]);
     var taps = 0;
-    final own = WindowTab(rig.link, 4791, '/home/u/notes', retry: (_) async {});
+    final own = WindowTab(
+      rig.link,
+      window(4791, '/home/u/notes'),
+      stores: rig.stores!,
+      retry: (_) async {},
+    );
     addTearDown(own.dispose);
     await t.pumpWidget(
       NbApp(
@@ -242,7 +247,12 @@ void main() {
 
   testWidgets('the back button pops the route', (t) async {
     await rig.open(t, events: [session(title: 'x')]);
-    final own = WindowTab(rig.link, 4791, '/home/u/notes', retry: (_) async {});
+    final own = WindowTab(
+      rig.link,
+      window(4791, '/home/u/notes'),
+      stores: rig.stores!,
+      retry: (_) async {},
+    );
     addTearDown(own.dispose);
     await t.pumpWidget(
       NbApp(

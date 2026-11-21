@@ -1,6 +1,32 @@
 import { afterEach, expect, it, vi } from 'vitest';
+import { configureStore, type Middleware } from '@reduxjs/toolkit';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
-import { devToolsEnabled, interrupt, makeStore, selectBusy, selectFeed, sendMessage } from './store.ts';
+import { makeStore } from '@/testing';
+import { PLUGINS } from '../plugins.ts';
+import { commentsSlice } from '../comments/slice.ts';
+import { composerSlice } from '../composer/slice.ts';
+import { historySlice } from '../composer/history.ts';
+import { controlsSlice } from '../store/controls.ts';
+import { feedUiSlice } from '../feed/uiSlice.ts';
+import { filesSlice } from '../files/slice.ts';
+import { markupSlice } from '../media/markup/slice.ts';
+import { remoteSlice } from '../remote/slice.ts';
+import { statsSlice } from './stats.ts';
+import { subagentsSlice } from './subagents.ts';
+import { tasksSlice } from './tasks.ts';
+import { messageSlice } from './message.ts';
+import { tasksUiSlice } from '../tasks/slice.ts';
+import { tabsSlice } from '../tabs/slice.ts';
+import { jumpSlice } from '../tabs/jump.ts';
+import { treeSlice } from '../files/treeSlice.ts';
+import { vcsSlice } from '../vcs/store.ts';
+import { projectsSlice } from '../projects/api.ts';
+import { refusedMiddleware } from '../composer/refused.ts';
+import { historyMiddleware } from '../composer/history.ts';
+import { compactTimingMiddleware } from '../feed/compactTiming.ts';
+import { enterRoot } from '../tabs/slice.ts';
+import type { Plugin } from '../sdk/plugin.ts';
+import { connSlice, devToolsEnabled, feedSlice, interrupt, makeStore as coreStore, middlewareOf, selectBusy, selectFeed, sendMessage, toastMiddleware } from './store.ts';
 
 function fake() {
   const sent: ClientMessage[] = [];
@@ -15,6 +41,22 @@ function fake() {
 }
 
 afterEach(() => { vi.unstubAllEnvs(); });
+
+it('the plugins inject every slice under its name of before issue 511, with the same initial state', () => {
+  // the store as it was assembled before plugins (one reducer map naming every slice): persisted state and selectors rely on it;
+  // `jump` was `files.jump` (step 10c: each file view takes its own); `message` was the composer's images, `vcs` and `projects` were module singletons (issue 545)
+  const before = configureStore({
+    reducer: { feed: feedSlice.reducer, conn: connSlice.reducer, comments: commentsSlice.reducer, composer: composerSlice.reducer, message: messageSlice.reducer, tabs: tabsSlice.reducer, tree: treeSlice.reducer, files: filesSlice.reducer, controls: controlsSlice.reducer, stats: statsSlice.reducer, remote: remoteSlice.reducer, tasks: tasksSlice.reducer, tasksUi: tasksUiSlice.reducer, markup: markupSlice.reducer, feedUi: feedUiSlice.reducer, subagents: subagentsSlice.reducer, promptHistory: historySlice.reducer, jump: jumpSlice.reducer, vcs: vcsSlice.reducer, projects: projectsSlice.reducer },
+  });
+  const store = coreStore({ url: 'u', connect: fake().connect, plugins: PLUGINS });
+  expect(Object.keys(store.getState()).sort()).toEqual(Object.keys(before.getState()).sort());
+  expect(store.getState()).toEqual(before.getState());
+});
+
+it('a slice name two plugins declare fails at creation', () => {
+  const twice = [{ id: 'a', slices: [tasksUiSlice] }, { id: 'b', slices: [tasksUiSlice] }];
+  expect(() => coreStore({ url: 'u', connect: fake().connect, plugins: twice })).toThrow(/tasksUi/);
+});
 
 it('inbound frames reach the feed', () => {
   const f = fake();
@@ -54,7 +96,7 @@ it('devtools only in dev', () => {
 
 it('selectReplyLabel numbers final assistant items and names user messages', async () => {
   const { setLang } = await import('../i18n/index.ts');
-  const { selectReplyLabel } = await import('./store.ts');
+  const { selectReplyLabel } = await import('../comments/send.ts');
   setLang('en');
   const f = fake();
   const store = makeStore({ url: 'ws://x/ws', connect: f.connect });
@@ -96,4 +138,36 @@ it('hello.lang sets the UI language; a hello without it leaves the local choice'
   f.ev({ kind: 'hello', protocol: 9 });
   expect(getLang()).toBe('ru');
   setLang('en');
+});
+
+it('the appended middleware: the core\'s toast, each plugin\'s in PLUGINS order (compactTiming, now feed\'s, after composer\'s), media last', () => {
+  const media: Middleware = () => (next) => next;
+  expect(middlewareOf(PLUGINS, media)).toEqual([toastMiddleware, refusedMiddleware, historyMiddleware, compactTimingMiddleware, media]);
+});
+
+it('the listener middleware is prepended: its listeners run after every appended middleware has passed the action on', () => {
+  const seen: string[] = [];
+  const probe: Plugin = {
+    id: 'probe',
+    middleware: [() => (next) => (a) => { const r = next(a); if ((a as { type: string }).type === 'probe') seen.push('middleware'); return r; }],
+    listeners: (start) => void start({ predicate: (a) => a.type === 'probe', effect: () => void seen.push('listener') }),
+  };
+  coreStore({ url: 'u', connect: fake().connect, plugins: [probe] }).dispatch({ type: 'probe' });
+  expect(seen).toEqual(['middleware', 'listener']);
+});
+
+it('listeners run core first, then each plugin\'s in plugins order: a plugin sees the new root\'s tabs already restored', () => {
+  localStorage.clear();
+  localStorage.setItem('tabs:/r', JSON.stringify({ tabs: [{ file: { path: 'a.md' } }], active: 'file:a.md' }));
+  const seen: string[] = [];
+  const spy = (id: string): Plugin => ({
+    id,
+    listeners: (start) => void start({ actionCreator: enterRoot, effect: (_a, api) => void seen.push(`${id}:${api.getState().tabs.active}`) }),
+  });
+  const f = fake();
+  // a subset of plugins: the core's own wiring touches no plugin's state
+  coreStore({ url: 'u', connect: f.connect, plugins: [spy('b'), spy('a')] });
+  f.ev({ kind: 'session', id: null, root: '/r', title: null, model: null });
+  expect(seen).toEqual(['b:file:a.md', 'a:file:a.md']);
+  localStorage.clear();
 });

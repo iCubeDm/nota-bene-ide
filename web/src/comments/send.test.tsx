@@ -7,8 +7,9 @@ import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { Composer } from '@/composer/Composer.tsx';
 import { Feed } from '@/feed/Feed.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent, useAppDispatch } from '@/store/store.ts';
-import { addImage, uploadFinished, uploadStarted } from '@/composer/slice.ts';
+import { serverEvent, useAppDispatch } from '@/store/store.ts';
+import { makeStore } from '@/testing';
+import { addImage, uploadFinished, uploadStarted } from '@/store/message.ts';
 import { openFile } from '@/tabs/slice.ts';
 import { setFileVersion } from '@/files/slice.ts';
 import { getToasts, resetToasts } from '@/shell/toast.ts';
@@ -214,7 +215,7 @@ it('images: composer first, then comment images; labels and the batch line', asy
     { id: B, mediaType: expect.any(String), label: '[image 2 · for comment 1]' },
   ]);
   expect(m.text).toContain('→ text c1\n📎 images: 2');
-  expect(store.getState().composer.images).toEqual([]);
+  expect(store.getState().message.images).toEqual([]);
 });
 
 it('images only, no text and no comments, still sends; an upload in flight blocks the send', async () => {
@@ -277,7 +278,7 @@ it('send-refused restores the draft, the images and the comment ids, and toasts'
   expect(store.getState().comments.sendingIds).toEqual(['c1']);
   act(() => void store.dispatch(serverEvent({ kind: 'send-refused', id: m.id, reason: 'switching' })));
   expect(box.value).toBe('please');
-  expect(store.getState().composer.images).toHaveLength(1);
+  expect(store.getState().message.images).toHaveLength(1);
   expect(store.getState().comments.sendingIds).toEqual([]);
   expect(getToasts().map((x) => x.title)).toContain('Not sent: a session switch is in progress');
 });

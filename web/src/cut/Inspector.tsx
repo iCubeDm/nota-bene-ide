@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { isPhotoSrc, type Cut, type CutClip, type CutPlace } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
-import { useT } from '@/i18n/index.ts';
+import { useT } from '@/sdk';
 import { FULL, ms, setClip, setClips } from './ops.ts';
 
 type Patch = Parameters<typeof setClip>[2];

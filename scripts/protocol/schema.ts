@@ -1,16 +1,20 @@
 // The JSON Schema of the browser/server protocol, generated from shared/src/protocol.ts. The schema is the contract
 // other-language clients (the Dart types, a later task) are generated from; `npm run gen:protocol -- --check` fails on drift.
 import { fileURLToPath } from 'node:url';
-import { PROTOCOL } from '@nota-bene/shared';
+import { FEATURES, PROTOCOL } from '@nota-bene/shared';
 import type { JSONSchema7Definition } from 'json-schema';
 import { createGenerator } from 'ts-json-schema-generator';
 
-export const ROOTS = ['ClientMessage', 'ServerEvent', 'UsageReport'] as const;
+/** the HTTP answers the phone reads, so it parses them with generated classes (issue 511) */
+export const ANSWERS = ['VcsDiff', 'VcsPatch', 'VcsLog', 'VcsCommitDetail', 'GitSwitchAnswer', 'TreeEntry', 'CompleteAnswer', 'ProjectIconAnswer'] as const;
+export const ROOTS = ['ClientMessage', 'ServerEvent', 'UsageReport', 'HostStreamMessage', ...ANSWERS] as const;
 export const SCHEMA_PATH = 'shared/schema/protocol.schema.json';
 
 export type ProtocolSchema = {
   $schema: 'http://json-schema.org/draft-07/schema#';
   'x-protocol': number;
+  /** `FEATURES`: each feature's name and the protocol that added it */
+  'x-features': Record<string, number>;
   definitions: Record<string, JSONSchema7Definition>;
 };
 
@@ -29,7 +33,7 @@ export function buildSchema(): ProtocolSchema {
     Object.assign(definitions, reached, { [type]: root });
   }
   const sorted = Object.fromEntries(Object.entries(definitions).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
-  return { $schema: 'http://json-schema.org/draft-07/schema#', 'x-protocol': PROTOCOL, definitions: sorted };
+  return { $schema: 'http://json-schema.org/draft-07/schema#', 'x-protocol': PROTOCOL, 'x-features': { ...FEATURES }, definitions: sorted };
 }
 
 // Stable key order for objects, so the file only changes when the protocol does. Arrays keep their order.

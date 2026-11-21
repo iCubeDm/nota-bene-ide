@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useT } from '@/i18n/index.ts';
+import { useT, connections, routes, type PendingThumb, type UserPart } from '@/sdk';
 
 /** Full-size view. Esc / click closes; this Esc is consumed here (preventDefault + stop), so nothing else acts on it. */
-export function Lightbox({ id, onClose }: { id: string; onClose: () => void }) {
+function Lightbox({ id, onClose }: { id: string; onClose: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -23,14 +23,11 @@ export function Lightbox({ id, onClose }: { id: string; onClose: () => void }) {
       onClick={onClose}
       className="fixed inset-0 z-50 grid cursor-zoom-out place-items-center bg-scrim/80"
     >
-      <img src={`/attach/${id}`} alt="" className="max-h-[92vh] max-w-[92vw] rounded-lg object-contain" />
+      <img src={connections.current().url(routes.attach(id))} alt="" className="max-h-[92vh] max-w-[92vw] rounded-lg object-contain" />
     </div>,
     document.body,
   );
 }
-
-/** an upload in flight: an image's object URL thumbnail, or a file's name (issue 461) */
-export type PendingThumb = { key: string; url?: string; name?: string };
 
 /**
  * A strip of thumbnails. `ids` are the uploaded images (lazy `/attach/<id>`), `pending` are uploads in flight (object URLs,
@@ -54,7 +51,7 @@ export function Attachments({ ids, pending = [], onRemove, onMark, onCancel, cou
       {ids.map((id) => (
         <div key={id} className="relative">
           <img
-            src={`/attach/${id}`}
+            src={connections.current().url(routes.attach(id))}
             loading="lazy"
             alt=""
             onClick={() => setOpen(id)}
@@ -117,4 +114,9 @@ export function Attachments({ ids, pending = [], onRemove, onMark, onCancel, cou
       {open && <Lightbox id={open} onClose={() => setOpen(null)} />}
     </div>
   );
+}
+
+/** The images a user message carried (issue 511). */
+export function ImagesPart({ item }: Parameters<UserPart['render']>[0]) {
+  return item.images ? <Attachments ids={item.images.map((i) => i.id)} /> : null;
 }

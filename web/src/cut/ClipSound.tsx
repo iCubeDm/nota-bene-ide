@@ -2,7 +2,7 @@
 // handles at the clip's top corners. The drags themselves are the timeline's (useClipDrag in Timeline.tsx).
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { CUT_PEAKS_RATE } from '@nota-bene/shared/cut';
-import { useT, type t as T } from '@/i18n/index.ts';
+import { useT, type t as T } from '@/sdk';
 import { srcSpan, type Block } from './layout.ts';
 import { fmtDb, gainY } from './ops.ts';
 import { dbGain } from './playback.ts';

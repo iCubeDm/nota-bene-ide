@@ -1,9 +1,8 @@
-import { getLang, useT } from '@/i18n/index.ts';
-import { useSyncExternalStore } from 'react';
+import { getLang, useT, useStored } from '@/sdk';
 import { clockTime, currentDay, dayLabel, fullTime, subscribeDay } from './time.ts';
 
 /** Re-renders the caller at local midnight (time.ts): what reads as today changes then. */
-const useDay = () => useSyncExternalStore(subscribeDay, currentDay);
+const useDay = () => useStored({ subscribe: subscribeDay, get: currentDay });
 
 /** A message's time (with its date when it is not today), the whole date and time in its tooltip; nothing for ts 0. */
 export function MsgTime({ ts, className, anchorSkip }: { ts: number; className?: string; /** inside a quotable text: not part of it */ anchorSkip?: boolean }) {

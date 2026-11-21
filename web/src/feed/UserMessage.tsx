@@ -1,35 +1,22 @@
-import { BATCH_HEAD, isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, isTextAnchor } from '@nota-bene/shared';
-import { cutLine } from '@/cut/quote.ts';
-import { pageQuote } from '@/page/quote.ts';
-import { Attachments } from '@/attachments/Attachments.tsx';
-import { getLang, useT } from '@/i18n/index.ts';
-import { mediaLine } from '@/media/markup/geometry.ts';
+import { BATCH_HEAD } from '@nota-bene/shared';
+import { getLang, useT, escapeMentions, useRegistry, type FeedItem, type Held } from '@/sdk';
 import { memo, useContext } from 'react';
-import { Markdown } from './Markdown.tsx';
 import { MsgTime } from './MsgTime.tsx';
 import { clockTime } from './time.ts';
 import { FeedScope } from './scope.ts';
-import { escapeMentions } from '@/refs/refs.ts';
-import { labelOf } from '@/comments/labels.ts';
-import { selectSentFor } from '@/comments/slice.ts';
-import type { FeedItem } from '@/store/feed.ts';
-import { useAppSelector } from '@/store/store.ts';
-import { ClipRow } from '@/voice/ClipRow.tsx';
-import { VoiceBubble } from '@/voice/VoiceBubble.tsx';
+import { Markdown } from '@/sdk/ui';
+
+type User = Extract<FeedItem, { kind: 'user' }>;
 
 /** A line's time in the UI language: `14:32` today, with its date on another day (see time.ts); '' for ts 0. */
 export const timeOf = (ts: number): string => (ts > 0 ? clockTime(ts, getLang()) : '');
 
 /** `held` (issue 499): a send the server holds behind a pending restart or compaction; the line says what it waits for */
-export const UserMessage = memo(function UserMessage({ item, held }: { item: Extract<FeedItem, { kind: 'user' }>; held?: 'restart' | 'compact' }) {
+export const UserMessage = memo(function UserMessage({ item, held }: { item: User; held?: Held }) {
   const t = useT();
   const inAgent = !!useContext(FeedScope).agent; // a subagent's tab: the first message is the prompt it was given, not the user's
-  const sent = useAppSelector((s) => selectSentFor(s, item.id));
+  const parts = useRegistry().userParts; // the body under the header: a recording, the text, the images, the comments (issue 511)
   const mode = held ? t(held === 'restart' ? 'youHeldRestart' : 'youHeldCompact') : item.force ? t('youForced') : item.duringWork ? t('youBusy') : '';
-  const m = BATCH_HEAD.exec(item.text);
-  // a voice message: `text` is '' until the host's transcript arrives (a replayed history has it there at once)
-  const general = item.voice ? '' : m ? item.text.slice(0, m.index) : item.text;
-  const raw = m ? item.text.slice(m.index + m[0].length) : '';
   return (
     <div
       data-kind="user"
@@ -43,32 +30,19 @@ export const UserMessage = memo(function UserMessage({ item, held }: { item: Ext
         {item.ts > 0 && <> · <MsgTime ts={item.ts} /></>}
         {mode}
       </div>
-      {item.voice && <VoiceBubble voice={item.voice} text={item.voiceText ?? ((m ? item.text.slice(0, m.index) : item.text) || undefined)} error={item.voiceError} lang={item.voiceLang} />}
-      {general && (
-        <div className="md-tight">
-          <Markdown text={escapeMentions(general)} final breaks mentions noHtml />
-        </div>
-      )}
-      {item.images && <Attachments ids={item.images.map((i) => i.id)} />}
-      {(sent.length > 0 || raw) && (
-        <details data-anchor-skip className="mt-1.5 text-[0.8125rem] text-muted-foreground">
-          <summary className="cursor-pointer">{sent.length ? t('nComments', sent.length) : t('commentsLc')}</summary>
-          {sent.length
-            ? sent.map((c) => (
-                <div key={c.id} className="mt-1.5">
-                  {/* the quote is text the user selected in rendered output: plain, never re-read as markdown */}
-                  <blockquote className="whitespace-pre-wrap break-words border-l-2 border-nb-accent pl-2">{isMediaAnchor(c.anchor) ? mediaLine(c.anchor, (n) => t('markShapes', n)) : isPageAnchor(c.anchor) ? pageQuote(c.anchor, getLang()) : isCutAnchor(c.anchor) ? cutLine(c.anchor, getLang()) : isAttachmentAnchor(c.anchor) ? t('markShapes', c.anchor.shapes.length) : isTextAnchor(c.anchor) ? c.anchor.quote : ''}</blockquote>
-                  <div className="md-tight flex items-baseline gap-1">
-                    <span className="flex-none">→</span>
-                    {c.label && <span className="flex-none rounded bg-muted px-1">{labelOf(c)}</span>}
-                    <div className="min-w-0 flex-1"><Markdown text={c.text} final={false} breaks noHtml /></div>
-                  </div>
-                  {c.voice?.length ? <div className="mt-1 flex flex-col gap-1">{c.voice.map((v) => <ClipRow key={v.id} voice={v} text={v.text} />)}</div> : null}
-                </div>
-              ))
-            : <div className="md-tight mt-1.5"><Markdown text={raw} final={false} breaks noHtml /></div>}
-        </details>
-      )}
+      {parts.map(({ id, render: Part }) => <Part key={id} item={item} />)}
     </div>
   );
 });
+
+/** The message's own words: its text before the comment batch (a voice message's transcript is the recording's). */
+export function UserText({ item }: { item: User }) {
+  const m = BATCH_HEAD.exec(item.text);
+  // a voice message: `text` is '' until the host's transcript arrives (a replayed history has it there at once)
+  const general = item.voice ? '' : m ? item.text.slice(0, m.index) : item.text;
+  return general ? (
+    <div className="md-tight">
+      <Markdown text={escapeMentions(general)} final breaks mentions noHtml />
+    </div>
+  ) : null;
+}

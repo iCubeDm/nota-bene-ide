@@ -1,4 +1,4 @@
-import type { WireAgentEvent } from './agent.ts';
+import type { AgentProvider, WireAgentEvent } from './agent.ts';
 import type { ThemeId, UiLang, UiScale } from './lang.ts';
 import { isAbsPath } from './paths.ts';
 
@@ -117,6 +117,10 @@ export const VOICE_CLIP_TEXT_MAX = 20_000;
 /** Why a voice message has no transcript: Whisper went off, it heard nothing, or it failed. */
 export type VoiceError = 'off' | 'empty' | 'failed';
 export type TreeEntry = { name: string; dir: boolean };
+/** `GET /complete?q=`: up to 30 project-relative paths, a folder with a trailing `/`. */
+export type CompleteAnswer = string[];
+/** `PUT /project-icon`: the stored picture's version. */
+export type ProjectIconAnswer = { icon: string };
 /**
  * Where files are read from (M3-16, read-only). Stable ids (persisted in tabs and tree state): 'here' (this window's
  * checkout), `ref:<branch>` (any other local branch), `dir:<12 hex of sha1(realpath)>` (a detached worktree).
@@ -141,40 +145,8 @@ export type Comment = {
 /** The number of leading generated images of a comment (0 for a non-media one); the pasted ones follow. */
 export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) ? c.genImages ?? 2 : isAttachmentAnchor(c.anchor) ? c.genImages ?? 1 : 0);
 
-/**
- * What this server understands beyond the base protocol, announced in `hello` on connect. Every window serves the one
- * shared `web/dist`, so a reloaded page can be newer than its server (until "Restart the server"): the page sends a newer
- * message only to a server that announced it. 1: `activity` and `idle-compact`; 2: `mode` ids answered with `ack`; 3: the `fire` quick label; 4: media anchors and `/marks`;
- * 5: the agent's output as `agent` events (AgentEvent) instead of raw SDK frames; `replay.earlier`; one tab per window
- * (`occupied`, `taken-over`, the client's `takeover`, close code 4001, `?tab=` and `?passive=1` on the ws url);
- * `hello.capabilities`;
- * 6: the model and effort switch: the client's `model` (ids answered with `ack`), the server's `model` and `models` events,
- * `capabilities.models`;
- * 7: a message anchor may name a subagent (`source.agent`, the Agent call's tool-use id) and `GET /subagent` serves its conversation;
- * 8: the client's `task-stop` and `task-background`, and `GET /task-output` (a shell task's output tail);
- * 9: a media anchor may carry a `camera` (a comment on a 3D model view; the viewer was removed in 2.1.0, issue 470: a stored `camera` is ignored and dropped when the comment is next written);
- * 10: the server's `commands` event (the slash menu's list); an older server sends none, so the menu stays closed;
- * 11: `! cmd` in the composer: the client's `shell-run` and `shell-stop`, the server's `shell-start`, `shell-out` and `shell-end` events. An older server would send `! cmd` to the agent, so the page runs it as a shell command only from 11.
- */
-// 12: provider modes/descriptors, structured interaction answers and variable-duration usage windows.
-// 13: page anchors (a comment on an element or an SVG area of an HTML page); an older server would refuse the comment.
-// 14: voice messages (`send.voice` and `send.lang`, `user.voice`, the `voice-text` event, `/voice`) and voice clips of comments (`Comment.voice`).
-// 15: the project icon: the project folder's picture (`/project-icon`, set from the phone; `/info.icon` is its version or null).
-// 16: a voice `send` may carry `commentIds` with their batch `text` and `images` (the pending comments ride along with a recording).
-// 17: attachment anchors (marks on an image attached to the unsent message) and the `detached` send refusal.
-// 18: spoken-language detection: `send.detect` (a voice send asks the server to detect the language; `lang` is then the hint), `voice-text.lang`, `user.voiceLang` (the language a replayed voice message was transcribed in) and `hello.dictationLang` (the host's dictation language, `auto` or a code).
-// (Other additions to protocol 15, such as optional Interaction fields and the `task` event's optional `model`, are listed beside this line by their own changes.)
-// 19: comment ops: the client's `comment-op` (add / edit / remove, idempotent) answered by `comments.ack` or, for a session the window does not show, `comment-ack`, or by `comment-refused`; `comments.rev`. An older server gets whole sets (`comments`) as before.
-// 20: remote access from the window: the server's `remote` (the connector's state) and `remote-pair` events and the `/remote` routes; an older server has neither, so the page shows no indicator and no Remote tab.
-// 21: relay access keys: `RemoteState.accessKey` (one is saved) and `POST /remote/config {accessKey}`; `lastError` may be a 4405 (the key's computer limit) while the connector retries.
-// 22: a server restart that waits for the agent (gh-422): the server's `restart-pending` event (on attach and when it changes) and `resumed.cut` (the resume after a restart that cut a turn); `POST /restart-server {now}`, `/restart-server/pause`, `/restart-server/cancel`, `/info.restartPending`. An older server restarts at once and sends neither.
-// 23: cut anchors (a comment on a clip or a moment of a video edit's timeline, issue 430); an `edit` op of a pending cut comment also takes its anchor when it is a cut anchor on the same file (the comment follows its clip). An older server would refuse the comment.
-// 24: polygon media shapes (`MediaShape` kind `polygon`, issue 447) and `mask.png` beside a media comment's frame (`/marks`). An older server would refuse the comment, so the page offers the Mask tool only from 24.
-// 25: a media anchor may have no shapes (a comment on the whole picture, issue 494), and a `comment-op` that does not parse is answered `comment-refused` `invalid`. An older server would refuse such a comment and answer nothing, so the phone offers it only from 25.
-// 26: a comment's text may be empty when it has images (issue 497): pasted images or a drawing alone. An older server would refuse it, so the page and the phone offer it only from 26.
-// 27: a compaction ordered while the agent works waits for the next pause (issue 499): the client's `command` compact (or a typed `/compact`) is then the pending compaction, `compact-cancel` drops it; the server's `compact-pending` event (on attach and when it changes) and `send-held`. A page that says `held=1` on the ws url has its sends held behind a pending restart or compaction; an older one is refused and handed over as before.
-// 28: this computer as a device of another (issue 297): `RemoteState.hosts` (the paired computers and their link) and `POST /remote/connect {code}`, `/remote/forget {id}`. An older server has neither, so the page offers no Connect to a computer.
-// 29: another computer's projects in this one's switcher (issue 297): `GET /system/projects` rows may carry `remote: {host, name}`, `POST /system/remote/open {host, port}` opens a desktop proxy for one, and `GET /system/remote/page` is `{host, name}` on a page the proxy serves (a window has no such route); the channel's `public` stream. Both computers need it: the flag comes from the proxy, the page from the other computer.
+export { FEATURES, has, type Feature } from './features.ts';
+/** The protocol this server speaks, announced in `hello`: the largest entry of `FEATURES`, where each number's additions are. */
 export const PROTOCOL = 29;
 
 /** protocol 27: a send the server holds behind a pending restart or compaction (issue 499), as the feed shows it */
@@ -260,7 +232,7 @@ export type Capabilities = {
   compact: boolean; clear: boolean; modes: AgentMode[]; usage: boolean; fileSuggestions: boolean; fork: boolean; idleCompact: boolean; models: boolean;
   /** speech to text runs on the host (Whisper installed, ready and switched on); absent: not offered. Set by the server, not by the agent. */
   dictation?: 'whisper';
-  provider?: 'claude' | 'codex' | 'omp';
+  provider?: AgentProvider;
   taskBackground?: boolean;
   taskOutput?: boolean;
   /** the agent deletes a stored session for good (POST /sessions/delete); absent: the Sessions menu offers no delete */
@@ -768,10 +740,11 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
   }
 }
 
-export type { AgentEvent, StopReason, WireAgentEvent } from './agent.ts';
+export type { AgentEvent, AgentProvider, StopReason, WireAgentEvent } from './agent.ts';
+export { HOST_WINDOW_INFO, type HostStreamMessage, type HostWindow, type LastMessage } from './host.ts';
 export { FINISHED_CAP, orderedTasks, reduceTasks, shortModel, taskKind, type Task, type TaskKind, type TasksState, type TaskStatus } from './tasks.ts';
 export { BATCH_HEAD, BATCH_HEADS, DEFAULT_THEME, isThemeId, isUiLang, isUiScale, THEME_KIND, THEMES, UI_LANGS, UI_SCALES, type ThemeId, type UiLang, type UiScale } from './lang.ts';
-export type { GitSwitchAnswer, GitSwitchError, VcsBaseHow, VcsBranch, VcsCommit, VcsCommitDetail, VcsDiff, VcsFile, VcsLog, VcsPatch } from './vcs.ts';
+export type { GitSwitchAnswer, GitSwitched, GitSwitchError, GitSwitchRefusal, VcsBaseHow, VcsBranch, VcsCommit, VcsCommitDetail, VcsDiff, VcsFile, VcsLog, VcsNoRepo, VcsPatch, VcsRepoDiff } from './vcs.ts';
 export { USAGE_PERIODS, type TokenCounts, type UsageAgentRow, type UsageCallRow, type UsageExtra, type UsageHit, type UsagePeriod, type UsageProvider, type UsageReport, type UsageRow, type UsageTank, type UsageTaskRow } from './usage.ts';
 
 /** `GET /subagent` (protocol 7): a subagent's conversation as feed events, whether it still runs, and what the Agent call named it. */

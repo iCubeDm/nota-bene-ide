@@ -107,7 +107,7 @@ The only write into a project is `<root>/.nota-bene/marks/` (`server/src/marks.t
 
 A published window (package root without `.git`) updates itself; a checkout never does. Code: `server/src/update.ts`
 (the check), `runtime.ts` (the runtime store, `runtime/<x.y.z>/`, `current`, `state.json`), `updater.ts`, the
-`/system/update*` routes, `web/src/shell/UpdateNotice.tsx`.
+`/system/update*` routes, `web/src/update/UpdateNotice.tsx`.
 
 - Handover: the outer launcher runs `runtime/current`'s launcher as its child when that is a newer plain `x.y.z`, on
   the same port with the same nonce. Exit 77 means "a newer version is current: hand over"; the server exits 77 only
@@ -245,6 +245,9 @@ its `/remote` answers 503. Tests use a temporary `NOTA_BENE_HOME` and an in-proc
 
 ## Session rules
 
+- **Protocol features.** A protocol change adds an entry to `FEATURES` (`shared/src/features.ts`) and raises `PROTOCOL`
+  to it; a client gates on `has(protocol, name)` (phone: `has(protocol, Feature.name)`), never on a number (the boundary check counts
+  such comparisons in `web/src` and `mobile/app/lib`).
 - **One tab per window.** The first socket owns the session; a second tab can take over, and the old one gets close code
   4001. A reload of the owner within 700 ms is not a second tab.
 - **Switch and ↻ are in-process**: the server closes the agent and resumes (another) session. A new session may start

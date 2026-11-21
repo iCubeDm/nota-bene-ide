@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { fetchTmpImage, type TmpLoad } from '../tmpImages.ts';
+import { fetchTmpImage, type TmpLoad } from '@/sdk';
 
 /**
  * The bytes of a temp image as a blob URL, fetched with the key (the cookie alone does not open `/tmpimage`). `url` null =

@@ -2,11 +2,11 @@ import { parseClientMessage } from '@nota-bene/shared';
 import Ajv from 'ajv';
 import fs from 'node:fs';
 import { expect, it } from 'vitest';
-import { SCHEMA_PATH } from './schema.ts';
+import { ANSWERS, SCHEMA_PATH } from './schema.ts';
 
 const read = (p: string) => JSON.parse(fs.readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8'));
 const schema = read(SCHEMA_PATH);
-const fx = read('shared/fixtures/protocol.json') as { client: any[]; server: any[]; usage: any[] };
+const fx = read('shared/fixtures/protocol.json') as { client: any[]; server: any[]; usage: any[]; host: any[]; answers: Record<string, unknown[]> };
 // strict: false because the schema generator emits `type` beside `const`, which strict mode rejects
 const ajv = new Ajv({ strict: false, allErrors: true });
 ajv.addSchema(schema, 'p');
@@ -18,7 +18,13 @@ function failures(items: unknown[], root: string): string[] {
 }
 
 it('every fixture is valid', () => {
-  expect([...failures(fx.client, 'ClientMessage'), ...failures(fx.server, 'ServerEvent'), ...failures(fx.usage, 'UsageReport')]).toEqual([]);
+  expect([...failures(fx.client, 'ClientMessage'), ...failures(fx.server, 'ServerEvent'), ...failures(fx.usage, 'UsageReport'), ...failures(fx.host, 'HostStreamMessage')]).toEqual([]);
+});
+
+// the HTTP answers the phone reads (issue 511): each one has a fixture, and every fixture is valid
+it('every answer has a valid fixture', () => {
+  expect(Object.keys(fx.answers).sort()).toEqual([...ANSWERS].sort());
+  expect(Object.entries(fx.answers).flatMap(([root, items]) => (items.length ? failures(items, root) : [`${root}: no fixture`]))).toEqual([]);
 });
 
 it('the parser takes every client fixture as it is', () => {

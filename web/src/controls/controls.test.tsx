@@ -1,3 +1,4 @@
+import { planApproved, restartAgent, selectRestarting, selectSwitching, switchSession } from '@/sdk';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
@@ -6,8 +7,8 @@ import type { ClientMessage, AgentMode as Mode, ServerEvent } from '@nota-bene/s
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { Composer } from '@/composer/Composer.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { connState, makeStore } from '@/store/store.ts';
-import { planApproved, restartAgent, selectRestarting, selectSwitching, switchSession } from './slice.ts';
+import { connState } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 
 // Radix popper measures with ResizeObserver, which jsdom lacks
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };

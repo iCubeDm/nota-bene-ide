@@ -1,26 +1,22 @@
 import { useMemo, useState } from 'react';
-import { isAttachmentAnchor } from '@nota-bene/shared';
-import { removeComment, selectComments } from '@/comments/slice.ts';
-import { markAttachment, removeImage, selectImages, selectMarking } from '@/composer/slice.ts';
-import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
-import { useT } from '@/i18n/index.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { AttachmentMarkup } from './AttachmentMarkup.tsx';
-import { Attachments, type PendingThumb } from './Attachments.tsx';
+import { has, isAttachmentAnchor } from '@nota-bene/shared';
+import { useT, useAppDispatch, useAppSelector, useComments, useService, type PendingThumb, markAttachment, removeImage, selectImages, selectMarking } from '@/sdk';
+import { ConfirmDialog } from '@/sdk/ui';
+import { Attachments } from './Attachments.tsx';
 
-/** The protocol that has attachment anchors: below it the pen is not offered (the server would drop the comment). */
-export const ATTACHMENT_MARKUP_PROTOCOL = 17;
 
 /**
  * The composer's thumbnail strip: remove, and (protocol 17) a pen with the count of pending comments on each image, which
  * opens the markup overlay. Removing an image that has pending comments asks first and takes them along.
  */
 export function ComposerAttachments({ pending, onCancel }: { pending: PendingThumb[]; onCancel?: (key: string) => void }) {
+  const { removeComment, selectComments } = useComments();
+  const { AttachmentMarkup } = useService('media');
   const t = useT();
   const dispatch = useAppDispatch();
   const images = useAppSelector(selectImages);
   const all = useAppSelector(selectComments);
-  const offered = useAppSelector((s) => s.controls.protocol >= ATTACHMENT_MARKUP_PROTOCOL);
+  const offered = useAppSelector((s) => has(s.controls.protocol, 'attachmentAnchors'));
   const marking = useAppSelector(selectMarking);
   const [asking, setAsking] = useState<string | null>(null);
   // pending only: a comment already sent belongs to the message it went with

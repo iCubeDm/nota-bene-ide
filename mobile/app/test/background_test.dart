@@ -23,13 +23,15 @@ HostWindow w({
   String? text,
 }) => HostWindow(
   port: 4791,
-  provider: 'claude',
+  provider: AgentProvider.claude,
   root: root,
   session: 's1',
   busy: busy,
   pending: pending,
   replies: replies,
-  last: text == null ? null : LastMessage(role: 'assistant', text: text),
+  last: text == null
+      ? null
+      : LastMessage(role: LastMessageRole.assistant, text: text),
 );
 
 class Kit {
@@ -149,7 +151,7 @@ void main() {
     (t) async {
       final k = Kit();
       await k.start(t);
-      k.visible.open(k.hostId, 4791, root);
+      k.visible.open(k.hostId, 'port:4791');
       k.visible.visible = false;
       k.ch.push([w(replies: 2, text: 'All done.')]);
       await t.pump();
@@ -159,7 +161,7 @@ void main() {
       expect(n['title'], 'notes');
       expect(n['text'], 'All done.');
       expect(n['publicTitle'], 'New reply in notes');
-      expect((n['hostId'], n['port'], n['root']), (k.hostId, 4791, root));
+      expect((n['hostId'], n['window']), (k.hostId, 'port:4791'));
       expect(n['tag'], '${k.hostId} s1');
       final before = k.platform.of('cancel').length;
       k.visible.visible = true;

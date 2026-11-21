@@ -3,8 +3,9 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
-import { filesSlice } from './slice.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
+import { requestJump } from '@/tabs/jump.ts';
 import { FileView } from './FileView.tsx';
 
 let body: string;
@@ -66,10 +67,10 @@ it('issue 430: a comment on the timeline jumps to the timeline, also from Source
     { id: 't', text: 'typo', status: 'pending', createdAt: 1, anchor: { source: { kind: 'file', path }, start: 0, end: 1, quote: '{', prefix: '', suffix: '' } },
   ] } as never));
   fireEvent.click(screen.getByRole('button', { name: 'Source' }));
-  store.dispatch(filesSlice.actions.requestJump({ path, src: 'here', id: 'k' }));
+  store.dispatch(requestJump({ path, src: 'here', id: 'k' }));
   await waitFor(() => expect(container.querySelector('[data-timeline]')).not.toBeNull());
-  await waitFor(() => expect(store.getState().files.jump).toBeNull());
+  await waitFor(() => expect(store.getState().jump).toBeNull());
   expect(container.querySelector('[data-cut-time]')!.textContent).toMatch(/^0:01\.5/);
-  store.dispatch(filesSlice.actions.requestJump({ path, src: 'here', id: 't' }));
+  store.dispatch(requestJump({ path, src: 'here', id: 't' }));
   await waitFor(() => expect(container.querySelector('[data-timeline]')).toBeNull());
 });

@@ -1,14 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { RemoteDevice, RemoteHost, RemoteHostState, RemoteRefusalCode } from '@nota-bene/shared';
-import { Button } from '@/components/ui/button.tsx';
-import { getLang, t, useT } from '@/i18n/index.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { getLang, t, useT, useAppDispatch, useAppSelector, type TabView } from '@/sdk';
+import { Button, ViewPane } from '@/sdk/ui';
 import { cancelPair, connectComputer, forgetComputer, RemoteError, revokePhone, saveRemote, startPair, type PairCode } from './api.ts';
 import { clearPair, indicator, selectRemote } from './slice.ts';
 import { TONE, troubleWhy, WORD } from './RemoteMenu.tsx';
 
 /** The guide's remote-access section (how to run a relay). */
-export const REMOTE_GUIDE_URL = 'https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#remote-access';
+const REMOTE_GUIDE_URL = 'https://github.com/iCubeDm/nota-bene-ide/blob/main/docs/guide.md#remote-access';
 
 
 function Section({ title, children, id }: { title: string; children: ReactNode; id: string }) {
@@ -376,3 +375,10 @@ export function RemoteView() {
     </div>
   );
 }
+
+/** The Remote tab: one per window; it stays mounted across a root change. */
+export const remoteTab: TabView<'remote'> = {
+  kind: 'remote',
+  label: (_tab, tr) => tr('remote'),
+  render: ({ active }) => <ViewPane kind="remote" active={active}><RemoteView /></ViewPane>,
+};

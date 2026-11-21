@@ -1,17 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { selectPendingCountByPath } from '@/comments/slice.ts';
-import { selectActiveTab, openFile } from '@/tabs/slice.ts';
-import { clearReveal, pickSource, revealFile, selectRefreshSeq, selectTree, setDirs, setTreeOpen, toggleDir } from '@/tree/slice.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { loadSources, useSources } from './sources.ts';
-import { PanelResizer, usePanelWidth } from '@/shell/PanelResizer.tsx';
+import { useT, openFile, selectTabs, useAppDispatch, useAppSelector, loadSources, useSources, selectActiveTab, useComments, useRegistry } from '@/sdk';
+import { PanelResizer, usePanelWidth, ContextMenu, ContextMenuTrigger } from '@/sdk/ui';
+import { clearReveal, pickSource, revealFile, selectRefreshSeq, selectTree, setDirs, setTreeOpen, toggleDir } from './treeSlice.ts';
 import { useTreeEntries } from './tree/useTreeEntries.ts';
 import { useExpandAll } from './tree/useExpandAll.ts';
 import { TreeHeader } from './tree/TreeHeader.tsx';
 import { renderDir } from './tree/TreeRow.tsx';
 import { TreeMenu } from './tree/TreeMenu.tsx';
-import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu.tsx';
 
 export { EXPAND_CAP } from './tree/useExpandAll.ts';
 
@@ -19,6 +14,7 @@ const TREE_MIN = 200;
 
 /** The left tool window, docked next to its strip: open, it narrows the middle column (R-M6-3). */
 export function FileTree() {
+  const { selectPendingCountByPath } = useComments();
   const t = useT();
   const d = useAppDispatch();
   const { open, dirs, reveal, src } = useAppSelector(selectTree);
@@ -40,6 +36,7 @@ export function FileTree() {
   const pressed = useRef<string | null>(null);
   // a New edit from selection being made (issue 426): one at a time
   const [creating, setCreating] = useState(false);
+  const { treeActions } = useRegistry();
   useEffect(() => { setSel([]); anchor.current = null; }, [src]);
   const size = usePanelWidth('panel:tree:width', 300, TREE_MIN);
   const scroller = useRef<HTMLDivElement>(null);
@@ -78,7 +75,7 @@ export function FileTree() {
   }, [reveal, open, entries, d]);
 
   const rows = {
-    entries, dirs, f: filter.trim().toLowerCase(), counts, activePath, src, ref,
+    entries, dirs, f: filter.trim().toLowerCase(), counts, activePath, src, ref, actions: treeActions,
     onToggle: (p: string) => { setExpanding(false); d(toggleDir(p)); },
     sel,
     onPick: (p: string, how: { add: boolean; range: boolean }) => {
@@ -151,4 +148,10 @@ export function FileTree() {
       </ContextMenu>
     </aside>
   );
+}
+
+/** The tree as the frame's left panel: another root's loaded folders belong to the old one (its open/closed state is in the store and stays). */
+export function Tree() {
+  const rootGen = useAppSelector((s) => selectTabs(s).rootGen);
+  return <FileTree key={rootGen} />;
 }

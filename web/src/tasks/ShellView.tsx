@@ -1,13 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { TaskOutputView } from '@nota-bene/shared';
-import { useT } from '@/i18n/index.ts';
-import { useAppSelector } from '@/store/store.ts';
-import type { ShellTab } from '@/tabs/slice.ts';
+import { has, type TaskOutputView } from '@nota-bene/shared';
+import { useT, useAppSelector, connections, byteSize, routes, type TabKinds, type TabView } from '@/sdk';
 import { plainOutput } from './ansi.ts';
-import { selectTaskControls, TASKS_PROTOCOL } from './slice.ts';
+import { selectTaskControls } from './slice.ts';
 import { StopButton } from './TaskButtons.tsx';
-import { apiFetch } from '@/net/auth.ts';
-import { byteSize } from '@/lib/format.ts';
 
 /** How often a running task's output is read again while its tab is the visible one. */
 export const SHELL_POLL_MS = 1000;
@@ -30,7 +26,7 @@ const byteLength = (s: string) => new TextEncoder().encode(s).length;
  * `running: false` (and one more when the task's end reaches the store first) is the last. A task the server does not know
  * (another session, a restarted server) is said in a line. The view sticks to the bottom only while it is at the bottom.
  */
-export function ShellView({ tab, active }: { tab: ShellTab; active: boolean }) {
+export function ShellView({ tab, active }: { tab: TabKinds['shell']; active: boolean }) {
   const t = useT();
   const { task } = tab;
   const session = useAppSelector((s) => s.feed.session?.id ?? null);
@@ -49,13 +45,13 @@ export function ShellView({ tab, active }: { tab: ShellTab; active: boolean }) {
   }, [session, task]);
 
   useEffect(() => {
-    if (!session || !active || protocol < TASKS_PROTOCOL || final.current) return;
+    if (!session || !active || !has(protocol, 'taskControl') || final.current) return;
     const ctl = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const tick = async () => {
       let next = RETRY_MS;
       try {
-        const r = await apiFetch(`/task-output?session=${encodeURIComponent(session)}&task=${encodeURIComponent(task)}`, { signal: ctl.signal });
+        const r = await connections.current().fetch(routes.taskOutput(session, task), { signal: ctl.signal });
         if (ctl.signal.aborted) return;
         if (r.status === 404 || r.status === 409) {
           final.current = true;
@@ -112,7 +108,7 @@ export function ShellView({ tab, active }: { tab: ShellTab; active: boolean }) {
       >
         {out.status === 'gone' ? (
           <div data-kind="shell-status" role="status" className="py-6 text-center text-sm text-muted-foreground">{t('shellGone')}</div>
-        ) : protocol < TASKS_PROTOCOL ? (
+        ) : !has(protocol, 'taskControl') ? (
           <div data-kind="shell-status" role="status" className="py-6 text-center text-sm text-muted-foreground">{t('shellNeedsRestart')}</div>
         ) : out.status === 'loading' ? (
           <div data-kind="shell-status" role="status" className="py-6 text-center text-sm text-muted-foreground">{t('shellLoading')}</div>
@@ -128,3 +124,11 @@ export function ShellView({ tab, active }: { tab: ShellTab; active: boolean }) {
     </div>
   );
 }
+
+/** A shell task's tab: named by the task's description. */
+export const shellTab: TabView<'shell'> = {
+  kind: 'shell',
+  label: (tab, t) => tab.title || t('shellTab'),
+  detail: (_tab, t) => t('shellTab'),
+  render: ({ tab, active, rootGen }) => <ShellView key={rootGen} tab={tab} active={active} />,
+};

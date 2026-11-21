@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { MARK_COLORS, PEN_MAX_VALUES, POLYGON_MAX_POINTS, type MediaShape } from '@nota-bene/shared';
-import { ConfirmDialog } from '@/controls/ConfirmDialog.tsx';
-import { useT } from '@/i18n/index.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { has, MARK_COLORS, PEN_MAX_VALUES, POLYGON_MAX_POINTS, type MediaShape } from '@nota-bene/shared';
+import { useT, useAppDispatch, useAppSelector, keysInScope } from '@/sdk';
+import { ConfirmDialog } from '@/sdk/ui';
 import { box as rectBox, hitPolygon, movePoints, rectFrom, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
 import { MarkupToolbar } from './MarkupToolbar.tsx';
 import { HALO, HALO_PX, shapeEls, STROKE_PX, useNatSize, useOverlayPlacement, type Media } from './overlay.tsx';
-import { addShape, clear, commitEdit, MASK_PROTOCOL, replaceShape, selectDraft, setColor, setMode, setTool, undo, type MarkTool } from './slice.ts';
-import { keysInScope } from '@/lib/keyScope.ts';
+import { addShape, clear, commitEdit, replaceShape, selectDraft, setColor, setMode, setTool, undo, type MarkTool } from './slice.ts';
 
 type Pt = { x: number; y: number };
 
@@ -62,9 +60,9 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
 }) {
   const t = useT();
   const dispatch = useAppDispatch();
-  const offered = useAppSelector((s) => s.controls.protocol >= 4);
+  const offered = useAppSelector((s) => has(s.controls.protocol, 'mediaAnchors'));
   // polygons (issue 447): an older server would refuse the comment
-  const mask = useAppSelector((s) => s.controls.protocol >= MASK_PROTOCOL);
+  const mask = useAppSelector((s) => has(s.controls.protocol, 'polygons'));
   const draft = useAppSelector((s) => selectDraft(s, tabId));
   const [asking, setAsking] = useState(false);
   const pane = media.parentElement;

@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RemoteState } from '@nota-bene/shared';
 import { App } from '@/App.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { openRemote, selectTabs } from '@/tabs/slice.ts';
 
 const OFF: RemoteState = {

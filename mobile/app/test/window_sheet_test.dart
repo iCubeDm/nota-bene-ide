@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/window_sheet.dart';
 import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_channel/nb_channel.dart' show HostWindow;
+import 'package:nb_protocol/nb_protocol.dart' show AgentMode;
 import 'package:nb_app/theme.dart';
 
 import 'controls_test.dart' show models;
@@ -71,17 +72,20 @@ void main() {
     r.event({'kind': 'mode', 'mode': 'plan'});
     await t.pumpAndSettle();
     expect(find.byWidgetPredicate((w) => w is SegmentedButton), findsNothing);
-    expect(find.text(webString('mode_default_desc', 'en')), findsOneWidget);
-    expect(find.text(webString('mode_plan_desc', 'en')), findsOneWidget);
-    final plan = rowOf(webString('mode_plan', 'en'));
-    final dflt = rowOf(webString('mode_default', 'en'));
+    expect(
+      find.text(modeDescription(AgentMode.default_, 'en')),
+      findsOneWidget,
+    );
+    expect(find.text(modeDescription(AgentMode.plan, 'en')), findsOneWidget);
+    final plan = rowOf(modeLabel(AgentMode.plan, 'en'));
+    final dflt = rowOf(modeLabel(AgentMode.default_, 'en'));
     expect(t.getSize(plan.first).height, greaterThanOrEqualTo(48));
     // the current one carries the check
     expect(
       find.descendant(of: plan.first, matching: find.byIcon(Icons.check)),
       findsOneWidget,
     );
-    await t.tap(find.text(webString('mode_default', 'en')));
+    await t.tap(find.text(modeLabel(AgentMode.default_, 'en')));
     await t.pumpAndSettle();
     final m = r.sent.single;
     expect((m['type'], m['mode']), ('mode', 'default'));
@@ -107,10 +111,10 @@ void main() {
     final danger = Theme.of(
       t.element(find.byType(WindowSheet)),
     ).extension<NbColors>()!.destructive;
-    Color? colorOf(String key) =>
-        t.widget<Text>(inSheet(find.text(webString(key, 'en')))).style?.color;
-    expect(colorOf('mode_auto'), danger);
-    expect(colorOf('mode_default'), isNot(danger));
+    Color? colorOf(AgentMode m) =>
+        t.widget<Text>(inSheet(find.text(modeLabel(m, 'en')))).style?.color;
+    expect(colorOf(AgentMode.auto), danger);
+    expect(colorOf(AgentMode.default_), isNot(danger));
   });
 
   testWidgets('the modes take the web\'s texts', (t) async {
@@ -124,11 +128,11 @@ void main() {
     r.event({'kind': 'mode', 'mode': 'codex-read-only'});
     await t.pumpAndSettle();
     expect(
-      inSheet(find.text(webString('mode_codex-read-only', 'en'))),
+      inSheet(find.text(modeLabel(AgentMode.codexReadOnly, 'en'))),
       findsOneWidget,
     );
     expect(
-      find.text(webString('mode_codex-read-only_desc', 'en')),
+      find.text(modeDescription(AgentMode.codexReadOnly, 'en')),
       findsOneWidget,
     );
   });
@@ -206,8 +210,18 @@ void main() {
   });
 
   group('the project icon', () {
-    Future<void> openWith(WidgetTester t, HostWindow w) async {
-      await r.open(t, hello: hello(), events: [session()], win: w);
+    Future<void> openWith(
+      WidgetTester t,
+      HostWindow w, {
+      bool icons = true,
+    }) async {
+      await r.open(
+        t,
+        hello: hello(),
+        events: [session()],
+        win: w,
+        icons: icons,
+      );
       await t.tap(find.text('Spec work'));
       await t.pumpAndSettle();
     }
@@ -215,14 +229,14 @@ void main() {
     testWidgets(
       'a host that knows icons offers Set icon, Remove only with one',
       (t) async {
-        await openWith(t, window(4791, '/home/u/notes', iconSupported: true));
+        await openWith(t, window(4791, '/home/u/notes'));
         expect(inSheet(find.text('Set icon')), findsOneWidget);
         expect(inSheet(find.text('Remove icon')), findsNothing);
       },
     );
 
     testWidgets('a host without icon support offers neither', (t) async {
-      await openWith(t, window(4791, '/home/u/notes'));
+      await openWith(t, window(4791, '/home/u/notes'), icons: false);
       expect(inSheet(find.text('Set icon')), findsNothing);
       expect(inSheet(find.text('Remove icon')), findsNothing);
     });
@@ -230,7 +244,7 @@ void main() {
     testWidgets(
       'Set icon asks where the picture comes from, as the list does',
       (t) async {
-        await openWith(t, window(4791, '/home/u/notes', iconSupported: true));
+        await openWith(t, window(4791, '/home/u/notes'));
         await t.tap(inSheet(find.text('Set icon')));
         await t.pumpAndSettle();
         expect(find.text('Gallery'), findsOneWidget);
@@ -252,8 +266,7 @@ void main() {
       expect(r.ch.refreshes, 1);
     });
 
-    testWidgets('Remove icon is there when the host has an icon but no support '
-        'flag', (t) async {
+    testWidgets('Remove icon is there when the window has an icon', (t) async {
       await openWith(
         t,
         window(4791, '/home/u/notes', icon: '0123456789abcdef'),
@@ -262,7 +275,7 @@ void main() {
     });
 
     testWidgets('the sheet closes on the tap', (t) async {
-      await openWith(t, window(4791, '/home/u/notes', iconSupported: true));
+      await openWith(t, window(4791, '/home/u/notes'));
       await t.tap(inSheet(find.text('Set icon')));
       await t.pumpAndSettle();
       expect(find.byType(WindowSheet), findsNothing);
@@ -271,12 +284,12 @@ void main() {
     testWidgets('a window of another folder on the port is not this one', (
       t,
     ) async {
-      await openWith(t, window(4791, '/home/u/other', iconSupported: true));
+      await openWith(t, window(4791, '/home/u/other'));
       expect(inSheet(find.text('Set icon')), findsNothing);
     });
 
     testWidgets('without a live tab the items do nothing', (t) async {
-      await openWith(t, window(4791, '/home/u/notes', iconSupported: true));
+      await openWith(t, window(4791, '/home/u/notes'));
       r.ch.close();
       await t.pumpAndSettle();
       await t.tap(inSheet(find.text('Set icon')), warnIfMissed: false);

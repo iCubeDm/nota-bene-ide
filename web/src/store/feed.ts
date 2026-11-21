@@ -68,7 +68,7 @@ export const emptyFeed: FeedState = { items: [], busy: false, session: null, for
 /** One `GET /history` page: the archived events of segment `segment`; `more`: older segments exist. */
 export type HistoryPage = { events: ServerEvent[]; segment: number; more: boolean };
 /** A page plus the session and feed epoch it was asked for under. */
-export type HistoryPrepend = HistoryPage & { session: string; epoch: number };
+type HistoryPrepend = HistoryPage & { session: string; epoch: number };
 
 export const historyPrepended = createAction<HistoryPrepend>('feed/historyPrepended');
 
@@ -106,6 +106,13 @@ export function prependHistory(s: FeedState, p: HistoryPrepend): FeedState {
 }
 
 export const ARG_KEYS = ['command', 'file_path', 'pattern', 'description', 'url', 'query', 'skill', 'prompt'];
+
+/** Any Agent / Task call is a subagent's: `Agent` in current Claude Code, `Task` in older ones. A card of its own in the feed, in no run of actions. */
+export const isAgentTool = (name: string, toolKind?: string): boolean => toolKind === 'agent' || name === 'Agent' || name === 'Task';
+
+/** The anchor source id of a tool's panel (R-M7-18): the tool_use id is stable across a replay and a restart. */
+export const TOOL_SRC = 'tool:';
+export const toolSrcId = (toolId: string): string => TOOL_SRC + toolId;
 
 function toolArg(input: Record<string, unknown> | undefined): string {
   for (const k of ARG_KEYS) {
@@ -160,7 +167,7 @@ function reduceAgent(s: FeedState, e: WireAgentEvent, ts: number): FeedState {
     {
       const { key, lineN } = lineKey(s);
       const cleared: FeedItem = { kind: 'marker', what: 'cleared', ts, key, ...(e.prev ? { prev: e.prev } : {}) };
-      return { ...emptyFeed, session: s.session, turnSeq: s.turnSeq, lineN, items: [cleared] };
+      return { ...emptyFeed, session: s.session, turnSeq: s.turnSeq, epoch: s.epoch, lineN, items: [cleared] };
     }
     // a compaction: compacting, then its end (compact-failed, compact-end), then (on success) compacted
     case 'compacting': // the CLI repeats it as a keepalive (every 30 s) and at each phase: the compaction started at the first one

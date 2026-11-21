@@ -3,6 +3,45 @@
 
 const int protocolVersion = 29;
 
+enum Feature {
+  activity(1),
+  modeAck(2),
+  fireLabel(3),
+  mediaAnchors(4),
+  agentEvents(5),
+  models(6),
+  subagentAnchors(7),
+  taskControl(8),
+  camera(9),
+  commands(10),
+  shellRun(11),
+  providerModes(12),
+  pageAnchors(13),
+  voice(14),
+  projectIcon(15),
+  voiceComments(16),
+  attachmentAnchors(17),
+  voiceDetect(18),
+  commentOps(19),
+  remote(20),
+  accessKeys(21),
+  restartPending(22),
+  cutAnchors(23),
+  polygons(24),
+  wholePicture(25),
+  imagesAlone(26),
+  compactOrder(27),
+  heldSends(27),
+  remoteHosts(28),
+  remoteProjects(29);
+
+  const Feature(this.protocol);
+  final int protocol;
+}
+
+/// Whether a peer that announced [protocol] understands [f].
+bool has(num? protocol, Feature f) => (protocol ?? 0) >= f.protocol;
+
 enum AgentEffort implements _Json {
   low,
   medium,
@@ -83,6 +122,28 @@ enum AgentMode implements _Json {
     ompAsk => 'omp-ask',
     ompPlan => 'omp-plan',
     $unknown => _unsendable('AgentMode'),
+  };
+}
+
+enum AgentProvider implements _Json {
+  claude,
+  codex,
+  omp,
+  $unknown;
+
+  static AgentProvider fromJson(Object? v) => switch (v) {
+    'claude' => claude,
+    'codex' => codex,
+    'omp' => omp,
+    _ => $unknown,
+  };
+
+  @override
+  String toJson() => switch (this) {
+    claude => 'claude',
+    codex => 'codex',
+    omp => 'omp',
+    $unknown => _unsendable('AgentProvider'),
   };
 }
 
@@ -242,7 +303,7 @@ final class Capabilities implements _Json {
       idleCompact: json['idleCompact'] as bool,
       models: json['models'] as bool,
       dictation: json['dictation'] as String?,
-      provider: _opt(json['provider'], CapabilitiesProvider.fromJson),
+      provider: _opt(json['provider'], AgentProvider.fromJson),
       taskBackground: json['taskBackground'] as bool?,
       taskOutput: json['taskOutput'] as bool?,
       deleteSession: json['deleteSession'] as bool?,
@@ -259,7 +320,7 @@ final class Capabilities implements _Json {
   final bool idleCompact;
   final bool models;
   final String? dictation;
-  final CapabilitiesProvider? provider;
+  final AgentProvider? provider;
   final bool? taskBackground;
   final bool? taskOutput;
   final bool? deleteSession;
@@ -284,28 +345,6 @@ final class Capabilities implements _Json {
       if (ffmpeg != null) 'ffmpeg': ffmpeg,
     };
   }
-}
-
-enum CapabilitiesProvider implements _Json {
-  claude,
-  codex,
-  omp,
-  $unknown;
-
-  static CapabilitiesProvider fromJson(Object? v) => switch (v) {
-    'claude' => claude,
-    'codex' => codex,
-    'omp' => omp,
-    _ => $unknown,
-  };
-
-  @override
-  String toJson() => switch (this) {
-    claude => 'claude',
-    codex => 'codex',
-    omp => 'omp',
-    $unknown => _unsendable('CapabilitiesProvider'),
-  };
 }
 
 sealed class ClientMessage implements _Json {
@@ -909,6 +948,8 @@ enum CommentStatus implements _Json {
   };
 }
 
+typedef CompleteAnswer = List<String>;
+
 final class CutAnchor extends Anchor {
   const CutAnchor({required this.source, required this.time, this.clip});
 
@@ -993,6 +1034,87 @@ final class FileSource implements _Json {
   }
 }
 
+sealed class GitSwitchAnswer implements _Json {
+  const GitSwitchAnswer();
+
+  factory GitSwitchAnswer.fromJson(Map<String, Object?> json) {
+    if (!json.containsKey('error')) return GitSwitched.fromJson(json);
+    return GitSwitchRefusal.fromJson(json);
+  }
+
+  @override
+  Map<String, Object?> toJson();
+}
+
+enum GitSwitchError implements _Json {
+  badRequest,
+  notARepo,
+  unknownBranch,
+  busy,
+  git,
+  timeout,
+  $unknown;
+
+  static GitSwitchError fromJson(Object? v) => switch (v) {
+    'bad-request' => badRequest,
+    'not-a-repo' => notARepo,
+    'unknown-branch' => unknownBranch,
+    'busy' => busy,
+    'git' => git,
+    'timeout' => timeout,
+    _ => $unknown,
+  };
+
+  @override
+  String toJson() => switch (this) {
+    badRequest => 'bad-request',
+    notARepo => 'not-a-repo',
+    unknownBranch => 'unknown-branch',
+    busy => 'busy',
+    git => 'git',
+    timeout => 'timeout',
+    $unknown => _unsendable('GitSwitchError'),
+  };
+}
+
+final class GitSwitchRefusal extends GitSwitchAnswer {
+  const GitSwitchRefusal({required this.error, this.detail});
+
+  factory GitSwitchRefusal.fromJson(Map<String, Object?> json) {
+    final v = GitSwitchRefusal(
+      error: GitSwitchError.fromJson(json['error']),
+      detail: json['detail'] as String?,
+    );
+    if (v.error == GitSwitchError.$unknown) _raws[v] = json;
+    return v;
+  }
+
+  final GitSwitchError error;
+  final String? detail;
+
+  @override
+  Map<String, Object?> toJson() {
+    final raw = _raws[this];
+    if (raw != null) return raw;
+    return {'error': error.toJson(), if (detail != null) 'detail': detail};
+  }
+}
+
+final class GitSwitched extends GitSwitchAnswer {
+  const GitSwitched({required this.branch});
+
+  factory GitSwitched.fromJson(Map<String, Object?> json) {
+    return GitSwitched(branch: json['branch'] as String);
+  }
+
+  final String branch;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {'branch': branch};
+  }
+}
+
 final class HeldSend implements _Json {
   const HeldSend({
     required this.id,
@@ -1026,6 +1148,94 @@ final class HeldSend implements _Json {
       'ts': ts,
       if (images != null) 'images': _jsonList(images),
       if (voice != null) 'voice': voice!.toJson(),
+    };
+  }
+}
+
+final class HostStreamMessage implements _Json {
+  const HostStreamMessage({required this.t, required this.windows});
+
+  factory HostStreamMessage.fromJson(Map<String, Object?> json) {
+    return HostStreamMessage(
+      t: json['t'] as String,
+      windows: _list(json['windows'], _obj(HostWindow.fromJson)),
+    );
+  }
+
+  final String t;
+  final List<HostWindow> windows;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {'t': t, 'windows': _jsonList(windows)};
+  }
+}
+
+final class HostWindow implements _Json {
+  const HostWindow({
+    this.id,
+    required this.port,
+    required this.provider,
+    required this.root,
+    this.title,
+    this.session,
+    this.model,
+    this.busy,
+    this.supervised,
+    this.pending,
+    this.last,
+    this.replies,
+    this.icon,
+  });
+
+  factory HostWindow.fromJson(Map<String, Object?> json) {
+    return HostWindow(
+      id: json['id'] as String?,
+      port: json['port'] as int,
+      provider: AgentProvider.fromJson(json['provider']),
+      root: json['root'] as String,
+      title: json['title'] as String?,
+      session: json['session'] as String?,
+      model: json['model'] as String?,
+      busy: json['busy'] as bool?,
+      supervised: json['supervised'] as bool?,
+      pending: json['pending'] as bool?,
+      last: _opt(json['last'], _obj(LastMessage.fromJson)),
+      replies: json['replies'] as int?,
+      icon: json['icon'] as String?,
+    );
+  }
+
+  final String? id;
+  final int port;
+  final AgentProvider provider;
+  final String root;
+  final String? title;
+  final String? session;
+  final String? model;
+  final bool? busy;
+  final bool? supervised;
+  final bool? pending;
+  final LastMessage? last;
+  final int? replies;
+  final String? icon;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {
+      if (id != null) 'id': id,
+      'port': port,
+      'provider': provider.toJson(),
+      'root': root,
+      if (title != null) 'title': title,
+      if (session != null) 'session': session,
+      if (model != null) 'model': model,
+      if (busy != null) 'busy': busy,
+      if (supervised != null) 'supervised': supervised,
+      if (pending != null) 'pending': pending,
+      if (last != null) 'last': last!.toJson(),
+      if (replies != null) 'replies': replies,
+      if (icon != null) 'icon': icon,
     };
   }
 }
@@ -1245,6 +1455,46 @@ final class InteractionFieldsItem implements _Json {
       if (multi != null) 'multi': multi,
     };
   }
+}
+
+final class LastMessage implements _Json {
+  const LastMessage({required this.role, required this.text, this.at});
+
+  factory LastMessage.fromJson(Map<String, Object?> json) {
+    return LastMessage(
+      role: LastMessageRole.fromJson(json['role']),
+      text: json['text'] as String,
+      at: json['at'] as num?,
+    );
+  }
+
+  final LastMessageRole role;
+  final String text;
+  final num? at;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {'role': role.toJson(), 'text': text, if (at != null) 'at': at};
+  }
+}
+
+enum LastMessageRole implements _Json {
+  user,
+  assistant,
+  $unknown;
+
+  static LastMessageRole fromJson(Object? v) => switch (v) {
+    'user' => user,
+    'assistant' => assistant,
+    _ => $unknown,
+  };
+
+  @override
+  String toJson() => switch (this) {
+    user => 'user',
+    assistant => 'assistant',
+    $unknown => _unsendable('LastMessageRole'),
+  };
 }
 
 final class Limit implements _Json {
@@ -1606,6 +1856,21 @@ final class PageAnchorBox implements _Json {
   @override
   Map<String, Object?> toJson() {
     return {'x': x, 'y': y, 'w': w, 'h': h};
+  }
+}
+
+final class ProjectIconAnswer implements _Json {
+  const ProjectIconAnswer({required this.icon});
+
+  factory ProjectIconAnswer.fromJson(Map<String, Object?> json) {
+    return ProjectIconAnswer(icon: json['icon'] as String);
+  }
+
+  final String icon;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {'icon': icon};
   }
 }
 
@@ -3033,6 +3298,22 @@ enum ThemeId implements _Json {
   };
 }
 
+final class TreeEntry implements _Json {
+  const TreeEntry({required this.name, required this.dir});
+
+  factory TreeEntry.fromJson(Map<String, Object?> json) {
+    return TreeEntry(name: json['name'] as String, dir: json['dir'] as bool);
+  }
+
+  final String name;
+  final bool dir;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {'name': name, 'dir': dir};
+  }
+}
+
 enum UiLang implements _Json {
   en,
   ru,
@@ -3755,6 +4036,354 @@ final class UsageTaskRow implements _Json {
   }
 }
 
+enum VcsBaseHow implements _Json {
+  reflog,
+  default_,
+  none,
+  $unknown;
+
+  static VcsBaseHow fromJson(Object? v) => switch (v) {
+    'reflog' => reflog,
+    'default' => default_,
+    'none' => none,
+    _ => $unknown,
+  };
+
+  @override
+  String toJson() => switch (this) {
+    reflog => 'reflog',
+    default_ => 'default',
+    none => 'none',
+    $unknown => _unsendable('VcsBaseHow'),
+  };
+}
+
+final class VcsCommit implements _Json {
+  const VcsCommit({
+    required this.sha,
+    required this.parents,
+    required this.author,
+    required this.at,
+    required this.subject,
+    required this.refs,
+  });
+
+  factory VcsCommit.fromJson(Map<String, Object?> json) {
+    return VcsCommit(
+      sha: json['sha'] as String,
+      parents: _list(json['parents'], _as<String>),
+      author: json['author'] as String,
+      at: json['at'] as num,
+      subject: json['subject'] as String,
+      refs: _list(json['refs'], _as<String>),
+    );
+  }
+
+  final String sha;
+  final List<String> parents;
+  final String author;
+  final num at;
+  final String subject;
+  final List<String> refs;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {
+      'sha': sha,
+      'parents': parents,
+      'author': author,
+      'at': at,
+      'subject': subject,
+      'refs': refs,
+    };
+  }
+}
+
+final class VcsCommitDetail implements _Json {
+  const VcsCommitDetail({
+    required this.sha,
+    required this.author,
+    required this.at,
+    required this.message,
+    required this.files,
+    required this.truncated,
+  });
+
+  factory VcsCommitDetail.fromJson(Map<String, Object?> json) {
+    return VcsCommitDetail(
+      sha: json['sha'] as String,
+      author: json['author'] as String,
+      at: json['at'] as num,
+      message: json['message'] as String,
+      files: _list(json['files'], _obj(VcsFile.fromJson)),
+      truncated: json['truncated'] as bool,
+    );
+  }
+
+  final String sha;
+  final String author;
+  final num at;
+  final String message;
+  final List<VcsFile> files;
+  final bool truncated;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {
+      'sha': sha,
+      'author': author,
+      'at': at,
+      'message': message,
+      'files': _jsonList(files),
+      'truncated': truncated,
+    };
+  }
+}
+
+sealed class VcsDiff implements _Json {
+  const VcsDiff();
+
+  factory VcsDiff.fromJson(Map<String, Object?> json) {
+    return switch (json['repo']) {
+      false => VcsNoRepo.fromJson(json),
+      true => VcsRepoDiff.fromJson(json),
+      _ => VcsDiffUnknown(json),
+    };
+  }
+
+  @override
+  Map<String, Object?> toJson();
+}
+
+final class VcsDiffUnknown extends VcsDiff {
+  const VcsDiffUnknown(this.raw);
+
+  final Map<String, Object?> raw;
+
+  @override
+  Map<String, Object?> toJson() => raw;
+}
+
+final class VcsFile implements _Json {
+  const VcsFile({
+    required this.path,
+    this.old,
+    required this.status,
+    this.add,
+    this.del,
+    required this.binary,
+  });
+
+  factory VcsFile.fromJson(Map<String, Object?> json) {
+    return VcsFile(
+      path: json['path'] as String,
+      old: json['old'] as String?,
+      status: VcsFileStatus.fromJson(json['status']),
+      add: json['add'] as num?,
+      del: json['del'] as num?,
+      binary: json['binary'] as bool,
+    );
+  }
+
+  final String path;
+  final String? old;
+  final VcsFileStatus status;
+  final num? add;
+  final num? del;
+  final bool binary;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {
+      'path': path,
+      if (old != null) 'old': old,
+      'status': status.toJson(),
+      'add': add,
+      'del': del,
+      'binary': binary,
+    };
+  }
+}
+
+enum VcsFileStatus implements _Json {
+  a,
+  m,
+  d,
+  r,
+  $unknown;
+
+  static VcsFileStatus fromJson(Object? v) => switch (v) {
+    'A' => a,
+    'M' => m,
+    'D' => d,
+    'R' => r,
+    _ => $unknown,
+  };
+
+  @override
+  String toJson() => switch (this) {
+    a => 'A',
+    m => 'M',
+    d => 'D',
+    r => 'R',
+    $unknown => _unsendable('VcsFileStatus'),
+  };
+}
+
+final class VcsLog implements _Json {
+  const VcsLog({
+    required this.repo,
+    required this.commits,
+    this.tip,
+    required this.more,
+  });
+
+  factory VcsLog.fromJson(Map<String, Object?> json) {
+    return VcsLog(
+      repo: json['repo'] as bool,
+      commits: _list(json['commits'], _obj(VcsCommit.fromJson)),
+      tip: json['tip'] as String?,
+      more: json['more'] as bool,
+    );
+  }
+
+  final bool repo;
+  final List<VcsCommit> commits;
+  final String? tip;
+  final bool more;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {
+      'repo': repo,
+      'commits': _jsonList(commits),
+      'tip': tip,
+      'more': more,
+    };
+  }
+}
+
+final class VcsNoRepo extends VcsDiff {
+  const VcsNoRepo();
+
+  factory VcsNoRepo.fromJson(Map<String, Object?> json) {
+    return const VcsNoRepo();
+  }
+
+  @override
+  Map<String, Object?> toJson() {
+    return {'repo': false};
+  }
+}
+
+final class VcsPatch implements _Json {
+  const VcsPatch({required this.patch, required this.truncated});
+
+  factory VcsPatch.fromJson(Map<String, Object?> json) {
+    return VcsPatch(
+      patch: json['patch'] as String,
+      truncated: json['truncated'] as bool,
+    );
+  }
+
+  final String patch;
+  final bool truncated;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {'patch': patch, 'truncated': truncated};
+  }
+}
+
+final class VcsRepoDiff extends VcsDiff {
+  const VcsRepoDiff({
+    this.branch,
+    required this.live,
+    this.base,
+    this.detected,
+    required this.how,
+    required this.uncommitted,
+    required this.unrelated,
+    this.mergeBase,
+    required this.commits,
+    required this.commitCount,
+    required this.candidates,
+    required this.files,
+    required this.truncated,
+  });
+
+  factory VcsRepoDiff.fromJson(Map<String, Object?> json) {
+    return VcsRepoDiff(
+      branch: json['branch'] as String?,
+      live: json['live'] as bool,
+      base: json['base'] as String?,
+      detected: json['detected'] as String?,
+      how: VcsBaseHow.fromJson(json['how']),
+      uncommitted: json['uncommitted'] as bool,
+      unrelated: json['unrelated'] as bool,
+      mergeBase: json['mergeBase'] as String?,
+      commits: _list(json['commits'], _obj(VcsRepoDiffCommitsItem.fromJson)),
+      commitCount: json['commitCount'] as num,
+      candidates: _list(json['candidates'], _as<String>),
+      files: _list(json['files'], _obj(VcsFile.fromJson)),
+      truncated: json['truncated'] as bool,
+    );
+  }
+
+  final String? branch;
+  final bool live;
+  final String? base;
+  final String? detected;
+  final VcsBaseHow how;
+  final bool uncommitted;
+  final bool unrelated;
+  final String? mergeBase;
+  final List<VcsRepoDiffCommitsItem> commits;
+  final num commitCount;
+  final List<String> candidates;
+  final List<VcsFile> files;
+  final bool truncated;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {
+      'repo': true,
+      'branch': branch,
+      'live': live,
+      'base': base,
+      'detected': detected,
+      'how': how.toJson(),
+      'uncommitted': uncommitted,
+      'unrelated': unrelated,
+      'mergeBase': mergeBase,
+      'commits': _jsonList(commits),
+      'commitCount': commitCount,
+      'candidates': candidates,
+      'files': _jsonList(files),
+      'truncated': truncated,
+    };
+  }
+}
+
+final class VcsRepoDiffCommitsItem implements _Json {
+  const VcsRepoDiffCommitsItem({required this.sha, required this.subject});
+
+  factory VcsRepoDiffCommitsItem.fromJson(Map<String, Object?> json) {
+    return VcsRepoDiffCommitsItem(
+      sha: json['sha'] as String,
+      subject: json['subject'] as String,
+    );
+  }
+
+  final String sha;
+  final String subject;
+
+  @override
+  Map<String, Object?> toJson() {
+    return {'sha': sha, 'subject': subject};
+  }
+}
+
 final class Voice implements _Json {
   const Voice({required this.id, required this.ms, required this.wave});
 
@@ -4403,3 +5032,6 @@ List<Object?>? _jsonList(List<_Json>? xs) {
 Never _unsendable(String type) {
   throw StateError('$type.\$unknown cannot be sent');
 }
+
+// the JSON of a variant whose tag this side does not know, sent back as it came
+final _raws = Expando<Map<String, Object?>>();

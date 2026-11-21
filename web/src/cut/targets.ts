@@ -1,9 +1,9 @@
 // The edits that "Add to edit" in the Files tree can add to (issue 426): every edit of this folder open in a tab and
 // editable registers itself while its view stands. The tree adds to the one shown most recently, through that view's own
 // editing state, so the change is one step of its undo and is saved as any other edit (never a second writer of the file).
-import { useSyncExternalStore } from 'react';
+import { useStored } from '@/sdk';
 
-export type EditTarget = {
+type EditTarget = {
   /** the edit's project-relative path */
   path: string;
   /** appends these project files, in this order (CutBody: the first track of each one's kind) */
@@ -48,7 +48,7 @@ export const currentEditTarget = (): EditTarget | null => current;
 
 const subscribe = (f: () => void) => (subs.add(f), () => void subs.delete(f));
 /** currentEditTarget, re-rendered when it changes. */
-export const useEditTarget = (): EditTarget | null => useSyncExternalStore(subscribe, currentEditTarget);
+export const useEditTarget = (): EditTarget | null => useStored({ subscribe, get: currentEditTarget });
 
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
 /** How the menu names the edit at `path`: its file name, or its project path while another open edit has that name too. */

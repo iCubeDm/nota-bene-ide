@@ -1,0 +1,12 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`a reply with a diagram, an svg, a video and plain code renders as before 1`] = `
+"<div class="md"><p>Intro with <code>code</code> and #ff8980.</p>
+<div class="mermaid-out"><svg data-test="m"></svg><button type="button" class="md-open-diagram" data-anchor-skip="" aria-label="Open diagram" title="Open diagram">⤢</button></div>
+<div class="svg-out"><svg viewBox="0 0 2 2"><rect width="1" height="1"></rect></svg>
+<button type="button" class="md-open-diagram" data-anchor-skip="" aria-label="Open diagram" title="Open diagram">⤢</button></div>
+<p><span class="md-media" tabindex="-1"><video preload="metadata" src="/file?path=media%2Fa.mp4"></video><button type="button" class="md-open-media" data-anchor-skip="" aria-label="Open in a tab" title="Open in a tab">⤢</button><div data-player-bar="true" data-anchor-skip="true"></div></span></p>
+<pre><code class="language-js hljs language-javascript" data-highlighted="yes"><span class="hljs-keyword">const</span> a = <span class="hljs-number">1</span>;
+</code><button type="button" class="md-copy-code" data-anchor-skip="" aria-label="Copy code" title="Copy code"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"></rect><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg></button></pre>
+</div>"
+`;

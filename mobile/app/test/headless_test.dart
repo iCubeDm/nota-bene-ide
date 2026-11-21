@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/l10n/app_localizations.dart';
+import 'package:nb_app/l10n/locale.dart';
 import 'package:nb_app/notify/headless.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/notify_choice.dart';
@@ -14,11 +15,11 @@ import 'support/fakes.dart';
 
 HostWindow w(int replies, {String root = '/home/u/notes'}) => HostWindow(
   port: 4791,
-  provider: 'claude',
+  provider: AgentProvider.claude,
   root: root,
   session: 's1',
   replies: replies,
-  last: LastMessage(role: 'assistant', text: 'Ready.'),
+  last: LastMessage(role: LastMessageRole.assistant, text: 'Ready.'),
 );
 
 void main() {
@@ -113,4 +114,17 @@ void main() {
     await runCheck(vault: v, connect: f.factory, platform: p, strings: en);
     expect(p.of('notify'), hasLength(1));
   });
+
+  test(
+    'the check speaks the phone\'s language, read without the app\'s entry point',
+    () {
+      // headless.dart reads the locale from l10n/locale.dart: main.dart builds the whole app
+      expect(
+        resolveLocale(const [Locale('fr'), Locale('pt', 'BR')]),
+        const Locale('pt'),
+      );
+      expect(resolveLocale(const [Locale('fr')]), const Locale('en'));
+      expect(resolveLocale(null), const Locale('en'));
+    },
+  );
 }

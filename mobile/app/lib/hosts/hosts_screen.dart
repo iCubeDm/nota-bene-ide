@@ -6,19 +6,13 @@ import '../l10n/app_localizations.dart';
 import '../chat/chat_header.dart' show providerLetter;
 import '../store/seen.dart';
 import '../theme.dart';
+import '../ui/time.dart';
 import 'host_link.dart';
 import 'project_icon.dart';
 
 String folderOf(String root) {
   final parts = root.split(RegExp(r'[\\/]')).where((p) => p.isNotEmpty);
   return parts.isEmpty ? root : parts.last;
-}
-
-String ago(AppLocalizations t, Duration d) {
-  if (d.inMinutes < 1) return t.justNow;
-  if (d.inHours < 1) return t.minutesAgo(d.inMinutes);
-  if (d.inDays < 1) return t.hoursAgo(d.inHours);
-  return t.daysAgo(d.inDays);
 }
 
 /// The time of a row: `HH:mm` today, the short weekday within the last week, else day and month (`d.MM`).
@@ -37,6 +31,7 @@ class HostsList extends StatelessWidget {
     super.key,
     required this.links,
     required this.seen,
+    required this.icons,
     required this.onOpen,
     required this.onForget,
     this.onRename,
@@ -48,6 +43,9 @@ class HostsList extends StatelessWidget {
 
   final Iterable<HostLink> links;
   final Seen seen;
+
+  /// The project pictures fetched so far.
+  final ProjectIcons icons;
   final void Function(HostLink link, HostWindow w) onOpen;
   final void Function(HostLink link) onForget;
 
@@ -109,13 +107,14 @@ class HostsList extends StatelessWidget {
         for (final w in l.windows) {
           rows.add(
             _SessionRow(
+              icons: icons,
               link: l,
               window: w,
               online: l.state == LinkState.online,
               unread: seen.unread(l.host.id, w),
               now: clock(),
               onOpen: () => onOpen(l, w),
-              onSetIcon: onSetIcon == null || !w.iconSupported
+              onSetIcon: onSetIcon == null || !l.iconsSupported
                   ? null
                   : () => onSetIcon!(l, w),
               onRemoveIcon: onRemoveIcon == null || w.icon == null
@@ -188,6 +187,7 @@ class _SkeletonRow extends StatelessWidget {
 class _SessionRow extends StatelessWidget {
   const _SessionRow({
     required this.link,
+    required this.icons,
     required this.window,
     required this.online,
     required this.unread,
@@ -199,6 +199,7 @@ class _SessionRow extends StatelessWidget {
   });
 
   final HostLink link;
+  final ProjectIcons icons;
   final HostWindow window;
   final bool online;
   final int unread;
@@ -274,6 +275,7 @@ class _SessionRow extends StatelessWidget {
                 child: Stack(
                   children: [
                     ProjectIconAvatar(
+                      icons: icons,
                       link: link,
                       port: w.port,
                       icon: w.icon,
@@ -302,7 +304,7 @@ class _SessionRow extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (w.busy)
+                    if (w.busy == true)
                       Positioned(
                         right: 0,
                         bottom: 0,
@@ -341,7 +343,7 @@ class _SessionRow extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (last?.at case final at?) ...[
+                        if (last?.time case final at?) ...[
                           const SizedBox(width: 8),
                           Text(
                             rowTime(at, now, lang),
@@ -364,7 +366,7 @@ class _SessionRow extends StatelessWidget {
                                 ),
                                 if (last != null)
                                   TextSpan(
-                                    text: last.role == 'user'
+                                    text: last.role == LastMessageRole.user
                                         ? '${t.youPrefix}${last.text}'
                                         : last.text,
                                   ),
@@ -375,7 +377,7 @@ class _SessionRow extends StatelessWidget {
                             style: TextStyle(fontSize: 15, color: c.mutedFg),
                           ),
                         ),
-                        if (w.pending)
+                        if (w.pending == true)
                           _Badge('!', c.accent, c.background)
                         else if (unread > 0)
                           _Badge('$unread', c.primary, c.primaryFg),

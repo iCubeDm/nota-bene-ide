@@ -3,18 +3,10 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart' show ScaffoldMessenger, SnackBar, Text;
-import 'package:flutter/widgets.dart' show BuildContext;
 import 'package:nb_channel/nb_channel.dart' show HttpAnswer;
 import 'package:nb_protocol/nb_protocol.dart' show Voice, VoiceError;
 
-import '../chat/files.dart' show FileOpener;
-import '../chat/window_tab.dart';
-import '../files/image_screen.dart' show windowHttp;
-import '../l10n/app_localizations.dart';
-import '../store/voice_lang.dart';
 import '../media/media_comment.dart';
-import 'player.dart';
 
 class VoiceUploadError implements Exception {
   VoiceUploadError(this.why);
@@ -73,30 +65,5 @@ Future<({String? text, VoiceError? error})> transcribeClip(
         : (text: text.trim(), error: null);
   } on Object {
     return (text: null, error: VoiceError.failed);
-  }
-}
-
-/// How the player fetches voice [id] of [tab]'s window.
-LoadVoice voiceLoader(WindowTab? tab, String id) => () async {
-  final http = tab == null ? null : windowHttp(tab);
-  if (http == null) return null;
-  try {
-    final r = await http('GET', '/voice/$id');
-    return r.status == 200 ? Uint8List.fromList(r.body) : null;
-  } on Object {
-    return null;
-  }
-};
-
-/// The Retry of a failed voice bubble: the same recording as a new message, once. Says so when the window is out of
-/// reach.
-void retryVoice(BuildContext context, Voice voice) {
-  final tab = FileOpener.of(context);
-  if (tab == null) return;
-  final lang = voiceLangOf(context);
-  if (!tab.retryVoice(voice, lang, detect: voiceDetectOf(context))) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(AppLocalizations.of(context).cannotSend)),
-    );
   }
 }

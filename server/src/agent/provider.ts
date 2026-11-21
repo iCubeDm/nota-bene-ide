@@ -1,6 +1,8 @@
 import path from 'node:path';
 
-export type AgentProvider = 'claude' | 'codex' | 'omp';
+import type { AgentProvider } from '@nota-bene/shared';
+
+export type { AgentProvider };
 
 export function parseProvider(value: string | undefined): AgentProvider {
   if (value === undefined || value === 'claude') return 'claude';

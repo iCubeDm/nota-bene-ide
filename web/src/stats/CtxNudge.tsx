@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { runCommand, selectCapabilities, selectSwitching } from '@/controls/slice.ts';
-import { REFUSED, useNote } from '@/controls/useNote.ts';
-import { selectBusy, selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { selectStats } from './slice.ts';
+import { json, storage, useT, selectBusy, selectSession, useAppDispatch, useAppSelector, runCommand, selectCapabilities, selectSwitching, REFUSED, useNote, selectStats } from '@/sdk';
 
 /** The context fill levels that bring up the reminder, in percent. */
-export const NUDGE_STEPS = [25, 50, 75] as const;
+const NUDGE_STEPS = [25, 50, 75] as const;
 
 /** The highest step the context has reached (0 below the first). */
 export const nudgeStep = (pct: number): number => NUDGE_STEPS.reduce((top, s) => (pct >= s ? s : top), 0);
@@ -14,22 +10,16 @@ export const nudgeStep = (pct: number): number => NUDGE_STEPS.reduce((top, s) =>
 const KEY = 'nb.ctxNudge';
 
 /** A test flag: `?nudge` in the page's URL shows the button at any fill (the real %, the agent still idle); × hides it until a reload. */
-export const nudgeForced = (): boolean => new URLSearchParams(location.search).has('nudge');
+const nudgeForced = (): boolean => new URLSearchParams(location.search).has('nudge');
 
 /** The step dismissed per session: { [sessionId]: step }. */
-function readSeen(): Record<string, number> {
-  try {
-    const v: unknown = JSON.parse(localStorage.getItem(KEY) ?? '{}');
-    return v && typeof v === 'object' ? (v as Record<string, number>) : {};
-  } catch {
-    return {};
-  }
-}
+const seen = storage.local(KEY, json((v): v is Record<string, number> => !!v && typeof v === 'object'), {});
+const readSeen = (): Record<string, number> => seen.get();
 
 function writeSeen(id: string, step: number) {
   // only the latest few sessions: the map would otherwise grow with every session ever opened
   const all = Object.entries({ ...readSeen(), [id]: step }).slice(-20);
-  try { localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(all))); } catch { /* storage unavailable: not persisted */ }
+  seen.set(Object.fromEntries(all));
 }
 
 /**

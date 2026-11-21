@@ -1,8 +1,5 @@
-import { useSyncExternalStore } from 'react';
-import { DEFAULT_THEME, isThemeId, THEME_KIND, THEMES, type ThemeId } from '@nota-bene/shared';
-import { apiFetch } from '@/net/auth.ts';
-
-const KEY = 'nb.theme';
+import { THEME_KIND, THEMES, type ThemeId } from '@nota-bene/shared';
+import { storage, useStored } from '@/sdk/storage.ts';
 
 /** The names are not translated (a theme is a proper name, like a language's own name). */
 export const THEME_NAMES: Record<ThemeId, string> = { darcula: 'Darcula', plannotator: 'Plannotator', 'intellij-light': 'IntelliJ Light', 'github-light': 'GitHub Light', 'solarized-light': 'Solarized Light', 'solarized-dark': 'Solarized Dark' };
@@ -14,57 +11,26 @@ export const THEME_GROUPS: { kind: 'dark' | 'light'; head: 'themesDark' | 'theme
 ];
 
 // The colour theme (Settings → Themes): <html data-theme> selects one token block in theme.css. One for every window,
-// like the interface scale: the server keeps it (prefs.json, hello.theme), this origin's localStorage caches it, and this
+// like the interface scale: the server keeps it (prefs.json, hello.theme), this origin's storage caches it, and this
 // module sets the attribute on import so the first paint already wears it.
-let cur: ThemeId = read();
-const subs = new Set<() => void>();
-/** A choice the server has not confirmed yet: a hello that may predate it must not undo it. */
-let unsynced: ThemeId | null = null;
-
-function read(): ThemeId {
-  try {
-    const v = localStorage.getItem(KEY);
-    return isThemeId(v) ? v : DEFAULT_THEME;
-  } catch { return DEFAULT_THEME; }
-}
+const pref = storage.pref('theme');
 
 function apply(): void {
-  if (typeof document !== 'undefined') document.documentElement.dataset.theme = cur;
+  if (typeof document !== 'undefined') document.documentElement.dataset.theme = pref.get();
 }
 apply();
-
-function setLocal(v: ThemeId): void {
-  if (v === cur) return;
-  cur = v;
-  try { localStorage.setItem(KEY, v); } catch { /* storage unavailable: not persisted */ }
-  apply();
-  for (const f of subs) f();
-}
-
-function persist(v: ThemeId): void {
-  unsynced = v;
-  try {
-    void apiFetch('/system/prefs', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ theme: v }) })
-      .then((r) => { if (r.ok && unsynced === v) unsynced = null; }, () => {});
-  } catch { /* no fetch: the local cache still holds the choice */ }
-}
+pref.subscribe(apply);
 
 export const theme = {
-  get: (): ThemeId => cur,
-  kind: (): 'dark' | 'light' => THEME_KIND[cur],
+  get: (): ThemeId => pref.get(),
+  kind: (): 'dark' | 'light' => THEME_KIND[pref.get()],
   /** the user picked a theme: apply it here and save it for every window */
-  choose: (v: ThemeId) => {
-    setLocal(v);
-    persist(v);
-  },
+  choose: (v: ThemeId) => void pref.set(v),
   /** the server's `hello.theme` wins over this origin's cache, except while our own choice is unconfirmed */
-  adopt: (server: unknown) => {
-    if (unsynced !== null) return persist(unsynced);
-    if (isThemeId(server)) setLocal(server);
-  },
-  subscribe: (f: () => void) => { subs.add(f); return () => void subs.delete(f); },
+  adopt: (server: unknown) => pref.adopt(server),
+  subscribe: (f: () => void) => pref.subscribe(f),
   /** tests: re-read the saved value, forget an unconfirmed choice */
-  reload: () => { cur = read(); unsynced = null; apply(); },
+  reload: () => { pref.reload(); apply(); },
 };
 
-export const useTheme = () => useSyncExternalStore(theme.subscribe, theme.get);
+export const useTheme = () => useStored(pref);

@@ -3,7 +3,7 @@
 import 'package:markdown/markdown.dart' as md;
 import 'package:nb_protocol/nb_protocol.dart';
 
-export '../chat/markdown.dart' show parseMarkdown;
+export '../chat/markdown_syntax.dart' show parseMarkdown;
 
 /// How much text before and after the quote an anchor keeps.
 const anchorContext = 32;

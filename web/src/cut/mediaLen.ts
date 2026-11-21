@@ -1,7 +1,7 @@
 // How long a new clip of a project file is (issue 409, shared with issue 426's Add to edit and New edit from selection).
 import { isPhotoSrc } from '@nota-bene/shared/cut';
-import { projectFileUrl } from '@/files/kinds.ts';
 import { srcLength } from './durations.ts';
+import { projectFileUrl } from '@/sdk';
 
 /** A photo dropped on the timeline shows this long, seconds; a source dropped whose length the browser cannot read too. */
 export const PHOTO_LEN = 5;

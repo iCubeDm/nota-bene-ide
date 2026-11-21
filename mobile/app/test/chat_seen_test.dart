@@ -9,7 +9,7 @@ import 'support/rig.dart';
 
 HostWindow win(int replies) => HostWindow(
   port: 4791,
-  provider: 'claude',
+  provider: AgentProvider.claude,
   root: '/home/u/notes',
   session: 's1',
   replies: replies,
@@ -37,7 +37,7 @@ void main() {
       final rig = Rig();
       await rig.open(t, seen: seen, win: win(2), visible: visible);
       final hostId = rig.link.host.id;
-      expect(visible.chat, (hostId: hostId, port: 4791, root: '/home/u/notes'));
+      expect(visible.chat, (hostId: hostId, window: 'port:4791'));
       visible.visible = false;
       rig.ch.push([win(3)]);
       await t.pumpAndSettle();

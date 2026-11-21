@@ -1,12 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { apiFetch } from '@/net/auth.ts';
-import { selectMediaComments } from '@/comments/slice.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { selectRefreshSeq } from '@/tree/slice.ts';
-import type { FileKind } from '../kinds.ts';
-import { fileTabId } from '@/tabs/slice.ts';
-import { takeStartAt, type StartAt } from '../startAt.ts';
-import { dropFileLoad, dropJump, setFileLoad, setFileVersion } from '../slice.ts';
+import { dropJump, headVersion, useAppDispatch, useAppSelector, type FileKind, takeStartAt, type StartAt, fileTabId, useComments } from '@/sdk';
+import { selectRefreshSeq } from '../treeSlice.ts';
+import { dropFileLoad, setFileLoad, setFileVersion } from '../slice.ts';
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const PROBE = 8192;
@@ -44,12 +39,6 @@ async function load(url: string, signal: AbortSignal, other: boolean): Promise<L
   return { s: 'text', text: await res.text() };
 }
 
-/** The media's ETag (its version for media comments); undefined without one (a branch source) or on any failure. */
-export const headVersion = (url: string, signal: AbortSignal): Promise<string | undefined> => (url.startsWith('/tmpimage') ? apiFetch(url, { method: 'HEAD', signal }) : fetch(url, { method: 'HEAD', signal })).then(
-  (r) => (r.ok ? r.headers.get('etag') ?? undefined : undefined),
-  () => undefined, // no version: the mark simply cannot tell "the file changed"
-);
-
 /**
  * The file's content and its reloads: the text load (HEAD → Range probe → GET) with its comment-facing load state, the
  * media's cache-busting `bust` / `failed` / resume point, the refresh after a turn (held while marking up) and the
@@ -59,6 +48,7 @@ export function useFileLoad({ path, src, ref, url, kind, media, hasVersion, acti
   path: string; src: string; ref: string | undefined; url: string; kind: FileKind; media: boolean; hasVersion: boolean;
   active: boolean; fixed: boolean; marking: boolean; markingRef: MutableRefObject<boolean>;
 }) {
+  const { selectMediaComments } = useComments();
   const dispatch = useAppDispatch();
   const turnSeq = useAppSelector(selectRefreshSeq); // a finished turn or a branch switch
   const [rev, setRev] = useState(0);

@@ -3,10 +3,11 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ServerEvent, Source, TreeEntry } from '@nota-bene/shared';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
-import { pickSource, revealFile, selectTree, setTreeOpen } from '@/tree/slice.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
+import { pickSource, revealFile, selectTree, setTreeOpen } from './treeSlice.ts';
 import { selectActiveTab, selectTabs } from '@/tabs/slice.ts';
-import { resetSources, sourcesKnown } from './sources.ts';
+import { resetSources, sourcesKnown } from '@/refs/sources.ts';
 import { FileTree } from './FileTree.tsx';
 
 // M3-16: the tree follows the source picked in the header

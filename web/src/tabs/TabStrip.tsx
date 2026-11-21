@@ -1,111 +1,38 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type Ref } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { selectPendingCountByPath } from '@/comments/slice.ts';
-import { renameSession } from '@/controls/sessionsApi.ts';
-import { FileIcon } from '@/files/FileIcon.tsx';
-import { fileKey } from '@/files/sources.ts';
-import { SourceChip } from '@/files/SourcePicker.tsx';
-import { selectSession, useAppDispatch, useAppSelector, useMedia } from '@/store/store.ts';
+import { useT, useStored } from '@/sdk';
+import { useEffect, useRef, useState } from 'react';
+import { shallowEqual } from 'react-redux';
+import { useAppDispatch, useAppSelector, useMedia, useRegistry } from '@/store/store.ts';
+import { tabLabel, tabView } from '@/sdk/registry.ts';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu.tsx';
-import { toast } from '@/shell/toast.ts';
 import { activate, closeAll, closeOthers, closeRight, closeTab, selectTabs, type Tab } from './slice.ts';
-import { fileLabels } from './fileLabels.ts';
 import { TabsMenu } from './TabsMenu.tsx';
-import { SessionPicker } from '@/controls/SessionPicker.tsx';
+import { ICONS, Svg } from '../components/icons.tsx';
+import { focusTab } from './focus.ts';
 
-export const Svg = ({ children, size = 14 }: { children: ReactNode; size?: number }) => (
-  <svg aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={size} height={size} className="flex-none">{children}</svg>
-);
-export const ICONS = {
-  chat: <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />,
-  dir: <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />,
-  comments: <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><path d="M8 9h8M8 13h5" /></>,
-  shell: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9l3 3-3 3M13 15h4" /></>,
-  agent: <><circle cx="12" cy="8" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" /></>,
-  diagram: <><rect x="3" y="3" width="7" height="6" rx="1" /><rect x="14" y="15" width="7" height="6" rx="1" /><path d="M6.5 9v3.5a2 2 0 0 0 2 2H14M10 18H7a1 1 0 0 1-1-1" /></>,
-  globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18" /></>,
-  changes: <><path d="M12 4v7M8.5 7.5h7M8.5 17h7" /><rect x="3" y="2.5" width="18" height="19" rx="2" /></>,
-  log: <><circle cx="6" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><circle cx="18" cy="9" r="2" /><path d="M6 7v10M16.2 10a8 8 0 0 1-8.2 7" /></>,
-  usage: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,
-  // remote access: a phone with a signal
-  remote: <><rect x="5" y="7" width="9" height="15" rx="2" /><path d="M9 18.5h1M17 7.5a4 4 0 0 1 0 5M19.5 5a7.5 7.5 0 0 1 0 10" /></>,
-  // the interface scale: a large and a small A
-  textSize: <path d="M3 19 8.5 5 14 19M5.3 14h6.4M15 19l3-7.5 3 7.5M16.1 16.5h3.8" />,
-  // the sessions history: a clock with a counter-clockwise arrow
-  history: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></>,
-  restart: <path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5" />,
-  power: <path d="M12 3v9M18.4 6.6a9 9 0 1 1-12.8 0" />,
-  // another computer (issue 297): lucide's laptop
-  laptop: <><path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.946 1.45H3.666a1 1 0 0 1-.946-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z" /><path d="M20.054 15.987H3.946" /></>,
-  external: <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />,
-  palette: <><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.7-1.6 1.6-1.6H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z" /><circle cx="7.5" cy="11" r="1" /><circle cx="10.5" cy="7.5" r="1" /><circle cx="15" cy="7.5" r="1" /></>,
-  settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></>,
-};
-
-/** A tab's icon: the chat, Settings and a diagram have their own, a file its type's. */
-export const TabIcon = ({ tab }: { tab: Tab }) =>
-  tab.kind === 'file' ? <FileIcon path={tab.path} /> : <Svg>{ICONS[tab.kind]}</Svg>;
-
-const basename = (p: string) => p.split('/').pop() || p;
-
-/**
- * After a pick in a list (▾, Cmd+E): the tab it activated is scrolled into view (also when it was active already, so
- * the activation effect did not run) and takes the focus, not a now-hidden pane.
- */
-export const focusTab = (id: string) =>
-  requestAnimationFrame(() => {
-    const el = [...document.querySelectorAll<HTMLElement>('[role="tablist"] [data-tab]')].find((n) => n.dataset.tab === id);
-    el?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-    el?.focus({ preventScroll: true });
-  });
-
-/** The chat tab's title being edited. Enter saves, Esc or a click elsewhere cancels; a failed save stays open. */
-function RenameInput({ ref, id, title, done }: { ref: Ref<HTMLInputElement>; id: string; title: string; done: (back: boolean) => void }) {
-  const t = useT();
-  const [text, setText] = useState(title);
-  const save = async () => {
-    const name = text.trim();
-    if (!name || name === title) return done(true);
-    const failed = await renameSession(id, name);
-    if (failed === null) done(true);
-    else toast(t('renameSess'), t('renameFail') + failed);
-  };
-  return (
-    <input
-      ref={ref}
-      value={text}
-      maxLength={200}
-      aria-label={t('renameSess')}
-      placeholder={t('untitled')}
-      onFocus={(e) => e.target.select()}
-      onChange={(e) => setText(e.target.value)}
-      onClick={(e) => e.stopPropagation()}
-      // another app taking the focus is no click elsewhere: the title may be copied from there
-      onBlur={() => { if (document.hasFocus()) done(false); }}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') { e.preventDefault(); done(true); } // prevented: the document hotkeys skip it
-        else if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void save(); }
-      }}
-      className="w-44 min-w-0 rounded border border-primary bg-transparent px-1 text-[0.78125rem] font-medium text-foreground outline-none"
-    />
-  );
+/** A tab's icon: its view's (a file its type's), else its kind's. */
+export function TabIcon({ tab }: { tab: Tab }) {
+  const Icon = tabView(useRegistry(), tab)?.Icon;
+  return Icon ? <Icon tab={tab} /> : <Svg>{ICONS[tab.kind as keyof typeof ICONS]}</Svg>;
 }
 
-/** A tab's label, in the strip and in its menu alike: `title` is the chat's, `files` from fileLabels (issue 469). */
-export const tabLabel = (tab: Tab, t: ReturnType<typeof useT>, title: string | null, files: Map<string, string>): string =>
-  tab.kind === 'chat' ? title || t('chat') : tab.kind === 'settings' ? t('settings') : tab.kind === 'usage' ? t('usage') : tab.kind === 'remote' ? t('remote') : tab.kind === 'changes' ? t('vcsChanges') : tab.kind === 'log' ? t('vcsLog') : tab.kind === 'diagram' ? tab.title || t('diagramTab') : tab.kind === 'agent' ? tab.title || t('agentTab') : tab.kind === 'shell' ? tab.title || t('shellTab') : files.get(tab.path) ?? basename(tab.path);
+/** The open tabs' labels, in strip order, from their views (issue 469): the strip and its menu name a tab alike. */
+function useLabels(open: Tab[]): string[] {
+  const t = useT();
+  const r = useRegistry();
+  return useAppSelector((s) => open.map((tab) => tabLabel(r, tab, t, s)), shallowEqual);
+}
 
-/** A tab, no tooltip (issue 463): its label says it; `labels` are the open files' from fileLabels. */
-function TabItem({ tab, active, last, playing, labels }: { tab: Tab; active: boolean; last: boolean; playing: boolean; labels: Map<string, string> }) {
+/** A tab, no tooltip (issue 463): its label says it. Its view adds its own parts (a chip, a badge, a picker, an edit). */
+function TabItem({ tab, label, active, last, playing }: { tab: Tab; label: string; active: boolean; last: boolean; playing: boolean }) {
   const t = useT();
   const d = useAppDispatch();
-  const badge = useAppSelector((s) => (tab.kind === 'file' ? selectPendingCountByPath(s)[fileKey(tab.path, tab.ref)] ?? 0 : 0));
-  const title = useAppSelector((s) => selectSession(s)?.title ?? null);
-  const session = useAppSelector((s) => selectSession(s)?.id ?? null);
+  const view = tabView(useRegistry(), tab);
+  const edit = view?.edit;
+  const canEdit = useAppSelector((s) => !!edit?.when(s));
   const [renaming, setRenaming] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-  const label = tabLabel(tab, t, title, labels);
   const isChat = tab.kind === 'chat';
+  const Extra = view?.Extra;
   return (
     <ContextMenu>
       {/* off while renaming: the input keeps the browser's own menu, for a paste */}
@@ -127,12 +54,10 @@ function TabItem({ tab, active, last, playing, labels }: { tab: Tab; active: boo
         >
           <span className="hidden size-1.5 flex-none animate-pulse rounded-full bg-primary group-data-[playing=true]:inline-block" />
           <TabIcon tab={tab} />
-          {renaming && session
-            ? <RenameInput ref={input} id={session} title={title ?? ''} done={(back) => { setRenaming(false); if (back) focusTab(tab.id); }} />
+          {renaming && edit && canEdit
+            ? <edit.Input ref={input} tab={tab} done={(back) => { setRenaming(false); if (back) focusTab(tab.id); }} />
             : <span className="truncate">{label}</span>}
-          {tab.kind === 'file' && tab.ref && <SourceChip name={tab.ref} />}
-          {badge > 0 && <span data-badge className="rounded-full bg-nb-accent/[.18] px-1.5 text-[0.625rem] font-semibold leading-4 text-nb-accent">{badge}</span>}
-          {isChat && <SessionPicker />}
+          {Extra && <Extra tab={tab} />}
           {!isChat && (
             <button
               type="button"
@@ -147,9 +72,9 @@ function TabItem({ tab, active, last, playing, labels }: { tab: Tab; active: boo
       </ContextMenuTrigger>
       {/* the menu gives the focus back when it closes: to the title being edited, if that is what was picked */}
       <ContextMenuContent onCloseAutoFocus={(e) => { if (input.current) { e.preventDefault(); input.current.focus(); } }}>
-        {isChat && session && (
+        {edit && canEdit && (
           <>
-            <ContextMenuItem onSelect={() => setRenaming(true)}>{t('renameSess')}</ContextMenuItem>
+            <ContextMenuItem onSelect={() => setRenaming(true)}>{t(edit.label)}</ContextMenuItem>
             <ContextMenuSeparator />
           </>
         )}
@@ -175,9 +100,10 @@ function TabItem({ tab, active, last, playing, labels }: { tab: Tab; active: boo
 export function TabStrip() {
   const { open, active } = useAppSelector(selectTabs);
   const media = useMedia();
-  const playing = useSyncExternalStore(media.subscribe, () => media.playing());
+  const playing = useStored({ subscribe: media.subscribe, get: () => media.playing() });
   const strip = useRef<HTMLDivElement>(null);
-  const labels = fileLabels(open.flatMap((tab) => (tab.kind === 'file' ? [tab.path] : [])));
+  const names = useLabels(open);
+  const labels = new Map(open.map((tab, i) => [tab.id, names[i]!]));
   // after a switch, an open or a close (not on a resize: that would undo the user's own scroll of the strip)
   useEffect(() => {
     [...(strip.current?.querySelectorAll<HTMLElement>('[data-tab]') ?? [])].find((n) => n.dataset.tab === active)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
@@ -196,7 +122,7 @@ export function TabStrip() {
       >
         {open.map((tab, i) => (
           // the dot marks a background tab that still plays; the active tab shows its own player
-          <TabItem key={tab.id} tab={tab} active={tab.id === active} last={i === open.length - 1} playing={tab.id === playing && tab.id !== active} labels={labels} />
+          <TabItem key={tab.id} tab={tab} label={names[i]!} active={tab.id === active} last={i === open.length - 1} playing={tab.id === playing && tab.id !== active} />
         ))}
       </div>
       <TabsMenu strip={strip} labels={labels} />

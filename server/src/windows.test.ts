@@ -1,10 +1,11 @@
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { stateDir } from './state.ts';
-import { liveWindows, moveWindow, pidAlive, readWindows, registerWindow, restartingWindows, setBuilding, unregisterWindow } from './windows.ts';
+import { liveWindows, moveWindow, pidAlive, readWindows, registerWindow, restartingWindows, rootHash, setBuilding, unregisterWindow, windowKey } from './windows.ts';
 
 let home: string;
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -128,5 +129,15 @@ describe('restartingWindows', () => {
     expect(readWindows()['4791']).toMatchObject({ version: '1.2.3', nonce: 'n' });
     setBuilding(4791, process.pid, false);
     expect(readWindows()['4791']).not.toHaveProperty('building');
+  });
+});
+
+describe('windowKey (issue 511)', () => {
+  // bin/nota-bene.test.ts pins the launch lock to the same sha1(root)[0..16], through rootHash
+  it('is the provider and the first 16 hex of sha1(root), the hash of the launch lock', () => {
+    const hash = createHash('sha1').update('/p').digest('hex').slice(0, 16);
+    expect(rootHash('/p')).toBe(hash);
+    expect(windowKey('codex', '/p')).toBe(`codex:${hash}`);
+    expect(windowKey('claude', '/p')).not.toBe(windowKey('codex', '/p'));
   });
 });

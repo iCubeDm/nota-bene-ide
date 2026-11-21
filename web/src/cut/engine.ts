@@ -7,7 +7,7 @@ import { cutDuration, isPhotoSrc, type Cut, type CutClip, type CutTrack } from '
 import { peakOf } from './metering.ts';
 import { activeClips, audible, clipEnd, clipLevel, fadeRamp, gainAt, lastFrame, layerOpacity, nextClip, sourceTime, syncAction, trackLevel } from './playback.ts';
 
-/** What the controls draw: a new object on each change, so it can be a useSyncExternalStore snapshot. */
+/** What the controls draw: a new object on each change, so it can be a useStored snapshot. */
 export type PlayerState = { t: number; playing: boolean; duration: number; /** an edit to play (none while it has problems) */ ready: boolean; /** counts the seeks */ seeks: number };
 
 type Media = {
@@ -36,7 +36,7 @@ type Slot = {
   joining?: boolean;
 };
 
-export type PlayerOptions = {
+type PlayerOptions = {
   /** a source's URL */
   url: (src: string) => string;
   /**

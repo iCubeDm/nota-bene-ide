@@ -1,20 +1,17 @@
+import { EnterFullscreenIcon, ExitFullscreenIcon, PauseIcon, PencilIcon, PipIcon, PlayIcon, ReplayIcon } from '@/sdk/ui';
+import { has } from '@nota-bene/shared';
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import { selectMediaComments } from '@/comments/slice.ts';
-import { selectFileVersion } from '@/files/slice.ts';
-import { useT } from '@/i18n/index.ts';
-import { useAppDispatch, useAppSelector, useMedia } from '@/store/store.ts';
+import { useT, useAppDispatch, useAppSelector, useMedia, SEEK_STEPS, seekStep, useSeekStep, type SeekStepValue, useComments, useService, applyPlayerKey, type Flash } from '@/sdk';
 import { changedSince } from './markup/MediaMarks.tsx';
 import { BarButton, ChoiceMenu, SPEEDS, VolumeControl } from './PlayerControls.tsx';
-import { applyPlayerKey, startAnnotate, type Flash } from './playerKeys.ts';
-import { EnterFullscreenIcon, ExitFullscreenIcon, PauseIcon, PencilIcon, PipIcon, PlayIcon, ReplayIcon } from './playerIcons.tsx';
-import { SEEK_STEPS, seekStep, useSeekStep, type SeekStepValue } from './seekStep.ts';
+import { startAnnotate } from './playerKeys.ts';
 import { Timeline } from './Timeline.tsx';
 import { BAR_MIN_PX, useBarRect } from './useBarRect.ts';
 import { formatTime, type MarkerIn } from './timelineMath.ts';
 import { useMediaState } from './useMediaState.ts';
 
 /** While playing, the bar and the cursor go away after this long without the pointer moving over the player. */
-export const HIDE_AFTER_MS = 2500;
+const HIDE_AFTER_MS = 2500;
 
 /**
  * Whether the video's bar shows: always while paused, hovered, a menu is open or the timeline is being scrubbed; while
@@ -94,14 +91,16 @@ export function PlayerBar({ media, box, tabId, path = '', refName, flash, onTick
   /** A tick's click goes here instead of seeking this element (the chat opens the file's tab at that time). */
   onTick?: (time: number) => void;
 }) {
+  const { selectMediaComments } = useComments();
   const t = useT();
   const dispatch = useAppDispatch();
   const ctl = useMedia();
   const video = media instanceof HTMLVideoElement;
   const state = useMediaState(media);
-  const offered = useAppSelector((s) => s.controls.protocol >= 4);
+  const offered = useAppSelector((s) => has(s.controls.protocol, 'mediaAnchors'));
   const comments = useAppSelector((s) => selectMediaComments(s, path, refName));
-  const version = useAppSelector((s) => selectFileVersion(s, path, refName));
+  const files = useService('files');
+  const version = useAppSelector((s) => files.selectFileVersion(s, path, refName));
   const items = useMemo<MarkerIn[]>(() => !video ? [] : comments.flatMap((c) =>
     c.anchor.time === undefined ? [] : [{ id: c.id, time: c.anchor.time, text: c.text, dim: c.status === 'sent' || changedSince(c, version) }],
   ), [video, comments, version]);

@@ -319,11 +319,11 @@ void main() {
         ImageType.image_jpeg,
       ]);
       expect(out.images.map((i) => i.label), [
-        batchTemplate('imgLabel', 'ru', [1]),
-        batchTemplate('imgLabel', 'ru', [2]),
-        batchTemplate('imgLabelC', 'ru', [3, 1]),
+        batchTemplate(BatchKey.imgLabel, 'ru', [1]),
+        batchTemplate(BatchKey.imgLabel, 'ru', [2]),
+        batchTemplate(BatchKey.imgLabelC, 'ru', [3, 1]),
       ]);
-      expect(out.text, contains(batchTemplate('imgRef', 'ru', ['3'])));
+      expect(out.text, contains(batchTemplate(BatchKey.imgRef, 'ru', ['3'])));
     });
 
     test('alone, without comments or text, are the whole send', () {
@@ -351,10 +351,10 @@ void main() {
 
     for (final lang in ['en', 'ru', 'zh', 'es', 'pt', 'de']) {
       test(lang, () {
-        expect(where('u1', lang), webString('srcMine', lang));
-        expect(where('a1', lang), webString('replyPlain', lang));
-        expect(where('gone', lang), batchString('srcChat', lang));
-        expect(where('stream:0', lang), batchString('srcChat', lang));
+        expect(where('u1', lang), webString(WebKey.srcMine, lang));
+        expect(where('a1', lang), webString(WebKey.replyPlain, lang));
+        expect(where('gone', lang), batchString(BatchKey.srcChat, lang));
+        expect(where('stream:0', lang), batchString(BatchKey.srcChat, lang));
       });
     }
 

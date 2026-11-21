@@ -1,9 +1,8 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { Provider } from 'react-redux';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
-import type { ClientMessage, Comment, CutAnchor } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import type { Comment, CutAnchor } from '@nota-bene/shared';
+import { serverEvent } from '@/store/store.ts';
+import { renderWith } from '@/testing';
 import { selectComments } from '@/comments/slice.ts';
 import { jumpToFileComment } from '@/files/slice.ts';
 import { CutBody } from './CutBody.tsx';
@@ -31,11 +30,9 @@ const source = { kind: 'file' as const, path: 'e.nbcut.json' };
 setupCut(fixture);
 
 async function show({ protocol = 23, items = [] as Comment[] } = {}) {
-  const sent: ClientMessage[] = [];
-  const store = makeStore({ url: 'ws://x', connect: (_u, _e, s) => { setTimeout(() => s('open')); return { send: (m: ClientMessage) => (sent.push(m), true), close() {} }; } });
-  store.dispatch(serverEvent({ kind: 'hello', protocol } as never));
-  store.dispatch(serverEvent({ kind: 'comments', items, rev: 1 } as never));
-  const r = render(<Provider store={store}><TooltipProvider><CutBody text={disk.text} src="here" path="e.nbcut.json" tabId="file:e.nbcut.json" active /></TooltipProvider></Provider>);
+  const ui = (text: string) => <CutBody text={text} src="here" path="e.nbcut.json" tabId="file:e.nbcut.json" active />;
+  const r = renderWith(ui(disk.text), { hello: { protocol }, events: [{ kind: 'comments', items, rev: 1 }] });
+  const { store, conn: { sent } } = r;
   await waitFor(() => expect(r.container.querySelector('[data-cut-tools]')).not.toBeNull());
   const pps = () => Number(r.container.querySelector('[data-timeline]')!.getAttribute('data-pps'));
   const clip = (id: string) => r.container.querySelector<HTMLElement>(`[data-clip="${id}"]`)!;
@@ -50,8 +47,8 @@ async function show({ protocol = 23, items = [] as Comment[] } = {}) {
   };
   const time = () => r.container.querySelector('[data-cut-time]')!.textContent;
   const cuts = () => selectComments(store.getState()).map((c) => c.anchor as CutAnchor);
-  const reload = (text: string) => r.rerender(<Provider store={store}><TooltipProvider><CutBody text={text} src="here" path="e.nbcut.json" tabId="file:e.nbcut.json" active /></TooltipProvider></Provider>);
-  return { ...r, store, sent, pps, clip, seek, select, time, cuts, reload };
+  const reload = (text: string) => r.rerender(ui(text));
+  return { ...r, sent, pps, clip, seek, select, time, cuts, reload };
 }
 const note = (id: string, anchor: Omit<CutAnchor, 'kind' | 'source'>, text = `note ${id}`): Comment =>
   ({ id, text, status: 'pending', createdAt: 1, anchor: { kind: 'cut', source, ...anchor } });
@@ -142,7 +139,7 @@ it('the card\'s jump seeks the timeline and selects the clip', async () => {
   act(() => void store.dispatch(jumpToFileComment('e.nbcut.json', 'k1')));
   await waitFor(() => expect(time()).toMatch(/^0:02\.5/));
   expect(clip('c1')).toHaveAttribute('data-selected');
-  expect(store.getState().files.jump).toBeNull();
+  expect(store.getState().jump).toBeNull();
 });
 
 it('a blade cut takes a comment on the right part along to it, as S does (issue 432)', async () => {

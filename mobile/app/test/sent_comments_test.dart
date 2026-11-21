@@ -31,14 +31,14 @@ const batch =
 
 void main() {
   test('the web counts: forms by the language', () {
-    expect(webCount('nComments', 'en', 1), '1 comment');
-    expect(webCount('nComments', 'en', 3), '3 comments');
-    expect(webCount('nComments', 'ru', 1), '1 комментарий');
-    expect(webCount('nComments', 'ru', 2), '2 комментария');
-    expect(webCount('nComments', 'ru', 5), '5 комментариев');
-    expect(webCount('nComments', 'ru', 21), '21 комментарий');
-    expect(webCount('nComments', 'ru', 12), '12 комментариев');
-    expect(webCount('nComments', 'zh', 4), '4 条评论');
+    expect(webCount(CountKey.nComments, 'en', 1), '1 comment');
+    expect(webCount(CountKey.nComments, 'en', 3), '3 comments');
+    expect(webCount(CountKey.nComments, 'ru', 1), '1 комментарий');
+    expect(webCount(CountKey.nComments, 'ru', 2), '2 комментария');
+    expect(webCount(CountKey.nComments, 'ru', 5), '5 комментариев');
+    expect(webCount(CountKey.nComments, 'ru', 21), '21 комментарий');
+    expect(webCount(CountKey.nComments, 'ru', 12), '12 комментариев');
+    expect(webCount(CountKey.nComments, 'zh', 4), '4 条评论');
   });
 
   test('batchRaw is what follows the heading', () {

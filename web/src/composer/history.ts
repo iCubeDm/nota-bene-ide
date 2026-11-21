@@ -1,7 +1,6 @@
 import { createSlice, type Middleware, type PayloadAction } from '@reduxjs/toolkit';
 import { fuzzyScore, PROMPT_MAX, type PromptEntry, type PromptSrc } from '@nota-bene/shared';
-import { apiFetch } from '../net/auth.ts';
-import { serverEvent, type AppThunk, type RootState } from '../store/store.ts';
+import { serverEvent, routes, type AppThunk, type RootState } from '@/sdk';
 import type { SentDraft, ShellDraft } from './slice.ts';
 
 /**
@@ -9,12 +8,13 @@ import type { SentDraft, ShellDraft } from './slice.ts';
  * `local` are the ids sent from here that the server's list has not shown yet: they outlive a change of the session id
  * (a fork or an id-less /clear names its new id only after the first prompt went out under the old one).
  */
-type State = { sid: string | null; items: PromptEntry[]; local: string[] };
+type State = { sid: string | null; items: PromptEntry[]; local: string[]; /** the list is open: Alt+H and its button toggle it */ open: boolean };
 
 export const historySlice = createSlice({
   name: 'promptHistory',
-  initialState: { sid: null, items: [], local: [] } as State,
+  initialState: { sid: null, items: [], local: [], open: false } as State,
   reducers: {
+    setHistoryOpen: (s, a: PayloadAction<boolean>) => void (s.open = a.payload),
     // a new session's history is another one; the first id of a session with none yet keeps what was sent before it
     sessionChanged: (s, a: PayloadAction<string | null>) => {
       if (a.payload === s.sid) return;
@@ -41,6 +41,8 @@ export const historySlice = createSlice({
 
 export const selectPromptItems = (s: RootState): PromptEntry[] => s.promptHistory.items;
 export const selectPromptSid = (s: RootState): string | null => s.promptHistory.sid;
+export const { setHistoryOpen } = historySlice.actions;
+export const selectHistoryOpen = (s: RootState): boolean => s.promptHistory.open;
 
 /** Newest first, a prompt repeated right after itself once: what ↑ walks through. */
 export function recallList(items: PromptEntry[]): PromptEntry[] {
@@ -50,7 +52,7 @@ export function recallList(items: PromptEntry[]): PromptEntry[] {
 }
 
 /** Newest first, each text once (its newest copy): the list of the history dropdown. */
-export function distinctList(items: PromptEntry[]): PromptEntry[] {
+function distinctList(items: PromptEntry[]): PromptEntry[] {
   const seen = new Set<string>();
   const out: PromptEntry[] = [];
   for (let i = items.length - 1; i >= 0; i--) {
@@ -86,9 +88,9 @@ export function searchPrompts(items: PromptEntry[], query: string): PromptEntry[
 const warn = (what: string, e: unknown) => console.warn(`prompt history: ${what}`, e);
 
 /** Asks the server for the session's stored prompts; an answer for a session that is not the current one any more is dropped. */
-export const loadHistory = (): AppThunk => (d, getState) => {
+const loadHistory = (): AppThunk => (d, getState, { connections }) => {
   const sid = getState().promptHistory.sid;
-  apiFetch(sid === null ? '/prompts' : `/prompts?session=${encodeURIComponent(sid)}`)
+  connections.current().fetch(routes.prompts(sid ?? undefined))
     .then((r) => (r.ok ? (r.json() as Promise<{ session: string | null; prompts: PromptEntry[] }>) : Promise.reject(new Error(`/prompts ${r.status}`))))
     // the answer must be for the session asked about and still the current one
     .then((body) => { if (getState().promptHistory.sid === sid && body.session === sid) d(historySlice.actions.loaded(body.prompts)); })
@@ -96,12 +98,12 @@ export const loadHistory = (): AppThunk => (d, getState) => {
 };
 
 /** Shows the entry at once and tells the server in the background (a failure only logs: the list is a convenience). */
-const record = (entry: Omit<PromptEntry, 'ts'>): AppThunk => (d, getState) => {
+const record = (entry: Omit<PromptEntry, 'ts'>): AppThunk => (d, getState, { connections }) => {
   if (!entry.text.trim() || entry.text.length > PROMPT_MAX) return;
   const full: PromptEntry = { ...entry, ts: Date.now() };
   const session = getState().feed.session?.id ?? null;
   d(historySlice.actions.appended(full));
-  apiFetch('/prompts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session, id: full.id, text: full.text, src: full.src }) })
+  connections.current().fetch(routes.prompts(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session, id: full.id, text: full.text, src: full.src }) })
     .then((r) => { if (!r.ok) warn('save failed', r.status); })
     .catch((e: unknown) => warn('save failed', e));
 };

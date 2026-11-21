@@ -1,21 +1,11 @@
-import { Fragment, memo, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { refClick } from '@/refs/refs.ts';
-import { selectFeed, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { retriedVoice, type FeedState } from '@/store/feed.ts';
-import { isAgentTool } from '@/subagent/slice.ts';
+import { Fragment, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useT, refClick, selectFeed, useAppDispatch, useAppSelector, useRegistry, feedRenderer, retriedVoice, isAgentTool, type FeedState, selectHeld, selectRestartPending } from '@/sdk';
 import { FeedScope } from './scope.ts';
-import { Markdown } from './Markdown.tsx';
-import { CompactingLine, DoneLine, IdleCompactLine, MarkerLine, NoticeLine } from './DoneLine.tsx';
+import { CompactingLine } from './DoneLine.tsx';
 import { EarlierButton } from './EarlierButton.tsx';
-import { PlanCard } from './PlanCard.tsx';
-import { PermissionCard } from './PermissionCard.tsx';
-import { ShellBlock } from './ShellBlock.tsx';
 import { ToolGroup } from './ToolGroup.tsx';
 import { ToolLine } from './ToolLine.tsx';
-import { UserMessage } from './UserMessage.tsx';
-import { DaySeparator, MsgTime } from './MsgTime.tsx';
-import { selectHeld, selectRestartPending } from '@/controls/slice.ts';
+import { DaySeparator } from './MsgTime.tsx';
 import type { HeldSend } from '@nota-bene/shared';
 import { dayStarts } from './time.ts';
 
@@ -48,6 +38,8 @@ export function Feed({ feed, agent, running }: { feed?: FeedState; agent?: strin
   const scope = useMemo(() => ({ agent, busy: agent ? !!running : undefined }), [agent, running]);
   const t = useT();
   const dispatch = useAppDispatch();
+  const registry = useRegistry();
+  const User = feedRenderer(registry, 'user')?.render;
   const root = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const lastLen = useRef(0);
@@ -160,23 +152,9 @@ export function Feed({ feed, agent, running }: { feed?: FeedState; agent?: strin
       const run = items.slice(i, end) as Extract<typeof it, { kind: 'tool' }>[];
       return <ToolGroup key={`group:${it.id}`} items={run} live={busy && end === items.length} />;
     }
-    switch (it.kind) {
-      case 'user':
-        if (hidden.has(it.id)) return null; // a failed voice message the user has sent again
-        return it.idle ? <IdleCompactLine key={it.id} item={it} /> : <UserMessage key={it.id} item={it} />;
-      case 'assistant':
-        return <Reply key={it.id} item={it} />;
-      case 'done':
-        return <DoneLine key={it.key} item={it} />;
-      case 'permission':
-        return it.toolName === 'ExitPlanMode' && typeof it.input.plan === 'string' ? <PlanCard key={it.id} item={it} /> : <PermissionCard key={it.id} item={it} />;
-      case 'shell':
-        return <ShellBlock key={`shell:${it.id}`} item={it} />;
-      case 'marker':
-        return <MarkerLine key={it.key} item={it} />;
-      case 'notice':
-        return <NoticeLine key={it.key} item={it} />;
-    }
+    if (it.kind === 'user' && hidden.has(it.id)) return null; // a failed voice message the user has sent again
+    const Item = feedRenderer(registry, it.kind)?.render;
+    return Item ? <Item key={it.kind === 'shell' ? `shell:${it.id}` : 'key' in it ? it.key : it.id} item={it} /> : null;
   }
 
   return (
@@ -197,7 +175,7 @@ export function Feed({ feed, agent, running }: { feed?: FeedState; agent?: strin
       })}
       {compacting !== null && <CompactingLine since={compacting} />}
       {/* issue 499: the sends the server holds, last, as they will go: after the pending restart, then the compaction */}
-      {held.map((h) => <UserMessage key={h.id} item={{ kind: 'user', ...h }} held={restart ? 'restart' : 'compact'} />)}
+      {User && held.map((h) => <User key={h.id} item={{ kind: 'user', ...h }} held={restart ? 'restart' : 'compact'} />)}
       {away && (
         // sticky inside the scrolling pane: it stays at the pane's bottom edge without taking room in the transcript
         <div data-anchor-skip className="pointer-events-none sticky bottom-3 flex h-0 items-start justify-end">
@@ -219,15 +197,13 @@ export function Feed({ feed, agent, running }: { feed?: FeedState; agent?: strin
   );
 }
 
-/** An agent reply; like every feed item's element, memoized: a streamed token re-renders only the reply it extends (issue 471). */
-const Reply = memo(function Reply({ item: it }: { item: Extract<FeedState['items'][number], { kind: 'assistant' }> }) {
+const isAgentCall = (it: FeedState['items'][number]): boolean => it.kind === 'tool' && isAgentTool(it.name, it.toolKind);
+
+/** The chat pane's feed. */
+export function ChatFeed() {
   return (
-    <div data-kind="assistant" data-item-id={it.id} data-final={String(it.final)} className="group/reply relative my-2.5">
-      {/* in the gap above the reply, shown on hover: a reply has no header line of its own to carry it */}
-      <MsgTime ts={it.ts} anchorSkip className="absolute -top-2.5 right-0 select-none font-mono text-[0.625rem] leading-none text-muted-foreground opacity-0 transition-opacity group-hover/reply:opacity-100" />
-      <Markdown text={it.text} final={it.final} />
+    <div id="items" className="nb-card nb-prose px-10 pt-5 pb-7 text-[0.9375rem] leading-[1.625] text-foreground/90">
+      <Feed />
     </div>
   );
-});
-
-const isAgentCall = (it: FeedState['items'][number]): boolean => it.kind === 'tool' && isAgentTool(it.name, it.toolKind);
+}

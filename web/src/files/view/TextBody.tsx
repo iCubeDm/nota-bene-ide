@@ -1,19 +1,16 @@
 import type { Ref } from 'react';
-import { Markdown } from '@/feed/Markdown.tsx';
-import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
-import { refClick } from '@/refs/refs.ts';
-import { useT } from '@/i18n/index.ts';
-import { useAppDispatch } from '@/store/store.ts';
-import type { FileKind } from '../kinds.ts';
+import { refClick, useT, useAppDispatch, type FileKind, useComments } from '@/sdk';
 import { CodeText } from './CodeText.tsx';
 import { useWrapLines } from '../wrap.ts';
 import type { Loaded } from './useFileLoad.ts';
+import { Markdown } from '@/sdk/ui';
 
 /** The pane of a text or markdown file: the text, or a note (too big, binary, gone, an error). */
 export function TextBody({ data, kind, path, src, fileRef, tabId, active, url, paneRef }: {
   data: Loaded | null; kind: FileKind; path: string; src: string; fileRef: string | undefined; tabId: string; active: boolean; url: string;
   paneRef: Ref<HTMLDivElement>;
 }) {
+  const { HighlightLayer } = useComments();
   const t = useT();
   const dispatch = useAppDispatch();
   const wrap = useWrapLines();

@@ -30,6 +30,15 @@
       ],
       "type": "string"
     },
+    "AgentProvider": {
+      "description": "The agents a window can run.",
+      "enum": [
+        "claude",
+        "codex",
+        "omp"
+      ],
+      "type": "string"
+    },
     "Anchor": {
       "anyOf": [
         {
@@ -168,12 +177,7 @@
           "type": "array"
         },
         "provider": {
-          "enum": [
-            "claude",
-            "codex",
-            "omp"
-          ],
-          "type": "string"
+          "$ref": "#/definitions/AgentProvider"
         },
         "taskBackground": {
           "type": "boolean"
@@ -679,6 +683,13 @@
       ],
       "type": "string"
     },
+    "CompleteAnswer": {
+      "description": "`GET /complete?q=`: up to 30 project-relative paths, a folder with a trailing `/`.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "CutAnchor": {
       "description": "A place on a video edit's timeline (`*.nbcut.json`, protocol 23): a clip at a moment of it, or (no `clip`) a moment of the timeline. `time`: seconds on the timeline, ms precision. The editor keeps a pending comment on its clip by id: after a move or a trim it updates `time` (and the track and src) through an `edit` op, `srcTime` staying.",
       "properties": {
@@ -749,6 +760,53 @@
       ],
       "type": "object"
     },
+    "GitSwitchAnswer": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/GitSwitched"
+        },
+        {
+          "$ref": "#/definitions/GitSwitchRefusal"
+        }
+      ]
+    },
+    "GitSwitchError": {
+      "description": "Why POST /git-switch refused; `detail` carries git's own words for 'git'. 200 answers `{ branch }`.",
+      "enum": [
+        "bad-request",
+        "not-a-repo",
+        "unknown-branch",
+        "busy",
+        "git",
+        "timeout"
+      ],
+      "type": "string"
+    },
+    "GitSwitchRefusal": {
+      "properties": {
+        "detail": {
+          "type": "string"
+        },
+        "error": {
+          "$ref": "#/definitions/GitSwitchError"
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "type": "object"
+    },
+    "GitSwitched": {
+      "properties": {
+        "branch": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "branch"
+      ],
+      "type": "object"
+    },
     "HeldSend": {
       "description": "protocol 27: a send the server holds behind a pending restart or compaction (issue 499), as the feed shows it",
       "properties": {
@@ -775,6 +833,100 @@
         "id",
         "text",
         "ts"
+      ],
+      "type": "object"
+    },
+    "HostStreamMessage": {
+      "description": "What the host stream sends: the whole list on open and on every change.",
+      "properties": {
+        "t": {
+          "const": "windows",
+          "type": "string"
+        },
+        "windows": {
+          "items": {
+            "$ref": "#/definitions/HostWindow"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "t",
+        "windows"
+      ],
+      "type": "object"
+    },
+    "HostWindow": {
+      "description": "One window as the host stream lists it. `port`, `provider` and `root` are always there; every other field may be missing (the host could not read the window's /info that time, or an older host).",
+      "properties": {
+        "busy": {
+          "type": "boolean"
+        },
+        "icon": {
+          "description": "the version (a hash) of the picture of the window's project folder; null when it has none",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "The window's stable id (issue 511): `provider:sha1(root)[0..16]`, the same across restarts and port changes; for a second window of the same folder and agent, `<id>:<port>`. Opaque to clients. Absent from a host before it.",
+          "type": "string"
+        },
+        "last": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LastMessage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pending": {
+          "description": "a permission or interaction prompt awaits an answer in the window",
+          "type": "boolean"
+        },
+        "port": {
+          "description": "Transport only: the port the host reaches the window on (the `port` of the `ws` / `http` stream kinds).",
+          "type": "integer"
+        },
+        "provider": {
+          "$ref": "#/definitions/AgentProvider"
+        },
+        "replies": {
+          "description": "The final replies of the session.",
+          "type": "integer"
+        },
+        "root": {
+          "type": "string"
+        },
+        "session": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "supervised": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "port",
+        "provider",
+        "root"
       ],
       "type": "object"
     },
@@ -932,6 +1084,30 @@
       },
       "required": [
         "choice"
+      ],
+      "type": "object"
+    },
+    "LastMessage": {
+      "description": "The latest user message or final reply of a window's session, as the window sends it: one plain line.",
+      "properties": {
+        "at": {
+          "description": "ms since the epoch; absent or 0 when the window has no time for it (a restored history)",
+          "type": "number"
+        },
+        "role": {
+          "enum": [
+            "user",
+            "assistant"
+          ],
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "text"
       ],
       "type": "object"
     },
@@ -1212,6 +1388,18 @@
         "source",
         "selector",
         "trail"
+      ],
+      "type": "object"
+    },
+    "ProjectIconAnswer": {
+      "description": "`PUT /project-icon`: the stored picture's version.",
+      "properties": {
+        "icon": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "icon"
       ],
       "type": "object"
     },
@@ -2379,6 +2567,21 @@
       ],
       "type": "string"
     },
+    "TreeEntry": {
+      "properties": {
+        "dir": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "dir"
+      ],
+      "type": "object"
+    },
     "UiLang": {
       "enum": [
         "en",
@@ -2985,6 +3188,296 @@
       ],
       "type": "object"
     },
+    "VcsBaseHow": {
+      "enum": [
+        "reflog",
+        "default",
+        "none"
+      ],
+      "type": "string"
+    },
+    "VcsCommit": {
+      "properties": {
+        "at": {
+          "type": "number"
+        },
+        "author": {
+          "type": "string"
+        },
+        "parents": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "refs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sha",
+        "parents",
+        "author",
+        "at",
+        "subject",
+        "refs"
+      ],
+      "type": "object"
+    },
+    "VcsCommitDetail": {
+      "properties": {
+        "at": {
+          "type": "number"
+        },
+        "author": {
+          "type": "string"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/definitions/VcsFile"
+          },
+          "type": "array"
+        },
+        "message": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "sha",
+        "author",
+        "at",
+        "message",
+        "files",
+        "truncated"
+      ],
+      "type": "object"
+    },
+    "VcsDiff": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/VcsNoRepo"
+        },
+        {
+          "$ref": "#/definitions/VcsRepoDiff"
+        }
+      ]
+    },
+    "VcsFile": {
+      "description": "The read-only git views' answers (`/vcs-*`).",
+      "properties": {
+        "add": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "binary": {
+          "type": "boolean"
+        },
+        "del": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "old": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "A",
+            "M",
+            "D",
+            "R"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "status",
+        "add",
+        "del",
+        "binary"
+      ],
+      "type": "object"
+    },
+    "VcsLog": {
+      "properties": {
+        "commits": {
+          "items": {
+            "$ref": "#/definitions/VcsCommit"
+          },
+          "type": "array"
+        },
+        "more": {
+          "type": "boolean"
+        },
+        "repo": {
+          "type": "boolean"
+        },
+        "tip": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "repo",
+        "commits",
+        "tip",
+        "more"
+      ],
+      "type": "object"
+    },
+    "VcsNoRepo": {
+      "properties": {
+        "repo": {
+          "const": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "repo"
+      ],
+      "type": "object"
+    },
+    "VcsPatch": {
+      "properties": {
+        "patch": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "patch",
+        "truncated"
+      ],
+      "type": "object"
+    },
+    "VcsRepoDiff": {
+      "properties": {
+        "base": {
+          "description": "what the range starts from; null: only what is not committed, or nothing to compare",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "branch": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "candidates": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "commitCount": {
+          "type": "number"
+        },
+        "commits": {
+          "description": "the latest ones; `commitCount` is all of them",
+          "items": {
+            "properties": {
+              "sha": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "sha",
+              "subject"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "detected": {
+          "description": "the source's own base, whatever is picked",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "files": {
+          "items": {
+            "$ref": "#/definitions/VcsFile"
+          },
+          "type": "array"
+        },
+        "how": {
+          "$ref": "#/definitions/VcsBaseHow"
+        },
+        "live": {
+          "description": "a working folder, not a branch's commits only",
+          "type": "boolean"
+        },
+        "mergeBase": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "repo": {
+          "const": true,
+          "type": "boolean"
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "uncommitted": {
+          "type": "boolean"
+        },
+        "unrelated": {
+          "description": "`base` shares no history with the source",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "repo",
+        "branch",
+        "live",
+        "base",
+        "detected",
+        "how",
+        "uncommitted",
+        "unrelated",
+        "mergeBase",
+        "commits",
+        "commitCount",
+        "candidates",
+        "files",
+        "truncated"
+      ],
+      "type": "object"
+    },
     "Voice": {
       "description": "A stored recording (POST /voice): id = sha256 hex of the WAV, ms = its length, wave = VOICE_BARS bars of 0..31 (loudest = 31).",
       "properties": {
@@ -3434,6 +3927,38 @@
       ],
       "description": "What reaches the clients (R-M7-14): every AgentEvent but the server-internal `init`, `rate-limit` and `commands`."
     }
+  },
+  "x-features": {
+    "accessKeys": 21,
+    "activity": 1,
+    "agentEvents": 5,
+    "attachmentAnchors": 17,
+    "camera": 9,
+    "commands": 10,
+    "commentOps": 19,
+    "compactOrder": 27,
+    "cutAnchors": 23,
+    "fireLabel": 3,
+    "heldSends": 27,
+    "imagesAlone": 26,
+    "mediaAnchors": 4,
+    "modeAck": 2,
+    "models": 6,
+    "pageAnchors": 13,
+    "polygons": 24,
+    "projectIcon": 15,
+    "providerModes": 12,
+    "remote": 20,
+    "remoteHosts": 28,
+    "remoteProjects": 29,
+    "restartPending": 22,
+    "shellRun": 11,
+    "subagentAnchors": 7,
+    "taskControl": 8,
+    "voice": 14,
+    "voiceComments": 16,
+    "voiceDetect": 18,
+    "wholePicture": 25
   },
   "x-protocol": 29
 }

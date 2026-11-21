@@ -4,7 +4,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Comment } from '@nota-bene/shared';
 import { App } from '@/App.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { jumpToFileComment } from '@/files/slice.ts';
 import { activate, closeTab, fileTabId, openFile } from '@/tabs/slice.ts';
 import { setPanelOpen } from './slice.ts';
@@ -171,7 +172,7 @@ it('jump to source opens the closed file tab, then centres the fragment and flas
   await waitFor(() => expect(scrolls).toHaveLength(1));
   expect(scrolls[0]).toEqual({ el: pane(fileTabId('docs/n.md')), top: target(6) });
   expect(pane(fileTabId('docs/n.md')).querySelector('.nb-flash')).not.toBeNull();
-  expect(store.getState().files.jump).toBeNull(); // consumed once
+  expect(store.getState().jump).toBeNull(); // consumed once
   await frames();
   expect(scrolls).toHaveLength(1);
 });
@@ -207,7 +208,7 @@ it('a pending jump is dropped when another tab is activated', async () => {
     store.dispatch(jumpToFileComment('docs/n.md', 'f1'));
     store.dispatch(activate('chat'));
   });
-  expect(store.getState().files.jump).toBeNull();
+  expect(store.getState().jump).toBeNull();
   act(() => void store.dispatch(activate(fileTabId('docs/n.md'))));
   await loaded();
   await frames();
@@ -217,9 +218,9 @@ it('a pending jump is dropped when another tab is activated', async () => {
 it('a pending jump is dropped by a jump to a chat comment', async () => {
   const store = setup([fileComment(), chatComment]);
   act(() => void store.dispatch(jumpToFileComment('docs/n.md', 'f1')));
-  expect(store.getState().files.jump).not.toBeNull();
+  expect(store.getState().jump).not.toBeNull();
   fireEvent.click(quoteOf('m1'));
-  expect(store.getState().files.jump).toBeNull();
+  expect(store.getState().jump).toBeNull();
   expect(scrolls).toEqual([{ el: pane('chat'), top: target(0) }]);
   act(() => void store.dispatch(activate(fileTabId('docs/n.md'))));
   await loaded();
@@ -232,7 +233,7 @@ it('jump then 404: the tab opens, the comment is orphaned, the jump is consumed 
   const store = setup([fileComment()]);
   fireEvent.click(quoteOf('f1'));
   await waitFor(() => expect(card('f1')).toHaveTextContent('fragment changed'));
-  expect(store.getState().files.jump).toBeNull();
+  expect(store.getState().jump).toBeNull();
   expect(scrolls).toHaveLength(0);
 });
 
@@ -255,7 +256,7 @@ it('two jumps in a row: the last one wins', async () => {
   const store = setup([fileComment(), second]);
   fireEvent.click(quoteOf('f1'));
   fireEvent.click(quoteOf('f2'));
-  expect(store.getState().files.jump).toEqual({ path: 'docs/n.md', src: 'here', id: 'f2' });
+  expect(store.getState().jump).toEqual({ path: 'docs/n.md', src: 'here', id: 'f2' });
   await waitFor(() => expect(scrolls).toHaveLength(1));
   expect(scrolls[0].top).toBe(target(0)); // "second para" starts its own paragraph
   await frames();

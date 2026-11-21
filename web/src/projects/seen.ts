@@ -3,8 +3,7 @@
 import { useEffect } from 'react';
 import { useStore } from 'react-redux';
 import type { Store } from 'redux';
-import { apiFetch } from '@/net/auth.ts';
-import type { RootState } from '@/store/store.ts';
+import { connections, routes, type RootState } from '@/sdk';
 
 const GAP_MS = 2000;
 type Feedish = { feed: { turnSeq: number; session: { id: string | null } | null } };
@@ -47,10 +46,16 @@ export function startSeen(store: Pick<Store<Feedish>, 'getState' | 'subscribe'>,
 }
 
 const postSeen = (session: string) => {
-  void apiFetch('/seen', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session }) }).catch(() => {});
+  void connections.current().fetch(routes.seen(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session }) }).catch(() => {});
 };
 
 export function useSeen(): void {
   const store = useStore<RootState>();
   useEffect(() => startSeen(store, document, window, postSeen), [store]);
+}
+
+/** useSeen as a part of the frame (a slot), rendering nothing. */
+export function Seen(): null {
+  useSeen();
+  return null;
 }

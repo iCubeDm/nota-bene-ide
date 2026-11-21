@@ -10,10 +10,11 @@
 import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import type net from 'node:net';
+import type { HostWindow } from '@nota-bene/shared';
 import { DeviceChannel } from './device.ts';
 import { Windows } from './discover.ts';
 import { closeControl, running, serveControl, write, type Msg } from './control.ts';
-import { HostLink, type HostWindowInfo } from './hostLink.ts';
+import { HostLink } from './hostLink.ts';
 import type { KeyPair } from './noise.ts';
 import { WindowProxy, type EnterTarget } from './proxy.ts';
 import { readPrefs } from '../prefs.ts';
@@ -181,7 +182,7 @@ export class Connector extends EventEmitter {
   }
 
   /** The latest `windows` list of a paired computer (empty while its link is down). */
-  hostWindows(id: string): HostWindowInfo[] {
+  hostWindows(id: string): HostWindow[] {
     return this.#links.get(id)?.link.windows ?? [];
   }
 

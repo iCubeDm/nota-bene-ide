@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { anchorSource, isPageAnchor, isTextAnchor, type AnchorSource, type Comment, type PageAnchor } from '@nota-bene/shared';
-import { rangeForAnchor } from '@/anchors/text.ts';
-import { areaRect, resolvePage } from '@/page/anchor.ts';
-import { outOf, pageRoot, pageSelection, rangeRects, textRootOf } from '@/page/frame.ts';
-import { useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { fileKey } from '@/files/sources.ts';
+import { anchorSource, isTextAnchor, type AnchorSource, type Comment } from '@nota-bene/shared';
+import { rangeForAnchor, useAppDispatch, useAppSelector, useRegistry, anchorView, fileKey, pageRoot, pageSelection, rangeRects, textRootOf } from '@/sdk';
 import { openCommentCard, selectComments } from './slice.ts';
 
 const PAD_X = 2;
@@ -99,7 +95,7 @@ const keyOf = (src: Source) => (src.kind === 'message' ? `m:${src.id}` : `f:${fi
  * (Markdown sets innerHTML, CodeText sets textContent), so `isConnected` drops the stale range; an unchanged text keeps them.
  */
 function rangeOf(roots: Map<string, HTMLElement>, cache: Map<string, Cached>, c: Comment): Range | null {
-  if (!isTextAnchor(c.anchor)) return null; // media marks are drawn over the media, page places as outlines, an attachment's over its image; a kind this client does not know has no text
+  if (!isTextAnchor(c.anchor)) return null; // media marks are drawn over the media, page places as outlines (their view's `place`), an attachment's over its image; a kind this client does not know has no text
   const root = roots.get(keyOf(c.anchor.source));
   if (!root || (root.dataset.kind === 'assistant' && root.dataset.final !== 'true')) return null;
   const hit = cache.get(c.id);
@@ -107,21 +103,6 @@ function rangeOf(roots: Map<string, HTMLElement>, cache: Map<string, Cached>, c:
   const range = rangeForAnchor(root, c.anchor);
   if (range) cache.set(c.id, { c, root, range });
   return range;
-}
-
-/**
- * Where a page anchor is now, in this window's coordinates (the element's box, or the area through the SVG's transform),
- * read again on every call: the page lays out on its own. null: the page is not shown, or the place is gone.
- */
-function placeOf(root: HTMLElement | undefined, a: PageAnchor): (() => DOMRect | null) | null {
-  const doc = root?.hasAttribute('data-page-root') ? root.ownerDocument : null;
-  const el = doc && resolvePage(doc, a);
-  if (!el) return null;
-  return () => {
-    if (!el.isConnected) return null;
-    const r = a.box ? areaRect(el, a.box) : el.getBoundingClientRect();
-    return r && r.width + r.height > 0 ? outOf(el, r) : null;
-  };
 }
 
 /** Whether a click lands on a drawn outline: anywhere on a small one, on the edge of a large one. */
@@ -179,6 +160,7 @@ export function HighlightLayer({ pane: paneId = 'chat', diff, content: diffConte
   const cache = useRef(new Map<string, Cached>());
   const paint = useRef<() => void>(() => {});
   const dispatch = useAppDispatch();
+  const registry = useRegistry();
   const all = useAppSelector(selectComments);
   const active = useAppSelector((s) => s.tabs.active === paneId);
   // the file this pane shows (path + ref); null = a file pane whose tab is gone
@@ -231,8 +213,11 @@ export function HighlightLayer({ pane: paneId = 'chat', diff, content: diffConte
       const prev = cache.current;
       const next = new Map<string, Cached>(); // only what this paint drew survives: removed / orphaned comments drop out
       for (const c of state.current.comments) {
-        if (isPageAnchor(c.anchor)) {
-          const place = placeOf(roots.get(`f:${fileKey(c.anchor.source.path, c.anchor.source.ref)}`), c.anchor);
+        // a kind drawn as an outline (a page's element or area): where its view says it is now
+        const outline = anchorView(registry, c.anchor)?.place;
+        if (outline) {
+          const src = anchorSource(c.anchor);
+          const place = outline(c, src?.kind === 'file' ? roots.get(keyOf(src)) : undefined);
           if (place) list.push({ id: c.id, place, kind: c.status });
           continue;
         }
@@ -291,7 +276,7 @@ export function HighlightLayer({ pane: paneId = 'chat', diff, content: diffConte
       pane.removeEventListener('click', onClick, true);
       paint.current = () => {};
     };
-  }, [dispatch]);
+  }, [dispatch, registry]);
 
   // comments, content or visibility changed: React has committed the DOM (and unhidden the pane), repaint on the next frame
   useEffect(() => paint.current(), [comments, content, folds, active]);

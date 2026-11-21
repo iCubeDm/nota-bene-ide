@@ -1,20 +1,17 @@
 import type { Middleware } from '@reduxjs/toolkit';
-import { unmarkSending } from '../comments/slice.ts';
-import { t } from '../i18n/index.ts';
-import { toast } from '../shell/toast.ts';
-import { addImage, setDraft } from './slice.ts';
-import { serverEvent } from '../store/store.ts';
-import { takeVoiceSend, voiceRefused, voiceSendEchoed } from '../voice/inflight.ts';
+import { t, toast, serverEvent, refusedWhy, addImage } from '@/sdk';
+import { setDraft } from './slice.ts';
 import type { SentDraft, ShellDraft } from './slice.ts';
 
 // RootState is derived from this middleware's store: naming it here would make the type circular
-type Slice = { composer: { draft: string; images: unknown[]; unconfirmed: SentDraft | null; shellUnconfirmed: ShellDraft | null } };
+type Slice = { composer: { draft: string; unconfirmed: SentDraft | null; shellUnconfirmed: ShellDraft | null }; message: { images: unknown[] } };
 
 /**
  * The server refused a send (`send-refused`, only to the asking socket, never stored). Put the draft back unless the
- * user has already typed something new (then the toast carries the refused text, so nothing is lost silently), and let
- * the comments of that send be sent again. A middleware: it must read `composer.unconfirmed` before the reducer drops it.
- * (`serverEvent` is read only when an action arrives: store.ts and this file import each other.)
+ * user has already typed something new (then the toast carries the refused text, so nothing is lost silently); the
+ * comments of that send are given back by the send itself, a recording by the voice plugin (issue 511). A middleware: it must read
+ * `composer.unconfirmed` before the reducer drops it.
+ * (`serverEvent` is read only when an action arrives: this file may load inside the store's import cycle.)
  */
 export const refusedMiddleware: Middleware = (api) => (next) => (action) => {
   const shell = serverEvent.match(action) && action.payload.kind === 'shell-refused' ? action.payload : undefined;
@@ -32,21 +29,12 @@ export const refusedMiddleware: Middleware = (api) => (next) => (action) => {
   }
   const ev = serverEvent.match(action) && action.payload.kind === 'send-refused' ? action.payload : undefined;
   const refused = ev?.id;
-  const why = t(ev?.reason === 'busy' ? 'sendRefusedBusy' : ev?.reason === 'detached' ? 'sendRefusedDetached' : 'sendRefused');
-  if (serverEvent.match(action) && (action.payload.kind === 'user' || action.payload.kind === 'send-held')) voiceSendEchoed(action.payload.id);
-  // a voice message has no draft: the refusal is told and its recording comes back in the composer's preview (Send again)
-  const voice = refused ? takeVoiceSend(refused) : undefined;
-  if (voice) {
-    toast(t('voiceRefused', why), '');
-    if (voice.commentIds.length) api.dispatch(unmarkSending(voice.commentIds)); // the comments that rode along are sendable again
-    voiceRefused(voice.voice);
-  }
   const last = refused ? (api.getState() as Slice).composer.unconfirmed : null;
   const result = next(action);
-  if (!refused || !last || last.id !== refused) return result;
-  api.dispatch(unmarkSending(last.commentIds));
-  const now = (api.getState() as Slice).composer;
-  if (!now.draft.trim() && !now.images.length) {
+  if (!ev || !last || last.id !== refused) return result;
+  const why = refusedWhy(ev.reason);
+  const now = api.getState() as Slice;
+  if (!now.composer.draft.trim() && !now.message.images.length) {
     api.dispatch(setDraft(last.text));
     for (const im of last.images) api.dispatch(addImage(im));
     toast(why, '');

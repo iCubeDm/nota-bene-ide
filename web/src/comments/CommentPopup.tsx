@@ -1,61 +1,19 @@
-import { useAutosize } from '@/composer/autosize.ts';
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from 'react-redux';
-import { isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, isTextAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
-import { Button } from '@/components/ui/button.tsx';
-import { getLang, useT } from '@/i18n/index.ts';
-import { pageQuote } from '@/page/quote.ts';
-import { cutLine } from '@/cut/quote.ts';
-import { selectCapabilities, selectSwitching } from '@/controls/slice.ts';
-import { ClipRow } from '@/voice/ClipRow.tsx';
-import { dictationAsk } from '@/voice/lang.ts';
-import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';
-import { RecordBar } from '@/voice/RecordBar.tsx';
-import { transcribeVoice } from '@/voice/upload.ts';
-import { useVoiceRecorder } from '@/voice/useVoiceRecorder.ts';
-import { useAppDispatch, useAppSelector, type RootState } from '@/store/store.ts';
-import { toast } from '@/shell/toast.ts';
-import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { MessageInput, MicButton } from '@/composer/MessageInput.tsx';
-import { labelsFor, labelText } from './labels.ts';
+import { has, isAttachmentAnchor, isMediaAnchor, isTextAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
+import { getLang, useT, useAppDispatch, useAppSelector, anchorLine, type PendingComment, type RootState, toast, clearPageSelections, selectCapabilities, selectSwitching, labelsFor, labelText, useAutosize, dictationAsk, useVoice, useAttachments, insertPaths, hasFiles, ComposerFieldContext, type ImageEntry } from '@/sdk';
+import { Button, MessageInput, MicButton, Slots, Tooltip, TooltipTrigger } from '@/sdk/ui';
 import { LabelTip } from './LabelTip.tsx';
 import { EmojiMenu } from './EmojiMenu.tsx';
-import { MentionPicker } from '@/composer/MentionPicker.tsx';
-import { ShortcodePicker } from './ShortcodePicker.tsx';
-import { release } from '@/voice/player.ts';
-import { Attachments } from '@/attachments/Attachments.tsx';
-import { insertPaths } from '@/attachments/file.ts';
-import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
-import type { ImageEntry } from '@/composer/slice.ts';
-import { mediaLine } from '@/media/markup/geometry.ts';
-import { deleteMarks, type MediaAnchorPatch } from '@/media/markup/createMediaComment.ts';
-import { addComment, IMAGES_ALONE_PROTOCOL, setPanelOpen } from './slice.ts';
+import { addComment, setPanelOpen } from './slice.ts';
 import { useDrag } from './useDrag.ts';
-import { clearPageSelections } from '@/page/frame.ts';
-
-/**
- * What the popup comments on. A text selection: anchor + rect (+ the letter typed to open it). A media drawing adds
- * `id` (the comment id, which names its mark folder) and `prepare` (renders and uploads the frame and the layer, and
- * returns their attachment ids plus what only it knows for sure: the exact time, the version, the scale; on failure it
- * has already removed the folder).
- */
-export type PendingComment = {
-  anchor: Anchor; rect: DOMRect; text?: string;
-  id?: string; prepare?: () => Promise<{ images: string[]; anchor?: MediaAnchorPatch }>;
-};
 
 /** A recording in the editor: its text once transcribed, or why there is none */
 type Clip = { voice: Voice; text?: string; error?: VoiceError };
 
 /** The popup's header line: the quoted text, or the media file (with the time) and its shape count. */
-function quoteOf(a: Anchor, t: ReturnType<typeof useT>): string {
-  return isMediaAnchor(a)
-    ? mediaLine(a, (n) => t('markShapes', n))
-    : isPageAnchor(a) ? pageQuote(a, getLang())
-    : isCutAnchor(a) ? cutLine(a, getLang())
-    : isAttachmentAnchor(a) ? t('markShapes', a.shapes.length)
-    : isTextAnchor(a) ? `«${a.quote.trim()}»`
-    : '';
+function quoteOf(a: Anchor): string {
+  return isTextAnchor(a) ? `«${a.quote.trim()}»` : anchorLine(a, getLang());
 }
 
 /**
@@ -73,15 +31,18 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
 }) {
   const t = useT();
   const dispatch = useAppDispatch();
+  const { useRecorder, RecordBar, WhisperPrompt, ClipRow, transcribe: transcribeVoice } = useVoice();
+  const { useIntake, Attachments } = useAttachments();
   // the comment set belongs to the session being left: no new comment mid-switch (the server resets it with the session)
   const switching = useAppSelector(selectSwitching);
   // read from the store at decision time: after an unmount there are no renders to refresh a ref
   const store = useStore<RootState>();
   const protocol = useAppSelector((s) => s.controls.protocol);
   // images or a drawing without words: an older server would refuse the comment
-  const imagesAlone = protocol >= IMAGES_ALONE_PROTOCOL;
+  const imagesAlone = has(protocol, 'imagesAlone');
   const root = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
+  const host = useMemo(() => ({ kind: 'comment' as const, field: area }), []);
   const [text, setText] = useState(pending.text ?? '');
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const [images, setImages] = useState<ImageEntry[]>([]);
@@ -109,7 +70,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     clearTimeout(noteTimer.current);
     noteTimer.current = setTimeout(() => setNote(''), ms);
   };
-  const intake = useImageIntake({
+  const intake = useIntake({
     onUploaded: (im) => setImages((l) => (l.some((x) => x.id === im.id) ? l : [...l, im])),
     // any other file (issue 461): its path in the project's attachments/, at the caret
     onFilePath: (p) => { if (area.current) insertPaths(area.current, [p]); },
@@ -124,7 +85,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     patchClip(id, { text: undefined, error: undefined });
     void transcribeVoice(id, dictationAsk(store.getState())).then((r) => patchClip(id, 'text' in r ? { text: r.text } : { error: r.error }));
   };
-  const rec = useVoiceRecorder({
+  const rec = useRecorder({
     preview: false,
     notify,
     onDone: (v) => {
@@ -167,12 +128,12 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
         const msg = t('markSaveFailed', e instanceof Error ? e.message : String(e));
         setBusy(false);
         if (alive.current) notify(msg, 8000);
-        if (!alive.current || hiddenNow.current) toast(msg, body || quoteOf(pending.anchor, t));
+        if (!alive.current || hiddenNow.current) toast(msg, body || quoteOf(pending.anchor));
         return;
       }
       // a session switch began meanwhile: the comment set belongs to the session left, the comment never came to be
       if (selectSwitching(store.getState())) {
-        if (id) await deleteMarks(id); // done before Add is offered again, so a retry cannot race the delete
+        await pending.discard?.(); // done before Add is offered again, so a retry cannot race the delete
         setBusy(false);
         return;
       }
@@ -247,7 +208,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     e.stopPropagation(); // never reaches the composer
     void add();
   };
-  const quote = quoteOf(pending.anchor, t);
+  const quote = quoteOf(pending.anchor);
   // the mic inside the field hides once it has something (text, an image); a recorded clip keeps it (one more can be recorded)
   const hasContent = !!text.trim() || images.length > 0 || intake.pending.length > 0;
   // as in the composer, Add is always beside the field (off with nothing to add); a drawing and the clips are content of their own
@@ -296,7 +257,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
           ariaLabel={t('commentPh')}
           // as in the composer: the mic while the field is empty, Add once it has something
           hasContent={hasContent}
-          mic={protocol >= 14 ? (
+          mic={has(protocol, 'voice') ? (
             <MicButton
               testId="popup-mic"
               anchor={micAnchor}
@@ -319,7 +280,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
       {clips.length > 0 && (
         <div data-testid="popup-clips" className="mt-1.5 flex flex-col gap-1">
           {clips.map((c) => (
-            <ClipRow key={c.voice.id} voice={c.voice} text={c.text} error={c.error} onRetry={() => transcribe(c.voice.id)} onDelete={() => { release(c.voice.id); setClips((l) => l.filter((x) => x !== c)); }} />
+            <ClipRow key={c.voice.id} voice={c.voice} text={c.text} error={c.error} onRetry={() => transcribe(c.voice.id)} onDelete={() => setClips((l) => l.filter((x) => x !== c))} />
           ))}
         </div>
       )}
@@ -329,8 +290,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
         </div>
       )}
       {note && <div className="mt-1 text-[0.6875rem] text-warn">{note}</div>}
-      <ShortcodePicker target={area} />
-      <MentionPicker target={area} />
+      <ComposerFieldContext.Provider value={host}><Slots at="composer.pickers" /></ComposerFieldContext.Provider>
       <div className="mt-1.5 flex flex-wrap gap-1">
         {labelsFor(protocol).map((l) => (
           <Tooltip key={l.id}>
@@ -372,7 +332,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
           >
             📎
           </button>
-          {protocol >= 14 && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={micAnchor} />}
+          {has(protocol, 'voice') && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={micAnchor} />}
           <span data-slot="emoji"><EmojiMenu target={area} /></span>
         </span>
       </div>

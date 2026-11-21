@@ -1,5 +1,5 @@
 import type { RemoteHost, RemoteRefusalCode, RemoteState } from '@nota-bene/shared';
-import { apiFetch } from '@/net/auth.ts';
+import { connections } from '@/sdk';
 
 export type PairCode = { uri: string; qr: string; hostFingerprint: string; expiresAt: number };
 
@@ -17,7 +17,7 @@ export class RemoteError extends Error {
 }
 
 async function post<T>(path: string, body?: unknown): Promise<T> {
-  const r = await apiFetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) });
+  const r = await connections.current().fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) });
   const j = (await r.json().catch(() => ({}))) as { error?: string; code?: RemoteRefusalCode; detail?: string };
   if (!r.ok) throw new RemoteError(r.status, j.error ?? `HTTP ${r.status}`, j.code, j.detail);
   return j as T;

@@ -8,15 +8,13 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
+import '../chat/agent_connection.dart' show uuidV4;
 import '../chat/feed.dart' show Feed;
-import '../chat/window_tab.dart' show uuidV4;
+import '../chat/window_state.dart';
 import '../media/shapes.dart';
 import 'chat_anchor.dart';
 import 'queue.dart';
 import 'strings.g.dart';
-
-/// The window that takes comment ops; an older one gets the whole set.
-const opsProtocol = 19;
 
 class Comments extends ChangeNotifier {
   Comments(
@@ -42,6 +40,9 @@ class Comments extends ChangeNotifier {
 
   /// Whether the window takes ops (its hello); null before the first hello, when nothing goes out.
   bool? _ops;
+
+  /// The protocol of the window's last hello.
+  num? _protocol;
 
   /// The queued ops sent on this socket: each goes once, and again on the next one.
   final _wired = <String>{};
@@ -160,6 +161,47 @@ class Comments extends ChangeNotifier {
         c,
   ];
 
+  /// The batch the agent gets for [items] (after [general]), as the desktop writes it, with the images that go along:
+  /// one place for the typed send, the comments pane's Send and a recording that carries comments. A media comment is
+  /// "changed" only when the current version of its file is known in [w] (it was opened here) and differs from the
+  /// drawn one.
+  ({String text, List<ImageRef> images}) compose(
+    WindowState w,
+    String general,
+    List<Comment> items,
+    String lang, {
+    List<ImageRef> own = const [],
+  }) {
+    final versions = w.fileVersions;
+    return composeSend(
+      general,
+      items,
+      w.feed,
+      lang,
+      own: own,
+      staleOf: (c) => switch (c.anchor) {
+        MediaAnchor(:final source, :final version?) when source.ref == null =>
+          versions[source.path] != null && versions[source.path] != version,
+        _ => false,
+      },
+    );
+  }
+
+  /// What a recording carries when it leaves, composed then and not at record time: only the [ids] still pending
+  /// (the desktop may have sent or deleted some meanwhile), their batch and images. None for a window older than 16.
+  ({String text, List<ImageRef> images, List<String> ids}) composeFor(
+    WindowState w,
+    List<String> ids,
+    String lang,
+  ) {
+    final items = has(_protocol, Feature.voiceComments)
+        ? pendingOf(ids)
+        : const <Comment>[];
+    if (items.isEmpty) return (text: '', images: const [], ids: const []);
+    final b = compose(w, '', items, lang);
+    return (text: b.text, images: b.images, ids: [for (final c in items) c.id]);
+  }
+
   /// The socket is gone: nothing goes until the next one's hello, and what went on this one goes again then.
   void closed() {
     _ops = null;
@@ -169,7 +211,8 @@ class Comments extends ChangeNotifier {
   /// A new socket said hello: [protocol] says how the changes go. The window says hello after its replay and set
   /// (issue 494), so the queue goes now.
   void hello(num? protocol) {
-    _ops = (protocol ?? 0) >= opsProtocol;
+    _protocol = protocol;
+    _ops = has(protocol, Feature.commentOps);
     _wired.clear();
     flush();
   }
@@ -335,11 +378,12 @@ String whereOf(Comment c, Feed feed, String lang) => switch (c.anchor) {
   ),
   TextAnchor(source: AnchorSourceMessage(:final id, :final agent)) =>
     whereOfChat(id, feed, lang, agent: agent),
-  CutAnchor(:final source, :final time) => batchTemplate('srcCut', lang, [
-    _file(source.path, source.ref),
-    mediaTime(time.toDouble()),
-  ]),
-  _ => batchString('srcChat', lang),
+  CutAnchor(:final source, :final time) => batchTemplate(
+    BatchKey.srcCut,
+    lang,
+    [_file(source.path, source.ref), mediaTime(time.toDouble())],
+  ),
+  _ => batchString(BatchKey.srcChat, lang),
 };
 
 /// A photo by its extension, as the edit's format reads it (shared/src/cutCheck.ts, IMAGE).
@@ -354,12 +398,12 @@ String quoteOf(Comment c, [String lang = 'en']) => switch (c.anchor) {
   TextAnchor(:final quote) => quote,
   MediaAnchor(:final source, :final time) =>
     '${source.path.split('/').last}${time != null ? ' @ ${mediaTime(time.toDouble())}' : ''}',
-  CutAnchor(clip: null) => batchString('cutMomentQ', lang),
+  CutAnchor(clip: null) => batchString(BatchKey.cutMomentQ, lang),
   CutAnchor(clip: final CutAnchorClip k) => () {
     final track = k.trackName != null ? '${k.trackName} (${k.track})' : k.track;
     return _photo.hasMatch(k.src)
-        ? batchTemplate('cutClipPhotoQ', lang, [k.id, track, k.src])
-        : batchTemplate('cutClipQ', lang, [
+        ? batchTemplate(BatchKey.cutClipPhotoQ, lang, [k.id, track, k.src])
+        : batchTemplate(BatchKey.cutClipQ, lang, [
             k.id,
             track,
             k.src,
@@ -399,7 +443,7 @@ int generatedImages(Comment c) =>
       ImageRef(
         id: im.id,
         mediaType: im.mediaType,
-        label: batchTemplate('imgLabel', lang, [k + 1]),
+        label: batchTemplate(BatchKey.imgLabel, lang, [k + 1]),
       ),
   ];
   if (items.isEmpty) return (text: general, images: images);
@@ -414,7 +458,7 @@ int generatedImages(Comment c) =>
                 ImageRef(
                   id: id,
                   mediaType: ImageType.image_png,
-                  label: batchTemplate('imgLabelC', lang, [
+                  label: batchTemplate(BatchKey.imgLabelC, lang, [
                     images.length + 1,
                     i + 1,
                   ]),
@@ -438,24 +482,24 @@ int generatedImages(Comment c) =>
         var tail = '';
         if (a is MediaAnchor) {
           final sfx = a.scale != null
-              ? batchTemplate('scaledSfx', lang, [jsNum(a.scale!)])
+              ? batchTemplate(BatchKey.scaledSfx, lang, [jsNum(a.scale!)])
               : '';
           final dir = '.nota-bene/marks/${c.id}';
           if (refs.isNotEmpty) {
             tail +=
-                '\n${batchTemplate('imgRefMedia', lang, [refs.first])}${refs.skip(1).map((k) => ', $k').join()}';
+                '\n${batchTemplate(BatchKey.imgRefMedia, lang, [refs.first])}${refs.skip(1).map((k) => ', $k').join()}';
           }
           // a drawing with polygons has a mask beside its frame (issue 447)
           final masked = a.shapes.any((s) => s is MediaShapePolygon);
           final mask = masked ? ', $dir/mask.png$sfx' : '';
           tail +=
-              '\n${batchTemplate('filesLine', lang, ['$dir/frame.jpg$sfx, $dir/layer.png$sfx$mask'])}';
-          if (masked) tail += '\n${batchString('maskLine', lang)}';
+              '\n${batchTemplate(BatchKey.filesLine, lang, ['$dir/frame.jpg$sfx, $dir/layer.png$sfx$mask'])}';
+          if (masked) tail += '\n${batchString(BatchKey.maskLine, lang)}';
           if (staleOf?.call(c) ?? false) {
-            tail += '\n${batchString('markStale', lang)}';
+            tail += '\n${batchString(BatchKey.markStale, lang)}';
           }
         } else if (refs.isNotEmpty) {
-          tail = '\n${batchTemplate('imgRef', lang, [refs.join(', ')])}';
+          tail = '\n${batchTemplate(BatchKey.imgRef, lang, [refs.join(', ')])}';
         }
         // the recordings' transcripts follow what was typed, each on a line of its own (a transcript's breaks are
         // spaces); the first of the lot is on the arrow line (compose.ts)
@@ -485,7 +529,7 @@ int generatedImages(Comment c) =>
   ];
   return (
     text:
-        '${general.isNotEmpty ? '$general\n\n' : ''}${batchString('batchHead', lang)}\n\n${blocks.join('\n\n')}',
+        '${general.isNotEmpty ? '$general\n\n' : ''}${batchString(BatchKey.batchHead, lang)}\n\n${blocks.join('\n\n')}',
     images: images,
   );
 }

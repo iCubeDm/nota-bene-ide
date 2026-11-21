@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { setDirs } from '@/tree/slice.ts';
-import { useAppDispatch } from '@/store/store.ts';
+import { setDirs } from '../treeSlice.ts';
+import { useAppDispatch } from '@/sdk';
 import { loadDir, shownIn, type TreeEntries } from './useTreeEntries.ts';
 
 /** "Expand all" stops once the tree shows this many rows (a huge folder never freezes the sheet). */

@@ -1,4 +1,4 @@
-import { getLang } from '@/i18n/index.ts';
+import { getLang, t as tNow } from '@/i18n/index.ts';
 
 // Every number the UI shows, in the UI language (issue 469): one Intl formatter per language and kind, made once.
 const made = new Map<string, Intl.NumberFormat>();
@@ -33,3 +33,10 @@ export function byteSize(n: number): string {
   if (i === 0 && getLang() === 'en') return `${num(n)} B`; // CLDR's English "3 byte" reads oddly
   return nf(`bytes ${i}`, { style: 'unit', unit: BYTES[i], maximumFractionDigits: 1 }).format(n / 1000 ** i);
 }
+
+/** Prototype `ago`: just now, N min ago, N h ago, then a short date. */
+export const ago = (at: number, now = Date.now()): string => {
+  const m = Math.round((now - at) / 60000);
+  return m < 1 ? tNow('justNow') : m < 60 ? tNow('minAgo', m) : m < 1440 ? tNow('hAgo', Math.round(m / 60))
+    : new Date(at).toLocaleDateString(getLang(), { day: 'numeric', month: 'short' });
+};

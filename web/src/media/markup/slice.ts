@@ -1,12 +1,9 @@
+import { type RootState, enterRoot } from '@/sdk';
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { MARK_COLORS, type MarkColor, type MediaShape } from '@nota-bene/shared';
-import type { RootState } from '../../store/store.ts';
-import { enterRoot } from '../../tabs/slice.ts';
 
-/** `polygon`: the Mask tool (issue 447, from MASK_PROTOCOL). */
+/** `polygon`: the Mask tool (issue 447, from `polygons`). */
 export type MarkTool = 'rect' | 'ellipse' | 'pen' | 'arrow' | 'polygon';
-/** The server that takes polygon shapes; an older one would refuse the comment. */
-export const MASK_PROTOCOL = 24;
 /** One media tab's unfinished drawing. In memory only: a page reload loses it, a tab or folder switch does not. */
 export type Draft = {
   on: boolean; tool: MarkTool; color: MarkColor; shapes: MediaShape[];

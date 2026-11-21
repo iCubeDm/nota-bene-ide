@@ -1,5 +1,4 @@
-import { tIn, type Lang } from '@/i18n/index.ts';
-import type { FeedItem } from '@/store/feed.ts';
+import { tIn, type Lang, type FeedItem } from '@/sdk';
 
 // Message times in the feed. A ts of 0 is a time nobody recorded (an old replay): it is never shown, never dated.
 
@@ -32,7 +31,7 @@ export function dayLabel(ts: number, lang: Lang, now = Date.now()): string {
 }
 
 /** An item's time, 0 for the kinds that have none (tool lines, permissions, notices). */
-export const itemTime = (it: FeedItem): number => ('ts' in it && typeof it.ts === 'number' ? it.ts : 0);
+const itemTime = (it: FeedItem): number => ('ts' in it && typeof it.ts === 'number' ? it.ts : 0);
 
 /**
  * Where the feed starts a new day: index → that item's time. The first dated item starts one, then each whose day
@@ -66,7 +65,7 @@ function armMidnight(): void {
   }, next - n.getTime() + 50); // just past it, so the new day is surely here
 }
 
-/** For useSyncExternalStore: called again at each local midnight while anything listens. */
+/** For useStored: called again at each local midnight while anything listens. */
 export function subscribeDay(fn: () => void): () => void {
   if (daySubs.size === 0) {
     today = dayOf(Date.now()); // nobody listened for a while: the day may have changed meanwhile

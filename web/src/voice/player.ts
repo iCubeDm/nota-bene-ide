@@ -1,7 +1,7 @@
-import { useSyncExternalStore } from 'react';
+import { connections, routes, useStored } from '@/sdk';
 
 /** What a bubble shows of its recording: playing now, and the position in ms. */
-export type PlayState = { playing: boolean; pos: number };
+type PlayState = { playing: boolean; pos: number };
 const IDLE: PlayState = { playing: false, pos: 0 };
 
 /** Recently used elements, oldest first: a feed of many voice messages must not keep an element (and its buffered audio) for each. */
@@ -18,7 +18,7 @@ const set = (id: string, s: PlayState) => {
 };
 
 /** The element for a recording, made on first use: `<audio>` on the same-origin `/voice/<id>` (Range works, the cookie goes along, as for `/attach`); a recording not yet sent plays from its own `src` (a blob URL). */
-function audioOf(id: string, src = `/voice/${id}`): HTMLAudioElement {
+function audioOf(id: string, src = connections.current().url(routes.voice(id))): HTMLAudioElement {
   let a = audios.get(id);
   if (a) {
     audios.delete(id); // used now: to the young end
@@ -70,7 +70,7 @@ export function release(id: string): void {
 
 const subscribe = (fn: () => void) => (listeners.add(fn), () => void listeners.delete(fn));
 
-export const usePlay = (id: string): PlayState => useSyncExternalStore(subscribe, () => states.get(id) ?? IDLE);
+export const usePlay = (id: string): PlayState => useStored({ subscribe, get: () => states.get(id) ?? IDLE });
 
 /** For tests: forget everything. */
 export function resetPlayer(): void {

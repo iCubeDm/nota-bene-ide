@@ -4,7 +4,7 @@ import { addShape, commitEdit, dropShapes, markupSlice, replaceShape, setMode, u
 
 const r = markupSlice.reducer;
 const shape = { kind: 'rect', color: '#ff3b30', x: 0.1, y: 0.1, w: 0.2, h: 0.2 } as const;
-const go = (root: string, first = false) => enterRoot({ root, first, tabs: null, dirs: null });
+const go = (root: string, first = false) => enterRoot({ root, first, tabs: null });
 
 it('a folder switch keeps each folder\'s drafts (by tab id) and a switch back restores them', () => {
   let s: MarkupState = r(undefined, go('/a', true));

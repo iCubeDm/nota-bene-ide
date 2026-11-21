@@ -5,17 +5,17 @@ import type { ServerEvent } from '@nota-bene/shared';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { FileView } from '@/files/FileView.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { selectDraft } from './markup/slice.ts';
-import { PLAYER_HELP } from './playerKeys.ts';
-import { seekStep } from './seekStep.ts';
+import { PLAYER_HELP } from '@/sdk';
+import { seekStep } from '@/store/seekStep.ts';
 import { t } from '@/i18n/index.ts';
 
 vi.mock('mermaid', () => ({ default: { initialize: vi.fn(), render: vi.fn(async () => ({ svg: '<svg></svg>' })) } }));
 
 beforeEach(() => {
   localStorage.clear();
-  seekStep.reload();
   setLang('en');
   vi.stubGlobal('fetch', vi.fn(async () => new Response('x', { status: 200 })));
 });

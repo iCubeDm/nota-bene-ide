@@ -2,10 +2,9 @@
 // per folder running in any window, in a fixed order by name so nothing moves under the pointer, with its state dot and
 // badge. A click moves this tab to that project the way the switcher does; + opens a folder. Settings can turn it off; a
 // narrow window has no room for it.
-import { useState, useSyncExternalStore } from 'react';
-import { useT } from '@/i18n/index.ts';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { remotePage } from '@/net/local.ts';
+import { useState } from 'react';
+import { useT, remotePage, useStored } from '@/sdk';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { enterProject, openStarter, PROVIDER_LABEL, useProjects, type RunningRow } from './api.ts';
 import { useRailPref } from './railPref.ts';
 import { foldRows, rowTitle, type Badge, type ProjectRow } from './rows.ts';
@@ -28,7 +27,7 @@ export const byName = (a: ProjectRow, b: ProjectRow): number =>
  * This project's tile stands for the other windows in its folder (another agent's): its badge counts only them, never this
  * window's own replies, and a click goes to the one that needs the person most (waiting, then unseen), else nowhere.
  */
-export function siblingsOf(r: ProjectRow): { badge: Badge; target: RunningRow | undefined; waiting: RunningRow | undefined } {
+function siblingsOf(r: ProjectRow): { badge: Badge; target: RunningRow | undefined; waiting: RunningRow | undefined } {
   const others = r.windows.filter((w) => !w.current && LIVE.has(w.state));
   const waiting = others.find((w) => w.state === 'waiting');
   const unseen = others.filter((w) => w.unseen > 0).sort((a, b) => b.unseen - a.unseen);
@@ -38,7 +37,7 @@ export function siblingsOf(r: ProjectRow): { badge: Badge; target: RunningRow | 
 
 export function ProjectRail() {
   const on = useRailPref();
-  const wide = useSyncExternalStore(subscribeWide, isWide);
+  const wide = useStored({ subscribe: subscribeWide, get: isWide });
   // null: a new window that has not heard the server yet, so a rail turned off never flashes in
   return on === true && wide ? <Rail /> : null;
 }

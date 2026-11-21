@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { useT } from '@/i18n/index.ts';
+import { useEffect, useRef, useState } from 'react';
+import { useT, useStored } from '@/sdk';
 import type { CutPlayer } from './engine.ts';
 import { meterFrac, meterStep, METER_FLOOR, quiet, type MeterChannel } from './metering.ts';
 
@@ -16,7 +16,7 @@ const fmt = (db: number) => (db <= METER_FLOOR ? '−∞' : `${db > 0 ? '+' : db
  */
 export function Meter({ player }: { player: CutPlayer }) {
   const t = useT();
-  const { playing } = useSyncExternalStore(player.subscribe, player.state);
+  const { playing } = useStored({ subscribe: player.subscribe, get: player.state });
   const chans = useRef<[MeterChannel, MeterChannel]>([quiet(), quiet()]);
   const covers = useRef<(HTMLSpanElement | null)[]>([]);
   const marks = useRef<(HTMLSpanElement | null)[]>([]);

@@ -1,11 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type { SlashCommand } from '@nota-bene/shared';
-import { useT } from '@/i18n/index.ts';
-import { setValueAndCaret } from '@/comments/insertText.ts';
-import { selectCommands } from '@/controls/slice.ts';
-import { useAppSelector } from '@/store/store.ts';
+import { useT, useAppSelector, selectCommands, setValueAndCaret, placeListFor, revealSelected } from '@/sdk';
 import { highlight } from './MentionPicker.tsx';
-import { placeListFor, revealSelected } from './placeList.ts';
 import { rankCommands, slashToken } from './slashRank.ts';
 
 interface Open { q: string; sel: number }

@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Source, TreeEntry } from '@nota-bene/shared';
-import { setDirs } from '@/tree/slice.ts';
-import { useAppDispatch, type RootState } from '@/store/store.ts';
+import { setDirs } from '../treeSlice.ts';
+import { useAppDispatch, type RootState, connections, routes, isFixed } from '@/sdk';
 import { useStore } from 'react-redux';
-import { isFixed } from '../sources.ts';
-import { apiFetch } from '@/net/auth.ts';
 
 type Loaded = TreeEntry[] | 'gone' | 'error';
 
 /** Always build the query with encodeURIComponent: a `+` in a name must survive. */
 export async function loadDir(rel: string, src: string): Promise<Loaded> {
   try {
-    const r = await apiFetch(`/tree?path=${encodeURIComponent(rel)}${src === 'here' ? '' : `&src=${encodeURIComponent(src)}`}`);
+    const r = await connections.current().fetch(routes.tree(rel, src));
     if (r.status === 404) return 'gone';
     if (!r.ok) return 'error';
     return (await r.json()) as TreeEntry[];
@@ -27,7 +25,7 @@ export const shownIn = (open: Set<string>) => (p: string): boolean => {
 };
 
 /** The "Expand all" run as the entries need to see it: whether it is going, and how to end it (a source switch ends it). */
-export type ExpandRun = { running: boolean; stop: () => void };
+type ExpandRun = { running: boolean; stop: () => void };
 
 type Args = { open: boolean; dirs: string[]; src: string; sources: Source[]; turnSeq: number; run: ExpandRun };
 

@@ -1,12 +1,8 @@
 import type { Limit } from '@nota-bene/shared';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { compact, money, percent } from '@/lib/format.ts';
-import { getLang, useT } from '@/i18n/index.ts';
-import { selectCapabilitiesKnown } from '@/controls/slice.ts';
-import { useAppSelector } from '@/store/store.ts';
-import { selectStats } from './slice.ts';
+import { compact, money, percent, getLang, useT, useAppSelector, selectCapabilitiesKnown, selectStats } from '@/sdk';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 
-export type Level = '' | 'warn' | 'hot';
+type Level = '' | 'warn' | 'hot';
 export const meterLevel = (pct: number): Level => (pct >= 85 ? 'hot' : pct >= 60 ? 'warn' : '');
 
 const FILL: Record<Level, string> = { '': 'bg-primary', warn: 'bg-nb-accent', hot: 'bg-destructive' };

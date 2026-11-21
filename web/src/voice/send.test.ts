@@ -1,7 +1,8 @@
 import { expect, it } from 'vitest';
 import type { ClientMessage } from '@nota-bene/shared';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore, serverEvent } from '@/store/store.ts';
+import { serverEvent } from '@/store/store.ts';
+import { makeStore } from '@/testing';
 import { sendVoice } from './send.ts';
 
 const voice = { id: 'a'.repeat(64), ms: 3000, wave: [1, 2, 3] };
@@ -11,7 +12,7 @@ function setup(protocol: number, dictationLang?: string) {
   const sent: ClientMessage[] = [];
   const store = makeStore({ url: 'ws://x', connect: ((_u: unknown, _e: unknown, onState: (s: 'open') => void) => (onState('open'), { send: (m: ClientMessage) => (sent.push(m), true), close() {} })) as never });
   store.dispatch(serverEvent({ kind: 'hello', protocol, ...(dictationLang ? { dictationLang } : {}) }));
-  store.dispatch(sendVoice(voice, 'm1'));
+  store.dispatch(sendVoice(voice, { id: 'm1' }));
   return sent[0] as Extract<ClientMessage, { type: 'send' }>;
 }
 

@@ -1,11 +1,6 @@
 import { useState } from 'react';
-import { Button } from '@/components/ui/button.tsx';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { useT } from '@/i18n/index.ts';
-import { selectBusy, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { ConfirmDialog } from './ConfirmDialog.tsx';
-import { runCommand, selectCanOrderCompact, selectCapabilities, selectCompactPending, selectOrderWaits, selectCapabilitiesKnown, selectIdleCompact, selectSwitching, toggleIdleCompact } from './slice.ts';
-import { REFUSED, useNote } from './useNote.ts';
+import { useT, selectBusy, useAppDispatch, useAppSelector, runCommand, selectCanOrderCompact, selectCapabilities, selectCompactPending, selectOrderWaits, selectCapabilitiesKnown, selectIdleCompact, selectSwitching, toggleIdleCompact, REFUSED, useNote } from '@/sdk';
+import { Button, Tooltip, TooltipContent, TooltipTrigger, ConfirmDialog } from '@/sdk/ui';
 
 const ICON = { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true } as const;
 
