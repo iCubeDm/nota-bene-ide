@@ -1,11 +1,11 @@
 import type { AttachmentAnchor, Comment, MediaAnchor } from '@nota-bene/shared';
-import { prepareImage, uploadImage, t, connections, routes, type MediaAnchorPatch } from '@/sdk';
+import { prepareImage, uploadImage, t, connections, routes, type MediaAnchorPatch, send } from '@/sdk';
 import { drawShapes, renderMarks, strokeWidth } from './render.ts';
 import { drawBadges } from './badges.ts';
 
 async function putMark(id: string, name: 'frame.jpg' | 'layer.png' | 'mask.png', b: Blob): Promise<void> {
   const type = name === 'frame.jpg' ? 'image/jpeg' : 'image/png';
-  const r = await connections.current().fetch(routes.marks(id, name), { method: 'POST', headers: { 'content-type': type }, body: b });
+  const r = await send(routes.marks(id, name), b, { type });
   if (!r.ok) throw new Error(`${name} ${r.status}`);
 }
 
@@ -15,7 +15,7 @@ async function putMark(id: string, name: 'frame.jpg' | 'layer.png' | 'mask.png',
  */
 export async function deleteMarks(id: string): Promise<void> {
   try {
-    const r = await connections.current().fetch(routes.marks(id), { method: 'DELETE' });
+    const r = await send(routes.marks(id), undefined, { method: 'DELETE' });
     if (!r.ok && r.status !== 409) console.warn(`DELETE /marks/${id}: ${r.status}`);
   } catch (e) {
     console.warn(`DELETE /marks/${id}:`, e);

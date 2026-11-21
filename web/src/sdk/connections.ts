@@ -29,7 +29,6 @@ export interface AgentConnection {
   state(): ConnState;
   subscribe(fn: () => void): () => void;
   hello(): HelloEvent | null;
-  has(f: Feature): boolean;
   send(m: ClientMessage): boolean;
   fetch(route: Route, init?: RequestInit): Promise<Response>;
   /** for an img, video or iframe src */
@@ -94,7 +93,6 @@ export function agentConnection(o: {
     state: () => state,
     subscribe: (fn) => (watchers.add(fn), () => void watchers.delete(fn)),
     hello: () => hello,
-    has: (f) => has(hello?.protocol, f),
     send,
     fetch: (route, init) => apiFetch(o.base + route, init),
     url: (route) => o.base + route,
@@ -179,5 +177,7 @@ export const connectionsOf = (store: object): ConnectionManager => managers.get(
 
 export const useConnection = (): AgentConnection => connectionsOf(useStore()).current();
 export const useConnState = (): ConnState => useSelector((s: { conn: { state: ConnState } }) => s.conn.state);
-// the protocol the store keeps from the current connection's `hello` (the controls slice: 0 until a hello, and after a drop)
-export const useFeature = (f: Feature): boolean => useSelector((s: { controls: { protocol: number } }) => has(s.controls.protocol, f));
+// The one check of a server capability (issue 564): the protocol the store keeps from the current connection's `hello`
+// (the controls slice: 0 until a hello, and after a drop). `selectFeature` outside a component, `useFeature` in one.
+export const selectFeature = (s: { controls: { protocol: number } }, f: Feature): boolean => has(s.controls.protocol, f);
+export const useFeature = (f: Feature): boolean => useSelector((s: { controls: { protocol: number } }) => selectFeature(s, f));

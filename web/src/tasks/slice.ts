@@ -1,6 +1,6 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { has, orderedTasks, type Task, type TaskStatus, type TasksState } from '@nota-bene/shared';
-import { serverEvent, type AppThunk, type RootState } from '@/sdk';
+import { orderedTasks, type Task, type TaskStatus, type TasksState } from '@nota-bene/shared';
+import { serverEvent, type AppThunk, type RootState, selectFeature } from '@/sdk';
 
 export type { Task, TasksState } from '@nota-bene/shared';
 
@@ -124,7 +124,7 @@ export const selectForeground = (s: RootState, id: string): boolean => {
 };
 
 /** The server understands the task controls (stop, to background, shell output). */
-export const selectTaskControls = (s: RootState): boolean => has(s.controls.protocol, 'taskControl');
+export const selectTaskControls = (s: RootState): boolean => selectFeature(s, 'taskControl');
 
 export const stopTask = (id: string | string[]): AppThunk => (_d, getState, { connections }) => {
   if (selectTaskControls(getState())) for (const one of typeof id === 'string' ? [id] : id) connections.current().send({ type: 'task-stop', id: one });

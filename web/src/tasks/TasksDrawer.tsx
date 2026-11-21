@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { has, shortModel } from '@nota-bene/shared';
-import { compact, useT, useAppDispatch, useAppSelector, openAgent, openShell } from '@/sdk';
+import { shortModel } from '@nota-bene/shared';
+import { compact, useT, useAppDispatch, useAppSelector, openAgent, openShell, useFeature } from '@/sdk';
 import { selectDrawerOpen, selectRunningCount, selectTaskControls, selectTaskRows, setDrawer, type Task } from './slice.ts';
 import { BackgroundButton, BTN, StopButton } from './TaskButtons.tsx';
 import { fmtElapsed, useNow } from './time.ts';
@@ -27,7 +27,8 @@ export function TasksDrawer() {
   const capabilities = useAppSelector((s) => s.controls.capabilities);
   const rows = useAppSelector(selectTaskRows);
   const running = useAppSelector(selectRunningCount);
-  const protocol = useAppSelector((s) => s.controls.protocol);
+  const agentsOk = useFeature('subagentAnchors');
+  const shellsOk = useFeature('taskControl');
   const controls = useAppSelector(selectTaskControls);
   const now = useNow(open && running > 0);
   const box = useRef<HTMLDivElement>(null);
@@ -98,7 +99,7 @@ export function TasksDrawer() {
             }
             const icon = ICON[task.status];
             const meta = [task.workflow ? t('taskWorkflow', task.workflow) : task.type, task.model ? shortModel(task.model) : '', fmtElapsed((task.end ?? now) - task.start), task.tokens ? t('taskTokens', compact(task.tokens)) : '', task.tool].filter(Boolean).join(' · ');
-            const canOpen = (task.kind === 'agent' && task.type !== 'remote_agent' && !!task.call && has(protocol, 'subagentAnchors')) || (task.kind === 'shell' && has(protocol, 'taskControl') && capabilities?.taskOutput !== false);
+            const canOpen = (task.kind === 'agent' && task.type !== 'remote_agent' && !!task.call && agentsOk) || (task.kind === 'shell' && shellsOk && capabilities?.taskOutput !== false);
             return (
               <li
                 key={id}

@@ -5,10 +5,8 @@
 export { t, tIn, useT, getLang, setLang, chooseLang, LANGS, type Lang } from '../i18n/index.ts';
 export { toast } from '../shell/toast.ts';
 
-// storage, flags and usage events
+// storage
 export { storage, useStored, bool, string, json, oneOf, type Codec, type Stored, type Pref, type SharedPrefs, type Sounds } from './storage.ts';
-export { flag, useFlag, FLAGS, type Flag } from './flags.ts';
-export { track, type TrackProps } from './track.ts';
 
 // the frame's prefs: theme, scale, sounds
 export { theme, THEME_GROUPS, THEME_NAMES, useTheme } from '../shell/theme.ts';
@@ -34,13 +32,13 @@ export { QUICK_LABELS, labelsFor, labelText, labelOf, instructionOf } from '../a
 export { anchorLine, batchQuote, mediaTime, cutWhere, cutLine } from '../anchors/quote.ts';
 
 // the connection
-export { has, type Feature } from '@nota-bene/shared';
 export {
   SELF,
   connections,
   useConnection,
   useConnState,
   useFeature,
+  selectFeature,
   type AgentId,
   type AgentConnection,
   type ConnectionManager,
@@ -49,7 +47,7 @@ export {
   type Route,
 } from './connections.ts';
 export { routes } from './routes.ts';
-export { defineResource, useResource, repository, pageVisible, type Resource, type Snapshot } from './repository.ts';
+export { defineResource, send, useResource, repository, pageVisible, type Resource, type Snapshot } from './repository.ts';
 export { SettingsContext, useSettings, systemPrefs, type SettingsHost, type SystemPrefs } from './settings.ts';
 
 // where the project's files are: their kinds and URLs, the sources they are read from, the temp images, a media tab's start
@@ -123,19 +121,11 @@ export { applyPlayerKey, inPlayerScope, ONCE, THEIRS, PLAYER_HELP, type Flash } 
 export { brief, renameSession, archiveSession, deleteSession } from '../store/sessions.ts';
 
 import { answerPermission, interrupt, takeOver } from '../store/store.ts';
-import { send } from '../store/send.ts';
+import { send as sendChat } from '../store/send.ts';
 export { sendCount, sendWaiting } from '../store/send.ts';
 
-/**
- * The chat's thunks. Each one calls through: this module may be evaluated inside the store module's import cycle (a
- * plugin the store imports imports the SDK), before those bindings exist.
- */
-export const chat = {
-  send: (...a: Parameters<typeof send>) => send(...a),
-  interrupt: () => interrupt(),
-  answer: (...a: Parameters<typeof answerPermission>) => answerPermission(...a),
-  takeOver: () => takeOver(),
-};
+/** The chat's thunks. The store reaches no module that loads this one, so its bindings exist when this runs. */
+export const chat = { send: sendChat, interrupt, answer: answerPermission, takeOver };
 
 // tabs
 export {

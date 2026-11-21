@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { has, isAttachmentAnchor } from '@nota-bene/shared';
-import { useT, useAppDispatch, useAppSelector, useService, markAttachment, removeImage, selectImages, selectMarking } from '@/sdk';
+import { isAttachmentAnchor } from '@nota-bene/shared';
+import { useT, useAppDispatch, useAppSelector, useService, markAttachment, removeImage, selectImages, selectMarking, useFeature } from '@/sdk';
 import type { PendingThumb } from './useImageIntake.ts';
 import { ConfirmDialog } from '@/sdk/ui';
 import { Attachments } from './Attachments.tsx';
@@ -18,7 +18,7 @@ export function ComposerAttachments({ pending, onCancel }: { pending: PendingThu
   const dispatch = useAppDispatch();
   const images = useAppSelector(selectImages);
   const all = useAppSelector(selectComments);
-  const offered = useAppSelector((s) => has(s.controls.protocol, 'attachmentAnchors'));
+  const offered = useFeature('attachmentAnchors');
   const marking = useAppSelector(selectMarking);
   const [asking, setAsking] = useState<string | null>(null);
   // pending only: a comment already sent belongs to the message it went with

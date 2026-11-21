@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useStore } from 'react-redux';
 import type { Store } from 'redux';
-import { connections, routes, type RootState } from '@/sdk';
+import { routes, type RootState, send } from '@/sdk';
 
 const GAP_MS = 2000;
 type Feedish = { feed: { turnSeq: number; session: { id: string | null } | null } };
@@ -46,7 +46,7 @@ export function startSeen(store: Pick<Store<Feedish>, 'getState' | 'subscribe'>,
 }
 
 const postSeen = (session: string) => {
-  void connections.current().fetch(routes.seen(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session }) }).catch(() => {});
+  void send(routes.seen(), { session }).catch(() => {});
 };
 
 export function useSeen(): void {

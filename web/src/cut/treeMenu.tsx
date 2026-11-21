@@ -1,6 +1,6 @@
 import { VIDEO } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
-import { useT, connections, routes, toast, useAppDispatch, openFile, projectFileUrl, useService, type TreeAction } from '@/sdk';
+import { useT, routes, toast, useAppDispatch, openFile, projectFileUrl, useService, type TreeAction, send } from '@/sdk';
 import { ContextMenuItem, ContextMenuSeparator } from '@/sdk/ui';
 import { isEditMedia, newCutOf } from './assemble.ts';
 import { srcSize } from './durations.ts';
@@ -45,9 +45,7 @@ function EditItems({ row, picked, src, busy: creating, setBusy: setCreating }: P
       const [items, frame] = await Promise.all([Promise.all(media.map(async (f) => ({ src: f, len: await mediaLen(f) }))), firstFrame(media)]);
       const made = newCutOf(items, frame);
       if (!made) return toast(t('treeNewEditFailed'), t('cutCannotAdd', media.map((f) => basename(f)).join(', ')));
-      const r = await connections.current().fetch(routes.cutNew(), {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ dir: folderOf(media[0]!), cut: made.cut }),
-      });
+      const r = await send(routes.cutNew(), { dir: folderOf(media[0]!), cut: made.cut });
       const j = await r.json().catch(() => null) as { path?: string; error?: string; code?: string } | null;
       if (!r.ok || typeof j?.path !== 'string') {
         return toast(t('treeNewEditFailed'), j?.error ? `${j.error}${j.code ? ` (${j.code})` : ''}` : `${r.status} ${r.statusText}`.trim());

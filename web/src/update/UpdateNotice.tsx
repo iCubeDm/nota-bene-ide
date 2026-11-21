@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useT, routes, storage, string, defineResource, useResource, usePagePause, connections } from '@/sdk';
+import { useT, routes, storage, string, defineResource, useResource, usePagePause, connections, send } from '@/sdk';
 import { reloadPage } from './reloadPage.ts';
 import { Popover, PopoverContent, PopoverTrigger, Markdown } from '@/sdk/ui';
 
@@ -36,9 +36,6 @@ type Status = {
 
 /** The switch in Settings changed: the notice follows at once, not on the next focus. */
 export const recheckUpdate = () => window.dispatchEvent(new Event(RECHECK));
-
-const post = (path: string, body?: unknown) =>
-  connections.current().fetch(path, { method: 'POST', ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }) });
 
 const popoverStyle = 'grid w-[420px] gap-2 p-3 text-xs';
 const chip = 'flex-none rounded border border-primary px-1.5 py-px font-mono text-[0.6875rem] text-link hover:bg-primary/10';
@@ -178,7 +175,7 @@ export function UpdateNotice() {
   useEffect(() => {
     if (update?.phase !== 'ready' || update.busy || !idle || Date.now() - restartedAt.current < READY_MS) return;
     restartedAt.current = Date.now();
-    void post(routes.systemUpdate('restart')).catch(() => {});
+    void send(routes.systemUpdate('restart')).catch(() => {});
   }, [update, idle]);
   // after a handover the page still runs the code of the version before: it reloads by itself in a pause (drafts are
   // not kept across a reload), otherwise Updated to offers Reload
@@ -201,13 +198,13 @@ export function UpdateNotice() {
     </>
   );
   const install = () => {
-    void post(routes.systemUpdate('install'))
+    void send(routes.systemUpdate('install'))
       .then(async (r) => (r.ok ? ((await r.json()) as Status) : null))
       .then((u) => { if (u) setUpdate(u); }, () => {});
   };
   const setAuto = (on: boolean) => {
     setUpdate({ ...update, auto: on });
-    void post(routes.systemUpdate('auto'), { on }).catch(() => {});
+    void send(routes.systemUpdate('auto'), { on }).catch(() => {});
   };
   const latest = update.latest ?? '';
 
@@ -224,7 +221,7 @@ export function UpdateNotice() {
             type="button"
             disabled={update.busy}
             title={update.busy ? t('updateRestartBusy') : undefined}
-            onClick={() => void post(routes.systemUpdate('restart')).catch(() => {})}
+            onClick={() => void send(routes.systemUpdate('restart')).catch(() => {})}
             className="rounded bg-primary px-1.5 text-primary-foreground hover:opacity-90 disabled:opacity-50"
           >
             {t('updateRestart')}

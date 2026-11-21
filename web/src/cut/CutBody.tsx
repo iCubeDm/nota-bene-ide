@@ -1,9 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { has, isCutAnchor, type Comment, type CutAnchor } from '@nota-bene/shared';
+import { isCutAnchor, type Comment, type CutAnchor } from '@nota-bene/shared';
 import { AUDIO, isPhotoSrc, validateCut, type Cut, type CutIssue } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
-import { useT, useAppDispatch, useAppSelector, mediaTime, clearJump, selectJump, projectFileUrl, type TextFileView, labelText, useService, type PendingComment, useStored } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, mediaTime, clearJump, selectJump, projectFileUrl, type TextFileView, labelText, useService, type PendingComment, useStored, useFeature } from '@/sdk';
 import { srcLength } from './durations.ts';
 import { appendMedia } from './assemble.ts';
 import { mediaLen, PHOTO_LEN } from './mediaLen.ts';
@@ -201,7 +201,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   useEffect(() => { if (active && path !== undefined) touchEditTarget(path); }, [active, path]);
   // comments on this edit (issue 430): where each is now, its clip followed by id
   const dispatch = useAppDispatch();
-  const protocol = useAppSelector((s) => s.controls.protocol);
+  const cutAnchors = useFeature('cutAnchors');
   const all = useAppSelector(selectComments);
   const mine = useMemo(() => (path === undefined ? [] : all.filter((c): c is Comment & { anchor: CutAnchor } =>
     isCutAnchor(c.anchor) && c.anchor.source.path === path && c.anchor.source.ref === undefined)), [all, path]);
@@ -245,7 +245,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
     dispatch(clearJump());
     goTo(jump.id);
   });
-  const canComment = has(protocol, 'cutAnchors') && path !== undefined;
+  const canComment = cutAnchors && path !== undefined;
   const comment = () => {
     if (!cut || path === undefined) return;
     const anchor = pinAnchor(cut, { kind: 'file', path }, player.time(), selected?.id ?? null);

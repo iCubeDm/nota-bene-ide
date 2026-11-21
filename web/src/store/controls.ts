@@ -2,10 +2,12 @@
 // restart and the sends it holds. Core, not the controls plugin's: the composer, the feed, comments, voice, stats and
 // projects read it too, and plugins never import each other. The controls plugin draws it and registers its listener.
 import { createAction, type PayloadAction, createSlice } from '@reduxjs/toolkit';
-import { has, CLAUDE_CAPABILITIES, MODES, type Capabilities, type AgentEffort as EffortLevel, type HeldSend, type IdleCompact, type AgentMode as Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
+import { CLAUDE_CAPABILITIES, MODES, type Capabilities, type AgentEffort as EffortLevel, type HeldSend, type IdleCompact, type AgentMode as Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
 import { getLang, t } from '../i18n/index.ts';
 import { toast } from '../shell/toast.ts';
 import { routes } from '../sdk/routes.ts';
+import { send } from '../sdk/repository.ts';
+import { selectFeature } from '../sdk/connections.ts';
 import { tmpDirsOf } from '../refs/tmpImages.ts';
 import { connState, serverEvent, type AppThunk, type RootState, type StartListening } from './store.ts';
 
@@ -172,7 +174,7 @@ export const selectCompactPending = (s: RootState): boolean => s.controls.compac
 export const selectHeld = (s: RootState): HeldSend[] => s.controls.held;
 /** a compaction is pending or sends are held (issue 499): a /clear would run ahead of them */
 export const selectOrderWaits = (s: RootState): boolean => s.controls.compactPending || s.controls.held.length > 0;
-export const selectCanOrderCompact = (s: RootState): boolean => has(s.controls.protocol, 'compactOrder');
+export const selectCanOrderCompact = (s: RootState): boolean => selectFeature(s, 'compactOrder');
 
 /** Optimistic: set locally, then send. The server answers every `mode` with one echo (to every socket). */
 export const pickMode = (mode: Mode): AppThunk => (dispatch, getState, { connections }) => {
@@ -181,7 +183,7 @@ export const pickMode = (mode: Mode): AppThunk => (dispatch, getState, { connect
   if (c.mode === mode || c.switching) return;
   dispatch(modeSet(mode));
   // an older server answers no ack: then echoes apply as they come (the quick Shift+Tab race comes back, nothing hangs)
-  if (!has(c.protocol, 'modeAck')) return void connections.current().send({ type: 'mode', mode });
+  if (!selectFeature(getState(), 'modeAck')) return void connections.current().send({ type: 'mode', mode });
   const id = crypto.randomUUID();
   if (connections.current().send({ type: 'mode', mode, id })) dispatch(modeSent(id));
 };
@@ -197,7 +199,7 @@ const whisperLang = (): string => getLang().split('-')[0]!;
  */
 export const dictationAsk = (s: RootState): { lang: string; detect?: true } => {
   const pref = s.controls.dictationLang;
-  if (!has(s.controls.protocol, 'voiceDetect')) return { lang: whisperLang() };
+  if (!selectFeature(s, 'voiceDetect')) return { lang: whisperLang() };
   return !pref || pref === 'auto' ? { lang: whisperLang(), detect: true } : { lang: pref };
 };
 
@@ -207,7 +209,7 @@ export const selectCommands = (s: RootState): SlashCommand[] => s.controls.comma
 export const selectTmpDirs = (s: RootState): string[] => s.controls.tmpDirs;
 /** the model switch is usable: a server that has it (protocol 6, `capabilities.models`) */
 export const selectModelSwitchable = (s: RootState): boolean =>
-  has(s.controls.protocol, 'models') && (s.controls.capabilities ?? CLAUDE_CAPABILITIES).models === true && s.controls.models.length > 0;
+  selectFeature(s, 'models') && (s.controls.capabilities ?? CLAUDE_CAPABILITIES).models === true && s.controls.models.length > 0;
 
 /**
  * Not optimistic (unlike pickMode): nobody flips models in quick succession, and the pill must show what the agent
@@ -234,7 +236,7 @@ let lastActivity = -Infinity;
 /** The user touched the UI: tell the server at most once per ACTIVITY_THROTTLE_MS (the idle clock is minutes). */
 export const reportActivity = (now = Date.now()): AppThunk => (_d, getState, { connections }) => {
   if (now - lastActivity < ACTIVITY_THROTTLE_MS) return;
-  if (!has(getState().controls.protocol, 'activity')) return; // an older server has no idle compaction and refuses `activity`
+  if (!selectFeature(getState(), 'activity')) return; // an older server has no idle compaction and refuses `activity`
   if (connections.current().send({ type: 'activity' })) lastActivity = now;
 };
 /** tests */
@@ -310,7 +312,7 @@ export const restartAgent = (): AppThunk<boolean> => (dispatch, getState, { conn
 export const stopWindow = (): AppThunk<Promise<boolean>> => async (_dispatch, getState, { connections }) => {
   if (getState().controls.switching) return false;
   try {
-    const r = await connections.current().fetch(routes.stop(), { method: 'POST' });
+    const r = await send(routes.stop(), undefined, { conn: connections.current() });
     if (!r.ok) { toast(t('stopFail'), (await r.text().catch(() => '')) || String(r.status)); return false; }
   } catch (e) {
     toast(t('stopFail'), e instanceof Error ? e.message : String(e));
@@ -339,7 +341,7 @@ export const restartServer = (o: { now?: boolean } = {}): AppThunk<Promise<boole
 export const restartInPause = (): AppThunk<Promise<boolean>> => async (dispatch, getState, { connections }) => {
   if (getState().controls.switching) return false;
   // asked first, the restarting phase only once it is accepted: a 409 (the server still sees work) changes nothing here
-  const ok = await connections.current().fetch(routes.restartServer('pause'), { method: 'POST' }).then((r) => r.ok, () => false);
+  const ok = await send(routes.restartServer('pause'), undefined, { conn: connections.current() }).then((r) => r.ok, () => false);
   if (!ok || getState().controls.switching) return false;
   dispatch(switchStarted(true));
   dispatch(restartAccepted()); // a `restart-pending` before the socket drops ends the phase: the server stayed
@@ -358,7 +360,7 @@ export const cancelCompact = (): AppThunk<boolean> => (_d, _g, { connections }) 
 /** drops the pending restart; the server's `restart-pending` updates every page */
 export const cancelRestart = (): AppThunk<Promise<boolean>> => async (_d, _g, { connections }) => {
   try {
-    const r = await connections.current().fetch(routes.restartServer('cancel'), { method: 'POST' });
+    const r = await send(routes.restartServer('cancel'), undefined, { conn: connections.current() });
     if (!r.ok) { toast(t('restartFail'), (await r.text().catch(() => '')) || String(r.status)); return false; }
     return true;
   } catch (e) {
@@ -379,7 +381,7 @@ const restartVia = (url: string, body: unknown): AppThunk<Promise<boolean>> => a
     if (toastIt) toast(t('restartFail'), msg);
   };
   try {
-    const r = await connections.current().fetch(url, { method: 'POST', ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }) });
+    const r = await send(url, body, { conn: connections.current() });
     if (!r.ok) { giveUp((await r.text().catch(() => '')) || String(r.status)); return false; }
     const j = await r.json().catch(() => null) as { pending?: unknown } | null;
     if (j?.pending === true) { giveUp('', false); return true; } // it waits for the pause: no restart yet

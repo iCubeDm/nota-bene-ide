@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { has, type TaskOutputView } from '@nota-bene/shared';
-import { useT, useAppSelector, connections, byteSize, routes, type TabKinds, type TabView } from '@/sdk';
+import { type TaskOutputView } from '@nota-bene/shared';
+import { useT, useAppSelector, connections, byteSize, routes, type TabKinds, type TabView, useFeature } from '@/sdk';
 import { plainOutput } from './ansi.ts';
 import { selectTaskControls } from './slice.ts';
 import { StopButton } from './TaskButtons.tsx';
@@ -32,7 +32,7 @@ export function ShellView({ tab, active }: { tab: TabKinds['shell']; active: boo
   const session = useAppSelector((s) => s.feed.session?.id ?? null);
   const info = useAppSelector((s) => s.tasks[task]);
   const controls = useAppSelector(selectTaskControls);
-  const protocol = useAppSelector((s) => s.controls.protocol);
+  const live = useFeature('taskControl');
   const ended = !!info && info.status !== 'running';
   const [out, setOut] = useState<Out>(blank);
   const final = useRef(false); // the last read said the task is over: nothing more to fetch
@@ -45,7 +45,7 @@ export function ShellView({ tab, active }: { tab: TabKinds['shell']; active: boo
   }, [session, task]);
 
   useEffect(() => {
-    if (!session || !active || !has(protocol, 'taskControl') || final.current) return;
+    if (!session || !active || !live || final.current) return;
     const ctl = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const tick = async () => {
@@ -78,7 +78,7 @@ export function ShellView({ tab, active }: { tab: TabKinds['shell']; active: boo
       clearTimeout(timer);
     };
     // `ended`: the task's end reached the store, so the read that follows is the one after the end
-  }, [session, task, active, protocol, ended]);
+  }, [session, task, active, live, ended]);
 
   const text = plainOutput(out.output, out.truncated);
   useLayoutEffect(() => {
@@ -108,7 +108,7 @@ export function ShellView({ tab, active }: { tab: TabKinds['shell']; active: boo
       >
         {out.status === 'gone' ? (
           <div data-kind="shell-status" role="status" className="py-6 text-center text-sm text-muted-foreground">{t('shellGone')}</div>
-        ) : !has(protocol, 'taskControl') ? (
+        ) : !live ? (
           <div data-kind="shell-status" role="status" className="py-6 text-center text-sm text-muted-foreground">{t('shellNeedsRestart')}</div>
         ) : out.status === 'loading' ? (
           <div data-kind="shell-status" role="status" className="py-6 text-center text-sm text-muted-foreground">{t('shellLoading')}</div>

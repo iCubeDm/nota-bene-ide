@@ -1,5 +1,5 @@
 import type { RemoteHost, RemoteRefusalCode, RemoteState } from '@nota-bene/shared';
-import { connections } from '@/sdk';
+import { routes, send } from '@/sdk';
 
 export type PairCode = { uri: string; qr: string; hostFingerprint: string; expiresAt: number };
 
@@ -16,16 +16,17 @@ export class RemoteError extends Error {
   }
 }
 
-async function post<T>(path: string, body?: unknown): Promise<T> {
-  const r = await connections.current().fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) });
+/** A /remote route's answer, or its refusal thrown as a RemoteError (the callers tell a known code apart). */
+async function post<T>(action: Parameters<typeof routes.remote>[0], body: unknown = {}): Promise<T> {
+  const r = await send(routes.remote(action), body);
   const j = (await r.json().catch(() => ({}))) as { error?: string; code?: RemoteRefusalCode; detail?: string };
   if (!r.ok) throw new RemoteError(r.status, j.error ?? `HTTP ${r.status}`, j.code, j.detail);
   return j as T;
 }
 
-export const saveRemote = (c: { relay?: string; enabled?: boolean; accessKey?: string | null }) => post<{ state: RemoteState; stopped: 'hand' | 'managed' | null }>('/remote/config', c);
-export const startPair = () => post<PairCode>('/remote/pair');
-export const cancelPair = () => post<{ ok: true }>('/remote/pair/cancel');
-export const revokePhone = (id: string) => post<{ ok: boolean; error?: string }>('/remote/revoke', { id });
-export const connectComputer = (code: string) => post<{ ok: true; host: RemoteHost }>('/remote/connect', { code });
-export const forgetComputer = (id: string) => post<{ ok: boolean; error?: string }>('/remote/forget', { id });
+export const saveRemote = (c: { relay?: string; enabled?: boolean; accessKey?: string | null }) => post<{ state: RemoteState; stopped: 'hand' | 'managed' | null }>('config', c);
+export const startPair = () => post<PairCode>('pair');
+export const cancelPair = () => post<{ ok: true }>('pair/cancel');
+export const revokePhone = (id: string) => post<{ ok: boolean; error?: string }>('revoke', { id });
+export const connectComputer = (code: string) => post<{ ok: true; host: RemoteHost }>('connect', { code });
+export const forgetComputer = (id: string) => post<{ ok: boolean; error?: string }>('forget', { id });

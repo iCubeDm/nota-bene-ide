@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
 import { USAGE_PERIODS, type UsageHit, type UsagePeriod, type UsageProvider, type UsageReport, type UsageTank, type UsageTaskRow } from '@nota-bene/shared';
-import { useAppSelector, getLang, useT, connections, defineResource, routes, useResource, compact, compactParts, money, num, percent, type TabView } from '@/sdk';
+import { useAppSelector, getLang, useT, defineResource, routes, useResource, compact, compactParts, money, num, percent, type TabView, send } from '@/sdk';
 import { ViewPane } from '@/sdk/ui';
 
 const POLL_MS = 2000;
@@ -356,7 +356,7 @@ export function UsageView({ active }: { active: boolean }) {
 
   const reset = async () => {
     setAsking(false);
-    const r = await connections.current().fetch(routes.usageReset(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ provider }) }).catch(() => null);
+    const r = await send(routes.usageReset(), { provider }).catch(() => null);
     if (r?.ok) { setError(null); setPeriod('trip'); got.refresh(); } else setError(t('usageLoadFail', String(r?.status ?? 'network')));
   };
 

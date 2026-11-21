@@ -305,7 +305,7 @@ root-level files (`main.tsx`, `App.tsx`, `plugins.ts`) are the composition root 
 
 | Folder | Role | Contents |
 |---|---|---|
-| `sdk/` | core | The facade (`index.ts`, `ui.ts`) and the core's own modules: `connections.ts`, `routes.ts`, `repository.ts`, `storage.ts`, `flags.ts`, `track.ts`, `plugin.ts`, `registry.ts`, `settings.ts` (the Settings tab's host) ([4.5](#45-sdk-and-registries)). The facade re-exports what plugins use, not every core name. |
+| `sdk/` | core | The facade (`index.ts`, `ui.ts`) and the core's own modules: `connections.ts`, `routes.ts`, `repository.ts`, `storage.ts`, `plugin.ts`, `registry.ts`, `settings.ts` (the Settings tab's host) ([4.5](#45-sdk-and-registries)). The facade re-exports what plugins use, not every core name. |
 | `store/` | core | `store.ts` (store assembly: the core slices `feed` and `conn`, slice injection, middleware, the chat thunks), `feed.ts` (the pure reducer of the feed from `AgentEvent`, plus `prependHistory`), `chunks.ts`, `persist.ts` (the core's listeners), `send.ts` (`chat.send` over `sendParts`), `controls.ts` (the `controls` slice: mode, model, commands, the hello's protocol, a switch or restart, held sends), `message.ts` (the images of the message being written), `stats.ts`, `tasks.ts` and `subagents.ts` (server data several plugins read), `mediaController.ts` (pause and PiP between tabs), `seekStep.ts`, `sessions.ts`. |
 | `net/` | core | `socket.ts`: the WebSocket with automatic reconnection after 1 s; `open` means "connected" (the replay arrived), not the opening of the socket; after 4001 there is no reconnection, only `reconnect()` on a click. It does not enter Redux. `auth.ts`: the login (the page takes `#t=` out of the address bar, posts it to `/auth`, keeps the key) and `apiFetch`, behind `AgentConnection.fetch`. `local.ts`: whether this page is another computer's window. |
 | `tabs/` | core | The tab host over the `tabs` registry (`Panes`, `TabStrip`, `TabsMenu`), the `tabs` slice (`TabKinds`, ids, open actions, saved form, `enterRoot`), the `jump` slice (`jump.ts`: jump to a comment's source). |
@@ -478,32 +478,33 @@ combined frame image): the send waits up to `COMPOSITE_MS` with Send off. Then, 
 so a refusal gives back the draft and the comments without either plugin knowing the other. A recording is
 `chat.send` with its `voice`.
 
-**Connection** (`sdk/connections.ts`). `AgentConnection { id; base; state(); subscribe; hello(); has(f); send(m);
+**Connection** (`sdk/connections.ts`). `AgentConnection { id; base; state(); subscribe; hello(); send(m);
 fetch(route, init?); url(route); takeOver(); stop(); onEvent(fn) }` over `net/socket.ts`, whose semantics are
 unchanged. `ConnectionManager { current(); get(id); list() }`; `makeStore` makes exactly one connection, `SELF`
 (`'self'`, issue 383 gives real ids). `onEvent` delivers each event after the store applied it. Hooks:
-`useConnection()`, `useConnState()`, `useFeature(f)` (over the `controls` slice's protocol, 0 until a hello);
-`connections` serves code outside React.
+`useConnection()`, `useConnState()`, `useFeature(f)`; `connections` serves code outside React. A server capability is
+checked one way: `useFeature(f)` in a component, `selectFeature(s, f)` elsewhere, both over the `controls` slice's
+protocol (0 until a hello). A reducer of the `hello` itself reads its `protocol` with `has`.
 
 **Data** (`sdk/routes.ts`, `sdk/repository.ts`). `routes` builds every server path (`Route`: path and query, no base),
 for `conn.fetch(route)` or, as an img/video/iframe `src`, `conn.url(route)`. `defineResource({ id?, key, route, every?,
 events?, parse?, timeout? })` declares a read; `useResource(res, args, { on?, every?, whileHidden?, refreshOn? })` gives
 `{ data, failed, error, loading, status?, refresh() }`, and `repository` (`load`, `watch`, `peek`, `subscribe`,
-`invalidate`) serves code outside React. Per connection there is one cache entry per key: its watchers share one
+`invalidate`) serves code outside React. Writes go through `send(route, body?, { method?, type?, keepalive?, signal?,
+conn? })`: `body` as JSON, a Blob as it is, POST by default; it resolves to the answer whatever its status (the caller
+reads a refusal) and rejects only when none came. Per connection there is one cache entry per key: its watchers share one
 request in flight and one timer (the shortest period asked), a timeout or failure keeps the data and marks it failed,
 and an answer with the same text keeps the same object. The poll pauses while the connection is down and while the page
 is hidden (a watcher may ask `whileHidden`: the update notice while an update installs); showing the page reads what
 the pause missed, a reconnect reads everything watched, and a resource's `events` read it again.
 
-**Storage** (`sdk/storage.ts`, `flags.ts`, `track.ts`). `storage.local(key, codec, fallback)` is a `Stored<T> { get;
+**Storage** (`sdk/storage.ts`). `storage.local(key, codec, fallback)` is a `Stored<T> { get;
 set; remove; subscribe }` over this origin's localStorage under the keys the app always used (codecs `bool`, `string`,
 `json(valid)`, `oneOf(values)`; a refused write is held in memory for the page). `storage.pref(name)` is a server
 setting of every window (`SharedPrefs`: `lang`, `uiScale`, `theme`, `projectRail`, `sounds`; `POST /system/prefs`
 through the current connection, chained, last wins), cached locally so a reload does not flash. A connection's `hello`
 is adopted in one place (`adoptHello`: language, scale, theme). The dictation language is the server's dictation
-setting, held in the `controls` slice. `useStored(item)` reads either in React. `flag(name)` / `useFlag(name)` are local
-feature flags (`nb.flag.<name>` over the typed, empty `FLAGS`). `track(name, props?)` appends to an in-memory ring of
-200 events (`track.recent()`); nothing is stored or sent.
+setting, held in the `controls` slice. `useStored(item)` reads either in React.
 
 **The state rule.** Each piece of state has one home:
 

@@ -564,3 +564,13 @@ result.
     core, and only `reloadPage`, a module no core file imported, moved into its plugin (`update`). The panel keys
     `panel:comments` and `panel:tree` are each one `storage.local` item. The core's player keys still name the Files
     tree's `#tree-sheet` and the file view's `data-file-view` as where the keys stay the player's.
+52. **One write path** (issue 564): `send(route, body?, opts?)` beside `defineResource` carries every POST, PUT and
+    DELETE; it resolves to the answer whatever its status and rejects only when none came, the error behavior each
+    caller already built on. The private helpers of the export, the update notice and the projects went; the remote's
+    keeps only its refusal parsing (`RemoteError` with the server's code) over `send`, and its paths are
+    `routes.remote(action)`. Kept apart on purpose: the Settings host's `post()` (it tells a failure in the tab's status
+    line), the login (`net/auth.ts`, before any connection), and a thunk names its store's connection (`conn`). A
+    capability is checked one way, `useFeature` / `selectFeature` over the `controls` slice's protocol; a reducer of
+    the `hello` itself reads its `protocol`, and the quick labels and the subagent's "known old" take the protocol
+    number. `AgentConnection.has`, `FLAGS` / `flag` / `useFlag` and `track` were unused and went. `chat` no longer calls
+    through (item 34): the store reaches no module that loads the SDK, so its bindings exist when the SDK runs.

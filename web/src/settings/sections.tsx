@@ -1,10 +1,6 @@
 import { useState } from 'react';
 import { UI_SCALES, type UiScale } from '@nota-bene/shared';
-import {
-  connections, defineResource, routes, useResource, useSettings, storage, systemPrefs, byteSize, percent, getLang, chooseLang, LANGS, t as tNow,
-  useT, type Lang, folderName, shortWinHome, selectCapabilitiesKnown, useAppSelector, theme, THEME_GROUPS, THEME_NAMES, useTheme, uiScale, useUiScale,
-  playCue, type Sounds, type SettingsSection,
-} from '@/sdk';
+import { defineResource, routes, useResource, useSettings, storage, systemPrefs, byteSize, percent, getLang, chooseLang, LANGS, t as tNow, useT, type Lang, folderName, shortWinHome, selectCapabilitiesKnown, useAppSelector, theme, THEME_GROUPS, THEME_NAMES, useTheme, uiScale, useUiScale, playCue, type Sounds, type SettingsSection, send } from '@/sdk';
 import { Button, SettingsFail, SettingsRow as Row } from '@/sdk/ui';
 
 type Size = { bytes: number; files: number };
@@ -52,10 +48,7 @@ function Windows({ active }: { active: boolean }) {
     try {
       // the row's identity: the server refuses if another window has taken the port since this list was loaded; the
       // refusal's body says why, so this POST reads it itself rather than through the host's
-      const r = await connections.current().fetch(routes.systemWindowsAction(), {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ port: w.port, action, root: w.root, pid: w.pid, startedAt: w.startedAt }),
-      }).catch(() => null);
+      const r = await send(routes.systemWindowsAction(), { port: w.port, action, root: w.root, pid: w.pid, startedAt: w.startedAt }).catch(() => null);
       if (r?.ok) return note(t('winSent'));
       const body = r ? await r.text().catch(() => '') : '';
       const inner = r?.status === 502 ? (JSON.parse(body || '{}') as { status?: number }).status : undefined;

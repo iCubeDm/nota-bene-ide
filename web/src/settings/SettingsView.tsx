@@ -1,5 +1,5 @@
 import { useMemo, useState, type FC, type ReactNode } from 'react';
-import { connections, SettingsContext, useRegistry, useT, t as tNow, type Route, type SettingsHost, type TabView } from '@/sdk';
+import { SettingsContext, useRegistry, useT, t as tNow, type Route, type SettingsHost, type TabView, send } from '@/sdk';
 import { ConfirmDialog, ViewPane } from '@/sdk/ui';
 
 type Ask = Parameters<SettingsHost['ask']>[0];
@@ -30,7 +30,7 @@ export function SettingsView({ active }: { active: boolean }) {
   const host = useMemo<SettingsHost>(() => ({
     post: async (route: Route, body: unknown = {}) => {
       try {
-        const r = await connections.current().fetch(route, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+        const r = await send(route, body);
         if (r.ok) return r;
         setNote(tNow('setLoadFail', `${r.status}`));
       } catch (e) {

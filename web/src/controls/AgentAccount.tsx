@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { connections, routes, useT, useAppDispatch, useAppSelector, restartAgent } from '@/sdk';
+import { connections, routes, useT, useAppDispatch, useAppSelector, restartAgent, send } from '@/sdk';
 
 /** Authentication stays in the native Codex process. No credential values reach this page. */
 export function AgentAccount() {
@@ -16,7 +16,7 @@ export function AgentAccount() {
   }, [codex]);
   if (!codex || !missing) return null;
   const login = async () => {
-    try { const r = await connections.current().fetch(routes.agentAccount(), { method: 'POST' }); const value = await r.json(); if (!r.ok) throw new Error(value.error); setUrl(value.url); }
+    try { const r = await send(routes.agentAccount()); const value = await r.json(); if (!r.ok) throw new Error(value.error); setUrl(value.url); }
     catch (e) { setError(String(e)); }
   };
   return <span className="inline-flex items-center gap-2 text-xs" title={error}>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { has, MARK_COLORS, PEN_MAX_VALUES, POLYGON_MAX_POINTS, type MediaShape } from '@nota-bene/shared';
-import { useT, useAppDispatch, useAppSelector, keysInScope } from '@/sdk';
+import { MARK_COLORS, PEN_MAX_VALUES, POLYGON_MAX_POINTS, type MediaShape } from '@nota-bene/shared';
+import { useT, useAppDispatch, useAppSelector, keysInScope, useFeature } from '@/sdk';
 import { ConfirmDialog } from '@/sdk/ui';
 import { box as rectBox, hitPolygon, movePoints, rectFrom, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
 import { MarkupToolbar } from './MarkupToolbar.tsx';
@@ -60,9 +60,9 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
 }) {
   const t = useT();
   const dispatch = useAppDispatch();
-  const offered = useAppSelector((s) => has(s.controls.protocol, 'mediaAnchors'));
+  const offered = useFeature('mediaAnchors');
   // polygons (issue 447): an older server would refuse the comment
-  const mask = useAppSelector((s) => has(s.controls.protocol, 'polygons'));
+  const mask = useFeature('polygons');
   const draft = useAppSelector((s) => selectDraft(s, tabId));
   const [asking, setAsking] = useState(false);
   const pane = media.parentElement;

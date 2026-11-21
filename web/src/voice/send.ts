@@ -1,5 +1,5 @@
-import { has, type Voice } from '@nota-bene/shared';
-import { chat, selectBusy, selectConn, serverEvent, refusedWhy, t, toast, type AppThunk, type StartListening, dictationAsk } from '@/sdk';
+import { type Voice } from '@nota-bene/shared';
+import { chat, selectBusy, selectConn, serverEvent, refusedWhy, t, toast, type AppThunk, type StartListening, dictationAsk, selectFeature } from '@/sdk';
 import { takeVoiceSend, trackVoiceSend, voiceRefused, voiceSendEchoed } from './inflight.ts';
 
 /**
@@ -13,7 +13,7 @@ import { takeVoiceSend, trackVoiceSend, voiceRefused, voiceSendEchoed } from './
 export const sendVoice = (voice: Voice, { id = crypto.randomUUID(), force = false, rides = false }: { id?: string; force?: boolean; rides?: boolean } = {}): AppThunk<boolean> => (d, getState, { connections }) => {
   const st = getState();
   if (selectConn(st) !== 'open' || st.controls.switching) return false;
-  if (rides && has(st.controls.protocol, 'voiceComments')) {
+  if (rides && selectFeature(st, 'voiceComments')) {
     const r = d(chat.send('', { force, parts: ['comments'], voice: { voice, ask: dictationAsk(st) }, id }));
     if (r !== 'empty') {
       if (r === 'sent') trackVoiceSend(id, voice);

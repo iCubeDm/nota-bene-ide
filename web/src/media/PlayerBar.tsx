@@ -1,7 +1,7 @@
 import { EnterFullscreenIcon, ExitFullscreenIcon, PauseIcon, PencilIcon, PipIcon, PlayIcon, ReplayIcon } from '@/sdk/ui';
-import { has } from '@nota-bene/shared';
+
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import { useT, useAppDispatch, useAppSelector, useMedia, SEEK_STEPS, seekStep, useSeekStep, type SeekStepValue, useService, applyPlayerKey, type Flash } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, useMedia, SEEK_STEPS, seekStep, useSeekStep, type SeekStepValue, useService, applyPlayerKey, type Flash, useFeature } from '@/sdk';
 import { changedSince } from './markup/MediaMarks.tsx';
 import { BarButton, ChoiceMenu, SPEEDS, VolumeControl } from './PlayerControls.tsx';
 import { startAnnotate } from './playerKeys.ts';
@@ -97,7 +97,7 @@ export function PlayerBar({ media, box, tabId, path = '', refName, flash, onTick
   const ctl = useMedia();
   const video = media instanceof HTMLVideoElement;
   const state = useMediaState(media);
-  const offered = useAppSelector((s) => has(s.controls.protocol, 'mediaAnchors'));
+  const offered = useFeature('mediaAnchors');
   const comments = useAppSelector((s) => selectMediaComments(s, path, refName));
   const files = useService('files');
   const version = useAppSelector((s) => files.selectFileVersion(s, path, refName));

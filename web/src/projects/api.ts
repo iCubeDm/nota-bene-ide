@@ -2,7 +2,7 @@
 // types (mirrored: the web does not import from server/), the polled list, and the move of this tab to another window.
 import { useEffect, useRef, useState } from 'react';
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { t, connections, defineResource, routes, toast, useResource, remotePage, type RootState } from '@/sdk';
+import { t, defineResource, routes, toast, useResource, remotePage, type RootState, send } from '@/sdk';
 
 export type Provider = 'claude' | 'codex' | 'omp';
 export type ProjectState = 'working' | 'waiting' | 'idle' | 'restarting' | 'silent';
@@ -83,9 +83,6 @@ export function useProjects(active: boolean): { data: ProjectsList | null; reloa
   return { data: data ?? (failed ? EMPTY : null), reload: refresh };
 }
 
-export const postJson = (url: string, body: unknown): Promise<Response> =>
-  connections.current().fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-
 /** The server's fixed refusals (server/src/projects.ts, projectRoutes.ts), in the page's language; any other text (a launcher's line) as it is. */
 const REASONS = {
   'no such window': 'whyNoWindow', 'window not answering': 'whyNotAnswering', 'not a folder': 'whyNotFolder', 'not readable': 'whyNotReadable',
@@ -119,7 +116,7 @@ export const reasonOf = async (r: Response): Promise<string> => (await r.text().
 /** Removes a folder from Recent (POST /system/projects/forget): null, or the reason it failed. */
 export async function forgetRecent(root: string): Promise<string | null> {
   try {
-    const r = await postJson(routes.systemProjects('forget'), { root });
+    const r = await send(routes.systemProjects('forget'), { root });
     return r.ok ? null : reasonOf(r);
   } catch {
     return 'window not answering';
@@ -139,8 +136,8 @@ export async function enterProject(row: RunningRow, session?: string): Promise<b
   }
   try {
     const r = row.remote
-      ? await postJson(routes.systemRemoteOpen(), { host: row.remote.host, port: row.port })
-      : await postJson(routes.systemProjects('enter'), { provider: row.provider, port: row.port, root: row.root, ...(session ? { session } : {}) });
+      ? await send(routes.systemRemoteOpen(), { host: row.remote.host, port: row.port })
+      : await send(routes.systemProjects('enter'), { provider: row.provider, port: row.port, root: row.root, ...(session ? { session } : {}) });
     // the remote routes say why as JSON `{error}`, the switcher's as text
     if (!r.ok) {
       const why = row.remote ? remoteWhy(((await r.json().catch(() => null)) as { error?: unknown } | null)?.error) : reasonText(await reasonOf(r));
@@ -160,7 +157,7 @@ export async function enterProject(row: RunningRow, session?: string): Promise<b
 /** Stops that window from the list (its agent and launcher; the session stays); the refusal's reason, or null. */
 export async function stopProject(row: RunningRow): Promise<string | null> {
   try {
-    const r = await postJson(routes.systemProjects('stop'), { provider: row.provider, port: row.port, root: row.root });
+    const r = await send(routes.systemProjects('stop'), { provider: row.provider, port: row.port, root: row.root });
     return r.ok ? null : await reasonOf(r);
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
@@ -179,8 +176,8 @@ export const openStarter = (mode: 'open' | 'new'): void => starter?.(mode);
 export async function openFolder(dir: string, provider: Provider, create?: { name: string; git: boolean }, session?: string): Promise<string | null> {
   try {
     const r = create
-      ? await postJson(routes.systemProjects('create'), { parent: dir, name: create.name, git: create.git, provider })
-      : await postJson(routes.systemProjects('open'), { dir, provider });
+      ? await send(routes.systemProjects('create'), { parent: dir, name: create.name, git: create.git, provider })
+      : await send(routes.systemProjects('open'), { dir, provider });
     if (!r.ok) return reasonOf(r);
     const { url } = (await r.json()) as { url?: unknown };
     if (typeof url !== 'string') return 'bad answer';

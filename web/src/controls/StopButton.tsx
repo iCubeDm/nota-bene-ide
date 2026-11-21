@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { useT, selectBusy, useAppDispatch, useAppSelector, routes, toast, selectSwitching, stopWindow, remotePage, connections } from '@/sdk';
+import { useT, selectBusy, useAppDispatch, useAppSelector, routes, toast, selectSwitching, stopWindow, remotePage, connections, send } from '@/sdk';
 import { ConfirmDialog, ICONS, Svg } from '@/sdk/ui';
 
 /** The header's Stop Nota Bene, before this window stops itself: every other window; how many could not be stopped. */
 async function stopOthers(): Promise<number> {
   try {
-    const r = await connections.current().fetch(routes.systemProjects('stop-others'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+    const r = await send(routes.systemProjects('stop-others'), {});
     if (!r.ok) return -1;
     const j = (await r.json()) as { failed?: unknown };
     return typeof j.failed === 'number' ? j.failed : -1;
