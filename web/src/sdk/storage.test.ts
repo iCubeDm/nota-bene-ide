@@ -91,6 +91,26 @@ it('a local item: unknown values fall back, an unchanged value keeps its object,
   expect(result.current).toEqual(['none']);
 });
 
+// issue 545: before, another tab's write showed only at this tab's next unrelated render
+it('another tab\'s write re-renders at once: its key\'s listeners, and every key\'s on a clear', () => {
+  const a = storage.local('k.tabA', string, 'a0');
+  const b = storage.local('k.tabB', string, 'b0');
+  const ra = renderHook(() => useStored(a));
+  const rb = renderHook(() => useStored(b));
+  const fromOtherTab = (key: string | null, value: string | null) => act(() => {
+    if (key === null) localStorage.clear();
+    else if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+    window.dispatchEvent(new StorageEvent('storage', { key, newValue: value }));
+  });
+  fromOtherTab('k.tabA', 'a1');
+  expect([ra.result.current, rb.result.current]).toEqual(['a1', 'b0']);
+  fromOtherTab('k.tabB', 'b1');
+  expect([ra.result.current, rb.result.current]).toEqual(['a1', 'b1']);
+  fromOtherTab(null, null);
+  expect([ra.result.current, rb.result.current]).toEqual(['a0', 'b0']);
+});
+
 it('storage unavailable: reads fall back, a set holds for the page', () => {
   vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('denied'); });
   vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('denied'); });

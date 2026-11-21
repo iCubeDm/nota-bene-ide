@@ -1,7 +1,7 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { has, anchorSource, isCutAnchor, isMediaAnchor, type Comment, type CommentOp, type CutAnchor, type MediaAnchor } from '@nota-bene/shared';
+import { has, anchorSource, isCutAnchor, isMediaAnchor, type Comment, type CommentOp, type CutAnchor } from '@nota-bene/shared';
 // every use of serverEvent below is lazy (inside callbacks): this file may load inside the store's import cycle.
-import { bool, connState, serverEvent, storage, type AppThunk, type RootState, fileKey } from '@/sdk';
+import { bool, connState, serverEvent, storage, type AppThunk, type MediaComment, type RootState, fileKey } from '@/sdk';
 
 export type CommentCard = { id: string; x: number; y: number };
 /** a local change on its way to the server (protocol 19): it shows at once and is sent until the server acks or refuses it */
@@ -209,7 +209,6 @@ export const selectPendingCountByPath = createSelector([selectComments], (items)
   return m;
 });
 
-export type MediaComment = Comment & { anchor: MediaAnchor };
 /** The media comments on one file of one source (`ref` only for another source), in store order. Memoised per (path, ref). */
 export const selectMediaComments = createSelector(
   [selectComments, (_s: RootState, path: string) => path, (_s: RootState, _p: string, ref?: string) => ref ?? ''],

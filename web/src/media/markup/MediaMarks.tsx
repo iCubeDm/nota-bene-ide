@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { openCommentCard, selectMediaComments, type MediaComment } from '@/comments/slice.ts';
 import { selectFileVersion } from '@/files/slice.ts';
-import { useT, useAppDispatch, useAppSelector } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, useComments, type MediaComment } from '@/sdk';
 import { shapePath } from './geometry.ts';
 import { shapeEls, STROKE_PX, useOverlayPlacement, type Media } from './overlay.tsx';
 import { selectDraft } from './slice.ts';
@@ -53,6 +52,7 @@ function usePausedAt(media: Media): number | null {
 export function MediaMarks({ tabId, media, fit, path, refName: ref }: {
   tabId: string; media: Media; fit: 'contain' | 'natural'; path: string; refName?: string;
 }) {
+  const { openCommentCard, selectMediaComments } = useComments();
   const t = useT();
   const dispatch = useAppDispatch();
   const all = useAppSelector((s) => selectMediaComments(s, path, ref));

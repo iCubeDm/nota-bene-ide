@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { isMediaAnchor } from '@nota-bene/shared';
-import { CommentPopup } from '@/comments/CommentPopup.tsx';
-import { selectComments } from '@/comments/slice.ts';
-import { useT, useAppDispatch, useAppSelector, clearJump, selectJump, seekAndPause, type MediaFileView } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, clearJump, selectJump, seekAndPause, type MediaFileView, useComments } from '@/sdk';
 import { applyPlayerKey, usePlayerKeys } from './playerKeys.ts';
 import { PlayerBar } from './PlayerBar.tsx';
 import { PlayerFlash } from './PlayerFlash.tsx';
@@ -14,6 +12,7 @@ import { useMediaMarkup } from './useMediaMarkup.ts';
 
 /** The pane of an image, video or audio file (or its "gone" note), with the markup layers over an image or video. */
 export const MediaBody: MediaFileView['render'] = ({ kind, path, src, fileRef, tabId, active, media: load }) => {
+  const { CommentPopup, selectComments } = useComments();
   const t = useT();
   const dispatch = useAppDispatch();
   const { url: mediaUrl, failed, srcGone, note, onError, onMeta: onMediaMeta, el: mediaEl, resumeAt } = load;

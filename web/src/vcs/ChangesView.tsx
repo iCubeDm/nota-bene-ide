@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import type { VcsFile } from '@nota-bene/shared';
-import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
-import { routes, useT, type TabView, refOf } from '@/sdk';
+import { routes, useT, type TabView, refOf, useComments } from '@/sdk';
 import { FileDiff, type DiffFile } from './DiffBody.tsx';
 import { parsePatch } from './parse.ts';
 import { currentFile, focusFile, setSplit, usePatch, useVcsUi, type RepoDiff } from './store.ts';
@@ -34,6 +33,7 @@ const arrow = 'grid size-6 place-items-center rounded border border-border-soft 
 
 /** The current diff, ONE file at a time: the panel picks it, and a large diff stays as light as a small one. */
 export function ChangesView({ active }: { active: boolean }) {
+  const { HighlightLayer } = useComments();
   const t = useT();
   const { src, base, data, failed } = useLiveDiff(active);
   const ui = useVcsUi();

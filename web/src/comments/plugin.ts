@@ -1,9 +1,10 @@
 import type { WithSlice } from '@reduxjs/toolkit';
 import { bool, connState, definePlugin, serverEvent, storage, t, toast } from '@/sdk';
-import { commentsSlice, flushComments, setPanelOpen } from './slice.ts';
+import { commentsSlice, flushComments, moveCutComment, openCommentCard, removeComment, selectComments, selectMediaComments, selectPendingCountByPath, setPanelOpen } from './slice.ts';
 import { CommentsToggle } from './CommentsToggle.tsx';
 import { Comments, SelectionComment } from './FrameParts.tsx';
-import { HighlightLayer } from './HighlightLayer.tsx';
+import { flashRange, flashRects, HighlightLayer } from './HighlightLayer.tsx';
+import { CommentPopup } from './CommentPopup.tsx';
 import { CommentCardPopover, SentComments } from './CommentCard.tsx';
 import { commentsPart } from './send.ts';
 
@@ -23,6 +24,7 @@ export const commentsPlugin = definePlugin({
   ],
   userParts: [{ id: 'comments', order: 40, render: SentComments }],
   sendParts: [commentsPart],
+  comments: { HighlightLayer, CommentPopup, flashRange, flashRects, selectComments, selectPendingCountByPath, selectMediaComments, openCommentCard, moveCutComment, removeComment },
   commands: [{ id: 'hk_comments', codes: ['KeyC'], mods: { mod: true, shift: true }, inFields: true, order: 120,
     run: ({ store }) => void store.dispatch(setPanelOpen(!store.getState().comments.ui.panelOpen)) }],
   listeners: (start) => {

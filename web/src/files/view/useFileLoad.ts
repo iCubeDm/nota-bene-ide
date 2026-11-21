@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { dropJump, headVersion, useAppDispatch, useAppSelector, type FileKind, takeStartAt, type StartAt, fileTabId } from '@/sdk';
-import { selectMediaComments } from '@/comments/slice.ts';
+import { dropJump, headVersion, useAppDispatch, useAppSelector, type FileKind, takeStartAt, type StartAt, fileTabId, useComments } from '@/sdk';
 import { selectRefreshSeq } from '../treeSlice.ts';
 import { dropFileLoad, setFileLoad, setFileVersion } from '../slice.ts';
 
@@ -49,6 +48,7 @@ export function useFileLoad({ path, src, ref, url, kind, media, hasVersion, acti
   path: string; src: string; ref: string | undefined; url: string; kind: FileKind; media: boolean; hasVersion: boolean;
   active: boolean; fixed: boolean; marking: boolean; markingRef: MutableRefObject<boolean>;
 }) {
+  const { selectMediaComments } = useComments();
   const dispatch = useAppDispatch();
   const turnSeq = useAppSelector(selectRefreshSeq); // a finished turn or a branch switch
   const [rev, setRev] = useState(0);

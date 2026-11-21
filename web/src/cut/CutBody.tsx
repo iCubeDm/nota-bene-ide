@@ -3,9 +3,7 @@ import { createPortal } from 'react-dom';
 import { has, isCutAnchor, type Comment, type CutAnchor } from '@nota-bene/shared';
 import { AUDIO, isPhotoSrc, validateCut, type Cut, type CutIssue } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
-import { useT, useAppDispatch, useAppSelector, mediaTime, clearJump, selectJump, projectFileUrl, type TextFileView, labelText } from '@/sdk';
-import { CommentPopup, type PendingComment } from '@/comments/CommentPopup.tsx';
-import { moveCutComment, selectComments } from '@/comments/slice.ts';
+import { useT, useAppDispatch, useAppSelector, mediaTime, clearJump, selectJump, projectFileUrl, type TextFileView, labelText, useComments, type PendingComment } from '@/sdk';
 import { srcLength } from './durations.ts';
 import { appendMedia } from './assemble.ts';
 import { mediaLen, PHOTO_LEN } from './mediaLen.ts';
@@ -45,6 +43,7 @@ const clipIndex = (path: string) => /^clips\[(\d+)\]/.exec(path)?.[1];
  * (C, cuts the clip under a click); any number of clips selected, moved, nudged, duplicated and deleted together.
  */
 export function CutBody({ text, src, path, tabId, active }: { text: string; src: string; path?: string; tabId: string; active: boolean }) {
+  const { CommentPopup, moveCutComment, selectComments } = useComments();
   const t = useT();
   const listId = useId();
   const parsed = useMemo((): { v: unknown } | { error: string } => {

@@ -1,9 +1,7 @@
 import { ICONS, Svg, FileIcon } from '@/sdk/ui';
 import { useEffect, useRef, useState } from 'react';
 import { isTextAnchor } from '@nota-bene/shared';
-import { revealRangeSideways, scrollRangeIntoView, rangeForAnchor, useT, withKey, useAppDispatch, useAppSelector, useRegistry, clearJump, selectJump, fileTabId, type TabView, fileUrl, kindOf, tmpImageUrl, isTmpTabPath, fileKey, isFixed, sourcesKnown, useSources } from '@/sdk';
-import { flashRange } from '@/comments/HighlightLayer.tsx';
-import { selectComments, selectPendingCountByPath } from '@/comments/slice.ts';
+import { revealRangeSideways, scrollRangeIntoView, rangeForAnchor, useT, withKey, useAppDispatch, useAppSelector, useRegistry, clearJump, selectJump, fileTabId, type TabView, fileUrl, kindOf, tmpImageUrl, isTmpTabPath, fileKey, isFixed, sourcesKnown, useSources, useComments } from '@/sdk';
 import { selectFileLabels } from './fileLabels.ts';
 import { SourceChip } from './SourcePicker.tsx';
 import { HIGHLIGHT_MAX } from './view/CodeText.tsx';
@@ -18,6 +16,7 @@ const dirOf = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) :
 
 /** Its pending comments' count, on its tab. */
 function FileBadge({ path, fileRef }: { path: string; fileRef?: string }) {
+  const { selectPendingCountByPath } = useComments();
   const n = useAppSelector((s) => selectPendingCountByPath(s)[fileKey(path, fileRef)] ?? 0);
   return n > 0 ? <span data-badge className="rounded-full bg-nb-accent/[.18] px-1.5 text-[0.625rem] font-semibold leading-4 text-nb-accent">{n}</span> : null;
 }
@@ -45,6 +44,7 @@ const PIXEL = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAI
  * only changes with a commit); a worktree view does, like this folder's.
  */
 export function FileView({ path, active, src = 'here', refName }: { path: string; active: boolean; src?: string; refName?: string }) {
+  const { flashRange, selectComments } = useComments();
   const t = useT();
   const dispatch = useAppDispatch();
   const kind = kindOf(path);

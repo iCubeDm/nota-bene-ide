@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useStore } from 'react-redux';
-import { useT, useAppDispatch, useAppSelector, type AppStore, type TabView, setAgentTitle, type AgentTab } from '@/sdk';
-import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
+import { useT, useAppDispatch, useAppSelector, type AppStore, type TabView, setAgentTitle, type AgentTab, useComments } from '@/sdk';
 import { Feed } from '@/feed/Feed.tsx';
 import { selectLiveCalls } from '@/tasks/slice.ts';
 import { OLD_SERVER, fetchSubagent, knownOld, selectSubagent, selectToolResulted } from './slice.ts';
@@ -17,6 +16,7 @@ export const POLL_MS = 1500;
  * not in the current conversation, or a failed read, is said in a line, never an empty pane; both are tried again with a backoff while the tab is visible.
  */
 export function AgentView({ tab, active }: { tab: AgentTab; active: boolean }) {
+  const { HighlightLayer } = useComments();
   const t = useT();
   const dispatch = useAppDispatch();
   const store = useStore() as AppStore;

@@ -1,6 +1,6 @@
 import type { AttachmentAnchor, Comment, MediaAnchor } from '@nota-bene/shared';
 import { prepareImage, uploadImage } from '@/attachments/image.ts';
-import { t, connections, routes } from '@/sdk';
+import { t, connections, routes, type MediaAnchorPatch } from '@/sdk';
 import { drawShapes, renderMarks, strokeWidth } from './render.ts';
 import { drawBadges } from './badges.ts';
 
@@ -22,9 +22,6 @@ export async function deleteMarks(id: string): Promise<void> {
     console.warn(`DELETE /marks/${id}:`, e);
   }
 }
-
-/** What only prepare knows for sure; merged into the anchor before the comment is added. */
-export type MediaAnchorPatch = Partial<Pick<MediaAnchor, 'scale' | 'version' | 'time' | 'width' | 'height'>>;
 
 /** A HEAD that never answers must not hold Add forever: no version then. */
 const VERSION_WAIT_MS = 5000;

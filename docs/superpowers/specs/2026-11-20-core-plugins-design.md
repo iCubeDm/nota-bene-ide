@@ -529,3 +529,6 @@ result.
     (`store/controls.ts`): several plugins read it.
 46. **Survivors** (step 11): the baseline keeps 119 entries (102 plugin→plugin, 17 `useSyncExternalStore`), each needing
     a contract rather than a move; issue 545 tracks them. plugin→core and core→plugin are 0, `sdkReach` is empty.
+47. **Comments service** (issue 545): other plugins' views reach the comments through `Plugin.comments`, a
+    `CommentsService` one plugin provides, read with `useComments()` (it throws without one); a drawing's
+    `PendingComment` carries `discard`. The baseline went from 119 to 97 entries.
