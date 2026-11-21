@@ -7,10 +7,10 @@ import 'package:nb_protocol/nb_protocol.dart';
 import '../l10n/app_localizations.dart';
 import 'window_tab.dart';
 
-/// "Send now or after this turn": 'force', 'queue', or null when it was dismissed.
-Future<String?> askSendNow(BuildContext context) {
+/// "Send now or after this turn", as [AskSendNow] answers it.
+Future<bool?> askSendNow(BuildContext context) {
   final t = AppLocalizations.of(context);
-  return showDialog<String>(
+  return showDialog<bool>(
     context: context,
     builder: (c) => AlertDialog(
       title: Text(t.sendNowTitle),
@@ -18,11 +18,11 @@ Future<String?> askSendNow(BuildContext context) {
       actions: [
         TextButton(onPressed: () => Navigator.pop(c), child: Text(t.cancel)),
         TextButton(
-          onPressed: () => Navigator.pop(c, 'queue'),
+          onPressed: () => Navigator.pop(c, false),
           child: Text(t.sendAfter),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(c, 'force'),
+          onPressed: () => Navigator.pop(c, true),
           child: Text(t.sendNow),
         ),
       ],
@@ -34,32 +34,19 @@ Future<String?> askSendNow(BuildContext context) {
 /// question while the agent works). A refusal gives them back.
 Future<void> sendPendingComments(BuildContext context, WindowTab tab) async {
   if (tab.comments.sendable.isEmpty) return;
-  var force = false;
-  if (tab.windowState.busy) {
-    final choice = await askSendNow(context);
-    if (choice == null || !context.mounted) return;
-    force = choice == 'force';
-  }
-  // read now: the desktop may have sent or changed them while the question was up
-  final comments = tab.comments.sendable;
-  if (comments.isEmpty) return;
   final lang = Localizations.localeOf(context).languageCode;
-  final batch = tab.comments.compose(tab.windowState, '', comments, lang);
-  final id = uuidV4();
-  final ids = {for (final c in comments) c.id};
   final messenger = ScaffoldMessenger.maybeOf(context);
   final t = AppLocalizations.of(context);
-  final sent = tab.connection.send(
-    ClientMessageSend(
-      id: id,
-      text: batch.text,
-      force: force ? true : null,
-      commentIds: [for (final c in comments) c.id],
-      images: batch.images.isEmpty ? null : batch.images,
-    ),
+  final sent = await tab.send(
+    '',
+    lang: lang,
+    ask: () async {
+      final now = await askSendNow(context);
+      return context.mounted ? now : null;
+    },
   );
-  if (!sent) return;
-  tab.comments.sending(ids);
+  if (sent == null) return;
+  final (:id, comments: ids) = sent;
   unawaited(
     tab.windowState.refusals
         .firstWhere((r) => r.id == id)

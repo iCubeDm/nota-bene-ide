@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/feed.dart';
@@ -445,4 +446,130 @@ void main() {
       expect(next.voiceOutbox.isRetrying('v1'), isTrue);
     },
   );
+
+  group('send', () {
+    // the replay leaves the agent working: a user message with no reply yet
+    Future<void> openBusy({bool busy = true, num protocol = 16}) async {
+      ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': protocol});
+      ch.event(
+        ch.lastWsId,
+        replay([
+          if (busy) {'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1},
+        ]),
+      );
+      await settle();
+    }
+
+    List<Map<String, Object?>> sends() => [
+      for (final m in ch.sentOn(ch.lastWsId))
+        if (m['type'] == 'send') m,
+    ];
+
+    Comment pending(String id) => tab.comments.add(
+      const TextAnchor(
+        source: AnchorSourceFile(path: 'docs/plan.md'),
+        start: 0,
+        end: 1,
+        quote: 'q',
+        prefix: '',
+        suffix: '',
+      ),
+      'note $id',
+      null,
+      id: id,
+    );
+
+    test('an idle agent is not asked; the text goes as it is', () async {
+      await openBusy(busy: false);
+      var asked = 0;
+      final r = await tab.send(
+        'Next step',
+        lang: 'en',
+        ask: () async {
+          asked++;
+          return true;
+        },
+      );
+      expect(asked, 0);
+      final m = sends().single;
+      expect(
+        (m['id'], m['text'], m.containsKey('force')),
+        (r!.id, 'Next step', false),
+      );
+    });
+
+    test(
+      'a working agent is asked: now forces, after waits, dismissed sends nothing',
+      () async {
+        await openBusy();
+        expect(await tab.send('x', lang: 'en', ask: () async => null), isNull);
+        expect(sends(), isEmpty);
+        await tab.send('after', lang: 'en', ask: () async => false);
+        await tab.send('now', lang: 'en', ask: () async => true);
+        expect(
+          [for (final m in sends()) (m['text'], m['force'])],
+          [('after', null), ('now', true)],
+        );
+      },
+    );
+
+    test(
+      'the pending comments ride along, read after the question, and are sending',
+      () async {
+        await openBusy();
+        pending('c1');
+        final r = await tab.send(
+          '',
+          lang: 'en',
+          ask: () async {
+            pending('c2'); // added while the question was up
+            return false;
+          },
+        );
+        expect(r!.comments, {'c1', 'c2'});
+        expect(sends().single['commentIds'], ['c1', 'c2']);
+        expect(sends().single['text'], contains('note c2'));
+        expect(tab.comments.sendable, isEmpty);
+      },
+    );
+
+    test('nothing to send sends nothing', () async {
+      await openBusy(busy: false);
+      expect(await tab.send('', lang: 'en', ask: () async => true), isNull);
+      expect(sends(), isEmpty);
+    });
+
+    test(
+      'a recording goes to the outbox with the comment ids; dismissed, it does not',
+      () async {
+        await openBusy();
+        pending('c1');
+        final wav = Uint8List(64);
+        expect(
+          await tab.sendVoice(
+            wav,
+            'en',
+            detect: false,
+            commentLang: 'en',
+            ask: () async => null,
+          ),
+          isFalse,
+        );
+        expect(tab.voiceOutbox.entries, isEmpty);
+        expect(
+          await tab.sendVoice(
+            wav,
+            'en',
+            detect: false,
+            commentLang: 'en',
+            ask: () async => true,
+          ),
+          isTrue,
+        );
+        final e = tab.voiceOutbox.entries.single;
+        expect(e.force, isTrue);
+        expect(e.commentIds, ['c1']);
+      },
+    );
+  });
 }

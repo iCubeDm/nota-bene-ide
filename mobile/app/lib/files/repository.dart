@@ -2,8 +2,8 @@
 // routes the screens read, `GET /tree?path=<dir>` (a list of `TreeEntry`), `/complete?q=` (`CompleteAnswer`: up to 30
 // project-relative paths, folders ending in `/`), `/file?path=` (raw bytes, Range supported) and git's read-only views
 // as the desktop's panel reads them (server/src/vcs.ts, shared/src/vcs.ts): `/git-status` (null outside a repository),
-// `/vcs-diff`, `/vcs-file`, `/vcs-log`, `/vcs-commit` and `/vcs-commit-file`, their answers the generated protocol
-// classes. Requests for the same route in flight share one answer, and none goes while the host is offline. Nothing
+// `/vcs-diff`, `/vcs-file`, `/vcs-log`, `/vcs-commit` and `/vcs-commit-file`, the host's `/usage` and the window's
+// `/dictation`, their answers the generated protocol classes where there are any. Requests for the same route in flight share one answer, and none goes while the host is offline. Nothing
 // is kept once answered (the web keeps the last answer for its watchers; the phone has none, its screens hold what
 // they show).
 import 'dart:convert';
@@ -16,10 +16,12 @@ import '../chat/agent_connection.dart';
 /// The largest file the phone opens.
 const fileMaxBytes = 2000000;
 
-/// Why a route did not answer: [status] is the HTTP status, null when the host could not be reached.
+/// Why a route did not answer: [status] is the HTTP status, null when the host could not be reached; [cause] what
+/// broke, when the request or its answer failed rather than the host being offline.
 class FilesError implements Exception {
-  FilesError(this.status);
+  FilesError(this.status, [this.cause]);
   final int? status;
+  final Object? cause;
   bool get outside => status == 403;
   bool get missing => status == 404;
   @override
@@ -62,6 +64,9 @@ class Repository {
   final AgentConnection _conn;
   final _inFlight = <String, Future<HttpAnswer>>{};
 
+  /// Counts the writes begun and ended: a read never joins one asked for across a write.
+  var _writes = 0;
+
   /// `GET` [route] of the window; [FilesError] (no status) when the host is offline or the stream broke. A request
   /// for the same route and headers on the same channel while one is on its way gets that one's answer.
   Future<HttpAnswer> get(String route, {Map<String, String>? headers}) {
@@ -69,14 +74,30 @@ class Repository {
     if (http == null) return Future.error(FilesError(null));
     // by channel too: after a reconnect a request does not wait on one still out on the dead channel
     final key =
-        '${identityHashCode(_conn.link.channel)} $route${headers == null ? '' : ' $headers'}';
+        '${identityHashCode(_conn.link.channel)} $_writes $route${headers == null ? '' : ' $headers'}';
     return _inFlight[key] ??= http('GET', route, headers: headers)
-        .catchError((Object _) => throw FilesError(null))
+        .catchError((Object e) => throw FilesError(null, e))
         .whenComplete(() {
           _inFlight.remove(
             key,
           ); // a block: a returned future would be awaited, and this one is its own
         });
+  }
+
+  /// A write to the window ([method] is not `GET`); [FilesError] (no status) when the host is offline or the stream
+  /// broke. A read asked for during or after it does not join one asked for before it.
+  Future<HttpAnswer> write(
+    String method,
+    String route, {
+    Map<String, String>? headers,
+    List<int>? body,
+  }) {
+    final http = _conn.http;
+    if (http == null) return Future.error(FilesError(null));
+    _writes++;
+    return http(method, route, headers: headers, body: body)
+        .catchError((Object e) => throw FilesError(null, e))
+        .whenComplete(() => _writes++);
   }
 
   /// The JSON answer of [route]; [FilesError] when it did not answer 200.
@@ -85,8 +106,8 @@ class Repository {
     if (r.status != 200) throw FilesError(r.status);
     try {
       return jsonDecode(utf8.decode(r.body));
-    } on FormatException {
-      throw FilesError(null);
+    } on FormatException catch (e) {
+      throw FilesError(null, e);
     }
   }
 
@@ -131,6 +152,28 @@ class Repository {
     final bad = '\uFFFD'.allMatches(text).length;
     if (bad > 8 && bad * 100 > text.length) return FileBinary(size);
     return FileText(text);
+  }
+
+  /// The host's usage report, as the desktop's Usage tab reads it.
+  Future<UsageReport> usage(
+    UsageProvider provider,
+    UsagePeriod period,
+  ) async => UsageReport.fromJson(
+    (await _json(
+              '/usage?provider=${provider.toJson()}&period=${period.toJson()}',
+            )
+            as Map)
+        .cast<String, Object?>(),
+  );
+
+  /// The window's Whisper as Settings → Dictation shows it (`on`, `phase`, the sizes); null when it did not answer.
+  Future<Map<Object?, Object?>?> dictation() async {
+    try {
+      final j = await _json('/dictation');
+      return j is Map ? j : const {};
+    } on FilesError {
+      return null;
+    }
   }
 
   /// Whether the window's project is in a git repository; null when the host did not say (offline, git timed out).

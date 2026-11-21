@@ -201,30 +201,15 @@ class _ComposerState extends State<Composer> {
     final lang = voiceLangOf(context);
     final detect = voiceDetectOf(context);
     final textLang = Localizations.localeOf(context).languageCode;
-    final outbox = widget.tab.voiceOutbox;
-    var force = false;
-    if (widget.tab.windowState.busy) {
-      final choice = await askSendNow(context);
-      if (choice == null) {
-        // dismissed: the recording waits in the preview, if there is still one to wait in
-        if (mounted) _session.restore(wav);
-        return;
-      }
-      force = choice == 'force';
-    }
-    // only their ids now: the batch is written when the recording leaves (see Comments.composeFor), when it is known
-    // which of them are still pending. A window older than 16 gets the recording alone and they stay pending.
-    final ids = widget.tab.connection.has(Feature.voiceComments)
-        ? [for (final c in widget.tab.comments.sendable) c.id]
-        : const <String>[];
-    outbox.submit(
+    final sent = await widget.tab.sendVoice(
       wav,
       lang,
       detect: detect,
-      force: force,
-      commentIds: ids,
       commentLang: textLang,
+      ask: () => askSendNow(context),
     );
+    // dismissed: the recording waits in the preview, if there is still one to wait in
+    if (!sent && mounted) _session.restore(wav);
   }
 
   void _recordFailed(RecordFailure why) {
@@ -278,42 +263,22 @@ class _ComposerState extends State<Composer> {
         _drafts.isEmpty) {
       return;
     }
-    var force = false;
-    if (widget.tab.windowState.busy) {
-      // as on the desktop: a message while the agent works waits for its turn, unless it is sent now and interrupts
-      final choice = await askSendNow(context);
-      if (choice == null || !mounted) return;
-      force = choice == 'force';
-    }
-    // read now: the desktop may have sent or changed them while the dialog was up
-    final comments = widget.tab.comments.sendable;
-    final drafts = List.of(_drafts);
-    if (_uploading || _failed) return;
-    if (text.isEmpty && comments.isEmpty && drafts.isEmpty) return;
-    final id = uuidV4();
-    // the text stays when the window is not there to take it (the tab went offline or was taken meanwhile)
     // the pending comments leave with it, in the desktop's batch; the server marks them sent
     final lang = Localizations.localeOf(context).languageCode;
-    final batch = widget.tab.comments.compose(
-      widget.tab.windowState,
+    var drafts = const <_Draft>[];
+    final sent = await widget.tab.send(
       text,
-      comments,
-      lang,
-      own: [for (final d in drafts) d.ref!],
+      lang: lang,
+      ask: () async {
+        final now = await askSendNow(context);
+        // an image that started uploading while the question was up holds the message back
+        return mounted && !_uploading && !_failed ? now : null;
+      },
+      images: () => [for (final d in drafts = List.of(_drafts)) d.ref!],
     );
-    final sent = widget.tab.connection.send(
-      ClientMessageSend(
-        id: id,
-        text: batch.text,
-        force: force ? true : null,
-        commentIds: comments.isEmpty ? null : [for (final c in comments) c.id],
-        images: batch.images.isEmpty ? null : batch.images,
-      ),
-    );
-    if (!sent) return;
-    final ids = {for (final c in comments) c.id};
-    widget.tab.comments.sending(ids);
-    _last = (id: id, text: text, comments: ids, images: drafts);
+    // the text stays when the window is not there to take it (the tab went offline or was taken meanwhile)
+    if (sent == null) return;
+    _last = (id: sent.id, text: text, comments: sent.comments, images: drafts);
     _text.clear();
     // only what was sent leaves: an image added while the dialog was up stays for the next message
     setState(() => _drafts.removeWhere(drafts.contains));

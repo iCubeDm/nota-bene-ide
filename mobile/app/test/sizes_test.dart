@@ -18,7 +18,7 @@ import 'package:nb_app/store/seen.dart';
 import 'package:nb_app/store/sizes.dart';
 import 'package:nb_app/store/theme_choice.dart';
 import 'package:nb_app/store/vault.dart';
-import 'package:nb_app/hosts/project_icon.dart' show ProjectIcons;
+import 'package:nb_app/store/project_icons.dart';
 import 'package:nb_channel/nb_channel.dart';
 import 'package:nb_protocol/nb_protocol.dart'
     show VcsFile, VcsFileStatus, VcsPatch;

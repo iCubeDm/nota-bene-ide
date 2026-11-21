@@ -255,6 +255,36 @@ void main() {
     expect(find.text(w(UsageKey.usageLoading)), findsOneWidget);
   });
 
+  testWidgets('an answer that is not JSON says why, as before', (t) async {
+    host((p) async => answer(200, 'not json'));
+    await show(t);
+    final why = () {
+      try {
+        jsonDecode('not json');
+      } on FormatException catch (e) {
+        return '$e';
+      }
+      return '';
+    }();
+    expect(
+      find.text(usageTemplate(UsageKey.usageLoadFail, 'en', [why])),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a broken request says why, as before', (t) async {
+    host((p) async => throw StateError('stream broke'));
+    await show(t);
+    expect(
+      find.text(
+        usageTemplate(UsageKey.usageLoadFail, 'en', [
+          '${StateError('stream broke')}',
+        ]),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('a failing request says so and does not spin', (t) async {
     host((p) async => answer(500, '{}'));
     await show(t);

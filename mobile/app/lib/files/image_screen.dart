@@ -18,11 +18,6 @@ import '../media/shapes.dart';
 import '../ui/nb_icon.dart';
 import '../usage/format.dart' show byteSize;
 
-export '../media/fetch.dart' show imageMaxBytes, previewMaxBytes;
-
-/// The window's own requests for a tab, through its channel; null while the host is offline.
-WindowHttp? windowHttp(WindowTab tab) => tab.connection.http;
-
 /// The marks of [path]'s comments, numbered as the strip numbers them.
 List<ShownMark> shownMarks(WindowTab tab, String path, {double? at}) {
   final strip = tab.comments.sendable;
@@ -57,7 +52,7 @@ Future<bool> saveMediaComment(
 }) async {
   final t = AppLocalizations.of(context);
   final messenger = ScaffoldMessenger.of(context);
-  final http = windowHttp(tab);
+  final http = tab.connection.http;
   final id = uuidV4();
   try {
     if (http == null) throw MarkSaveError('offline');

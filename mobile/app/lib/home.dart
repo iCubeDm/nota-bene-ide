@@ -7,7 +7,7 @@ import 'package:nb_channel/nb_channel.dart';
 
 import 'hosts/host_link.dart';
 import 'hosts/icon_flow.dart';
-import 'hosts/project_icon.dart' show ProjectIcons;
+import 'store/project_icons.dart';
 import 'hosts/hosts_screen.dart';
 import 'hosts/rename_host.dart';
 import 'l10n/app_localizations.dart';

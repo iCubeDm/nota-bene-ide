@@ -8,10 +8,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../store/storage.dart' show playChannel;
 import 'files.dart';
 import 'recorder.dart' show Microphone;
 
-export 'files.dart' show DiskVoiceFiles, VoiceFiles, playChannel;
+export '../store/storage.dart' show playChannel;
+export 'files.dart' show DiskVoiceFiles, VoiceFiles;
 
 /// The bytes of a voice, fetched when it is not cached yet.
 typedef LoadVoice = Future<Uint8List?> Function();

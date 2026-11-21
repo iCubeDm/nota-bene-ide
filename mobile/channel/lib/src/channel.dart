@@ -86,6 +86,15 @@ typedef HttpAnswer = ({
   Uint8List body,
 });
 
+/// One request to a window whose port is already chosen, as [Channel.http] with the port bound.
+typedef WindowHttp =
+    Future<HttpAnswer> Function(
+      String method,
+      String path, {
+      Map<String, String>? headers,
+      List<int>? body,
+    });
+
 /// A response whose body is read as it arrives. [cancel] closes the stream (a body that is never read must be
 /// cancelled, or its stream stays open).
 typedef HttpStreamAnswer = ({

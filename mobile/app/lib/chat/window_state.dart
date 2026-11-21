@@ -5,9 +5,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:nb_channel/nb_channel.dart' show WindowHttp;
 import 'package:nb_protocol/nb_protocol.dart';
 
-import '../media/media_comment.dart' show WindowHttp;
 import 'feed.dart';
 import 'agent_connection.dart' show uuidV4;
 

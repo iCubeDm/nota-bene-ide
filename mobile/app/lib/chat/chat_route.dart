@@ -161,47 +161,45 @@ class _ChatRouteState extends State<ChatRoute> {
     if (mounted) await _focus_.scrollTo(id);
   }
 
+  // listens to nothing: each part listens to what it shows, so a streamed reply rebuilds the feed alone (issue 565)
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: _tab,
-    builder: (context, _) => Scaffold(
-      body: ChatPanes(
+  Widget build(BuildContext context) => Scaffold(
+    body: ChatPanes(
+      tab: _tab,
+      controller: _panes,
+      filesNavigator: _filesNav,
+      depth: _depth,
+      header: ChatHeader(
         tab: _tab,
-        controller: _panes,
-        filesNavigator: _filesNav,
-        depth: _depth,
-        header: ChatHeader(
-          tab: _tab,
-          onTapTitle: () => showWindowSheet(context, _tab),
-          onTapRing: () => showContextSheet(context, _tab),
-        ),
-        chat: (wide, top) => ChatScreen(
-          tab: _tab,
-          showHeader: wide,
-          extraTop: top,
-          focus: _focus_,
-          onTapTitle: () => showWindowSheet(context, _tab),
-          onTapRing: () => showContextSheet(context, _tab),
-          bottom: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CommentStrip(tab: _tab, onTap: () => _panes.show(Pane.comments)),
-              Composer(tab: _tab, controller: _draft, focus: _focus),
-            ],
-          ),
-          overlay: OneTabOverlay(tab: _tab),
-          itemBuilder: _item,
-          onReply: _reply,
-        ),
-        files: (top) => FilesPane(
-          tab: _tab,
-          navigatorKey: _filesNav,
-          observers: [_depth],
-          topInset: top,
-        ),
-        comments: (top) =>
-            CommentsPane(tab: _tab, topInset: top, onChat: _toMessage),
+        onTapTitle: () => showWindowSheet(context, _tab),
+        onTapRing: () => showContextSheet(context, _tab),
       ),
+      chat: (wide, top) => ChatScreen(
+        tab: _tab,
+        showHeader: wide,
+        extraTop: top,
+        focus: _focus_,
+        onTapTitle: () => showWindowSheet(context, _tab),
+        onTapRing: () => showContextSheet(context, _tab),
+        bottom: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CommentStrip(tab: _tab, onTap: () => _panes.show(Pane.comments)),
+            Composer(tab: _tab, controller: _draft, focus: _focus),
+          ],
+        ),
+        overlay: OneTabOverlay(tab: _tab),
+        itemBuilder: _item,
+        onReply: _reply,
+      ),
+      files: (top) => FilesPane(
+        tab: _tab,
+        navigatorKey: _filesNav,
+        observers: [_depth],
+        topInset: top,
+      ),
+      comments: (top) =>
+          CommentsPane(tab: _tab, topInset: top, onChat: _toMessage),
     ),
   );
 }

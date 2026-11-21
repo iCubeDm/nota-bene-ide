@@ -1,5 +1,6 @@
-// The two leaks the review of issue 511 found, kept cut: the app's entry point is imported by nothing, and the model and
-// store files reach no screen, sheet or the voice player, not even through the files they import.
+// The leaks the reviews of issues 511 and 565 found, kept cut: the app's entry point is imported by nothing, the model
+// and store files reach no screen, sheet, the voice player or the media renderer, not even through the files they
+// import, and the stores import nothing above them.
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -33,7 +34,7 @@ void main() {
   });
 
   test(
-    'model and store files reach no screen, sheet or voice player, also through what they import',
+    'model and store files reach no screen, sheet, voice player or renderer, also through what they import',
     () {
       bool model(String p) =>
           p.startsWith('store/') ||
@@ -51,7 +52,8 @@ void main() {
       bool ui(String p) =>
           p.endsWith('_screen.dart') ||
           p.endsWith('_sheet.dart') ||
-          p == 'voice/player.dart';
+          p == 'voice/player.dart' ||
+          p == 'media/render.dart';
       final bad = [
         for (final f in _lib(model))
           for (final path in _reach(f.path.substring(4)))
@@ -60,6 +62,17 @@ void main() {
       expect(bad, isEmpty);
     },
   );
+
+  test('the stores import only stores and the theme ids', () {
+    const above = {'../theme.dart'};
+    final bad = [
+      for (final f in _lib((p) => p.startsWith('store/')))
+        for (final i in _imports(f))
+          if (!i.contains(':') && i.startsWith('../') && !above.contains(i))
+            '${f.path}: $i',
+    ];
+    expect(bad, isEmpty);
+  });
 
   test('the reach follows imports, also up a folder and two hops away', () {
     final r = _reach('chat/window_tab.dart').map((p) => p.last).toSet();
