@@ -1,6 +1,6 @@
 import type { WithSlice } from '@reduxjs/toolkit';
 import { bool, connState, definePlugin, serverEvent, storage, t, toast } from '@/sdk';
-import { commentsSlice, flushComments } from './slice.ts';
+import { commentsSlice, flushComments, setPanelOpen } from './slice.ts';
 import { CommentsToggle } from './CommentsToggle.tsx';
 import { Comments, SelectionComment } from './FrameParts.tsx';
 import { HighlightLayer } from './HighlightLayer.tsx';
@@ -20,6 +20,8 @@ export const commentsPlugin = definePlugin({
     { slot: 'overlay', order: 10, render: SelectionComment },
     { slot: 'overlay', order: 20, render: CommentCardPopover },
   ],
+  commands: [{ id: 'hk_comments', codes: ['KeyC'], mods: { mod: true, shift: true }, inFields: true, order: 120,
+    run: ({ store }) => void store.dispatch(setPanelOpen(!store.getState().comments.ui.panelOpen)) }],
   listeners: (start) => {
     start({
       predicate: (_a, st, was) => st.comments.ui.panelOpen !== was.comments.ui.panelOpen,

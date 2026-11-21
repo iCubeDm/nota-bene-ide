@@ -139,6 +139,40 @@ it('the tree keeps to the baseline', () => {
   expect(stale, 'stale baseline entries: commit the shrink with UPDATE_BOUNDARIES=1').toEqual([]);
 });
 
+// The plugin modules the SDK barrels load, through the core modules they load (type-only imports aside): a plugin
+// module evaluated inside the SDK's own evaluation sees `@/sdk` half-built, a load-order (TDZ) hazard. Issue 511 cut
+// the keymap's edges (step 9c); these are left and may only go: the store's chat and comment helpers and the media
+// controller (steps 10a/10b), refs' file helpers and the page frame's rects (10c).
+function sdkReach(root: string): string[] {
+  const src = path.join(root, WEB);
+  const out = new Set<string>(), seen = new Set<string>(SDK), queue = [...SDK];
+  for (let rel = queue.shift(); rel; rel = queue.shift()) {
+    const abs = path.join(src, rel);
+    const { code, strings } = mask(fs.readFileSync(abs, 'utf8'));
+    for (const m of code.matchAll(IMPORTS)) {
+      if (/^(?:import|export)\s+type\b/.test(m[0])) continue;
+      const target = resolve(abs, strings[Number(m.slice(1).find((g) => g !== undefined))], src);
+      if (!target || target.startsWith('..') || !/\.tsx?$/.test(target)) continue;
+      if (role(target).role === 'plugin') out.add(`${rel} -> ${target}`);
+      else if (!seen.has(target)) (seen.add(target), queue.push(target));
+    }
+  }
+  return [...out].sort();
+}
+
+it('the SDK barrels load no plugin module but the listed ones', () => {
+  expect(sdkReach(REPO)).toEqual([
+    'anchors/scroll.ts -> page/frame.ts',
+    'refs/refs.ts -> files/kinds.ts',
+    'refs/refs.ts -> files/sources.ts',
+    'refs/refs.ts -> files/tmpImages.ts',
+    'store/store.ts -> feed/uiSlice.ts',
+    'store/store.ts -> media/mediaController.ts',
+    'store/store.ts -> subagent/slice.ts',
+    'store/store.ts -> voice/lang.ts',
+  ]);
+});
+
 it('fails a new violation and a stale baseline entry', () => {
   expect(compare(['a', 'b'], ['a', 'b'])).toEqual({ added: [], stale: [] });
   expect(compare(['a', 'b', 'c'], ['a', 'b'])).toEqual({ added: ['c'], stale: [] });

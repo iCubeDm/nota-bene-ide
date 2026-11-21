@@ -5,7 +5,7 @@ import { dictationAsk } from '../voice/lang.ts';
 import { agentConnection, bindConnections, connectionManager, SELF, type AgentConnection, type AgentId, type Connect, type ConnectionManager, type ConnState } from '../sdk/connections.ts';
 import { t } from '../i18n/index.ts';
 import { activate, tabsSlice, type Tab, type TabsState } from '../tabs/slice.ts';
-import { AUDIO, VIDEO } from '../files/kinds.ts';
+import { AUDIO, VIDEO } from '@nota-bene/shared/cut';
 import { browserPip, MediaController, type PipApi } from '../media/mediaController.ts';
 import { agentName, itemsOf } from '../subagent/slice.ts';
 import { toast } from '../shell/toast.ts';
@@ -13,6 +13,7 @@ import { TOOL_SRC } from '../feed/uiSlice.ts';
 import { adoptHello } from '../sdk/storage.ts';
 import type { Plugin, PluginState } from '../sdk/plugin.ts';
 import { buildRegistry, type Registry } from '../sdk/registry.ts';
+import { setCommands } from '../shell/keymap.ts';
 import { learnServerSep } from '../lib/paths.ts';
 import { persistListeners } from './persist.ts';
 import { emptyFeed, historyPrepended, prependHistory, reduce, type FeedState } from './feed.ts';
@@ -155,6 +156,7 @@ export function makeStore(o: {
   mediaByStore.set(store, media);
   pluginsByStore.set(store, o.plugins);
   registryByStore.set(store, registered);
+  setCommands(registered.commands);
   bindConnections(store, connections);
   const self = agentConnection({
     id: SELF,

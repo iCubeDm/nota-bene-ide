@@ -38,8 +38,10 @@ export {
 export { routes } from './routes.ts';
 export { defineResource, useResource, repository, pageVisible, type Resource, type Snapshot } from './repository.ts';
 
+// keys
+export { withKey, withKeys, keyLabel, keysLabel, modKey, isMac } from '../shell/keymap.ts';
+
 // core modules that still import plugins (later steps of issue 511 cut those edges)
-export { withKey, withKeys, keysLabel, modKey, isMac } from '../shell/keymap.ts';
 export { scrollRangeIntoView, scrollRectIntoView, revealRangeSideways } from '../anchors/scroll.ts';
 export { markRefs, markMentions, escapeMentions, refClick, fileOfImage, openMediaFile, clearRefCache } from '../refs/refs.ts';
 
@@ -57,6 +59,7 @@ export {
   selectBusy,
   selectSession,
   selectTurnSeq,
+  useRegistry,
   type RootState,
   type AppThunk,
   type AppDispatch,
@@ -81,4 +84,4 @@ export const chat = {
 
 // tabs
 export { openFile, activate, closeTab, selectTabs, enterRoot, type Tab, type TabKinds, type DiagramLang } from '../tabs/slice.ts';
-export type { TabView, Slot, SlotName } from './registry.ts';
+export type { TabView, Slot, SlotName, Command, KeyId, Mods } from './registry.ts';

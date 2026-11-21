@@ -1,7 +1,7 @@
 import { useAutosize } from './autosize.ts';
 import { AgentAccount } from '@/controls/AgentAccount.tsx';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, keysLabel, modKey, withKey, chat } from '@/sdk';
+import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat } from '@/sdk';
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { selectSendable, sendBatch } from '@/comments/send.ts';
 import { selectPending } from '@/comments/slice.ts';
@@ -25,7 +25,7 @@ import { insertPaths } from '@/attachments/file.ts';
 import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import { draggedPaths } from '@/files/drag.ts';
 import { addImage, selectDraft, selectBuilding, selectImages, selectUploading, setDraft, uploadFinished, uploadStarted } from './slice.ts';
-import { BINDINGS, VOICE_KEY } from '@/shell/keymap.ts';
+import { VOICE_KEY } from './commands.ts';
 import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';
 import { RecordBar } from '@/voice/RecordBar.tsx';
 import { onVoiceRefused } from '@/voice/inflight.ts';
@@ -36,6 +36,7 @@ import { useSeekStep } from '@/media/seekStep.ts';
 
 export function Composer() {
   const t = useT();
+  const { commands } = useRegistry();
   const seekStep = useSeekStep();
   const dispatch = useAppDispatch();
   const busy = useAppSelector(selectBusy);
@@ -381,7 +382,7 @@ export function Composer() {
               </svg>
             </Button>
           </TooltipTrigger>
-          <TooltipContent className="whitespace-pre-line">{`${t('keysTip', modKey())}\n\n${t('hkTitle')}\n${BINDINGS.map((b) => `${keysLabel(b)} — ${t(b.id)}`).join('\n')}\n\n${t('pkTitle')}\n${PLAYER_HELP.map(([k, id]) => `${k} — ${t(id, seekStep)}`).join('\n')}`}</TooltipContent>
+          <TooltipContent className="whitespace-pre-line">{`${t('keysTip', modKey())}\n\n${t('hkTitle')}\n${commands.map((b) => `${keysLabel(b)} — ${t(b.id)}`).join('\n')}\n\n${t('pkTitle')}\n${PLAYER_HELP.map(([k, id]) => `${k} — ${t(id, seekStep)}`).join('\n')}`}</TooltipContent>
         </Tooltip>
         <ModePill />
         <Button type="button" variant="ghost" size="icon-sm" aria-label={t('attach', modKey())} onClick={() => fileIn.current?.click()}>

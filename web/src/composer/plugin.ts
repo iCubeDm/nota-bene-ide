@@ -3,6 +3,7 @@ import { definePlugin } from '@/sdk';
 import { historyMiddleware, historySlice } from './history.ts';
 import { refusedMiddleware } from './refused.ts';
 import { Composer } from './Composer.tsx';
+import { composerCommands } from './commands.ts';
 import { selectShellRunning } from './shellMode.ts';
 import { composerSlice, selectBuilding, selectDraft, selectImages, selectUploading } from './slice.ts';
 
@@ -20,4 +21,5 @@ export const composerPlugin = definePlugin({
     && selectUploading(s) === 0 && !selectBuilding(s)
     && s.composer.unconfirmed === null && s.composer.shellUnconfirmed === null && selectShellRunning(s) === null,
   slots: [{ slot: 'footer', order: 20, render: Composer }],
+  commands: composerCommands,
 });
