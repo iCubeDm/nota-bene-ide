@@ -45,15 +45,12 @@ export const treeSlice = createSlice({
   },
   extraReducers: (b) =>
     b.addCase(enterRoot, (s, a) => {
-      const saved = a.payload.dirs;
-      // the first root: folders expanded before it was known stay. Another root: its own folders, in this folder's source
-      // (another root's branches and worktrees are other sources); the sheet stays open or closed as it was.
-      if (a.payload.first) {
-        if (saved) s.dirs = [...new Set([...saved, ...s.dirs])];
-        return;
-      }
+      // the first root: folders expanded before it was known stay. Another root: this folder's source (another root's
+      // branches and worktrees are other sources), its saved folders restored by the plugin's listener; the sheet stays
+      // open or closed as it was.
+      if (a.payload.first) return;
       s.src = 'here';
-      s.dirs = saved ?? [];
+      s.dirs = [];
       s.reveal = null;
     }),
 });

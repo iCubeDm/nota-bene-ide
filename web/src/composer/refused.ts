@@ -12,7 +12,7 @@ type Slice = { composer: { draft: string; images: unknown[]; unconfirmed: SentDr
  * The server refused a send (`send-refused`, only to the asking socket, never stored). Put the draft back unless the
  * user has already typed something new (then the toast carries the refused text, so nothing is lost silently), and let
  * the comments of that send be sent again. A middleware: it must read `composer.unconfirmed` before the reducer drops it.
- * (`serverEvent` is read only when an action arrives: store.ts and this file import each other.)
+ * (`serverEvent` is read only when an action arrives: this file may load inside the store's import cycle.)
  */
 export const refusedMiddleware: Middleware = (api) => (next) => (action) => {
   const shell = serverEvent.match(action) && action.payload.kind === 'shell-refused' ? action.payload : undefined;

@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { configureStore } from '@reduxjs/toolkit';
+import { configureStore, type Middleware } from '@reduxjs/toolkit';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
 import { makeStore } from '@/testing';
 import { PLUGINS } from '../plugins.ts';
@@ -16,7 +16,12 @@ import { subagentsSlice } from '../subagent/slice.ts';
 import { tasksSlice, tasksUiSlice } from '../tasks/slice.ts';
 import { tabsSlice } from '../tabs/slice.ts';
 import { treeSlice } from '../tree/slice.ts';
-import { connSlice, devToolsEnabled, feedSlice, interrupt, makeStore as coreStore, selectBusy, selectFeed, sendMessage } from './store.ts';
+import { refusedMiddleware } from '../composer/refused.ts';
+import { historyMiddleware } from '../composer/history.ts';
+import { compactTimingMiddleware } from '../feed/compactTiming.ts';
+import { enterRoot } from '../tabs/slice.ts';
+import type { Plugin } from '../sdk/plugin.ts';
+import { connSlice, devToolsEnabled, feedSlice, interrupt, makeStore as coreStore, middlewareOf, selectBusy, selectFeed, sendMessage, toastMiddleware } from './store.ts';
 
 function fake() {
   const sent: ClientMessage[] = [];
@@ -127,4 +132,36 @@ it('hello.lang sets the UI language; a hello without it leaves the local choice'
   f.ev({ kind: 'hello', protocol: 9 });
   expect(getLang()).toBe('ru');
   setLang('en');
+});
+
+it('the appended middleware: the core\'s toast, each plugin\'s in PLUGINS order (compactTiming, now feed\'s, after composer\'s), media last', () => {
+  const media: Middleware = () => (next) => next;
+  expect(middlewareOf(PLUGINS, media)).toEqual([toastMiddleware, refusedMiddleware, historyMiddleware, compactTimingMiddleware, media]);
+});
+
+it('the listener middleware is prepended: its listeners run after every appended middleware has passed the action on', () => {
+  const seen: string[] = [];
+  const probe: Plugin = {
+    id: 'probe',
+    middleware: [() => (next) => (a) => { const r = next(a); if ((a as { type: string }).type === 'probe') seen.push('middleware'); return r; }],
+    listeners: (start) => void start({ predicate: (a) => a.type === 'probe', effect: () => void seen.push('listener') }),
+  };
+  coreStore({ url: 'u', connect: fake().connect, plugins: [probe] }).dispatch({ type: 'probe' });
+  expect(seen).toEqual(['middleware', 'listener']);
+});
+
+it('listeners run core first, then each plugin\'s in plugins order: a plugin sees the new root\'s tabs already restored', () => {
+  localStorage.clear();
+  localStorage.setItem('tabs:/r', JSON.stringify({ tabs: [{ file: { path: 'a.md' } }], active: 'file:a.md' }));
+  const seen: string[] = [];
+  const spy = (id: string): Plugin => ({
+    id,
+    listeners: (start) => void start({ actionCreator: enterRoot, effect: (_a, api) => void seen.push(`${id}:${api.getState().tabs.active}`) }),
+  });
+  const f = fake();
+  // a subset of plugins: the core's own wiring touches no plugin's state
+  coreStore({ url: 'u', connect: f.connect, plugins: [spy('b'), spy('a')] });
+  f.ev({ kind: 'session', id: null, root: '/r', title: null, model: null });
+  expect(seen).toEqual(['b:file:a.md', 'a:file:a.md']);
+  localStorage.clear();
 });

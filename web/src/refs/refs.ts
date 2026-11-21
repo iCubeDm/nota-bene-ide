@@ -147,7 +147,7 @@ export function splitMentions(text: string): Part[] {
 
 const HEAD_TTL = 10_000;
 const heads = new Map<string, { at: number; ok: Promise<boolean> }>();
-/** Test hook. */
+/** Drops the HEAD answers: another root's paths are other files (the files plugin, on `enterRoot`). */
 export const clearRefCache = () => heads.clear();
 
 function exists(path: string, src = 'here'): Promise<boolean> {

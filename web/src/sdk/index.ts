@@ -39,7 +39,7 @@ export { defineResource, useResource, repository, pageVisible, type Resource, ty
 // core modules that still import plugins (later steps of issue 511 cut those edges)
 export { withKey, withKeys, keysLabel, modKey, isMac } from '../shell/keymap.ts';
 export { scrollRangeIntoView, scrollRectIntoView, revealRangeSideways } from '../anchors/scroll.ts';
-export { markRefs, markMentions, escapeMentions, refClick, fileOfImage, openMediaFile } from '../refs/refs.ts';
+export { markRefs, markMentions, escapeMentions, refClick, fileOfImage, openMediaFile, clearRefCache } from '../refs/refs.ts';
 
 // the store, the feed model and chat
 export { definePlugin, type Plugin, type PluginState } from './plugin.ts';
@@ -59,6 +59,7 @@ export {
   type AppThunk,
   type AppDispatch,
   type AppStore,
+  type StartListening,
 } from '../store/store.ts';
 
 import { answerPermission, interrupt, sendMessage, takeOver } from '../store/store.ts';
@@ -75,4 +76,4 @@ export const chat = {
 };
 
 // tabs
-export { openFile, activate, closeTab, selectTabs, type Tab } from '../tabs/slice.ts';
+export { openFile, activate, closeTab, selectTabs, enterRoot, type Tab } from '../tabs/slice.ts';

@@ -1,87 +1,38 @@
-import type { ListenerMiddlewareInstance } from '@reduxjs/toolkit';
-import { enterRoot, readSavedTabs, serializeTabs, tabsKey, type TabsState } from '../tabs/slice.ts';
-import { readSavedDirs, treeKey, type treeSlice } from '../tree/slice.ts';
-import type { commentsSlice } from '../comments/slice.ts';
-import { clearRefCache } from '../refs/refs.ts';
-import { loadSources } from '../files/sources.ts';
-import { pushRecent, RECENT_DWELL_MS } from '../files/recent.ts';
-import type { FeedState } from './feed.ts';
-import { bool, json, storage } from '../sdk/storage.ts';
-
-/** The slices the persistence reads. Named here, not taken from the store's RootState: the store's type is built from the listeners' middleware. */
-export type PersistState = { feed: FeedState; comments: ReturnType<typeof commentsSlice.reducer>; tree: ReturnType<typeof treeSlice.reducer>; tabs: TabsState };
+import { enterRoot, readSavedTabs, serializeTabs, tabsKey } from '../tabs/slice.ts';
+import { json, storage } from '../sdk/storage.ts';
+import type { StartListening } from './store.ts';
 
 /**
- * The ONE place that persists UI state, whoever changed it (toggle, ×, auto-open after adding a comment, tab changes):
- * one listener per concern, each comparing the state before the action with the state after it. Tree and tab writes
- * wait for the first known root and are keyed by it (`restoredRoot`); the root-change listener is registered first, so
- * its restore is already in place when the others look at the same action.
+ * The core's persistence of UI state, whoever changed it (tab clicks, ×, restores): one listener per concern, each
+ * comparing the state before the action with the state after it. The plugins persist their own state in their own
+ * listeners, registered after these (see `Plugin.listeners`). Writes wait for the first known root and are keyed by it
+ * (`tabs.root`, set by `enterRoot`); the root-change listener is registered first of all, so its restore is already in
+ * place when the others look at the same action.
  */
-export function persistListeners(lm: ListenerMiddlewareInstance<PersistState>): void {
+export function persistListeners(start: StartListening): void {
   let restoredRoot: string | null = null;
 
-  // every root change (the first one, a switch to another folder, a switch back): that root's saved tabs and tree.
-  // The saved state is read before the dispatch: the restore's own change is persisted under the new root by the
-  // listeners below (the dispatch runs them nested), so nothing here writes it.
-  lm.startListening({
+  // every root change (the first one, a switch to another folder, a switch back): `enterRoot`, carrying that root's
+  // saved tabs (one action, so the media controller sees one tab change). They are read before the dispatch: the
+  // restore's own change is persisted under the new root by the listeners below (the dispatch runs them nested). Each
+  // plugin restores its own state in its own `enterRoot` listener.
+  start({
     predicate: (_a, st) => !!st.feed.session?.root && st.feed.session.root !== restoredRoot,
     effect: (_a, api) => {
       const root = api.getState().feed.session?.root;
       if (!root || root === restoredRoot) return;
       const first = restoredRoot === null;
       restoredRoot = root;
-      const tabs = readSavedTabs(root);
-      const dirs = readSavedDirs(root);
-      // source ids are stable (M3-16): every saved tab comes back at once, whatever /sources says; a tab whose source
-      // is gone keeps its place and says so in its view. The load feeds the picker and absolute refs; another root has
-      // other worktrees and branches, and its paths other HEAD answers, so both caches are dropped then.
-      if (!first) clearRefCache();
-      void loadSources(!first);
-      api.dispatch(enterRoot({ root, first, tabs, dirs }));
-    },
-  });
-
-  lm.startListening({
-    predicate: (_a, st, was) => st.comments.ui.panelOpen !== was.comments.ui.panelOpen,
-    effect: (_a, api) => storage.local('panel:comments', bool, true).set(api.getState().comments.ui.panelOpen),
-  });
-
-  lm.startListening({
-    predicate: (_a, st, was) => st.tree.open !== was.tree.open,
-    effect: (_a, api) => storage.local('panel:tree', bool, true).set(api.getState().tree.open),
-  });
-
-  lm.startListening({
-    predicate: (_a, st, was) => st.tree.dirs !== was.tree.dirs,
-    effect: (_a, api) => {
-      if (!restoredRoot) return;
-      const { dirs, src } = api.getState().tree;
-      storage.local(treeKey(restoredRoot, src), json<string[]>(), []).set(dirs);
+      api.dispatch(enterRoot({ root, first, tabs: readSavedTabs(root) }));
     },
   });
 
   // before the root is known there is nothing to key by; the restore merges those tabs in later
-  lm.startListening({
+  start({
     predicate: (_a, st, was) => st.tabs !== was.tabs,
     effect: (_a, api) => {
-      if (restoredRoot) storage.local(tabsKey(restoredRoot), json(), null).set(serializeTabs(api.getState().tabs));
-    },
-  });
-
-  // a file tab became active and stays so a moment: the most recent file of this root (Alt+E, M6-13).
-  // The next active change cancels the wait (also when it activates a non-file tab).
-  lm.startListening({
-    predicate: (_a, st, was) => st.tabs.active !== was.tabs.active,
-    effect: async (_a, api) => {
-      api.cancelActiveListeners();
-      const at = restoredRoot;
-      if (!at) return;
       const { tabs } = api.getState();
-      const f = tabs.open.find((x) => x.id === tabs.active);
-      if (f?.kind !== 'file') return;
-      try { await api.delay(RECENT_DWELL_MS); } catch { return; } // cancelled
-      const now = api.getState().tabs;
-      if (now.active === f.id && now.root === at) pushRecent(at, { path: f.path, ...(f.src !== 'here' && { src: f.src }), ...(f.ref && { ref: f.ref }) });
+      if (tabs.root) storage.local(tabsKey(tabs.root), json(), null).set(serializeTabs(tabs));
     },
   });
 }

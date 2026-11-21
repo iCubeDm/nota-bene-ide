@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
-import { makeStore } from '@/testing';
+import { makeStore, stubRoutes } from '@/testing';
+import { clearRefCache, openRef } from '../refs/refs.ts';
 import { MediaController } from '../media/mediaController.ts';
 import { filesSlice, setFileLoad } from '../files/slice.ts';
 import { setSource, toggleDir } from '../tree/slice.ts';
@@ -359,4 +360,21 @@ it('a duplicate id in the saved list restores once', () => {
   const m = mk();
   m.session('/dup');
   expect(ids(m.store)).toEqual(['chat', 'file:a.md', diagramTabId(SRC)]);
+});
+
+it('the first root keeps the ref cache; another root drops it (its paths get other HEAD answers)', async () => {
+  clearRefCache();
+  const net = stubRoutes({ '/file': () => new Response(null, { status: 200 }), '/sources': [] });
+  const heads = () => net.calls.filter((r) => r.method === 'HEAD').length;
+  const m = mk();
+  const open = () => m.store.dispatch(openRef('a.md', document.createElement('span')));
+  await open();
+  m.session('/r1');
+  await open();
+  expect(heads()).toBe(1);
+  m.session('/r2');
+  await open();
+  expect(heads()).toBe(2);
+  net.restore();
+  clearRefCache();
 });

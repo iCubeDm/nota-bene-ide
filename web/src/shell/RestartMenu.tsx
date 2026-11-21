@@ -4,7 +4,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
 import { ConfirmDialog } from '@/components/ConfirmDialog.tsx';
 import { cancelRestart, restartAgent, restartInPause, restartServer, selectRestartPending, selectSwitching } from '@/controls/slice.ts';
-import { selectPagePause } from './pagePause.ts';
+import { usePagePause } from './pagePause.ts';
 import { selectConn, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { routes } from '@/sdk/routes.ts';
@@ -20,7 +20,7 @@ export const PAUSE_ASK_MS = 5_000;
  */
 function useRestartInPause(pending: boolean): void {
   const d = useAppDispatch();
-  const paused = useAppSelector((s) => selectPagePause(s, { draft: false }));
+  const paused = usePagePause({ draft: false });
   const switching = useAppSelector(selectSwitching);
   useEffect(() => {
     if (!pending || !paused || switching) return;

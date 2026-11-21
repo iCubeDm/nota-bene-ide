@@ -145,12 +145,13 @@ a step touches them (the boundary check counts them outside `web/src/sdk/`).
 - Tabs: `openTab`, `openFile(path, at?)`, `activate`, `closeTab`, `selectTabs`, `type Tab`, augmentable
   `interface TabKinds` (`Tab = TabKinds[keyof TabKinds]`), registered the same way as `PluginState`.
 - **Root change.** The listener that sees a new `feed.session.root` stays core (`store/persist.ts`) and dispatches
-  `enterRoot({ root, first })` with no plugin data; today it reads `readSavedTabs` and `readSavedDirs`
-  (`persist.ts:36-45`) and `tabs/slice.ts:76` takes them in the action. Each owner restores its own saved state in its
-  own listener on `enterRoot`: core `tabs` its tabs; `files` its tree dirs, recent files, the sources reload and the
-  ref cache. **Listener order** is registration order: core listeners first (the root-change listener first of all,
-  then core `tabs`), then each plugin's in `PLUGINS` order, a plugin's own in its declared order. Saving listeners
-  compare before/after as today, so a restore dispatched by an earlier listener is seen by the later ones.
+  `enterRoot({ root, first, tabs })` with no plugin data: the core tabs' saved state rides in the action, as before,
+  because a separate restore would be a second pass through the media middleware and report two tab switches (one is
+  pinned). Each plugin restores its own saved state in its own listener on `enterRoot`: `files` its tree dirs, recent
+  files, the sources reload and the ref cache. **Listener order** is registration order: core listeners first (the
+  root-change listener first of all, then core `tabs`), then each plugin's in `PLUGINS` order, a plugin's own in its
+  declared order. Saving listeners compare before/after as today, so a restore dispatched by an earlier listener is
+  seen by the later ones.
 - Registries are built once from `plugins` (`buildRegistry`), frozen, and read with `useRegistry()` or
   `registry(store)`.
 
@@ -431,8 +432,9 @@ flags). §3.3 "Versioning" points at `FEATURES`. §2.3 names `HostWindow.id` and
     proved window type is renamed `ProvedWindow`.
 22. **Repository events come from `AgentConnection.onEvent`**, called after the store applied the event. The
     connection is the single owner of connection state; the store mirrors it with one `connState` dispatch.
-23. **Root change**: core dispatches `enterRoot({ root, first })`; each owner restores its own saved state in its own
-    listener; order is core first, then `PLUGINS` order.
+23. **Root change**: core dispatches `enterRoot({ root, first, tabs })` (the core tabs ride in the action: one media
+    pass, one tab switch); each plugin restores its own saved state in its own listener; order is core first, then
+    `PLUGINS` order.
 24. **One state rule** (slice / `useResource` / `storage` / component state); no new `useSyncExternalStore`
     singletons, counted by the boundary check.
 25. **A Dart import test** (`test/imports_test.dart`) for the two leak classes the review found, instead of a lint.
