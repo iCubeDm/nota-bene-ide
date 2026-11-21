@@ -1,8 +1,8 @@
 import type { FC, MutableRefObject, Ref, SyntheticEvent } from 'react';
-import type { Anchor, Comment, TextAnchor } from '@nota-bene/shared';
-import type { I18nKey, t } from '../i18n/index.ts';
+import type { Anchor, Comment, ImageRef, TextAnchor } from '@nota-bene/shared';
+import type { I18nKey, Lang, t } from '../i18n/index.ts';
 import type { ru } from '../i18n/ru.ts';
-import type { AppStore, AppThunk, RootState } from '../store/store.ts';
+import type { AppDispatch, AppStore, AppThunk, RootState } from '../store/store.ts';
 import type { FeedItem } from '../store/feed.ts';
 import type { FileKind } from '../refs/kinds.ts';
 import type { Tab, TabKinds } from '../tabs/slice.ts';
@@ -178,6 +178,53 @@ export interface AnchorView {
   orphan?: false | ((c: Comment, root: HTMLElement) => boolean);
   /** drawn as an outline (not as text) over `root`, its file's text root: where it is now, read on each paint; null: not shown */
   place?(c: Comment, root: HTMLElement | undefined): (() => DOMRect | null) | null;
+  /**
+   * One picture for comments of one send marking one frame, uploaded (its attachment id): the first one's frame image,
+   * every member's shapes and its number in the batch. Rejects when it cannot be made: each goes with its own frame.
+   */
+  composite?(members: { n: number; comment: Comment }[]): Promise<string>;
+}
+
+/**
+ * How a send ended (`chat.send`). 'building': a part is being made ready (a combined image); the send finishes by
+ * itself. 'changed': a part changed, or the session did, while it waited; nothing went. 'blocked', 'detached', 'empty':
+ * nothing taken, a part said why.
+ */
+export type SendResult = 'detached' | 'empty' | 'blocked' | 'sent' | 'offline' | 'switching' | 'building' | 'changed';
+
+/** What a part knows of the send taking it. */
+export interface TakeCtx {
+  /** a recording's send: no draft, nothing waits */
+  voice: boolean;
+  registry: Registry;
+}
+
+/** What a part took at the click: its items are its own until it is composed, or given back. */
+export interface Taken {
+  /** resolved once it can be composed; the send waits for it up to `COMPOSITE_MS` */
+  ready?: Promise<void>;
+  /** still what was taken (checked after the wait) */
+  unchanged?(s: RootState): boolean;
+  /** its part of the message; `images`: the message's images before its own, numbered from 1 */
+  compose(ctx: { s: RootState; lang: Lang; images: readonly ImageRef[] }): { text?: string; images?: ImageRef[]; commentIds?: string[] };
+  /** the message went, as `id` */
+  sent?(id: string): void;
+  /** the message did not go, or the server refused it: what was taken is the part's again */
+  released?(): void;
+}
+
+/**
+ * A part of the message a send collects (issue 511): the composer's draft, the comments riding along. Taken in
+ * ascending order at the click; a result instead of a `Taken` ends the send there (a `! cmd` run, a held /clear).
+ */
+export interface SendPart {
+  id: string;
+  order: number;
+  /** the items it would take now: the Send button's count */
+  count?(s: RootState): number;
+  /** it holds items that wait, even ones that cannot go now (a /clear and a `! cmd` wait for them) */
+  waiting?(s: RootState): boolean;
+  take(s: RootState, d: AppDispatch, o: TakeCtx): Taken | SendResult | null;
 }
 
 /** What the plugins contribute, built once per store from its plugins and frozen. */
@@ -194,6 +241,8 @@ export interface Registry {
   /** by ascending order */
   fileViews: readonly FileView[];
   anchorViews: ReadonlyMap<AnchorKind, AnchorView>;
+  /** by ascending order */
+  sendParts: readonly SendPart[];
 }
 
 /**
@@ -240,10 +289,17 @@ export function buildRegistry(plugins: readonly Plugin[], core: readonly Command
     if (anchorViews.has(v.kind)) throw new Error(`registry: the anchor kind "${v.kind}" is shown twice`);
     anchorViews.set(v.kind, v);
   }
+  const sendParts: SendPart[] = [];
+  for (const p of plugins.flatMap((x) => x.sendParts ?? [])) {
+    if (sendParts.some((x) => x.id === p.id)) throw new Error(`registry: the send part "${p.id}" is declared twice`);
+    if (sendParts.some((x) => x.order === p.order)) throw new Error(`registry: two send parts at order ${p.order}`);
+    sendParts.push(p);
+  }
   return Object.freeze({
     tabs, slots, commands: Object.freeze(commands.sort((a, b) => a.order - b.order)),
     feed, tools: Object.freeze(plugins.flatMap((p) => p.tools ?? [])), userParts: Object.freeze(userParts.sort((a, b) => a.order - b.order)),
     fileViews: Object.freeze(fileViews.sort((a, b) => a.order - b.order)), anchorViews,
+    sendParts: Object.freeze(sendParts.sort((a, b) => a.order - b.order)),
   });
 }
 

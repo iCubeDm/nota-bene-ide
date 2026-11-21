@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { ImageType } from '@nota-bene/shared';
-import { connState, serverEvent, type RootState } from '@/sdk';
+import { connState, sendBuilding, serverEvent, type RootState } from '@/sdk';
 
 /** What the last `! cmd` took out of the composer; kept until the server's `shell-start`, so a `shell-refused` can put the draft back. */
 export type ShellDraft = { id: string; draft: string };
@@ -12,7 +12,7 @@ export type ImageEntry = { id: string; mediaType: ImageType };
  * `uploading` counts uploads in flight (their thumbnails are component state): a send waits for it to reach 0.
  */
 /** What the last send took out of the composer; kept until the server's `user` echo, so a `send-refused` can put it back. */
-export type SentDraft = { id: string; text: string; images: ImageEntry[]; commentIds: string[] };
+export type SentDraft = { id: string; text: string; images: ImageEntry[] };
 
 export const composerSlice = createSlice({
   name: 'composer',
@@ -29,7 +29,6 @@ export const composerSlice = createSlice({
     markAttachment: (s, a: PayloadAction<string | null>) => void (s.marking = a.payload),
     uploadStarted: (s) => void (s.uploading += 1),
     uploadFinished: (s) => void (s.uploading = Math.max(0, s.uploading - 1)),
-    setBuilding: (s, a: PayloadAction<boolean>) => void (s.building = a.payload),
     draftSent: (s, a: PayloadAction<SentDraft>) => void (s.unconfirmed = a.payload),
     shellDraftSent: (s, a: PayloadAction<ShellDraft>) => void (s.shellUnconfirmed = a.payload),
   },
@@ -42,10 +41,10 @@ export const composerSlice = createSlice({
       if ((ev.kind === 'shell-start' && ev.id === s.shellUnconfirmed?.id) || ev.kind === 'shell-refused' || ev.kind === 'replay') s.shellUnconfirmed = null;
     }).addCase(connState, (s, a) => {
       if (a.payload !== 'open') s.unconfirmed = s.shellUnconfirmed = null; // the refusal can no longer arrive on this socket
-    }),
+    }).addCase(sendBuilding, (s, a) => void (s.building = a.payload)),
 });
 
-export const { setDraft, addImage, removeImage, clearImages, markAttachment, uploadStarted, uploadFinished, setBuilding, draftSent, shellDraftSent } = composerSlice.actions;
+export const { setDraft, addImage, removeImage, clearImages, markAttachment, uploadStarted, uploadFinished, draftSent, shellDraftSent } = composerSlice.actions;
 export const selectDraft = (s: RootState): string => s.composer.draft;
 export const selectImages = (s: RootState): ImageEntry[] => s.composer.images;
 export const selectUploading = (s: RootState): number => s.composer.uploading;

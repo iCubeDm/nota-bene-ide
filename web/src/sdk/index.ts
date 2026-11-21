@@ -82,14 +82,16 @@ export {
 export { seekAndPause, type MediaController, type PipApi } from '../store/mediaController.ts';
 export { usePagePause } from '../shell/pagePause.ts';
 
-import { answerPermission, interrupt, sendMessage, takeOver } from '../store/store.ts';
+import { answerPermission, interrupt, takeOver } from '../store/store.ts';
+import { send } from '../store/send.ts';
+export { sendBuilding, sendCount, sendWaiting } from '../store/send.ts';
 
 /**
  * The chat's thunks. Each one calls through: this module may be evaluated inside the store module's import cycle (a
  * plugin the store imports imports the SDK), before those bindings exist.
  */
 export const chat = {
-  send: (...a: Parameters<typeof sendMessage>) => sendMessage(...a),
+  send: (...a: Parameters<typeof send>) => send(...a),
   interrupt: () => interrupt(),
   answer: (...a: Parameters<typeof answerPermission>) => answerPermission(...a),
   takeOver: () => takeOver(),
@@ -98,4 +100,4 @@ export const chat = {
 // tabs
 export { openFile, openAgent, activate, closeTab, selectTabs, enterRoot, fileTabId, type Tab, type TabKinds, type DiagramLang } from '../tabs/slice.ts';
 export { requestJump, clearJump, dropJump, selectJump, type Jump } from '../tabs/jump.ts';
-export { feedRenderer, anchorView, type AnchorView, type AnchorKind, type TabView, type Slot, type SlotName, type Command, type KeyId, type Mods, type FeedRenderer, type AnyFeedRenderer, type FeedKind, type Held, type ToolRenderer, type ToolItem, type UserPart, type FileView, type TextFileView, type MediaFileView, type MediaLoad, type FileBar } from './registry.ts';
+export { feedRenderer, anchorView, type AnchorView, type AnchorKind, type TabView, type Slot, type SlotName, type Command, type KeyId, type Mods, type FeedRenderer, type AnyFeedRenderer, type FeedKind, type Held, type ToolRenderer, type ToolItem, type UserPart, type FileView, type SendPart, type Taken, type SendResult, type TextFileView, type MediaFileView, type MediaLoad, type FileBar } from './registry.ts';

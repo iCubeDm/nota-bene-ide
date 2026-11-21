@@ -3,6 +3,7 @@ import { definePlugin } from '@/sdk';
 import { markupSlice, selectDraft } from './markup/slice.ts';
 import { MediaBody } from './MediaBody.tsx';
 import { MediaCard } from './MediaCard.tsx';
+import { composite } from './markup/createMediaComment.ts';
 
 declare module '@/sdk' {
   interface PluginState extends WithSlice<typeof markupSlice> {}
@@ -16,6 +17,6 @@ export const mediaPlugin = definePlugin({
     // while marking up, the media is held as it is (the drawing belongs to this frame); leaving catches up
     holds: (s, tabId) => selectDraft(s, tabId).on,
   }],
-  // a mark is drawn from relative coordinates: never orphaned
-  anchorViews: [{ kind: 'media', Card: MediaCard, orphan: false }],
+  // a mark is drawn from relative coordinates: never orphaned; marks on one frame in one send share one picture
+  anchorViews: [{ kind: 'media', Card: MediaCard, orphan: false, composite }],
 });

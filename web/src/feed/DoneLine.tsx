@@ -47,7 +47,7 @@ function TurnCut({ noticeKey }: { noticeKey: string }) {
       {offer && !sent ? (
         <>
           {' · '}
-          <button type="button" title={t('turnCutContinueTip')} onClick={() => { if (d(chat.send(t('turnCutMessage'), false))) setSent(true); }} className="text-link hover:underline">
+          <button type="button" title={t('turnCutContinueTip')} onClick={() => { if (d(chat.send(t('turnCutMessage'), { parts: [] })) === 'sent') setSent(true); }} className="text-link hover:underline">
             {t('turnCutContinue')}
           </button>
         </>

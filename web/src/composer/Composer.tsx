@@ -1,10 +1,8 @@
 import { useAutosize } from './autosize.ts';
 import { AgentAccount } from '@/controls/AgentAccount.tsx';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat } from '@/sdk';
+import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat, sendCount, sendWaiting } from '@/sdk';
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
-import { selectSendable, sendBatch } from '@/comments/send.ts';
-import { selectPending } from '@/comments/slice.ts';
 import { CompactClear } from '@/controls/CompactClear.tsx';
 import { ModePill } from '@/controls/ModePill.tsx';
 import { nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching } from '@/controls/slice.ts';
@@ -36,14 +34,15 @@ import { useSeekStep } from '@/media/seekStep.ts';
 
 export function Composer() {
   const t = useT();
-  const { commands } = useRegistry();
+  const registry = useRegistry();
+  const { commands } = registry;
   const seekStep = useSeekStep();
   const dispatch = useAppDispatch();
   const busy = useAppSelector(selectBusy);
   const conn = useAppSelector(selectConn);
   const onAgentTab = useAppSelector((s) => s.tabs.active.startsWith('agent:')); // the message goes to the main agent, not the subagent on screen
-  const nPending = useAppSelector(selectSendable).length;
-  const anyPending = useAppSelector(selectPending).length; // also comments detached from the composer: Send stays on to say why they wait
+  const nPending = useAppSelector((s) => sendCount(registry, s));
+  const anyPending = useAppSelector((s) => sendWaiting(registry, s)); // also comments detached from the composer: Send stays on to say why they wait
   const mode = useAppSelector(selectMode);
   const caps = useAppSelector(selectCapabilities);
   const text = useAppSelector(selectDraft);
@@ -165,7 +164,7 @@ export function Composer() {
 
   // the mic shows while the field has no text; an image (also one still uploading) is something to send, as on the phone
   const hasText = !!text.trim();
-  const canSend = hasText || images.length > 0 || intake.pending.length > 0 || anyPending > 0;
+  const canSend = hasText || images.length > 0 || intake.pending.length > 0 || anyPending;
 
   // Send goes off once there is nothing left (a send, or the field emptied): keep the caret in the field if the button that
   // had it lost it (a disabled button, or one that finished after its composite images were built)
@@ -228,7 +227,7 @@ export function Composer() {
     }
     setAskForce(false);
     endRecall();
-    const r = dispatch(sendBatch(force));
+    const r = dispatch(chat.send('', { force }));
     if (r === 'empty' || r === 'detached' || r === 'blocked' || r === 'switching' || r === 'building' || r === 'changed') return;
     setFailed(r === 'offline');
     if (r === 'sent') ref.current?.focus();

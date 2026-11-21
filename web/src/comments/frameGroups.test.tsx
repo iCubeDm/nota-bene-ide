@@ -11,6 +11,7 @@ import { addImage, setDraft } from '@/composer/slice.ts';
 import { editComment, removeComment } from './slice.ts';
 import { getToasts, resetToasts } from '@/shell/toast.ts';
 import { drawBadges } from '@/media/markup/badges.ts';
+import { composite } from '@/media/markup/createMediaComment.ts';
 import * as fg from './frameGroups.ts';
 import { sendBatch } from './send.ts';
 
@@ -100,7 +101,7 @@ it('buildComposites itself never rejects: a failing group is left out', async ()
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404 })));
   const pending = [mc('c1'), mc('c2')];
   const real = await vi.importActual<typeof import('./frameGroups.ts')>('./frameGroups.ts');
-  expect([...(await real.buildComposites(pending, real.frameGroups(pending)))]).toEqual([]);
+  expect([...(await real.buildComposites(pending, real.frameGroups(pending), composite))]).toEqual([]);
   vi.unstubAllGlobals();
 });
 

@@ -5,7 +5,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setLang } from '@/i18n/index.ts';
 import { serverEvent } from '@/store/store.ts';
 import { testStore, type FakeConnection } from '@/testing';
-import { draftSent, setBuilding, setDraft, uploadStarted } from '@/composer/slice.ts';
+import { draftSent, setDraft, uploadStarted } from '@/composer/slice.ts';
+import { sendBuilding } from '@/sdk';
 import { reloadPage } from '@/shell/reloadPage.ts';
 import { recheckUpdate, UpdateNotice } from './UpdateNotice.tsx';
 
@@ -231,8 +232,8 @@ it('ready: an upload, a send not yet echoed, a combined image being built, a run
   answer = { ...status, canUpdate: true, phase: 'ready' };
   const holds: [string, () => void][] = [
     ['upload', () => store.dispatch(uploadStarted())],
-    ['unconfirmed send', () => store.dispatch(draftSent({ id: 'u1', text: 'hi', images: [], commentIds: [] }))],
-    ['building', () => store.dispatch(setBuilding(true))],
+    ['unconfirmed send', () => store.dispatch(draftSent({ id: 'u1', text: 'hi', images: [] }))],
+    ['building', () => store.dispatch(sendBuilding(true))],
     ['! command', () => store.dispatch(serverEvent({ kind: 'shell-start', id: 's1', cmd: 'npm test', ts: 1 }))],
     ['task', () => store.dispatch(serverEvent({ kind: 'agent', e: { t: 'task', id: 't1', phase: 'started', desc: 'build', type: 'local_bash' }, ts: 1 }))],
   ];

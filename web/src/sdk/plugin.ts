@@ -1,6 +1,6 @@
 import type { Middleware, Slice } from '@reduxjs/toolkit';
 import type { RootState, StartListening } from '../store/store.ts';
-import type { AnchorView, AnyFeedRenderer, AnyTabView, Command, FileView, Slot, ToolRenderer, UserPart } from './registry.ts';
+import type { AnchorView, AnyFeedRenderer, AnyTabView, Command, FileView, SendPart, Slot, ToolRenderer, UserPart } from './registry.ts';
 
 /**
  * The plugins' part of the store's state. Empty here: each plugin's `plugin.ts` adds its slices by declaration merging
@@ -43,6 +43,8 @@ export interface Plugin {
   fileViews?: FileView[];
   /** how comments on its kinds of anchors show; a kind is shown by one plugin only */
   anchorViews?: AnchorView[];
+  /** its parts of a message the user sends; an id and an order are declared once */
+  sendParts?: SendPart[];
 }
 
 export const definePlugin = (p: Plugin): Plugin => p;
