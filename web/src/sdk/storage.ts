@@ -67,9 +67,11 @@ function put(key: string, raw: string | null): void {
   } catch { memory.set(key, raw); /* storage unavailable or full: not persisted, held for the page */ }
   for (const fn of [...(listeners.get(key) ?? [])]) fn();
 }
-// another tab's write (issue 545): its key's listeners hear it at once, every key's on a clear (`key` null)
+// another tab's write (issue 545): its key's listeners hear it at once, every key's on a clear (`key` null); its
+// sessionStorage is not ours
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
+    if (e.storageArea !== localStorage) return;
     for (const [key, set] of listeners) if (e.key === null || e.key === key) for (const fn of [...set]) fn();
   });
 }

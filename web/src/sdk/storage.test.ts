@@ -101,7 +101,7 @@ it('another tab\'s write re-renders at once: its key\'s listeners, and every key
     if (key === null) localStorage.clear();
     else if (value === null) localStorage.removeItem(key);
     else localStorage.setItem(key, value);
-    window.dispatchEvent(new StorageEvent('storage', { key, newValue: value }));
+    window.dispatchEvent(new StorageEvent('storage', { key, newValue: value, storageArea: localStorage }));
   });
   fromOtherTab('k.tabA', 'a1');
   expect([ra.result.current, rb.result.current]).toEqual(['a1', 'b0']);
@@ -109,6 +109,15 @@ it('another tab\'s write re-renders at once: its key\'s listeners, and every key
   expect([ra.result.current, rb.result.current]).toEqual(['a1', 'b1']);
   fromOtherTab(null, null);
   expect([ra.result.current, rb.result.current]).toEqual(['a0', 'b0']);
+});
+
+it('another tab\'s sessionStorage write or clear notifies no one', () => {
+  const fn = vi.fn();
+  const off = storage.local('k.session', string, 'a0').subscribe(fn);
+  window.dispatchEvent(new StorageEvent('storage', { key: null, storageArea: sessionStorage }));
+  window.dispatchEvent(new StorageEvent('storage', { key: 'k.session', newValue: 'x', storageArea: sessionStorage }));
+  off();
+  expect(fn).not.toHaveBeenCalled();
 });
 
 it('storage unavailable: reads fall back, a set holds for the page', () => {
