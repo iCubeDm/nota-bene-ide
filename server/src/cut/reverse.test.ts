@@ -152,11 +152,12 @@ describe('CutReverse', () => {
     it('one copy at a time; a copy that takes too long is stopped and answers timeout', async () => {
       media('slow.mp4', 'HANG AV');
       media('b.mp4', 'AV');
-      const r = make({ ffmpeg: () => bin, timeoutMs: 300 });
+      let spawns = 0;
+      const r = make({ ffmpeg: () => bin, timeoutMs: 300, spawned: () => { spawns++; } });
       await r.get('slow.mp4', 0, 1);
       await r.get('b.mp4', 0, 1);
-      await new Promise((res) => setTimeout(res, 150));
-      expect(copies()).toBe(1); // b waits
+      await until(async () => (spawns > 0 ? true : null)); // the first copy has started, however slow a cold start is
+      expect(spawns).toBe(1); // b waits
       expect(await until(() => refused(r.get('slow.mp4', 0, 1)).catch(() => null))).toEqual([504, 'timeout']);
       expect(await until(() => r.get('b.mp4', 0, 1))).toMatch(/\.mp4$/);
     });
