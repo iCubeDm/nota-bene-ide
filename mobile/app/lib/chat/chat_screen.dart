@@ -95,7 +95,10 @@ class _ChatScreenState extends State<ChatScreen> {
   /// The top band's height as the last build knew it (the feed keeps this much clear).
   double _topClear = 0;
   final _targets = <String, GlobalKey>{};
-  late ParagraphTargets _paragraphs = ParagraphTargets(widget.tab);
+  late ParagraphTargets _paragraphs = ParagraphTargets(
+    widget.tab,
+    bottom: _band,
+  );
 
   @override
   void initState() {
@@ -108,7 +111,7 @@ class _ChatScreenState extends State<ChatScreen> {
     super.didUpdateWidget(old);
     if (old.tab != widget.tab) {
       _paragraphs.dispose();
-      _paragraphs = ParagraphTargets(widget.tab);
+      _paragraphs = ParagraphTargets(widget.tab, bottom: _band);
     }
     if (old.focus != widget.focus) {
       old.focus?._go = null;
@@ -363,14 +366,11 @@ class _ChatScreenState extends State<ChatScreen> {
       _band.value = 64 + safe;
     }
     _seeded = true;
-    _paragraphs.bottomInset = _band.value;
     return Scaffold(
       body: FileOpener(
         tab: widget.tab,
         child: ParagraphHost(
-          targets: _paragraphs
-            ..topInset = top
-            ..bottomInset = _band.value,
+          targets: _paragraphs..topInset = top,
           child: FloatingRoom(
             clip: _clip,
             child: BandInset(

@@ -5,6 +5,7 @@ import 'package:nb_app/chat/chat_header.dart';
 import 'package:nb_app/chat/chat_screen.dart';
 import 'package:nb_app/chat/composer.dart';
 import 'package:nb_app/chat/panes.dart';
+import 'package:nb_app/chat/paragraph.dart';
 import 'package:nb_app/comments/comment_strip.dart';
 import 'package:nb_app/comments/comments_pane.dart';
 import 'package:nb_app/files/files_pane.dart';
@@ -50,5 +51,23 @@ void main() {
       {for (final w in around) w: built[w] ?? 0},
       {for (final w in around) w: 0},
     );
+  });
+
+  testWidgets('the paragraph popup keeps clear of the field as it grows', (
+    t,
+  ) async {
+    final r = Rig();
+    addTearDown(r.dispose);
+    await r.open(t);
+    final targets = ParagraphHost.maybeOf(
+      t.element(find.byKey(const ValueKey('feed'))),
+    )!;
+    double band() =>
+        t.getSize(find.byKey(const ValueKey('band-solid-bottom'))).height;
+    expect(targets.bottomInset, band());
+    final before = band();
+    await t.enter('one\ntwo\nthree\nfour');
+    expect(band(), greaterThan(before));
+    expect(targets.bottomInset, band());
   });
 }
