@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { UsageProvider } from '@nota-bene/shared';
-import { renameRetry } from '../platform.ts';
+import { updateJson, writeAtomic } from '../atomicFile.ts';
 import { stateBaseDir } from '../state.ts';
 import type { CodexContext, UsageRecord } from './parse.ts';
 
@@ -13,12 +13,6 @@ export type FileState = { offset: number; v?: number; context?: CodexContext };
 export type ImportState = Record<string, FileState>;
 
 export const usageDir = (): string => path.join(stateBaseDir(), 'usage');
-
-function writeAtomic(file: string, data: string): void {
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, data, { mode: 0o600 });
-  renameRetry(tmp, file);
-}
 
 function readJson<T>(file: string, fallback: T): T {
   try {
@@ -94,7 +88,7 @@ export class UsageStore {
 
   writeState(state: ImportState): void {
     this.ensure();
-    writeAtomic(this.path(`${this.provider}.state.json`), JSON.stringify(state));
+    writeAtomic(this.path(`${this.provider}.state.json`), JSON.stringify(state), 0o600);
   }
 
   /** One window imports at a time; a lock left by a dead one goes stale. Returns the release, or null if another holds it. */
@@ -126,7 +120,6 @@ export class UsageStore {
 
   resetTrip(now: number): void {
     this.ensure();
-    const file = this.path('trips.json');
-    writeAtomic(file, JSON.stringify({ ...readJson<Record<string, unknown>>(file, {}), [this.provider]: now }));
+    updateJson(this.path('trips.json'), (d) => ({ ...(d && typeof d === 'object' ? d : {}), [this.provider]: now }), { mode: 0o600 });
   }
 }

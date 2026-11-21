@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { renameRetry } from '../platform.ts';
+import { withLock, writeJsonAtomic } from '../atomicFile.ts';
 import { agentOutput } from './bin.ts';
 import type { AgentProvider } from './provider.ts';
 import { CODEX_MIN_VERSION, OMP_MIN_VERSION } from './versions.ts';
@@ -107,8 +107,7 @@ export function readChoices(base: string): [string, AgentProvider][] {
 export function rememberAgent(base: string, dir: string, agent: AgentProvider): void {
   try {
     fs.mkdirSync(base, { recursive: true, mode: 0o700 });
-    const file = path.join(base, FILE), tmp = `${file}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, `${JSON.stringify({ ...read(base), [dir]: agent }, null, 2)}\n`, { mode: 0o600 });
-    renameRetry(tmp, file);
+    const file = path.join(base, FILE);
+    withLock(file, () => writeJsonAtomic(file, { ...read(base), [dir]: agent }, { space: 2, newline: true, mode: 0o600 }));
   } catch { /* the choice is only a default for next time */ }
 }
