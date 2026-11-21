@@ -1,5 +1,4 @@
-import { json, storage } from '@/sdk';
-import type { SavedFile } from '@/tabs/slice.ts';
+import { json, storage, type SavedFile } from '@/sdk';
 
 /** Recently opened files of a project root, newest first (M6-13). Stored under `recent:<root>`, at most RECENT_MAX. */
 export const RECENT_MAX = 50;

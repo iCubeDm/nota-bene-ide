@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
+import { Provider } from 'react-redux';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
+import { testStore } from '@/testing';
 import { setLang } from '@/i18n/index.ts';
 import { RecordBar } from './RecordBar.tsx';
 import type { RecState } from './useVoiceRecorder.ts';
@@ -9,8 +11,10 @@ afterEach(cleanup);
 setLang('en');
 const live: RecState = { phase: 'recording', held: false, ms: 1000, levels: [] };
 const preview: RecState = { phase: 'preview', recording: { wav: new Blob([]), ms: 3000, wave: Array(48).fill(3) }, url: '' };
+// the store names the send's key (its registered commands)
+const { store } = testStore();
 const bar = (state: Exclude<RecState, { phase: 'idle' }>, onCancel = vi.fn(), onSend = vi.fn(), extra: object = {}) => (
-  <TooltipProvider><RecordBar state={state} onCancel={onCancel} onSend={onSend} {...extra} /></TooltipProvider>
+  <Provider store={store}><TooltipProvider><RecordBar state={state} onCancel={onCancel} onSend={onSend} {...extra} /></TooltipProvider></Provider>
 );
 const esc = (target: Element = document.body, init: KeyboardEventInit = {}) => fireEvent.keyDown(target, { key: 'Escape', ...init });
 

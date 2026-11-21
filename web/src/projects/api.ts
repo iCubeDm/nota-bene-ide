@@ -1,8 +1,7 @@
 // The project switcher's and the starter's client side: the server routes of server/src/projectRoutes.ts, their answer
 // types (mirrored: the web does not import from server/), the polled list, and the move of this tab to another window.
 import { useEffect, useRef, useState } from 'react';
-import { t, connections, defineResource, routes, toast, useResource } from '@/sdk';
-import { remotePage } from '@/net/local.ts';
+import { t, connections, defineResource, routes, toast, useResource, remotePage } from '@/sdk';
 
 export type Provider = 'claude' | 'codex' | 'omp';
 export type ProjectState = 'working' | 'waiting' | 'idle' | 'restarting' | 'silent';

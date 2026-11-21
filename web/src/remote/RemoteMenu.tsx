@@ -1,9 +1,6 @@
 import type { RemoteState } from '@nota-bene/shared';
-import { useT, useAppDispatch, useAppSelector } from '@/sdk';
-import { DropdownMenuItem, MENU_ROW } from '@/sdk/ui';
-import { remotePage } from '@/net/local.ts';
-import { openRemote } from '@/tabs/slice.ts';
-import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
+import { useT, useAppDispatch, useAppSelector, openRemote, remotePage } from '@/sdk';
+import { DropdownMenuItem, MENU_ROW, ICONS, Svg } from '@/sdk/ui';
 import { indicator, selectRemote, type Indicator } from './slice.ts';
 
 const DOT: Record<Indicator, string> = { off: '', connecting: 'bg-warn', online: 'bg-success', trouble: 'bg-destructive' };

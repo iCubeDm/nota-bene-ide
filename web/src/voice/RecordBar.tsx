@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
 import { PlaneIcon } from '@/composer/MessageInput.tsx';
-import { useT, keyLabel, modKey } from '@/sdk';
+import { useT, modKey, useRegistry, keysFor } from '@/sdk';
 import { clock } from './lang.ts';
 import type { RecState } from './useVoiceRecorder.ts';
 import { release as releasePlay } from './player.ts';
@@ -12,7 +12,7 @@ const forcing = (e: { metaKey: boolean; ctrlKey: boolean }) => e.metaKey || e.ct
 /** The Send button's tooltip: its keys; while the agent works, that they queue and which key interrupts (issue 463: one line). */
 function useSendTip(busy: boolean): string {
   const t = useT();
-  const alt = keyLabel('hk_voice');
+  const alt = keysFor(useRegistry().commands, 'hk_voice');
   return busy ? t('voiceSendBusyTip', alt, `${modKey()}Enter`) : t('voiceSendTip', alt);
 }
 

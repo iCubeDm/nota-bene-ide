@@ -324,7 +324,7 @@ export function Composer() {
               anchor={micBox}
               disabled={switching}
               label={t('voiceMic')}
-              tip={withKey(t('voiceMic'), 'hk_voice')}
+              tip={withKey(registry.commands, t('voiceMic'), 'hk_voice')}
               onPointerDown={micDown}
               onClick={(e) => (whisper ? e.detail === 0 && rec.start(false) : setSetup((o) => !o))}
             />

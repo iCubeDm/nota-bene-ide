@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { useT, routes, storage, string, defineResource, useResource, usePagePause, reloadPage } from '@/sdk';
+import { useT, routes, storage, string, defineResource, useResource, usePagePause, reloadPage, connections } from '@/sdk';
 import { Popover, PopoverContent, PopoverTrigger } from '@/sdk/ui';
-import { apiFetch } from '@/net/auth.ts';
 import { Markdown } from '@/feed/Markdown.tsx';
 
 /** the newest version the user put off with Later */
@@ -39,7 +38,7 @@ type Status = {
 export const recheckUpdate = () => window.dispatchEvent(new Event(RECHECK));
 
 const post = (path: string, body?: unknown) =>
-  apiFetch(path, { method: 'POST', ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }) });
+  connections.current().fetch(path, { method: 'POST', ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }) });
 
 const popoverStyle = 'grid w-[420px] gap-2 p-3 text-xs';
 const chip = 'flex-none rounded border border-primary px-1.5 py-px font-mono text-[0.6875rem] text-link hover:bg-primary/10';
@@ -77,7 +76,7 @@ function UpdatedTo({ v, from, stale }: { v: string; from: string; stale: boolean
   if (gone && !stale) return null;
   const open = (on: boolean) => {
     if (on) {
-      void apiFetch(routes.systemUpdateChanges(from))
+      void connections.current().fetch(routes.systemUpdateChanges(from))
         .then(async (r) => (r.ok ? ((await r.json()) as { text: string | null }).text : null))
         .then((text) => { if (text) setChanges(text); }, () => {});
     } else {
@@ -259,7 +258,7 @@ export function UpdateNotice() {
   if (!update.latest || update.latest === seen) return updated;
   const open = (on: boolean) => {
     if (!on || changes?.v === latest) return;
-    void apiFetch(routes.systemUpdateChanges())
+    void connections.current().fetch(routes.systemUpdateChanges())
       .then(async (r) => (r.ok ? ((await r.json()) as { text: string | null }).text : null))
       .then((text) => { if (text) setChanges({ v: latest, text }); }, () => {});
   };

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { dropJump, headVersion, useAppDispatch, useAppSelector, type FileKind, takeStartAt, type StartAt } from '@/sdk';
+import { dropJump, headVersion, useAppDispatch, useAppSelector, type FileKind, takeStartAt, type StartAt, fileTabId } from '@/sdk';
 import { selectMediaComments } from '@/comments/slice.ts';
 import { selectRefreshSeq } from '../treeSlice.ts';
-import { fileTabId } from '@/tabs/slice.ts';
 import { dropFileLoad, setFileLoad, setFileVersion } from '../slice.ts';
 
 const MAX_BYTES = 2 * 1024 * 1024;

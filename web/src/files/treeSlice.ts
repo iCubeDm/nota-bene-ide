@@ -1,6 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { bool, json, storage, type AppThunk, type RootState } from '@/sdk';
-import { enterRoot } from '../tabs/slice.ts';
+import { bool, json, storage, type AppThunk, type RootState, enterRoot } from '@/sdk';
 
 /**
  * `open`: the sheet. `src`: the source it shows ('here', 'ref:<branch>', 'dir:<hash>'; M3-16). `dirs`: expanded folders of

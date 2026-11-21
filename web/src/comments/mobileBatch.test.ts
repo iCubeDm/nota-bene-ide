@@ -7,7 +7,7 @@ import { expect, it } from 'vitest';
 import { generatedImages, isAttachmentAnchor, parseClientMessage, type Comment } from '@nota-bene/shared';
 import { tIn, type Lang } from '@/i18n/index.ts';
 import { composeBatch } from './compose.ts';
-import { instructionOf, labelOf } from './labels.ts';
+import { instructionOf, labelOf } from '@/anchors/labels.ts';
 import { whereOf } from './send.ts';
 
 const base = { status: 'pending' as const, createdAt: 1 };

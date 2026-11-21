@@ -1,6 +1,5 @@
 import DOMPurify from 'dompurify';
-import { t, type DiagramLang } from '@/sdk';
-import { theme } from '@/shell/theme.ts';
+import { t, type DiagramLang, theme } from '@/sdk';
 
 /**
  * Markdown from any repo branch is rendered, so it is hostile input: no <style> (global CSS), no form controls, and no

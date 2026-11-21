@@ -1,4 +1,4 @@
-import { useT, useAppDispatch, useAppSelector, withKey } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, withKey, useRegistry } from '@/sdk';
 import { DRAWER_ID, INDICATOR_ID } from './TasksDrawer.tsx';
 import { selectDrawerOpen, selectFinishedCount, selectRunningCount, selectWatcherCount, toggleDrawer } from './slice.ts';
 
@@ -8,6 +8,7 @@ import { selectDrawerOpen, selectFinishedCount, selectRunningCount, selectWatche
  */
 export function TasksIndicator() {
   const t = useT();
+  const { commands } = useRegistry();
   const d = useAppDispatch();
   const running = useAppSelector(selectRunningCount);
   const finished = useAppSelector(selectFinishedCount);
@@ -24,7 +25,7 @@ export function TasksIndicator() {
         aria-expanded={open}
         aria-controls={open ? DRAWER_ID : undefined}
         aria-label={t('tasksLabel')}
-        title={withKey(t('tasksLabel'), 'hk_tasks')}
+        title={withKey(commands, t('tasksLabel'), 'hk_tasks')}
         onClick={() => d(toggleDrawer())}
         className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-muted/50 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
       >

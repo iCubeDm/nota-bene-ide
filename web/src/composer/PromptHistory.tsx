@@ -1,5 +1,5 @@
 import { type ReactElement, type RefObject, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { useT, withKey, useAppSelector } from '@/sdk';
+import { useT, withKey, useAppSelector, useRegistry } from '@/sdk';
 import { Button, Popover, PopoverAnchor, PopoverContent, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { ago } from '@/controls/SessionPicker.tsx';
 import { searchPrompts, selectPromptItems } from './history.ts';
@@ -14,6 +14,7 @@ const SHOWN_MAX = 200;
  */
 export function PromptHistory({ onPick, onClosed, anchor }: { onPick: (text: string) => void; onClosed: () => void; anchor?: RefObject<HTMLElement | null> }) {
   const t = useT();
+  const { commands } = useRegistry();
   const open = useSyncExternalStore(promptHistoryModal.subscribe, promptHistoryModal.get);
   const items = useAppSelector(selectPromptItems);
   const [q, setQ] = useState('');
@@ -61,7 +62,7 @@ export function PromptHistory({ onPick, onClosed, anchor }: { onPick: (text: str
                 </svg>
               </Button>
             </TooltipTrigger>
-            <TooltipContent className="whitespace-pre-line">{withKey(t('promptHistory'), 'hk_promptHistory')}</TooltipContent>
+            <TooltipContent className="whitespace-pre-line">{withKey(commands, t('promptHistory'), 'hk_promptHistory')}</TooltipContent>
           </Tooltip>
         </span>
       </PopoverAnchorOr>

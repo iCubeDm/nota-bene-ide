@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent } from 'react';
 import type { ImageEntry } from '@/composer/slice.ts';
-import { t } from '@/sdk';
-import { isLocalPage } from '@/net/local.ts';
+import { t, isLocalPage } from '@/sdk';
 import { uploadFile, UploadError } from './file.ts';
 import { prepareImage, uploadImage } from './image.ts';
 import type { PendingThumb } from './Attachments.tsx';

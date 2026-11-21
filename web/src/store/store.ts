@@ -16,7 +16,7 @@ import { adoptHello } from '../sdk/storage.ts';
 import type { Plugin, PluginState } from '../sdk/plugin.ts';
 import { buildRegistry, type Registry } from '../sdk/registry.ts';
 import { sendListener, type SentParts } from './send.ts';
-import { CORE_COMMANDS, setCommands } from '../shell/keymap.ts';
+import { CORE_COMMANDS } from '../shell/keymap.ts';
 import { learnServerSep } from '../lib/paths.ts';
 import { persistListeners } from './persist.ts';
 import { emptyFeed, historyPrepended, prependHistory, reduce, type FeedState } from './feed.ts';
@@ -161,7 +161,6 @@ export function makeStore(o: {
   mediaByStore.set(store, media);
   pluginsByStore.set(store, o.plugins);
   registryByStore.set(store, registered);
-  setCommands(registered.commands);
   bindConnections(store, connections);
   const self = agentConnection({
     id: SELF,

@@ -1,7 +1,5 @@
-import { selectTabs, useAppDispatch, useAppSelector, useFocusWithin, useT } from '@/sdk';
-import { ToolButton } from '@/sdk/ui';
-import { openChanges, openLog } from '@/tabs/slice.ts';
-import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
+import { selectTabs, useAppDispatch, useAppSelector, useFocusWithin, useT, openChanges, openLog } from '@/sdk';
+import { ToolButton, ICONS, Svg } from '@/sdk/ui';
 import { setTreeOpen } from '@/files/treeSlice.ts';
 import { setPanel, useVcsUi } from './store.ts';
 

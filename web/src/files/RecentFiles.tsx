@@ -1,9 +1,8 @@
+import { focusTab } from '@/sdk/ui';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Dialog as DialogPrimitive } from 'radix-ui';
-import { useT, selectSession, useAppDispatch, useAppSelector, openFile, selectTabs, connections, routes } from '@/sdk';
-import { fileTabId, type SavedFile } from '@/tabs/slice.ts';
+import { useT, selectSession, useAppDispatch, useAppSelector, openFile, selectTabs, connections, routes, fileTabId, type SavedFile } from '@/sdk';
 import { FileIcon } from './FileIcon.tsx';
-import { focusTab } from '@/tabs/TabStrip.tsx';
 import { readRecent, recentModal } from './recent.ts';
 
 const DEBOUNCE_MS = 120;

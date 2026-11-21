@@ -1,13 +1,12 @@
 import { BATCH_HEAD, generatedImages, isMediaAnchor } from '@nota-bene/shared';
 import { useEffect, useRef, useState, type HTMLAttributes, type KeyboardEvent } from 'react';
 import { Attachments } from '@/attachments/Attachments.tsx';
-import { getLang, useT, useAppDispatch, useAppSelector, useRegistry, anchorLine, anchorView, type UserPart, selectSwitching } from '@/sdk';
+import { getLang, useT, useAppDispatch, useAppSelector, useRegistry, anchorLine, anchorView, type UserPart, selectSwitching, labelOf, labelText, QUICK_LABELS } from '@/sdk';
 import { Tooltip, TooltipTrigger } from '@/sdk/ui';
 import { Markdown } from '@/feed/Markdown.tsx';
 import { ClipRow } from '@/voice/ClipRow.tsx';
 import { CardActions } from './CardActions.tsx';
 import { useCommentSource } from './useCommentSource.ts';
-import { labelOf, labelText, QUICK_LABELS } from '../labels.ts';
 import { LabelTip } from '../LabelTip.tsx';
 import { editComment, removeComment, selectComments, selectSentFor } from '../slice.ts';
 

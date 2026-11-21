@@ -1,7 +1,6 @@
+import { type RootState, enterRoot } from '@/sdk';
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { MARK_COLORS, type MarkColor, type MediaShape } from '@nota-bene/shared';
-import type { RootState } from '@/sdk';
-import { enterRoot } from '../../tabs/slice.ts';
 
 /** `polygon`: the Mask tool (issue 447, from `polygons`). */
 export type MarkTool = 'rect' | 'ellipse' | 'pen' | 'arrow' | 'polygon';

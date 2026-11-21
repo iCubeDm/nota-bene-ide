@@ -1,12 +1,11 @@
 import { VIDEO } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
-import { useT, connections, routes, isMac, toast, useAppDispatch, openFile, projectFileUrl } from '@/sdk';
+import { useT, connections, routes, isMac, toast, useAppDispatch, openFile, projectFileUrl, isLocalPage } from '@/sdk';
 import { ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/sdk/ui';
 import { isEditMedia, newCutOf } from '@/cut/assemble.ts';
 import { srcSize } from '@/cut/durations.ts';
 import { mediaLen } from '@/cut/mediaLen.ts';
 import { editTargetName, useEditTarget } from '@/cut/targets.ts';
-import { isLocalPage } from '@/net/local.ts';
 import { diskChanged } from '../treeSlice.ts';
 
 const folderOf = (p: string) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');

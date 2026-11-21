@@ -1,10 +1,12 @@
+import { useT } from '@/sdk';
 import { useRef, useState, type RefObject } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
-import { useT } from '@/i18n/index.ts';
 import { useAppDispatch, useAppSelector, useRegistry } from '@/store/store.ts';
 import { tabView } from '@/sdk/registry.ts';
 import { activate, selectTabs, type Tab } from './slice.ts';
-import { Svg, TabIcon, focusTab } from './TabStrip.tsx';
+import { TabIcon } from './TabStrip.tsx';
+import { Svg } from '../components/icons.tsx';
+import { focusTab } from './focus.ts';
 
 /** The ids of the tabs not fully inside the strip's visible width (a 1 px slack for subpixel layouts). */
 export function hiddenTabs(strip: HTMLElement): Set<string> {

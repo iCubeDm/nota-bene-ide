@@ -3,7 +3,7 @@ import { getLang, chooseLang, LANGS, useT } from '@/i18n/index.ts';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, MENU_ROW as row } from '@/components/ui/dropdown-menu.tsx';
 import { selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { openSettings, openUsage } from '@/tabs/slice.ts';
-import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
+import { ICONS, Svg } from '@/components/icons.tsx';
 import { shortHome } from '@/lib/paths.ts';
 import { toast } from './toast.ts';
 import { useTabAligned } from './tabAlign.ts';
