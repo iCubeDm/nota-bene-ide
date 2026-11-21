@@ -801,8 +801,9 @@ func TestStalledHostDoesNotKillDevice(t *testing.T) {
 			}
 		}
 	}()
-	// The device may see the host's death (4404) but never a keepalive cut.
-	if c := closeCode(t, d.c); c == 4408 {
+	// Keepalive cuts the stalled host; the device learns its death (4404),
+	// never a keepalive cut of its own.
+	if c := closeCode(t, d.c); c != 4404 {
 		t.Fatalf("device closed %d", c)
 	}
 }
