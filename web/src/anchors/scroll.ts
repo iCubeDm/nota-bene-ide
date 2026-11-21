@@ -1,4 +1,4 @@
-import { rangeRect } from '@/page/frame.ts';
+import { rangeRect } from './frame.ts';
 
 /**
  * Centres a range in its pane's scroll element by the range's own rect. Scrolling an ancestor element into view

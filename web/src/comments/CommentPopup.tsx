@@ -2,7 +2,7 @@ import { useAutosize } from '@/composer/autosize.ts';
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from 'react-redux';
 import { has, isAttachmentAnchor, isMediaAnchor, isTextAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
-import { getLang, useT, useAppDispatch, useAppSelector, anchorLine, type RootState, toast } from '@/sdk';
+import { getLang, useT, useAppDispatch, useAppSelector, anchorLine, type RootState, toast, clearPageSelections } from '@/sdk';
 import { Button, Tooltip, TooltipTrigger } from '@/sdk/ui';
 import { selectCapabilities, selectSwitching } from '@/controls/slice.ts';
 import { ClipRow } from '@/voice/ClipRow.tsx';
@@ -25,7 +25,6 @@ import type { ImageEntry } from '@/composer/slice.ts';
 import { deleteMarks, type MediaAnchorPatch } from '@/media/markup/createMediaComment.ts';
 import { addComment, setPanelOpen } from './slice.ts';
 import { useDrag } from './useDrag.ts';
-import { clearPageSelections } from '@/page/frame.ts';
 
 /**
  * What the popup comments on. A text selection: anchor + rect (+ the letter typed to open it). A media drawing adds

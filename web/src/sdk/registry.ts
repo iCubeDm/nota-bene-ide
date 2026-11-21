@@ -1,8 +1,8 @@
 import type { FC, MutableRefObject, Ref, SyntheticEvent } from 'react';
-import type { Comment } from '@nota-bene/shared';
+import type { Anchor, Comment, TextAnchor } from '@nota-bene/shared';
 import type { I18nKey, t } from '../i18n/index.ts';
 import type { ru } from '../i18n/ru.ts';
-import type { AppStore, RootState } from '../store/store.ts';
+import type { AppStore, AppThunk, RootState } from '../store/store.ts';
 import type { FeedItem } from '../store/feed.ts';
 import type { FileKind } from '../refs/kinds.ts';
 import type { Tab, TabKinds } from '../tabs/slice.ts';
@@ -160,6 +160,26 @@ export interface MediaFileView extends FileViewBase {
 
 export type FileView = TextFileView | MediaFileView;
 
+/** The kinds of anchor a plugin shows; a text anchor, which has no kind, is the comments' own. */
+export type AnchorKind = Exclude<Anchor, TextAnchor>['kind'];
+
+/**
+ * How a comment on one kind of anchor shows in the UI (issue 511). A kind without one, or without a part, has the
+ * comments' own: the core's `anchorLine` on its card, its source opened, its quote looked for in its file's text. What
+ * the agent reads of a comment stays core (`anchors/quote.ts`): the batch is a contract the phone mirrors.
+ */
+export interface AnchorView {
+  kind: AnchorKind;
+  /** its place on the comment's card, in place of the line; `jump` shows the place (none in a popover) */
+  Card?: FC<{ comment: Comment; jump?: () => void }>;
+  /** shows the place, in place of opening the comment's source */
+  reveal?(c: Comment): AppThunk;
+  /** false: never orphaned (a mark on a picture, a clip); else whether its place is gone from `root`, the pane showing its file */
+  orphan?: false | ((c: Comment, root: HTMLElement) => boolean);
+  /** drawn as an outline (not as text) over `root`, its file's text root: where it is now, read on each paint; null: not shown */
+  place?(c: Comment, root: HTMLElement | undefined): (() => DOMRect | null) | null;
+}
+
 /** What the plugins contribute, built once per store from its plugins and frozen. */
 export interface Registry {
   tabs: ReadonlyMap<string, AnyTabView>;
@@ -173,6 +193,7 @@ export interface Registry {
   userParts: readonly UserPart[];
   /** by ascending order */
   fileViews: readonly FileView[];
+  anchorViews: ReadonlyMap<AnchorKind, AnchorView>;
 }
 
 /**
@@ -214,10 +235,15 @@ export function buildRegistry(plugins: readonly Plugin[], core: readonly Command
     if (fileViews.some((x) => x.id === v.id)) throw new Error(`registry: the file view "${v.id}" is declared twice`);
     fileViews.push(v);
   }
+  const anchorViews = new Map<AnchorKind, AnchorView>();
+  for (const v of plugins.flatMap((p) => p.anchorViews ?? [])) {
+    if (anchorViews.has(v.kind)) throw new Error(`registry: the anchor kind "${v.kind}" is shown twice`);
+    anchorViews.set(v.kind, v);
+  }
   return Object.freeze({
     tabs, slots, commands: Object.freeze(commands.sort((a, b) => a.order - b.order)),
     feed, tools: Object.freeze(plugins.flatMap((p) => p.tools ?? [])), userParts: Object.freeze(userParts.sort((a, b) => a.order - b.order)),
-    fileViews: Object.freeze(fileViews.sort((a, b) => a.order - b.order)),
+    fileViews: Object.freeze(fileViews.sort((a, b) => a.order - b.order)), anchorViews,
   });
 }
 
@@ -231,3 +257,6 @@ export const tabView = <T extends Tab>(r: Registry, tab: T): TabView<T['kind']> 
 
 /** A tab's name, in the strip and its menu alike (issue 469); a kind no plugin shows is named by its kind. */
 export const tabLabel = (r: Registry, tab: Tab, tr: typeof t, s: RootState): string => tabView(r, tab)?.label(tab, tr, s) ?? tab.kind;
+
+/** How a comment on this anchor shows, when a plugin shows its kind (a text anchor is the comments' own). */
+export const anchorView = (r: Registry, a: Anchor): AnchorView | undefined => ('kind' in a ? r.anchorViews.get(a.kind) : undefined);

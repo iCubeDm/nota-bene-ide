@@ -297,6 +297,21 @@ run in parallel with 5–11.
   With the jump: `feed/uiSlice.ts` → `subagent/slice.ts` (`revealToolOf`'s `itemsOf`), and with `refs` the feed's file
   edges (`Markdown` → `files/*`, `media/ChatPlayer.tsx`; `ToolLine` → `files/tmpImages.ts`).
 - **Produces:** `FileView`, `AnchorView`.
+- **Delivered** (two PRs, 10c-1 and 10c-2): `fileViews` (`cut` 10, `page` 20, `media` 30; `cut` and `page` are new
+  plugins), the text being the file tab's own (every unmatched file, and a text view's ‹Source›); the jump in a core
+  slice (`tabs/jump.ts`, was `files.jump`); where files are (`kinds`, `sources`, `tmpImages`, `startAt`,
+  `headVersion`) and the page frame's helpers (`anchors/frame.ts`) moved into the core and the SDK; `anchorViews`
+  (`attachment` card and reveal, `cut` card, `media` card, `page` orphan and outline); `revealToolOf` takes the
+  conversation's items. `sdkReach` is empty.
+- **Rulings:** a text view is `{ label, tip, writes?, jump?(c), render({ text, bar }) }` and a media view `{ media:
+  true, holds?(s, tabId), render({ media: MediaLoad }) }`: the tab keeps the header, the load (one per tab, held
+  while marking), the ‹View | Source› switch and the editor, so a view gets its text or its media rather than loading
+  itself; `jump?(c)` says which comments the view shows, and the view takes them itself. The page's own header controls
+  go through two portal targets. `AnchorView.orphan` is `false` (never orphaned, before any load check) or a judgement
+  over the file's pane; `place` (the highlight layer's outline) is added, `reveal` returns a thunk; a text anchor has
+  no kind and stays the comments'. The page needs no card or reveal (`anchorLine` and the file jump are its). The
+  moved singletons keep their `useSyncExternalStore` entries under their new paths. Left: `frameGroups` → `media/markup`
+  (the send's composites, 10d) and `Markdown` → `media/ChatPlayer.tsx` (with `Markdown` → `diagram/`, 11).
 - **Tests:** the `FileView*` tests green (jump, cut, edit, tmp); duplicate file view id throws at build; the card,
   popup and highlight tests green; e2e.
 - **Baseline:** plugin→plugin −~20 (files↔cut, files→media/page). The SDK barrels' reach loses `refs/refs.ts` →

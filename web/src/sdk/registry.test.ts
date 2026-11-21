@@ -118,3 +118,15 @@ it('a file is shown by the first view that matches it: an edit, a page, a media 
   const of = (p: string) => r.fileViews.find((v) => v.match(p, kindOf(p)))?.id;
   expect(['e.nbcut.json', 'a.html', 'b.HTM', 'p.png', 'v.mp4', 's.mp3', 'n.md', 'x.ts'].map(of)).toEqual(['cut', 'page', 'page', 'media', 'media', 'media', undefined, undefined]);
 });
+
+it('an anchor kind two plugins show fails the build', () => {
+  const av = (id: string): Plugin => ({ id, anchorViews: [{ kind: 'page', orphan: false }] });
+  expect(() => buildRegistry([av('a'), av('b')])).toThrow('the anchor kind "page" is shown twice');
+});
+
+it('each kind of anchor is shown by its plugin, with what it adds to the comments\' own', () => {
+  const parts = (v: object) => Object.keys(v).filter((k) => k !== 'kind').sort().join(' ');
+  expect(Object.fromEntries([...buildRegistry(PLUGINS).anchorViews].map(([k, v]) => [k, parts(v)]))).toEqual({
+    attachment: 'Card reveal', cut: 'Card orphan', media: 'Card orphan', page: 'orphan place',
+  });
+});

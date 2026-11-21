@@ -1,13 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { has, type Anchor, type AnchorSource } from '@nota-bene/shared';
-import { makeAnchor, offsetsOf, textOf, useT, useAppDispatch, useAppSelector, editable } from '@/sdk';
+import { makeAnchor, offsetsOf, textOf, useT, useAppDispatch, useAppSelector, editable, clearPageSelections, pageRoot, pageSelection, rangeRect } from '@/sdk';
 import { Button, Tooltip, TooltipTrigger } from '@/sdk/ui';
 import type { QuickLabelId } from '@nota-bene/shared';
 import { selectSwitching } from '@/controls/slice.ts';
 import { labelsFor, labelText } from './labels.ts';
 import { LabelTip } from './LabelTip.tsx';
 import { addComment, setPanelOpen } from './slice.ts';
-import { clearPageSelections, pageRoot, pageSelection, rangeRect } from '@/page/frame.ts';
 
 /** What the popup (M1-10) needs: where the text is anchored and where to put the popup; `text` is what was typed to open it. */
 export type PendingSelection = { anchor: Anchor; rect: DOMRect; text?: string };
