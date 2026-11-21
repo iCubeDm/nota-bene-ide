@@ -1,4 +1,4 @@
-import { getLang, t as tNow } from '@/i18n/index.ts';
+import { getLang, t as tNow } from '@/core/i18n/index.ts';
 
 // Every number the UI shows, in the UI language (issue 469): one Intl formatter per language and kind, made once.
 const made = new Map<string, Intl.NumberFormat>();

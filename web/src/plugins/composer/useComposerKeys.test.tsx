@@ -2,7 +2,7 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { Provider } from 'react-redux';
 import { afterEach, expect, it, vi } from 'vitest';
-import { testStore } from '@/testing';
+import { testStore } from '@/core/testing';
 import { selectDraft } from './slice.ts';
 import { useComposerKeys, type ComposerKeys } from './useComposerKeys.ts';
 

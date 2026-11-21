@@ -2,14 +2,14 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import type { Anchor, Comment } from '@nota-bene/shared';
-import { makeAnchor } from '@/anchors/resolve.ts';
-import { rangeForAnchor, textOf } from '@/anchors/text.ts';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { CommentCard } from '@/comments/CommentCard.tsx';
-import { composeBatch } from '@/comments/compose.ts';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { makeAnchor } from '@/core/anchors/resolve.ts';
+import { rangeForAnchor, textOf } from '@/core/anchors/text.ts';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { CommentCard } from '@/plugins/comments/CommentCard.tsx';
+import { composeBatch } from '@/plugins/comments/compose.ts';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 import { Feed } from './Feed.tsx';
 
 // M6-06: user messages, comment cards and batch details are markdown (sanitised); anchors read the rendered text

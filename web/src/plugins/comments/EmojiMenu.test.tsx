@@ -1,9 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/testing';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { makeStore } from '@/core/testing';
 import { CommentPopup } from './CommentPopup.tsx';
 import { loadEmoji } from './emoji.ts';
 import type { PendingSelection } from './SelectionButton.tsx';

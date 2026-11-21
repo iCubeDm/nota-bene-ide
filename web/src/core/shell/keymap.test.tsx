@@ -1,12 +1,12 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { setLang, t } from '@/i18n/index.ts';
-import { connState, serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { setLang, t } from '@/core/i18n/index.ts';
+import { connState, serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 import { App } from '@/App.tsx';
-import { setRecentOpen } from '@/files/slice.ts';
-import { openFile, selectTabs } from '@/tabs/slice.ts';
+import { setRecentOpen } from '@/plugins/files/slice.ts';
+import { openFile, selectTabs } from '@/core/tabs/slice.ts';
 import { PLUGINS } from '@/plugins.ts';
 import { buildRegistry } from '@/sdk/registry.ts';
 import { CORE_COMMANDS, keysLabel, modKey, withKey } from './keymap.ts';

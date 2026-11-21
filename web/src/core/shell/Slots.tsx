@@ -1,5 +1,5 @@
 import type { FC } from 'react';
-import { useRegistry } from '@/store/store.ts';
+import { useRegistry } from '@/core/store/store.ts';
 import type { Slot, SlotName } from '@/sdk/registry.ts';
 
 /** The frame's own part of a slot; module-level, so its component is the same on every render. */

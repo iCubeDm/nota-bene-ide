@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { setLang } from '@/i18n/index.ts';
+import { setLang } from '@/core/i18n/index.ts';
 import { PanelResizer, usePanelWidth } from './PanelResizer.tsx';
 
 beforeEach(() => {

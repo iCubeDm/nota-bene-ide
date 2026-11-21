@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
-import { setLang } from '@/i18n/index.ts';
+import { setLang } from '@/core/i18n/index.ts';
 import { CompactingLine, DoneLine, MarkerLine, NoticeLine } from './DoneLine.tsx';
 
 afterEach(() => setLang('ru'));

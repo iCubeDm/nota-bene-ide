@@ -1,6 +1,6 @@
 // One file's diff full screen, unified: the old and new line numbers beside the code, added and removed lines tinted
 // with the theme's tokens, no wrapping (a pinch scales the text, both ways pan; the rows are built as they scroll), selectable text, copy, and a comment on a
-// selection anchored as the desktop's diff anchors it (web/src/vcs/DiffBody.tsx): the file's path (with the commit's
+// selection anchored as the desktop's diff anchors it (web/src/plugins/vcs/DiffBody.tsx): the file's path (with the commit's
 // short hash for a commit's diff) and the text of the code rows with the markers and numbers left out.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

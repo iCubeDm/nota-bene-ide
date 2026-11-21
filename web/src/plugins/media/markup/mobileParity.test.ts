@@ -6,7 +6,7 @@ import path from 'node:path';
 import { expect, it } from 'vitest';
 import type { MediaShape } from '@nota-bene/shared';
 import { rectFrom, simplify } from './geometry.ts';
-import { describeShape, mediaTime } from '@/anchors/quote.ts';
+import { describeShape, mediaTime } from '@/core/anchors/quote.ts';
 
 const shapes: MediaShape[] = [
   { kind: 'rect', color: '#ff3b30', x: 0.42, y: 0.4, w: 0.16, h: 0.24 },
@@ -40,7 +40,7 @@ it('the desktop side of the media fixtures', () => {
     simplify: pens.map((points) => ({ points, eps: [0.0015, 0.003, 0.2].map((e) => ({ e, out: simplify(points, e) })) })),
     rectFrom: corners.map(([a, b]) => ({ a, b, r: rectFrom(a, b) })),
   };
-  const out = path.resolve(__dirname, '../../../../mobile/app/test/fixtures/media/shapes.json');
+  const out = path.resolve(__dirname, '../../../../../mobile/app/test/fixtures/media/shapes.json');
   const json = JSON.stringify(data, null, 1) + '\n';
   if (process.env.UPDATE_FIXTURES) {
     fs.mkdirSync(path.dirname(out), { recursive: true });

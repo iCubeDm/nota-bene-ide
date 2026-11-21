@@ -2,22 +2,22 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { CLAUDE_CAPABILITIES, type ClientMessage } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/testing';
-import { release, resetPlayer } from '@/voice/player.ts';
-import { mic } from '@/voice/recorder.ts';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { makeStore } from '@/core/testing';
+import { release, resetPlayer } from '@/plugins/voice/player.ts';
+import { mic } from '@/plugins/voice/recorder.ts';
 import { CommentPopup } from './CommentPopup.tsx';
 import type { PendingComment } from '@/sdk';
 import type { PendingSelection } from './SelectionButton.tsx';
 
 // the clip's player, watched: a deleted clip stops and forgets it
-vi.mock('@/voice/player.ts', async (orig) => {
-  const m = await orig<typeof import('@/voice/player.ts')>();
+vi.mock('@/plugins/voice/player.ts', async (orig) => {
+  const m = await orig<typeof import('@/plugins/voice/player.ts')>();
   return { ...m, release: vi.fn(m.release) };
 });
-vi.mock('@/lib/image.ts', async (orig) => ({
-  ...(await orig<typeof import('@/lib/image.ts')>()),
+vi.mock('@/core/lib/image.ts', async (orig) => ({
+  ...(await orig<typeof import('@/core/lib/image.ts')>()),
   prepareImage: async (f: File) => f,
   uploadImage: async () => ({ id: 'e'.repeat(64), mediaType: 'image/png' }),
 }));

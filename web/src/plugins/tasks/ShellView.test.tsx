@@ -2,10 +2,10 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ClientMessage, ServerEvent, TaskOutputView, WireAgentEvent } from '@nota-bene/shared';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
-import { restoreTabs, serializeTabs, type ShellTab } from '@/tabs/slice.ts';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { restoreTabs, serializeTabs, type ShellTab } from '@/core/tabs/slice.ts';
 import { SHELL_POLL_MS, ShellView } from './ShellView.tsx';
 
 const tab: ShellTab = { id: 'shell:sh1', kind: 'shell', task: 'sh1', title: 'tail -f build.log' };

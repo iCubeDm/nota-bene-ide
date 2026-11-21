@@ -16,7 +16,7 @@ import { zhCN } from './zh-CN.ts';
 const LIMIT = 50;
 
 const DICTS = { en, ru, 'zh-CN': zhCN, es, 'pt-BR': ptBR, de } as Record<string, Record<string, unknown>>;
-const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 /**
  * Tooltip keys that reach a `title` or a tooltip through a variable or a helper's argument, so the source scan below

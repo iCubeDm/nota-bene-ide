@@ -148,7 +148,7 @@ void main() {
   });
 
   group(
-    'rendered text, against the desktop (web/src/anchors/mobileParity.test.tsx)',
+    'rendered text, against the desktop (web/src/core/anchors/mobileParity.test.tsx)',
     () {
       final dir = Directory('test/fixtures/md');
       final fixtures =

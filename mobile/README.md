@@ -26,7 +26,7 @@ and builds the Go relay, so it needs `node` (>=23.6) and `go` on PATH and `npm c
 temporary `NOTA_BENE_HOME` and free loopback ports.
 
 Comments use the desktop's text anchors. `app/lib/comments/anchor.dart` builds the desktop's rendered text from the
-Markdown, and `web/src/anchors/mobileParity.test.tsx` writes the desktop's text of `app/test/fixtures/md/*.md` to the
+Markdown, and `web/src/core/anchors/mobileParity.test.tsx` writes the desktop's text of `app/test/fixtures/md/*.md` to the
 `.txt` beside each file (`UPDATE_FIXTURES=1`), which `app/test/anchor_test.dart` compares. The quick labels and the
 batch strings in `app/lib/comments/strings.g.dart` come from `web/src` through `npm run gen:protocol`.
 
@@ -54,7 +54,7 @@ The agent menu's Usage item opens the host's usage report (`app/lib/usage/usage_
 and `POST /usage/reset` through the channel, like the desktop's Usage tab. Its words are the web's own: the strings
 generator copies every `usage*` key of the English dictionary, in all six languages, into
 `app/lib/comments/strings.g.dart`. The number formatters (`app/lib/usage/format.dart`) are pinned to the desktop's by
-`web/src/usage/mobileFormat.test.ts`; dates are not pinned.
+`web/src/plugins/usage/mobileFormat.test.ts`; dates are not pinned.
 
 ## Voice messages
 

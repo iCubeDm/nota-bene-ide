@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import type { ServerEvent } from '@nota-bene/shared';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 import { loadEarlier } from './history.ts';
 
 afterEach(() => vi.unstubAllGlobals());

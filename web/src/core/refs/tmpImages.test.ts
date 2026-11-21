@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { setServerSep } from '@/lib/paths.ts';
+import { setServerSep } from '@/core/lib/paths.ts';
 import { isTmpImagePath, isTmpTabPath, tmpDirsOf, tmpImagePathsIn, tmpImageUrl } from './tmpImages.ts';
 
 /** the folders a hello named (tmpDirsOf: as the controls slice keeps them) */

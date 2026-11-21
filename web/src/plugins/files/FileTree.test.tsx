@@ -2,11 +2,11 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ServerEvent, TreeEntry } from '@nota-bene/shared';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 import { diskChanged, revealInTree, setTreeOpen } from './treeSlice.ts';
-import { openFile, selectTabs } from '@/tabs/slice.ts';
+import { openFile, selectTabs } from '@/core/tabs/slice.ts';
 import { FileTree } from './FileTree.tsx';
 
 let fs: Record<string, TreeEntry[]>;

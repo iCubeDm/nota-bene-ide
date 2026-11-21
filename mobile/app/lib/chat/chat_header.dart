@@ -22,7 +22,7 @@ String providerLetter(AgentProvider? provider) => switch (provider) {
   AgentProvider.$unknown || null => '?',
 };
 
-/// The web's level of a limit meter (web/src/stats/Meters.tsx): 0 below 60%, 1 (warn) from 60%, 2 (hot) from 85%.
+/// The web's level of a limit meter (web/src/plugins/stats/Meters.tsx): 0 below 60%, 1 (warn) from 60%, 2 (hot) from 85%.
 int meterLevel(num pct) => pct >= 85
     ? 2
     : pct >= 60

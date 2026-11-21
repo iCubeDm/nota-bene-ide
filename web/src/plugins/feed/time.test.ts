@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { FeedItem } from '@/store/feed.ts';
+import type { FeedItem } from '@/core/store/feed.ts';
 import { clockTime, dayLabel, dayStarts, fullTime } from './time.ts';
 
 // local times, so the tests hold in any time zone

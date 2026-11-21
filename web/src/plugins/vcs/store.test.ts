@@ -1,6 +1,6 @@
 import { beforeEach, expect, it } from 'vitest';
-import { setTreeOpen } from '@/files/treeSlice.ts';
-import { makeStore } from '@/testing';
+import { setTreeOpen } from '@/plugins/files/treeSlice.ts';
+import { makeStore } from '@/core/testing';
 import { pickBase, setPanel, setSplit } from './store.ts';
 
 // the git views' state is the vcs slice (issue 545); its listeners save what outlives the page and share the left side

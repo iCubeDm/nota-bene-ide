@@ -2,11 +2,11 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { CLAUDE_CAPABILITIES, type ClientMessage } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/testing';
-import { mic } from '@/voice/recorder.ts';
-import { installKeymap } from '@/shell/keymap.ts';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { makeStore } from '@/core/testing';
+import { mic } from '@/plugins/voice/recorder.ts';
+import { installKeymap } from '@/core/shell/keymap.ts';
 import { Composer } from './Composer.tsx';
 
 type Dict = { on: boolean; phase: string; downloadMb: number; diskMb: number; dir: string; model: string };

@@ -7,8 +7,8 @@ const small = { jpeg: new Blob([new Uint8Array(3)], { type: 'image/jpeg' }), png
 const renderMarks = vi.fn(async (..._a: unknown[]) => ({ frame, layer, scale: 1 }));
 vi.mock('./render.ts', () => ({ renderMarks: (...a: unknown[]) => renderMarks(...a) }));
 // the downscaled copy: a distinct blob, so the test sees which body went where
-vi.mock('@/lib/image.ts', async (orig) => ({
-  ...(await orig<typeof import('@/lib/image.ts')>()),
+vi.mock('@/core/lib/image.ts', async (orig) => ({
+  ...(await orig<typeof import('@/core/lib/image.ts')>()),
   prepareImage: vi.fn(async (b: Blob) => (b.type === 'image/jpeg' ? small.jpeg : small.png)),
 }));
 

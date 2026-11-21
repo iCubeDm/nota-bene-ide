@@ -3,11 +3,11 @@ import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ServerEvent } from '@nota-bene/shared';
-import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/testing';
-import { Header } from '@/shell/Header.tsx';
-import { Stopped } from '@/shell/Stopped.tsx';
-import { getToasts, resetToasts } from '@/shell/toast.ts';
+import { setLang } from '@/core/i18n/index.ts';
+import { makeStore } from '@/core/testing';
+import { Header } from '@/core/shell/Header.tsx';
+import { Stopped } from '@/core/shell/Stopped.tsx';
+import { getToasts, resetToasts } from '@/core/shell/toast.ts';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 

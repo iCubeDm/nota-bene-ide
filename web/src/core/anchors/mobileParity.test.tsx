@@ -6,9 +6,9 @@ import path from 'node:path';
 import { cleanup, render } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, expect, it, vi } from 'vitest';
-import { textOf } from '@/anchors/text.ts';
-import { Markdown } from '@/components/markdown/Markdown.tsx';
-import { makeStore } from '@/testing';
+import { textOf } from '@/core/anchors/text.ts';
+import { Markdown } from '@/core/components/markdown/Markdown.tsx';
+import { makeStore } from '@/core/testing';
 
 vi.mock('mermaid', () => ({
   default: { initialize: vi.fn(), render: vi.fn(async () => ({ svg: '<svg><text>A</text></svg>' })) },
@@ -16,7 +16,7 @@ vi.mock('mermaid', () => ({
 
 afterEach(cleanup);
 
-const dir = path.resolve(__dirname, '../../../mobile/app/test/fixtures/md');
+const dir = path.resolve(__dirname, '../../../../mobile/app/test/fixtures/md');
 const names = fs.readdirSync(dir).filter((f) => f.endsWith('.md')).sort();
 
 it('has the fixtures', () => expect(names.length).toBeGreaterThanOrEqual(5));

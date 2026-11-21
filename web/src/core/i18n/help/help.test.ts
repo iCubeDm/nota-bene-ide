@@ -6,7 +6,7 @@ import { en } from '../en.ts';
 import { LANGS } from '../index.ts';
 import { HELP, HELP_ENTRIES } from './index.ts';
 
-const GUIDE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../docs/guide.md');
+const GUIDE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../../docs/guide.md');
 
 /** a heading's anchor as GitHub makes it: lower case, punctuation dropped, spaces to hyphens */
 const slug = (h: string) => h.trim().toLowerCase().replace(/[^\p{L}\p{N} _-]/gu, '').replace(/ /g, '-');

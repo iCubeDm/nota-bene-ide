@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { setLang } from '@/i18n/index.ts';
+import { setLang } from '@/core/i18n/index.ts';
 import type { CutPlayer, PlayerState } from './engine.ts';
 import { Meter } from './Meter.tsx';
 

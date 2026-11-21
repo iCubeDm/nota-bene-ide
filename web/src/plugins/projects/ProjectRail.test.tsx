@@ -1,11 +1,11 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { setLang, t } from '@/i18n/index.ts';
-import { makeStore } from '@/testing';
-import { getToasts } from '@/shell/toast.ts';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { page } from '@/net/local.ts';
+import { setLang, t } from '@/core/i18n/index.ts';
+import { makeStore } from '@/core/testing';
+import { getToasts } from '@/core/shell/toast.ts';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { page } from '@/core/net/local.ts';
 import type { ProjectsList } from './api.ts';
 import { nav, setStarter } from './api.ts';
 import { ProjectRail } from './ProjectRail.tsx';

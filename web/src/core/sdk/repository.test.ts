@@ -3,7 +3,7 @@ import { act, renderHook } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { events, stubRoutes, testStore } from '@/testing';
+import { events, stubRoutes, testStore } from '@/core/testing';
 import { connectionsOf } from './connections.ts';
 import { defineResource, repositoryOf, send, useResource } from './repository.ts';
 

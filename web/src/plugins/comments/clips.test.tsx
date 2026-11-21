@@ -2,12 +2,12 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Comment } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { Feed } from '@/feed/Feed.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
-import { resetPlayer } from '@/voice/player.ts';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { Feed } from '@/plugins/feed/Feed.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { resetPlayer } from '@/plugins/voice/player.ts';
 import { CommentCard } from './CommentCard.tsx';
 
 class FakeAudio {

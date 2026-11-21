@@ -1,5 +1,5 @@
 import type { Plugin } from '@/sdk/plugin.ts';
-import { useAppSelector, usePlugins, type RootState } from '@/store/store.ts';
+import { useAppSelector, usePlugins, type RootState } from '@/core/store/store.ts';
 
 /**
  * The pause the server cannot see, for the update's hand-over and a pending server restart (gh-422): no turn and no

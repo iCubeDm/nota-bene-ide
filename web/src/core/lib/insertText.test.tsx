@@ -25,9 +25,9 @@ it('pathText: the awkward names (issue 461 review)', () => {
 });
 
 it('the forms render as refs and players', async () => {
-  const { renderWith } = await import('@/testing');
-  const { Markdown } = await import('@/components/markdown/Markdown.tsx');
-  const { escapeMentions } = await import('@/refs/refs.ts');
+  const { renderWith } = await import('@/core/testing');
+  const { Markdown } = await import('@/core/components/markdown/Markdown.tsx');
+  const { escapeMentions } = await import('@/core/refs/refs.ts');
   const text = ['clips/a%20b.mp4', 'Makefile', '`edge.txt'].map(pathText).join(' ');
   const { container } = renderWith(<Markdown text={escapeMentions(text)} final breaks mentions noHtml />);
   expect(container.querySelector('video')?.getAttribute('src')).toBe('/file?path=clips%2Fa%2520b.mp4');

@@ -2,18 +2,18 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientMessage } from '@nota-bene/shared';
-import { setLang } from '@/i18n/index.ts';
-import { historyPrepended } from '@/store/feed.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { setLang } from '@/core/i18n/index.ts';
+import { historyPrepended } from '@/core/store/feed.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 import { Feed } from './Feed.tsx';
 import { inputText, ToolLine } from './ToolLine.tsx';
 import { clockTime, fullTime } from './time.ts';
 
 // counts renders: every feed element and the feed itself call useT once a render
 const renders = vi.hoisted(() => ({ n: 0 }));
-vi.mock('@/i18n/index.ts', async (orig) => {
-  const m = await orig<typeof import('@/i18n/index.ts')>();
+vi.mock('@/core/i18n/index.ts', async (orig) => {
+  const m = await orig<typeof import('@/core/i18n/index.ts')>();
   return { ...m, useT: () => (renders.n++, m.useT()) };
 });
 

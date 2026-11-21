@@ -4,8 +4,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterAll, expect, it } from 'vitest';
-import { getLang, setLang, type Lang } from '@/i18n/index.ts';
-import { byteSize, compact, money, num } from '@/lib/format.ts';
+import { getLang, setLang, type Lang } from '@/core/i18n/index.ts';
+import { byteSize, compact, money, num } from '@/core/lib/format.ts';
 import { modelName, part, pct } from './UsageView.tsx';
 
 const LANGS: [string, Lang][] = [['en', 'en'], ['ru', 'ru'], ['zh', 'zh-CN'], ['es', 'es'], ['pt', 'pt-BR'], ['de', 'de']];
@@ -32,7 +32,7 @@ it('the desktop side of the usage formatter fixtures', () => {
       currencies: CURRENCIES.map((c) => money(12345, c)),
     }];
   }));
-  const out = path.resolve(__dirname, '../../../mobile/app/test/fixtures/usage/format.json');
+  const out = path.resolve(__dirname, '../../../../mobile/app/test/fixtures/usage/format.json');
   const json = JSON.stringify({ pairs: PAIRS, tokens: TOKENS, sizes: SIZES, models: MODELS, currencies: CURRENCIES, langs: data }, null, 1) + '\n';
   if (process.env.UPDATE_FIXTURES) {
     fs.mkdirSync(path.dirname(out), { recursive: true });

@@ -2,12 +2,12 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Comment, ServerEvent } from '@nota-bene/shared';
-import { Markdown } from '@/components/markdown/Markdown.tsx';
-import { takeStartAt } from '@/refs/startAt.ts';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore, renderWith } from '@/testing';
-import { selectActiveTab } from '@/tabs/slice.ts';
+import { Markdown } from '@/core/components/markdown/Markdown.tsx';
+import { takeStartAt } from '@/core/refs/startAt.ts';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore, renderWith } from '@/core/testing';
+import { selectActiveTab } from '@/core/tabs/slice.ts';
 
 const rect = (w: number) => ({ x: 0, y: 0, width: w, height: 20, left: 0, top: 0, right: w, bottom: 20, toJSON() { return this; } }) as DOMRect;
 const st = { time: 20, paused: true };

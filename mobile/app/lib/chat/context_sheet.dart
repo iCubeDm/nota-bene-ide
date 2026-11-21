@@ -1,7 +1,7 @@
 // The context sheet of a phone chat (opened from the header ring): what the window uses. The context in tokens, the plan
 // limits with their resets, the session's cost, idle compaction, and three tiles (compact, clear, stats). A row the window
 // does not report is left out. The pieces are the window sheet's (its tiles, its limit rows, its commands). Compact and
-// clear send what the desktop's do, under the same conditions (web/src/controls/CompactClear.tsx): off while the agent
+// clear send what the desktop's do, under the same conditions (web/src/plugins/controls/CompactClear.tsx): off while the agent
 // works (Compact is ordered for the next pause by a window of protocol 27), absent when the agent cannot.
 import 'package:flutter/material.dart';
 import 'package:nb_protocol/nb_protocol.dart';

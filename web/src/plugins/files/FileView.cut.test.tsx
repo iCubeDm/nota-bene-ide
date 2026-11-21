@@ -1,11 +1,11 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
-import { requestJump } from '@/tabs/jump.ts';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { requestJump } from '@/core/tabs/jump.ts';
 import { FileView } from './FileView.tsx';
 
 let body: string;

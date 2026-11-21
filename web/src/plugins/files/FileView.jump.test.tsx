@@ -2,11 +2,11 @@ import { act, cleanup, render } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/testing';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { makeStore } from '@/core/testing';
 import { FileView } from './FileView.tsx';
-import { requestJump } from '@/tabs/jump.ts';
+import { requestJump } from '@/core/tabs/jump.ts';
 
 // the file never finishes loading: its jump keeps waiting for the view
 beforeEach(() => { setLang('en'); vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {}))); });

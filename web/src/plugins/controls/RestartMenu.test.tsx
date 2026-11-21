@@ -1,14 +1,14 @@
-import { SERVER_RESTART_TIMEOUT_MS } from '@/store/controls.ts';
+import { SERVER_RESTART_TIMEOUT_MS } from '@/core/store/controls.ts';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
-import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/testing';
-import { Header } from '@/shell/Header.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { makeStore } from '@/core/testing';
+import { Header } from '@/core/shell/Header.tsx';
 import { INFO_POLL_MS } from './RestartMenu.tsx';
-import { getToasts, resetToasts } from '@/shell/toast.ts';
+import { getToasts, resetToasts } from '@/core/shell/toast.ts';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 

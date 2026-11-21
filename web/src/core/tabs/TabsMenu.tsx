@@ -1,7 +1,7 @@
 import { useT } from '@/sdk';
 import { useRef, useState, type RefObject } from 'react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
-import { useAppDispatch, useAppSelector, useRegistry } from '@/store/store.ts';
+import { Popover, PopoverContent, PopoverTrigger } from '@/core/components/ui/popover.tsx';
+import { useAppDispatch, useAppSelector, useRegistry } from '@/core/store/store.ts';
 import { tabView } from '@/sdk/registry.ts';
 import { activate, selectTabs, type Tab } from './slice.ts';
 import { TabIcon } from './TabStrip.tsx';

@@ -1,9 +1,9 @@
 import { useT, useStored } from '@/sdk';
 import { useEffect, useRef, useState } from 'react';
 import { shallowEqual } from 'react-redux';
-import { useAppDispatch, useAppSelector, useMedia, useRegistry } from '@/store/store.ts';
+import { useAppDispatch, useAppSelector, useMedia, useRegistry } from '@/core/store/store.ts';
 import { tabLabel, tabView } from '@/sdk/registry.ts';
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu.tsx';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/core/components/ui/context-menu.tsx';
 import { activate, closeAll, closeOthers, closeRight, closeTab, selectTabs, type Tab } from './slice.ts';
 import { TabsMenu } from './TabsMenu.tsx';
 import { ICONS, Svg } from '../components/icons.tsx';

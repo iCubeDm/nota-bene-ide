@@ -3,16 +3,16 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { anchorSource, type ClientMessage, type Comment, type ServerEvent, type Source } from '@nota-bene/shared';
 import { App } from '@/App.tsx';
-import { Markdown } from '@/components/markdown/Markdown.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { clearRefCache, refClick } from '@/refs/refs.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore, renderWith } from '@/testing';
-import { activate, fileTabId, openFile, selectActiveTab, selectTabs } from '@/tabs/slice.ts';
-import { setPanelOpen } from '@/comments/slice.ts';
-import { sendBatch, whereOf } from '@/comments/send.ts';
+import { Markdown } from '@/core/components/markdown/Markdown.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { clearRefCache, refClick } from '@/core/refs/refs.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore, renderWith } from '@/core/testing';
+import { activate, fileTabId, openFile, selectActiveTab, selectTabs } from '@/core/tabs/slice.ts';
+import { setPanelOpen } from '@/plugins/comments/slice.ts';
+import { sendBatch, whereOf } from '@/plugins/comments/send.ts';
 import { FileView } from './FileView.tsx';
-import { getSources, loadSources, resetSources, setSources, sourceForAbs, useSources } from '@/refs/sources.ts';
+import { getSources, loadSources, resetSources, setSources, sourceForAbs, useSources } from '@/core/refs/sources.ts';
 
 function Probe({ onRender }: { onRender: () => void }) {
   useSources();

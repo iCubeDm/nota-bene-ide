@@ -1,5 +1,5 @@
-import { useT } from '@/i18n/index.ts';
-import { selectConn, takeOver, useAppDispatch, useAppSelector } from '@/store/store.ts';
+import { useT } from '@/core/i18n/index.ts';
+import { selectConn, takeOver, useAppDispatch, useAppSelector } from '@/core/store/store.ts';
 
 /**
  * One tab per window (R-M7-8): a full-window overlay when another tab owns the session (`occupied`: we arrived second)

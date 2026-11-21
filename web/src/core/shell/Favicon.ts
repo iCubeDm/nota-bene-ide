@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import type { Store } from '@reduxjs/toolkit';
 import { useStore } from 'react-redux';
-import type { RootState } from '@/store/store.ts';
+import type { RootState } from '@/core/store/store.ts';
 
 /**
  * One colour per meaning (user, 2026-10-27): working blinks between two oranges (the ⚙ indicator's), a question for the

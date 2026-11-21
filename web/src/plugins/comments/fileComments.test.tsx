@@ -3,11 +3,11 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Comment } from '@nota-bene/shared';
 import { App } from '@/App.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
-import { jumpToFileComment } from '@/files/slice.ts';
-import { activate, closeTab, fileTabId, openFile } from '@/tabs/slice.ts';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { jumpToFileComment } from '@/plugins/files/slice.ts';
+import { activate, closeTab, fileTabId, openFile } from '@/core/tabs/slice.ts';
 import { setPanelOpen } from './slice.ts';
 
 vi.mock('mermaid', () => ({ default: { initialize: vi.fn(), render: vi.fn(async () => ({ svg: '<svg></svg>' })) } }));

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import type { Mode } from '@nota-bene/shared';
-import { en } from '../web/src/i18n/en.ts';
+import { en } from '../web/src/core/i18n/en.ts';
 
 // M4-16: session and agent controls against server/test/fixtures/controls.json. A turn is picked by a tag in the prompt
 // ([plan], [hot], ...), so these tests do not depend on how many turns the shared server has already run. The tests

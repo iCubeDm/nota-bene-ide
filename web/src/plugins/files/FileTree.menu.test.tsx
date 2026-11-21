@@ -3,25 +3,25 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { TreeEntry } from '@nota-bene/shared';
 import type { Cut } from '@nota-bene/shared/cut';
-import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/testing';
+import { setLang } from '@/core/i18n/index.ts';
+import { makeStore } from '@/core/testing';
 import { setTreeOpen } from './treeSlice.ts';
-import { selectTabs } from '@/tabs/slice.ts';
-import { registerEditTarget, touchEditTarget } from '@/cut/targets.ts';
-import { getToasts, resetToasts } from '@/shell/toast.ts';
+import { selectTabs } from '@/core/tabs/slice.ts';
+import { registerEditTarget, touchEditTarget } from '@/plugins/cut/targets.ts';
+import { getToasts, resetToasts } from '@/core/shell/toast.ts';
 import { FileTree } from './FileTree.tsx';
 
 // the browser reads a source's length from its metadata; jsdom has no media
 // (slow.mp4 waits for `gate`, to see a second New edit refused while the first one reads)
 let gate: Promise<void> = Promise.resolve();
-vi.mock('@/cut/durations.ts', () => ({
+vi.mock('@/plugins/cut/durations.ts', () => ({
   srcLength: async (url: string) => (url.includes('slow') ? gate.then(() => 2) : url.includes('long') ? 12 : 3),
   srcSize: async (url: string) => (url.includes('a.mp4') ? { width: 1280, height: 720 } : null),
 }));
 
 // the page's own host: jsdom's is localhost; a test flips it to a page reached through a relay
 const localPage = vi.hoisted(() => ({ on: true }));
-vi.mock('@/net/local.ts', () => ({ isLocalPage: () => localPage.on }));
+vi.mock('@/core/net/local.ts', () => ({ isLocalPage: () => localPage.on }));
 
 let fs: Record<string, TreeEntry[]>;
 let posts: { url: string; body: unknown }[];

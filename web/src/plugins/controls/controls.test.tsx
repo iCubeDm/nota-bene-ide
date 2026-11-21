@@ -4,11 +4,11 @@ import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ClientMessage, AgentMode as Mode, ServerEvent } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { Composer } from '@/composer/Composer.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { connState } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { Composer } from '@/plugins/composer/Composer.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { connState } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 
 // Radix popper measures with ResizeObserver, which jsdom lacks
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };

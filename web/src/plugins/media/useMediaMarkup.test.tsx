@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { Provider } from 'react-redux';
 import { expect, it, vi } from 'vitest';
-import { testStore } from '@/testing';
+import { testStore } from '@/core/testing';
 import { useMediaMarkup } from './useMediaMarkup.ts';
 
 const deleteMarks = vi.hoisted(() => vi.fn(async () => {}));

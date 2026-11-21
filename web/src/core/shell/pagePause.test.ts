@@ -1,8 +1,8 @@
 import { expect, it } from 'vitest';
-import { events, testStore } from '@/testing';
+import { events, testStore } from '@/core/testing';
 import { serverEvent } from '@/sdk';
-import { PLUGINS } from '../plugins.ts';
-import { setDraft } from '../composer/slice.ts';
+import { PLUGINS } from '../../plugins.ts';
+import { setDraft } from '../../plugins/composer/slice.ts';
 import { selectPagePause } from './pagePause.ts';
 
 const paused = (s: ReturnType<typeof testStore>['store'], draft: boolean) => selectPagePause(s.getState(), { draft }, PLUGINS);

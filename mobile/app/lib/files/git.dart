@@ -1,5 +1,5 @@
 // What the git views show of the window's answers ([Repository] reads them): a file's letter, a commit's short sha, and
-// a patch parsed as web/src/vcs/parse.ts does.
+// a patch parsed as web/src/plugins/vcs/parse.ts does.
 import 'package:nb_protocol/nb_protocol.dart';
 
 /// A changed file's status as its letter: A, M, D or R (renamed from [VcsFile.old]); `?` for one a newer host added.
@@ -32,7 +32,7 @@ class ParsedPatch {
 
 final _hunkHead = RegExp(r'^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@');
 
-/// One file's unified patch into hunks (web/src/vcs/parse.ts). The file's name comes from the list row, never from here.
+/// One file's unified patch into hunks (web/src/plugins/vcs/parse.ts). The file's name comes from the list row, never from here.
 ParsedPatch parsePatch(String patch) {
   final hunks = <Hunk>[];
   var add = 0, del = 0, binary = false;

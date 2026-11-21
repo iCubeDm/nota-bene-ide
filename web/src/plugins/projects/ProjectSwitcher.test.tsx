@@ -2,10 +2,10 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ServerEvent } from '@nota-bene/shared';
-import { setLang, t } from '@/i18n/index.ts';
-import { getToasts } from '@/shell/toast.ts';
-import { makeStore } from '@/testing';
-import { page } from '@/net/local.ts';
+import { setLang, t } from '@/core/i18n/index.ts';
+import { getToasts } from '@/core/shell/toast.ts';
+import { makeStore } from '@/core/testing';
+import { page } from '@/core/net/local.ts';
 import type { ProjectsList, RunningRow } from './api.ts';
 import { enterFailure, nav, setProjectsMenu, setStarter } from './api.ts';
 import { ProjectSwitcher } from './ProjectSwitcher.tsx';

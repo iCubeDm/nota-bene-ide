@@ -6,11 +6,11 @@ import path from 'node:path';
 import { act, cleanup, render } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { textOf } from '@/anchors/text.ts';
-import { Feed } from '@/feed/Feed.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { textOf } from '@/core/anchors/text.ts';
+import { Feed } from '@/plugins/feed/Feed.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 
 vi.mock('mermaid', () => ({
   default: { initialize: vi.fn(), render: vi.fn(async () => ({ svg: '<svg><text>A</text></svg>' })) },
@@ -19,7 +19,7 @@ vi.mock('mermaid', () => ({
 beforeEach(() => setLang('en'));
 afterEach(cleanup);
 
-const dir = path.resolve(__dirname, '../../../mobile/app/test/fixtures/chat');
+const dir = path.resolve(__dirname, '../../../../mobile/app/test/fixtures/chat');
 const names = fs.readdirSync(dir).filter((f) => f.endsWith('.md')).sort();
 
 it('has the fixtures', () => expect(names.length).toBeGreaterThanOrEqual(5));

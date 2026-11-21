@@ -2,13 +2,13 @@ import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Comment } from '@nota-bene/shared';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
-import { rangeForAnchor } from '@/anchors/text.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { rangeForAnchor } from '@/core/anchors/text.ts';
 import { HighlightLayer } from './HighlightLayer.tsx';
 
-vi.mock('@/anchors/text.ts', async (orig) => {
-  const real = await orig<typeof import('@/anchors/text.ts')>();
+vi.mock('@/core/anchors/text.ts', async (orig) => {
+  const real = await orig<typeof import('@/core/anchors/text.ts')>();
   return { ...real, rangeForAnchor: vi.fn(real.rangeForAnchor) };
 });
 

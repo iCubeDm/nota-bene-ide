@@ -18,7 +18,7 @@ result does not need.
 - `mobile/protocol/`: Dart types generated from `shared/`; after a protocol change run `npm run gen:protocol` (CI fails on stale output).
 - `server/`: Node server, SessionManager, agent backends, files/auth/persistence.
 - `web/`: React/Redux UI. `bin/`: launcher. `plugin/`: Claude Code `/nb` plugin.
-- `web/src/sdk/`: the only core module a feature folder imports; `scripts/boundaries.test.ts` enforces it with a baseline that only shrinks.
+- `web/src/core/` holds the core, `web/src/plugins/` the features; `web/src/core/sdk/` (alias `@/sdk`) is the only core module a feature folder imports; `scripts/boundaries.test.ts` enforces it.
 - Architecture: [docs/architecture.md](docs/architecture.md).
 - Development, launcher and packaging: [agent reference](docs/agent-reference.md#rebuild-root).
 - Auth, state, socket and protocol invariants: [agent reference](docs/agent-reference.md#access-token).
@@ -34,8 +34,8 @@ result does not need.
   omp runs on the generic ACP adapter (`server/src/agent/acp/`), so another ACP agent is a profile there.
 - Keep provider SDK shapes inside their adapters. Use the shared event contract and explicit capabilities.
 - Prefer focused changes and composition; preserve persistence and session-generation invariants.
-- A control with a shortcut names it in its tooltip (`withKey` in `web/src/shell/keymap.ts`), new controls included.
-- Every feature merged into `main` supports every UI language: user-visible text goes through `web/src/i18n`, and each
+- A control with a shortcut names it in its tooltip (`withKey` in `web/src/core/shell/keymap.ts`), new controls included.
+- Every feature merged into `main` supports every UI language: user-visible text goes through `web/src/core/i18n`, and each
   new or changed string gets a real translation in all of `LANGS` in the same change. `i18n.test.ts` catches a missing key,
   not a string hard-coded in a component, so check that by hand.
 - `main` takes only squash-merged pull requests tied to an issue: [workflow](docs/agent-reference.md#workflow).

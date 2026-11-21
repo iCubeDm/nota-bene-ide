@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import type { Store } from '@reduxjs/toolkit';
 import { useStore } from 'react-redux';
 import { storage, string, type Sounds } from '@/sdk/storage.ts';
-import type { RootState } from '@/store/store.ts';
+import type { RootState } from '@/core/store/store.ts';
 
 /**
  * A sound when the tab is not looked at and the window needs the user (issue 136): `ask` when a permission, a plan or a

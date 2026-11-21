@@ -10,7 +10,7 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "types": ["vite/client", "@testing-library/jest-dom"],
-    "paths": { "@/*": ["./src/*"] }
+    "paths": { "@/sdk": ["./src/core/sdk/index.ts"], "@/sdk/*": ["./src/core/sdk/*"], "@/*": ["./src/*"] }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
   "references": [{ "path": "../shared" }]

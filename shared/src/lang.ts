@@ -1,4 +1,4 @@
-// The interface languages. The server keeps the choice (prefs.json); the dictionaries live in web/src/i18n.
+// The interface languages. The server keeps the choice (prefs.json); the dictionaries live in web/src/core/i18n.
 
 export const UI_LANGS = ['en', 'ru', 'zh-CN', 'es', 'pt-BR', 'de'] as const;
 export type UiLang = (typeof UI_LANGS)[number];

@@ -1,9 +1,9 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Provider } from 'react-redux';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { testStore } from '@/testing';
-import { setLang } from '@/i18n/index.ts';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { testStore } from '@/core/testing';
+import { setLang } from '@/core/i18n/index.ts';
 import { RecordBar } from './RecordBar.tsx';
 import type { RecState } from './useVoiceRecorder.ts';
 

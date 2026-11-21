@@ -1,14 +1,14 @@
-import { nav } from '@/projects/api.ts';
+import { nav } from '@/plugins/projects/api.ts';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ServerEvent, Source } from '@nota-bene/shared';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
-import { resetSources, setSources } from '@/refs/sources.ts';
-import { selectTree } from '@/files/treeSlice.ts';
-import { Header } from '@/shell/Header.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { resetSources, setSources } from '@/core/refs/sources.ts';
+import { selectTree } from '@/plugins/files/treeSlice.ts';
+import { Header } from '@/core/shell/Header.tsx';
 
 const SOURCES = [
   { id: 'here', kind: 'checkout', label: 'main', ref: 'main', dir: '/p/proj' },

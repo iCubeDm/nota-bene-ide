@@ -4,15 +4,15 @@ import { act, renderHook } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
 import { serverEvent } from '../store/store.ts';
-import { makeStore } from '@/testing';
+import { makeStore } from '@/core/testing';
 import { cancelRestart } from '../store/controls.ts';
 import type { SocketState } from '../net/socket.ts';
 import { agentConnection, connectionsOf, SELF, useConnection, useConnState, useFeature, type ConnState, type ConnectionManager } from './connections.ts';
 
 // the comment flush, called through, records which connection it found (the open-after-registration test below)
 const flushed = vi.hoisted(() => [] as string[]);
-vi.mock('../comments/slice.ts', async (orig) => {
-  const real = await orig<typeof import('../comments/slice.ts')>();
+vi.mock('../../plugins/comments/slice.ts', async (orig) => {
+  const real = await orig<typeof import('../../plugins/comments/slice.ts')>();
   return {
     ...real,
     flushComments: () => (d: never, g: never, x: { connections: ConnectionManager }) => {

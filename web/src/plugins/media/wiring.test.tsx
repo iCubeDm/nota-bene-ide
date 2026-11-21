@@ -1,11 +1,11 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/testing';
+import { setLang } from '@/core/i18n/index.ts';
+import { makeStore } from '@/core/testing';
 import { App } from '@/App.tsx';
-import { activate, closeAll, closeOthers, closeRight, closeTab, fileTabId, openFile, selectTabs } from '@/tabs/slice.ts';
-import type { PipApi } from '@/store/mediaController.ts';
+import { activate, closeAll, closeOthers, closeRight, closeTab, fileTabId, openFile, selectTabs } from '@/core/tabs/slice.ts';
+import type { PipApi } from '@/core/store/mediaController.ts';
 
 vi.mock('mermaid', () => ({ default: { initialize: vi.fn(), render: vi.fn(async () => ({ svg: '<svg></svg>' })) } }));
 

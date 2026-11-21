@@ -9,7 +9,7 @@ it('the Vite dev proxy covers every server path the app fetches', () => {
   const fetched = new Set<string>();
   for (const src of Object.values(sources)) for (const m of src.matchAll(/[fF]etch\(\s*[`'"](\/[a-z-]+)/g)) fetched.add(m[1]!);
   // the route builders (issue 511): every path they make
-  for (const m of sources['./sdk/routes.ts']!.matchAll(/[`'"](\/[a-z-]+)/g)) fetched.add(m[1]!);
+  for (const m of sources['./core/sdk/routes.ts']!.matchAll(/[`'"](\/[a-z-]+)/g)) fetched.add(m[1]!);
   expect(fetched.has('/marks')).toBe(true); // the scan itself works
   const list = /\[([^\]]*)\]\.map\(\(p\) => \[p, backend\]\)/.exec(viteConfig)?.[1] ?? '';
   const proxied = [...list.matchAll(/'(\/[a-z-]+)'/g)].map((m) => m[1]!);

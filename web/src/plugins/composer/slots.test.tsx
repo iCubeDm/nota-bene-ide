@@ -4,12 +4,12 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { useEffect, type FC, type ReactElement } from 'react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
 import { PLUGINS } from '@/plugins.ts';
 import { definePlugin, useComposerField, type PendingComment, type SlotName } from '@/sdk';
-import { makeStore } from '@/testing';
-import { CommentPopup } from '@/comments/CommentPopup.tsx';
+import { makeStore } from '@/core/testing';
+import { CommentPopup } from '@/plugins/comments/CommentPopup.tsx';
 import { Composer } from './Composer.tsx';
 
 beforeEach(() => setLang('en'));

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientMessage, Comment, ServerEvent } from '@nota-bene/shared';
-import { sendMessage } from '../store/store.ts';
-import { makeStore } from '@/testing';
+import { sendMessage } from '../../core/store/store.ts';
+import { makeStore } from '@/core/testing';
 import {
   addComment, closeCommentCard, editComment, moveCutComment, openCommentCard, removeComment, selectComments, selectCommentsUi,
   selectPending, selectSentFor, setPanelOpen,
@@ -266,7 +266,7 @@ describe('comment ops (protocol 19)', () => {
   });
 
   it('edit sends the comment as edited; a refusal by another window drops the change and says so', async () => {
-    const { toast: spy } = await import('../shell/toast.ts').then((m) => ({ toast: vi.spyOn(m, 'toast') }));
+    const { toast: spy } = await import('../../core/shell/toast.ts').then((m) => ({ toast: vi.spyOn(m, 'toast') }));
     const { f, store } = boot([mk('a', { label: 'fire' })]);
     store.dispatch(editComment('a', 'better'));
     expect(ops(f)[0]!.ops[0]).toEqual({ op: 'edit', comment: { ...mk('a', { label: 'fire' }), text: 'better' } });

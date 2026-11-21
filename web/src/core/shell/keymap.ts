@@ -1,10 +1,10 @@
-import { registry, selectConn, type AppStore } from '@/store/store.ts';
+import { registry, selectConn, type AppStore } from '@/core/store/store.ts';
 import type { Command, KeyId } from '@/sdk/registry.ts';
-import { activate, closeTab, reopenClosed } from '@/tabs/slice.ts';
-import { editable } from '@/lib/editable.ts';
-import { t } from '@/i18n/index.ts';
+import { activate, closeTab, reopenClosed } from '@/core/tabs/slice.ts';
+import { editable } from '@/core/lib/editable.ts';
+import { t } from '@/core/i18n/index.ts';
 import { uiScale } from './uiScale.ts';
-import { percent } from '@/lib/format.ts';
+import { percent } from '@/core/lib/format.ts';
 import { toast } from './toast.ts';
 
 /**

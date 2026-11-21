@@ -1,5 +1,5 @@
 import { useStored } from '../sdk/storage.ts';
-import { useT } from '@/i18n/index.ts';
+import { useT } from '@/core/i18n/index.ts';
 import { dismissToast, getToasts, pauseToast, resumeToast, subscribeToasts } from './toast.ts';
 
 /** Top-right under the header (prototype: top 56px, right 16px, 380px). The live region stays mounted so additions are announced. */

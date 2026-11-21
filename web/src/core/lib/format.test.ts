@@ -1,5 +1,5 @@
 import { afterAll, expect, it } from 'vitest';
-import { getLang, setLang, type Lang } from '@/i18n/index.ts';
+import { getLang, setLang, type Lang } from '@/core/i18n/index.ts';
 import { byteSize, compact, money, num, percent } from './format.ts';
 
 const first = getLang();

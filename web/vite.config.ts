@@ -38,7 +38,13 @@ function keepOldAssets(): Plugin {
 export default defineConfig({
   plugins: [react(), tailwindcss(), keepOldAssets()],
   build: { emptyOutDir: false },
-  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  // `@/sdk` is the plugins' one import (issue 570): it names the SDK, wherever the core keeps it
+  resolve: {
+    alias: [
+      { find: /^@\/sdk(?=\/|$)/, replacement: fileURLToPath(new URL('./src/core/sdk', import.meta.url)) },
+      { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
+    ],
+  },
   server: {
     port: 5173,
     proxy: {

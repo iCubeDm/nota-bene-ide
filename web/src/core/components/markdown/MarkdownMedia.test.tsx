@@ -2,11 +2,11 @@ import type { ReactNode } from 'react';
 import { fireEvent, render } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { describe, expect, it } from 'vitest';
-import { makeStore } from '@/testing';
-import { selectActiveTab } from '@/tabs/slice.ts';
-import { textOf } from '@/anchors/text.ts';
-import { t } from '@/i18n/index.ts';
-import { takeStartAt } from '@/refs/startAt.ts';
+import { makeStore } from '@/core/testing';
+import { selectActiveTab } from '@/core/tabs/slice.ts';
+import { textOf } from '@/core/anchors/text.ts';
+import { t } from '@/core/i18n/index.ts';
+import { takeStartAt } from '@/core/refs/startAt.ts';
 import { Markdown } from './Markdown';
 
 // its own file: Markdown.test.tsx resets modules in one test, which leaves later renders with a stale marked instance

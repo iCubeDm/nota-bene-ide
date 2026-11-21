@@ -1,9 +1,9 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
-import { fragmentSession } from '@/net/auth.ts';
-import { t } from '@/i18n/index.ts';
-import { getToasts } from '@/shell/toast.ts';
-import { makeStore } from '@/testing';
+import { fragmentSession } from '@/core/net/auth.ts';
+import { t } from '@/core/i18n/index.ts';
+import { getToasts } from '@/core/shell/toast.ts';
+import { makeStore } from '@/core/testing';
 import { startLanding } from './landing.ts';
 
 const A = '11111111-1111-4111-8111-111111111111';

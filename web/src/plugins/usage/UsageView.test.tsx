@@ -3,10 +3,10 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { UsageReport, UsageRow } from '@nota-bene/shared';
 import { App } from '@/App.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/testing';
-import { selectTabs } from '@/tabs/slice.ts';
-import { compact } from '@/lib/format.ts';
+import { setLang } from '@/core/i18n/index.ts';
+import { makeStore } from '@/core/testing';
+import { selectTabs } from '@/core/tabs/slice.ts';
+import { compact } from '@/core/lib/format.ts';
 
 const row = (o: Partial<UsageRow> = {}): UsageRow => ({ in: 10, out: 2_000_000, write: 5, read: 3_000_000_000, calls: 1200, w: 300_000_000, sub: 100_000_000, ...o });
 const REPORT: UsageReport = {

@@ -2,10 +2,10 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import type { ServerEvent } from '@nota-bene/shared';
-import { serverEvent } from '@/store/store.ts';
-import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/testing';
-import { selectTabs } from '@/tabs/slice.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { setLang } from '@/core/i18n/index.ts';
+import { makeStore } from '@/core/testing';
+import { selectTabs } from '@/core/tabs/slice.ts';
 import { ToolLine } from './ToolLine.tsx';
 
 // B1e: a tool line names a temp image (Read's file_path, a screenshot command): a button beside the line opens its tab

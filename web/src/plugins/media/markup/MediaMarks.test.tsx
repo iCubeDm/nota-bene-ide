@@ -2,10 +2,10 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Comment, MediaAnchor, MediaShape } from '@nota-bene/shared';
-import { setLang } from '@/i18n/index.ts';
-import { setFileVersion } from '@/files/slice.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { setLang } from '@/core/i18n/index.ts';
+import { setFileVersion } from '@/plugins/files/slice.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 import { MediaMarks } from './MediaMarks.tsx';
 import { setMode } from './slice.ts';
 

@@ -2,11 +2,11 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { Feed } from '@/feed/Feed.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { Feed } from '@/plugins/feed/Feed.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 
 const ev = (e: Extract<ServerEvent, { kind: 'agent' }>['e']): ServerEvent => ({ kind: 'agent', ts: 0, e });
 

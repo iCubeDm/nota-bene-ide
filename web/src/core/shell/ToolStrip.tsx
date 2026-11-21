@@ -1,4 +1,4 @@
-import { useT } from '@/i18n/index.ts';
+import { useT } from '@/core/i18n/index.ts';
 import { Slots } from './Slots.tsx';
 
 const strip = 'flex w-9 flex-none flex-col items-center gap-1 bg-chrome py-1.5';

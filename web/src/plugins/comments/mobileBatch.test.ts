@@ -5,9 +5,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { expect, it } from 'vitest';
 import { generatedImages, isAttachmentAnchor, parseClientMessage, type Comment } from '@nota-bene/shared';
-import { tIn, type Lang } from '@/i18n/index.ts';
+import { tIn, type Lang } from '@/core/i18n/index.ts';
 import { composeBatch } from './compose.ts';
-import { instructionOf, labelOf } from '@/anchors/labels.ts';
+import { instructionOf, labelOf } from '@/core/anchors/labels.ts';
 import { whereOf } from './send.ts';
 
 const base = { status: 'pending' as const, createdAt: 1 };
@@ -90,7 +90,7 @@ it('the desktop side of the batch fixtures', () => {
       out: Object.fromEntries(LANGS.map(([app, web]) => [app, send(c.general, c.items.map((k) => comments[k]), web)])),
     })),
   };
-  const out = path.resolve(__dirname, '../../../mobile/app/test/fixtures/batch/media.json');
+  const out = path.resolve(__dirname, '../../../../mobile/app/test/fixtures/batch/media.json');
   const json = JSON.stringify(data, null, 1) + '\n';
   if (process.env.UPDATE_FIXTURES) {
     fs.mkdirSync(path.dirname(out), { recursive: true });
@@ -155,7 +155,7 @@ it('the desktop side of the attachment batch fixtures', () => {
       out: Object.fromEntries(LANGS.map(([app, web]) => [app, sendWithComposer(c.general, c.items.map((k) => all[k]).filter(sendable), web)])),
     })),
   };
-  const out = path.resolve(__dirname, '../../../mobile/app/test/fixtures/batch/attachment.json');
+  const out = path.resolve(__dirname, '../../../../mobile/app/test/fixtures/batch/attachment.json');
   const json = JSON.stringify(data, null, 1) + '\n';
   if (process.env.UPDATE_FIXTURES) fs.writeFileSync(out, json);
   expect(json).toBe(fs.readFileSync(out, 'utf8'));

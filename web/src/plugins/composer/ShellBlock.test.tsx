@@ -3,10 +3,10 @@ import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { PROTOCOL, type ClientMessage, type ServerEvent } from '@nota-bene/shared';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
-import { Feed } from '@/feed/Feed.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { Feed } from '@/plugins/feed/Feed.tsx';
 
 beforeEach(() => setLang('en'));
 afterEach(cleanup);

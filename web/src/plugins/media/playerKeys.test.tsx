@@ -2,15 +2,15 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ServerEvent } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { FileView } from '@/files/FileView.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { FileView } from '@/plugins/files/FileView.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 import { selectDraft } from './markup/slice.ts';
 import { PLAYER_HELP } from '@/sdk';
-import { seekStep } from '@/store/seekStep.ts';
-import { t } from '@/i18n/index.ts';
+import { seekStep } from '@/core/store/seekStep.ts';
+import { t } from '@/core/i18n/index.ts';
 
 vi.mock('mermaid', () => ({ default: { initialize: vi.fn(), render: vi.fn(async () => ({ svg: '<svg></svg>' })) } }));
 

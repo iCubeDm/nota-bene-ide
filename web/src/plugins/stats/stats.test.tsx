@@ -2,10 +2,10 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import type { ServerEvent, Stats } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 import { Meters, meterLevel } from './Meters.tsx';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
@@ -116,7 +116,7 @@ it('labels follow the language', () => {
 });
 
 it('the meters sit in the composer tools row, left of the compact and clear buttons (prototype footer)', async () => {
-  const { Composer } = await import('@/composer/Composer.tsx');
+  const { Composer } = await import('@/plugins/composer/Composer.tsx');
   const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
   render(<Provider store={store}><TooltipProvider><Composer /></TooltipProvider></Provider>);
   act(() => { store.dispatch(serverEvent({ kind: 'hello', protocol: 5 } as ServerEvent)); }); // gated on hello (M7-09)

@@ -2,15 +2,15 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Comment, ServerEvent } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
-import { useCommentSource } from '@/comments/card/useCommentSource.ts';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { HighlightLayer } from '@/plugins/comments/HighlightLayer.tsx';
+import { useCommentSource } from '@/plugins/comments/card/useCommentSource.ts';
 import { renderHook } from '@testing-library/react';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
-import { openAgent } from '@/tabs/slice.ts';
-import { AgentView } from '@/subagent/AgentView.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { openAgent } from '@/core/tabs/slice.ts';
+import { AgentView } from '@/plugins/subagent/AgentView.tsx';
 import { Feed } from './Feed.tsx';
 
 const ev = (e: Extract<ServerEvent, { kind: 'agent' }>['e']): ServerEvent => ({ kind: 'agent', ts: 0, e });

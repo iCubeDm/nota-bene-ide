@@ -6,11 +6,11 @@ import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { Provider } from 'react-redux';
 import { describe, expect, it, vi } from 'vitest';
-import { makeStore } from '@/testing';
-import { selectActiveTab } from '@/tabs/slice.ts';
-import { textOf } from '@/anchors/text.ts';
-import { setLang, t } from '@/i18n/index.ts';
-import { theme } from '@/shell/theme.ts';
+import { makeStore } from '@/core/testing';
+import { selectActiveTab } from '@/core/tabs/slice.ts';
+import { textOf } from '@/core/anchors/text.ts';
+import { setLang, t } from '@/core/i18n/index.ts';
+import { theme } from '@/core/shell/theme.ts';
 import { Markdown } from './Markdown';
 
 vi.mock('mermaid', () => ({
@@ -216,7 +216,7 @@ describe('Markdown', () => {
     const { Markdown: Fresh } = await import('./Markdown');
     // the fresh modules' store and context: their diagram plugin has not loaded mermaid yet
     const { Provider: FreshProvider } = await import('react-redux');
-    const { makeStore: freshStore } = await import('@/testing');
+    const { makeStore: freshStore } = await import('@/core/testing');
     const st = freshStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
     const render = (ui: ReactElement) => bare(<FreshProvider store={st}>{ui}</FreshProvider>);
     vi.mocked(mermaid.initialize).mockImplementationOnce(() => { throw new Error('Failed to fetch dynamically imported module'); });
@@ -268,8 +268,8 @@ describe('Markdown', () => {
 
 describe('a path the composer inserts (issue 461)', () => {
   it('a sound or video embed in a user message plays (spaces too); a file in code is a ref', async () => {
-    const { escapeMentions } = await import('@/refs/refs.ts');
-    const { pathText } = await import('@/lib/insertText.ts');
+    const { escapeMentions } = await import('@/core/refs/refs.ts');
+    const { pathText } = await import('@/core/lib/insertText.ts');
     const text = [pathText('attachments/my take.mp3'), pathText('clips/a.mp4'), pathText('attachments/a b.zip')].join(' ');
     const { container } = render(<Markdown text={escapeMentions(text)} final breaks mentions noHtml />);
     expect(container.querySelector('audio')?.getAttribute('src')).toBe('/file?path=attachments%2Fmy%20take.mp3');

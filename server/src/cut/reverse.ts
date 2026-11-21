@@ -22,7 +22,7 @@ const DIR = 'reverse';
 const KEEP = 24;
 /** a copy that takes longer is stopped: minutes of footage held in memory and encoded */
 const TIMEOUT_MS = 10 * 60_000;
-/** a waiting part not asked for again within this is no longer wanted: the page asks every second (web/src/cut/reverse.ts) */
+/** a waiting part not asked for again within this is no longer wanted: the page asks every second (web/src/plugins/cut/reverse.ts) */
 const STALE_MS = 5000;
 /** the preview copy's largest picture */
 const PREVIEW = { w: 1280, h: 720 };

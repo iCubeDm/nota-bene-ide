@@ -424,7 +424,7 @@ describe('session manager', () => {
 
 // the web reducer decides what the user sees; loaded by variable path so the server project does not compile web sources
 async function feedOf(events: ServerEvent[]): Promise<{ busy: boolean; waiting: string[] }> {
-  const href = new URL('../../web/src/store/feed.ts', import.meta.url).href;
+  const href = new URL('../../web/src/core/store/feed.ts', import.meta.url).href;
   const { reduce, emptyFeed } = (await import(/* @vite-ignore */ href)) as { reduce: (s: unknown, e: ServerEvent) => never; emptyFeed: unknown };
   return events.reduce(reduce as never, emptyFeed as never) as never;
 }

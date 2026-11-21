@@ -1,8 +1,8 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/testing';
+import { setLang } from '@/core/i18n/index.ts';
+import { makeStore } from '@/core/testing';
 import { CutBody } from './CutBody.tsx';
 
 // a thumbnail is a frame grabbed once into an image (thumbs.test.ts); here, a name for what was asked

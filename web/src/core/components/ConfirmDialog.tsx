@@ -1,7 +1,7 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react';
-import { Button } from '@/components/ui/button.tsx';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog.tsx';
-import { useT } from '@/i18n/index.ts';
+import { Button } from '@/core/components/ui/button.tsx';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/core/components/ui/dialog.tsx';
+import { useT } from '@/core/i18n/index.ts';
 
 /**
  * A modal yes/no (R-M4-3; replaces native confirm). Mount it to open it, unmount it on either answer.

@@ -3,11 +3,11 @@
 import { CUT_EXT, type Cut, type CutClip } from './cut.ts';
 import { isAbsPath } from './paths.ts';
 
-/** Image files; a clip whose source is one is a photo. web/src/files/kinds.ts reuses it for the file view. */
+/** Image files; a clip whose source is one is a photo. web/src/plugins/files/kinds.ts reuses it for the file view. */
 export const IMAGE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i;
 /** The photos an edit takes: the images the export reads as a still (not gif or svg). */
 export const PHOTO = /\.(png|jpe?g|webp|avif|bmp)$/i;
-/** Video and sound files: an edit's other sources, and the file view's players (web/src/files/kinds.ts). */
+/** Video and sound files: an edit's other sources, and the file view's players (web/src/plugins/files/kinds.ts). */
 export const VIDEO = /\.(mp4|mov|webm|m4v)$/i;
 export const AUDIO = /\.(mp3|wav|m4a|ogg)$/i;
 

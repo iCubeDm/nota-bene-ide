@@ -3,16 +3,16 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Comment, MediaAnchor, ServerEvent } from '@nota-bene/shared';
-import { historyPrepended } from '@/store/feed.ts';
-import { openSettings } from '@/tabs/slice.ts';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
-import { setFileLoad, setFileVersion } from '@/files/slice.ts';
-import { addImage, selectImages, selectMarking } from '@/store/message.ts';
+import { historyPrepended } from '@/core/store/feed.ts';
+import { openSettings } from '@/core/tabs/slice.ts';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { setFileLoad, setFileVersion } from '@/plugins/files/slice.ts';
+import { addImage, selectImages, selectMarking } from '@/core/store/message.ts';
 import { CommentCard, CommentCardPopover } from './CommentCard.tsx';
-import { setLiveCut } from '@/cut/live.ts';
+import { setLiveCut } from '@/plugins/cut/live.ts';
 import type { Cut } from '@nota-bene/shared/cut';
 
 beforeEach(() => setLang('ru'));

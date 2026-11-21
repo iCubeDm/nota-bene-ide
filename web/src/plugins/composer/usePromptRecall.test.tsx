@@ -3,7 +3,7 @@ import type { KeyboardEvent, ReactNode } from 'react';
 import { Provider } from 'react-redux';
 import { afterEach, expect, it } from 'vitest';
 import type { PromptEntry } from '@nota-bene/shared';
-import { testStore } from '@/testing';
+import { testStore } from '@/core/testing';
 import { selectDraft } from './slice.ts';
 import { usePromptRecall } from './usePromptRecall.ts';
 

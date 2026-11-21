@@ -1,5 +1,5 @@
-// The pictures of a media comment, as the desktop makes them (web/src/media/markup/render.ts and prepareImage of
-// web/src/attachments/image.ts): `frame.jpg` (the source with the marks, q 90, white under it) and `layer.png` (the
+// The pictures of a media comment, as the desktop makes them (web/src/plugins/media/markup/render.ts and prepareImage of
+// web/src/plugins/attachments/image.ts): `frame.jpg` (the source with the marks, q 90, white under it) and `layer.png` (the
 // marks alone) at the natural size, downscaled ×0.75 until both fit MARK_MAX_BYTES; and the frame for the agent.
 import 'dart:math' as math;
 import 'dart:ui' as ui;

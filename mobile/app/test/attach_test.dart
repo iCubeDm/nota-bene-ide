@@ -1,4 +1,4 @@
-// web/src/attachments/image.ts and its tests: what an image becomes before it is attached, and how it is uploaded.
+// web/src/plugins/attachments/image.ts and its tests: what an image becomes before it is attached, and how it is uploaded.
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';

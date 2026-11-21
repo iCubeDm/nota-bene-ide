@@ -1,5 +1,5 @@
-import { useT } from '@/i18n/index.ts';
-import { selectConn, useAppSelector } from '@/store/store.ts';
+import { useT } from '@/core/i18n/index.ts';
+import { selectConn, useAppSelector } from '@/core/store/store.ts';
 
 /**
  * The server turned this page away for lack of a login (the access token, net/auth.ts). A reconnect cannot fix it, so there

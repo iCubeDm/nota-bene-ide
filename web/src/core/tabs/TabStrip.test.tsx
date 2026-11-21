@@ -1,10 +1,10 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
-import { dismissToast, getToasts } from '@/shell/toast.ts';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { dismissToast, getToasts } from '@/core/shell/toast.ts';
 import { App } from '@/App.tsx';
 import { closeTab, openFile, selectTabs } from './slice.ts';
 

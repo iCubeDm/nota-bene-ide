@@ -2,13 +2,13 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Comment, MediaAnchor, ServerEvent } from '@nota-bene/shared';
-import { setFileVersion } from '@/files/slice.ts';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
-import type { PipApi } from '@/store/mediaController.ts';
+import { setFileVersion } from '@/plugins/files/slice.ts';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import type { PipApi } from '@/core/store/mediaController.ts';
 import { PlayerBar } from './PlayerBar.tsx';
-import { seekStep } from '@/store/seekStep.ts';
+import { seekStep } from '@/core/store/seekStep.ts';
 import { selectDraft } from './markup/slice.ts';
 
 const rect = (w: number) => ({ x: 0, y: 0, width: w, height: 20, left: 0, top: 0, right: w, bottom: 20, toJSON() { return this; } }) as DOMRect;

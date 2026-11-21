@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { setServerSep } from '@/lib/paths.ts';
+import { setServerSep } from '@/core/lib/paths.ts';
 import { fileUrl, isPath, kindOf } from './kinds.ts';
 
 it('kindOf covers each regex', () => {

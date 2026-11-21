@@ -1,6 +1,6 @@
 import type { ClipboardEventHandler, KeyboardEventHandler, PointerEventHandler, ReactNode, Ref, RefObject } from 'react';
-import { Button } from '@/components/ui/button.tsx';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
+import { Button } from '@/core/components/ui/button.tsx';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/core/components/ui/tooltip.tsx';
 
 /** The microphone drawn the same in the composer and in the comment popup. */
 function MicIcon() {

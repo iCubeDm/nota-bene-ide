@@ -1,4 +1,4 @@
-// The phone's chat anchors against the desktop's (web/src/anchors/mobileChatParity.test.tsx).
+// The phone's chat anchors against the desktop's (web/src/core/anchors/mobileChatParity.test.tsx).
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';

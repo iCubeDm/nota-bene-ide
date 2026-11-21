@@ -2,10 +2,10 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux';
 import { afterEach, expect, it } from 'vitest';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
-import { setLang } from '@/i18n/index.ts';
-import { takeOver } from '@/store/store.ts';
-import { makeStore } from '@/testing';
-import type { SocketState } from '@/net/socket.ts';
+import { setLang } from '@/core/i18n/index.ts';
+import { takeOver } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import type { SocketState } from '@/core/net/socket.ts';
 import { FAV, favState } from './Favicon.ts';
 import { OneTab } from './OneTab.tsx';
 
@@ -91,8 +91,8 @@ it('an occupied or taken tab is idle grey in the favicon, not the red of a dropp
 });
 
 it('the page sends its tab id in the url; a resync and a send wait for the attach', async () => {
-  const { addComment } = await import('@/comments/slice.ts');
-  const { sendMessage } = await import('@/store/store.ts');
+  const { addComment } = await import('@/plugins/comments/slice.ts');
+  const { sendMessage } = await import('@/core/store/store.ts');
   let ev!: (e: ServerEvent) => void;
   let state!: (s: SocketState) => void;
   let url = '';
@@ -169,7 +169,7 @@ it('an occupied or taken page reconnects passive; a fresh or dropped one does no
 });
 
 it('a takeover attach adopts the server comments: the offline edits of the old tab are dropped, not re-sent (Minor 6)', async () => {
-  const { addComment } = await import('@/comments/slice.ts');
+  const { addComment } = await import('@/plugins/comments/slice.ts');
   let ev!: (e: ServerEvent) => void;
   let state!: (s: SocketState) => void;
   let up = true;

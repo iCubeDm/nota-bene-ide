@@ -1,8 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import mermaid from 'mermaid';
-import { setLang } from '@/i18n/index.ts';
-import type { DiagramTab } from '@/tabs/slice.ts';
+import { setLang } from '@/core/i18n/index.ts';
+import type { DiagramTab } from '@/core/tabs/slice.ts';
 import { DiagramView } from './DiagramView.tsx';
 
 vi.mock('mermaid', () => ({

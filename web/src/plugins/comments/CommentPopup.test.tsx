@@ -3,15 +3,15 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { parseClientMessage, type ClientMessage, type MediaAnchor } from '@nota-bene/shared';
-import { Composer } from '@/composer/Composer.tsx';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/testing';
-import { getToasts, resetToasts } from '@/shell/toast.ts';
+import { Composer } from '@/plugins/composer/Composer.tsx';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { makeStore } from '@/core/testing';
+import { getToasts, resetToasts } from '@/core/shell/toast.ts';
 import { CommentPopup } from './CommentPopup.tsx';
 import type { PendingComment } from '@/sdk';
-import { deleteMarks } from '@/media/markup/createMediaComment.ts';
-import { labelText, QUICK_LABELS } from '@/anchors/labels.ts';
+import { deleteMarks } from '@/plugins/media/markup/createMediaComment.ts';
+import { labelText, QUICK_LABELS } from '@/core/anchors/labels.ts';
 import { setPanelOpen } from './slice.ts';
 import type { PendingSelection } from './SelectionButton.tsx';
 
@@ -160,8 +160,8 @@ it('⌘Enter in the popup does not reach the composer', async () => {
   expect(screen.getByPlaceholderText(/Message the agent/)).toHaveValue('draft');
 });
 
-vi.mock('@/lib/image.ts', async (orig) => ({
-  ...(await orig<typeof import('@/lib/image.ts')>()),
+vi.mock('@/core/lib/image.ts', async (orig) => ({
+  ...(await orig<typeof import('@/core/lib/image.ts')>()),
   prepareImage: async (f: File) => f,
   uploadImage: async () => ({ id: 'e'.repeat(64), mediaType: 'image/png' }),
 }));

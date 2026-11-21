@@ -1,5 +1,5 @@
-import { useT } from '@/i18n/index.ts';
-import { selectConn, useAppSelector } from '@/store/store.ts';
+import { useT } from '@/core/i18n/index.ts';
+import { selectConn, useAppSelector } from '@/core/store/store.ts';
 
 /**
  * This tab stopped its own window (the header's Stop Nota Bene). The server is gone and nothing reconnects; a page cannot close

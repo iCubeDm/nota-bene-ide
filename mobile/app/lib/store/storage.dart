@@ -1,4 +1,4 @@
-// The phone's storage (issue 547), as the web's `storage` (web/src/sdk/storage.ts): one data-access interface for what
+// The phone's storage (issue 547), as the web's `storage` (web/src/core/sdk/storage.ts): one data-access interface for what
 // outlives the app, which the stores are built on. [Storage.vault] keeps small values by key (Keystore-backed, the
 // web's `storage.local`); [Storage.files] the larger ones in the app's files dir, by path: the comment queues
 // (`comment-ops.json`) and the voice outboxes (`voice-out/index.json`, `voice-out/<entry>.wav`). The phone has no

@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
-import { useT } from '@/i18n/index.ts';
+import { useT } from '@/core/i18n/index.ts';
 import { storage, string } from '@/sdk/storage.ts';
 
 const STEP = 16;

@@ -2,12 +2,12 @@ import { act, cleanup, render as rtlRender, screen } from '@testing-library/reac
 import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { testStore, type FakeConnection } from '@/testing';
-import { draftSent, setDraft } from '@/composer/slice.ts';
-import { uploadStarted } from '@/store/message.ts';
-import { sendBuilding } from '@/store/send.ts';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { testStore, type FakeConnection } from '@/core/testing';
+import { draftSent, setDraft } from '@/plugins/composer/slice.ts';
+import { uploadStarted } from '@/core/store/message.ts';
+import { sendBuilding } from '@/core/store/send.ts';
 import { reloadPage } from './reloadPage.ts';
 import { recheckUpdate, UpdateNotice } from './UpdateNotice.tsx';
 

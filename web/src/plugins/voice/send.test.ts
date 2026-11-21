@@ -1,8 +1,8 @@
 import { expect, it } from 'vitest';
 import type { ClientMessage } from '@nota-bene/shared';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 import { sendVoice } from './send.ts';
 
 const voice = { id: 'a'.repeat(64), ms: 3000, wave: [1, 2, 3] };

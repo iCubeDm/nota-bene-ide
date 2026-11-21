@@ -3,16 +3,16 @@ import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ClientMessage, Comment, MediaShape } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
 import { addShape, selectDraft } from './slice.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 import { AttachmentMarkup } from './AttachmentMarkup.tsx';
 
 const prepare = vi.hoisted(() => vi.fn());
-vi.mock('@/media/markup/createMediaComment.ts', async (orig) => ({
-  ...(await orig<typeof import('@/media/markup/createMediaComment.ts')>()),
+vi.mock('@/plugins/media/markup/createMediaComment.ts', async (orig) => ({
+  ...(await orig<typeof import('@/plugins/media/markup/createMediaComment.ts')>()),
   prepareAttachmentComment: prepare,
 }));
 

@@ -202,7 +202,7 @@ const CASES: Record<string, ServerEvent[]> = {
   ],
 };
 
-const dir = path.resolve(__dirname, '../../../mobile/app/test/fixtures/feed');
+const dir = path.resolve(__dirname, '../../../../mobile/app/test/fixtures/feed');
 
 it('the fixture directory holds exactly the cases', () => {
   expect(fs.readdirSync(dir).sort()).toEqual(Object.keys(CASES).map((n) => `${n}.json`).sort());

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useAppSelector, useRegistry } from '@/store/store.ts';
+import { useAppSelector, useRegistry } from '@/core/store/store.ts';
 import { tabView } from '@/sdk/registry.ts';
 import { selectTabs, type Tab } from './slice.ts';
 

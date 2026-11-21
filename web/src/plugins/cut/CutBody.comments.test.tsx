@@ -1,10 +1,10 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import type { Comment, CutAnchor } from '@nota-bene/shared';
-import { serverEvent } from '@/store/store.ts';
-import { renderWith } from '@/testing';
-import { selectComments } from '@/comments/slice.ts';
-import { jumpToFileComment } from '@/files/slice.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { renderWith } from '@/core/testing';
+import { selectComments } from '@/plugins/comments/slice.ts';
+import { jumpToFileComment } from '@/plugins/files/slice.ts';
 import { CutBody } from './CutBody.tsx';
 import { liveCutState } from './live.ts';
 import { SAVE_DELAY } from './useCutDoc.ts';

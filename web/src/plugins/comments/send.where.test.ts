@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
 import type { Comment, MediaAnchor } from '@nota-bene/shared';
-import { setLang } from '@/i18n/index.ts';
+import { setLang } from '@/core/i18n/index.ts';
 import { whereOf } from './send.ts';
 
 const media = (over: Partial<MediaAnchor> = {}): Comment => ({

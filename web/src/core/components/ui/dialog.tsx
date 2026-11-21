@@ -1,5 +1,5 @@
 import * as React from "react"
-import { cn } from "@/lib/utils"
+import { cn } from "@/core/lib/utils"
 import { Dialog as DialogPrimitive } from "radix-ui"
 
 function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {

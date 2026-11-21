@@ -1,12 +1,12 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { KEY_STORAGE } from '@/net/auth.ts';
-import { makeStore } from '@/testing';
-import { closeTab, openFile, restoreTabs, selectTabs, serializeTabs } from '@/tabs/slice.ts';
-import { Panes } from '@/tabs/Panes.tsx';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { KEY_STORAGE } from '@/core/net/auth.ts';
+import { makeStore } from '@/core/testing';
+import { closeTab, openFile, restoreTabs, selectTabs, serializeTabs } from '@/core/tabs/slice.ts';
+import { Panes } from '@/core/tabs/Panes.tsx';
 import { FileView } from './FileView.tsx';
 import { jumpToFileComment } from './slice.ts';
 

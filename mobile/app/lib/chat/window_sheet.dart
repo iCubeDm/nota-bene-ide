@@ -1,7 +1,7 @@
 // The window sheet of a phone chat (opened from the header pill): what the window does: the session and its folder, the
 // model and effort, one row per permission mode, and a restart tile. What it uses (context, limits, cost, compact, clear,
 // stats) is the context sheet's. Each control sends what the desktop's sends, under the same conditions
-// (web/src/controls/ModePill.tsx); restart is always there.
+// (web/src/plugins/controls/ModePill.tsx); restart is always there.
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nb_protocol/nb_protocol.dart';
@@ -29,7 +29,7 @@ Future<void> showWindowSheet(BuildContext context, WindowTab tab) {
   );
 }
 
-/// Sends the window command [name] as the web's runCommand does (web/src/controls/slice.ts): refused while the agent
+/// Sends the window command [name] as the web's runCommand does (web/src/plugins/controls/slice.ts): refused while the agent
 /// works or when the tab is not open. Null when it went, else the web's reason text in [lang] (`working`, `offline`).
 String? runWindowCommand(
   WindowTab tab,

@@ -2,11 +2,11 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Comment } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { RightStrip } from '@/shell/ToolStrip.tsx';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { RightStrip } from '@/core/shell/ToolStrip.tsx';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 import { CommentPopup } from './CommentPopup.tsx';
 import { CommentsPanel } from './CommentsPanel.tsx';
 

@@ -1,29 +1,29 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { configureStore, type Middleware } from '@reduxjs/toolkit';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
-import { makeStore } from '@/testing';
-import { PLUGINS } from '../plugins.ts';
-import { commentsSlice } from '../comments/slice.ts';
-import { composerSlice } from '../composer/slice.ts';
-import { historySlice } from '../composer/history.ts';
-import { controlsSlice } from '../store/controls.ts';
-import { feedUiSlice } from '../feed/uiSlice.ts';
-import { filesSlice } from '../files/slice.ts';
-import { markupSlice } from '../media/markup/slice.ts';
-import { remoteSlice } from '../remote/slice.ts';
+import { makeStore } from '@/core/testing';
+import { PLUGINS } from '../../plugins.ts';
+import { commentsSlice } from '../../plugins/comments/slice.ts';
+import { composerSlice } from '../../plugins/composer/slice.ts';
+import { historySlice } from '../../plugins/composer/history.ts';
+import { controlsSlice } from './controls.ts';
+import { feedUiSlice } from '../../plugins/feed/uiSlice.ts';
+import { filesSlice } from '../../plugins/files/slice.ts';
+import { markupSlice } from '../../plugins/media/markup/slice.ts';
+import { remoteSlice } from '../../plugins/remote/slice.ts';
 import { statsSlice } from './stats.ts';
 import { subagentsSlice } from './subagents.ts';
 import { tasksSlice } from './tasks.ts';
 import { messageSlice } from './message.ts';
-import { tasksUiSlice } from '../tasks/slice.ts';
+import { tasksUiSlice } from '../../plugins/tasks/slice.ts';
 import { tabsSlice } from '../tabs/slice.ts';
 import { jumpSlice } from '../tabs/jump.ts';
-import { treeSlice } from '../files/treeSlice.ts';
-import { vcsSlice } from '../vcs/store.ts';
-import { projectsSlice } from '../projects/api.ts';
-import { refusedMiddleware } from '../composer/refused.ts';
-import { historyMiddleware } from '../composer/history.ts';
-import { compactTimingMiddleware } from '../feed/compactTiming.ts';
+import { treeSlice } from '../../plugins/files/treeSlice.ts';
+import { vcsSlice } from '../../plugins/vcs/store.ts';
+import { projectsSlice } from '../../plugins/projects/api.ts';
+import { refusedMiddleware } from '../../plugins/composer/refused.ts';
+import { historyMiddleware } from '../../plugins/composer/history.ts';
+import { compactTimingMiddleware } from '../../plugins/feed/compactTiming.ts';
 import { enterRoot } from '../tabs/slice.ts';
 import type { Plugin } from '../sdk/plugin.ts';
 import { connSlice, devToolsEnabled, feedSlice, interrupt, makeStore as coreStore, middlewareOf, selectBusy, selectFeed, sendMessage, toastMiddleware } from './store.ts';
@@ -96,7 +96,7 @@ it('devtools only in dev', () => {
 
 it('selectReplyLabel numbers final assistant items and names user messages', async () => {
   const { setLang } = await import('../i18n/index.ts');
-  const { selectReplyLabel } = await import('../comments/send.ts');
+  const { selectReplyLabel } = await import('../../plugins/comments/send.ts');
   setLang('en');
   const f = fake();
   const store = makeStore({ url: 'ws://x/ws', connect: f.connect });
@@ -109,7 +109,7 @@ it('selectReplyLabel numbers final assistant items and names user messages', asy
   expect(selectReplyLabel(st, 'a1:0')).toBe('reply #1');
   expect(selectReplyLabel(st, 'a2:0')).toBe('reply #2');
   expect(selectReplyLabel(st, 'a2:0', true)).toBe('reply'); // the batch text: no unstable number
-  const { whereOf } = await import('../comments/send.ts');
+  const { whereOf } = await import('../../plugins/comments/send.ts');
   const on = (id: string) => ({ anchor: { source: { kind: 'message', id }, start: 0, end: 1, quote: 'q', prefix: '', suffix: '' } }) as never;
   expect(whereOf(on('a2:0'), st)).toBe('reply'); // the agent never sees the UI numbering
   expect(whereOf(on('u1'), st)).toBe('my message');

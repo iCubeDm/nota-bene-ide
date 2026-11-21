@@ -2,7 +2,7 @@
 // connect and after every change). A change made here is queued as an op (protocol 19: `comment-op`, answered by the
 // set's `ack`, `comment-ack` or `comment-refused`) and shown at once, folded over the server's set; the queue is on disk,
 // so a change made offline outlives the app. A window older than 19 gets the whole set instead, as before. A send with
-// `commentIds` makes the server mark them sent. The batch text is the desktop's (web/src/comments/compose.ts).
+// `commentIds` makes the server mark them sent. The batch text is the desktop's (web/src/plugins/comments/compose.ts).
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';

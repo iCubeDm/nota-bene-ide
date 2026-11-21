@@ -1,10 +1,10 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
-import { activate, openFile, selectTabs } from '@/tabs/slice.ts';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { activate, openFile, selectTabs } from '@/core/tabs/slice.ts';
 import { RecentFiles } from './RecentFiles.tsx';
 import { RECENT_DWELL_MS, RECENT_MAX, readRecent } from './recent.ts';
 import { setRecentOpen } from './slice.ts';

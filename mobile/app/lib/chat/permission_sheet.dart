@@ -12,7 +12,7 @@ import '../ui/blur_band.dart';
 import 'feed.dart';
 import 'window_tab.dart';
 
-/// The desktop's labels for the agents' own choice ids and texts (web/src/feed/PermissionCard.tsx).
+/// The desktop's labels for the agents' own choice ids and texts (web/src/plugins/feed/PermissionCard.tsx).
 String choiceLabel(AppLocalizations t, InteractionChoicesItem c) {
   if (RegExp(r'^Approve .+ for this session$').hasMatch(c.label)) {
     return t.allowSession;

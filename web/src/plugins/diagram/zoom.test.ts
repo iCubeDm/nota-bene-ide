@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { centered, clampScale, fitScale, fitView, MAX_SCALE, MIN_SCALE, zoomAt } from './zoom.ts';
-import { sha1 } from '@/lib/sha1.ts';
+import { sha1 } from '@/core/lib/sha1.ts';
 
 it('fits a drawing to the pane by its tighter side', () => {
   expect(fitScale(800, 400, 400, 400)).toBe(1);

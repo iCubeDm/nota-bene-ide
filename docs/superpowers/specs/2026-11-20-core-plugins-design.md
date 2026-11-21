@@ -44,13 +44,13 @@ bundle. Nothing is rewritten; each step is a PR into `gh-511-core-plugins` with 
 
 ### Location and entry points
 
-- `web/src/sdk/index.ts`: the runtime API (below). New core code lives beside it in `web/src/sdk/` (`connections.ts`,
+- `web/src/core/sdk/index.ts`: the runtime API (below). New core code lives beside it in `web/src/core/sdk/` (`connections.ts`,
   `repository.ts`, `routes.ts`, `storage.ts`, `registry.ts`, `plugin.ts`, `track.ts`, `flags.ts`); `index.ts` also
   re-exports the existing core folders.
-- `web/src/sdk/ui.ts`: the UI primitives (`components/ui/*`, `ConfirmDialog`, `PanelResizer`), kept out of `index.ts`
+- `web/src/core/sdk/ui.ts`: the UI primitives (`components/ui/*`, `ConfirmDialog`, `PanelResizer`), kept out of `index.ts`
   so the runtime API stays readable.
 - A plugin imports `@/sdk` and `@/sdk/ui`, its own folder, `@nota-bene/shared*` and npm packages. Nothing else.
-- `web/src/testing/index.tsx`: the test harness, importable from test files only.
+- `web/src/core/testing/index.tsx`: the test harness, importable from test files only.
 - Composition root: `web/src/main.tsx`, `web/src/App.tsx` and a new `web/src/plugins.ts` (the ordered `PLUGINS` list).
   Root-level files may import anything.
 
@@ -101,7 +101,7 @@ Names are final unless a step finds a collision; shapes are interfaces, not bodi
 - `storage.pref<K extends keyof SharedPrefs>(name) → Pref<T> { get(); set(v) /* POST /system/prefs, chained, last
   wins */; subscribe(fn); }`; `set` posts through `connections.current().fetch(routes.systemPrefs(), …)`, so a pref
   follows the agent's base path; cached in local storage under its current key so a reload does not flash. `SharedPrefs`
-  (`lang`, `uiScale`, `theme`, `dictationLang`, `projectRail`, `sounds`) is typed in `web/src/sdk/storage.ts`.
+  (`lang`, `uiScale`, `theme`, `dictationLang`, `projectRail`, `sounds`) is typed in `web/src/core/sdk/storage.ts`.
 - One adoption point: the connection adopts `hello.lang`, `hello.uiScale`, `hello.theme`, `hello.dictationLang` into
   their prefs (today three separate calls in `store.ts:170-173` plus a fourth for dictation). `projectRail` and
   `sounds`, which `hello` does not carry, are read from `GET /system/prefs` by the same module.
@@ -109,7 +109,7 @@ Names are final unless a step finds a collision; shapes are interfaces, not bodi
   typed table in `flags.ts` (empty today; a flag is added with the feature it guards).
 - `track(name: string, props?: Record<string, string | number | boolean>)`: appends to an in-memory ring of the last
   200 events, `track.recent()` reads it (tests, a future local view). No network, no storage.
-- No plugin calls `localStorage`; the boundary check scans for it outside `web/src/sdk/` and `net/auth.ts`.
+- No plugin calls `localStorage`; the boundary check scans for it outside `web/src/core/sdk/` and `net/auth.ts`.
 
 **The state rule.** Each piece of state has exactly one home:
 
@@ -120,7 +120,7 @@ Names are final unless a step finds a collision; shapes are interfaces, not bodi
 | anything that outlives the page (local or server prefs, saved UI state) | `storage.local` / `storage.pref` (a slice may mirror it through a listener, as `persist.ts` does) |
 | state of one component instance | `useState` / `useReducer` |
 
-No new module singletons: outside `web/src/sdk/` the boundary check fails `useSyncExternalStore` and any value with its
+No new module singletons: outside `web/src/core/sdk/` the boundary check fails `useSyncExternalStore` and any value with its
 own listeners that its allowlist does not name; the allowlist holds the few kept by design (As built 50).
 
 **Capabilities**: `has(protocol, feature)` and `type Feature` re-exported from `@nota-bene/shared` (below);
@@ -237,10 +237,10 @@ bypassing the SDK, 74 core→plugin (shell 31, store 22, tabs 17, refs 3, anchor
   ESLint in the repository to hang a rule on. Revisit if TypeScript's API returns and the rules grow beyond folders.
 - **Rules.** (1) A plugin file imports only `@/sdk`, `@/sdk/ui`, its own folder, `@nota-bene/shared*`, packages.
   (2) A core file never imports a plugin folder. (3) `@/testing` only from `*.test.ts(x)` and the listed test setups (`cut/testCut.tsx`). (4) Test files are exempt from
-  1–2 (an integration test composes plugins through the harness). (5) No `localStorage` outside `web/src/sdk/` and
+  1–2 (an integration test composes plugins through the harness). (5) No `localStorage` outside `web/src/core/sdk/` and
   `net/auth.ts`; no comparison of `protocol` with a number or a protocol constant (`<`, `<=`, `>`, `>=`, also
   `(x.protocol ?? 0) >=` and `>= *_PROTOCOL` / Dart `*Protocol`) in `web/src` or `mobile/app/lib`; no new
-  `useSyncExternalStore` outside `web/src/sdk/` (text scans).
+  `useSyncExternalStore` outside `web/src/core/sdk/` (text scans).
 - **Baseline.** `scripts/boundaries.baseline.json`: a sorted list of `"<file> -> <imported module>"` (and
   `"<file> -> localStorage"`, `"<file> -> protocol gate"`). The test fails on an entry not in the baseline (a new
   violation) and on a baseline entry no longer present (stale: the shrink must be committed). `UPDATE_BOUNDARIES=1`
@@ -338,7 +338,7 @@ directory from `voice/player.dart` to the voice store; `resolveLocale` from `mai
 
 ## The feed golden fixture
 
-- `web/src/store/feedParity.test.ts` drives `reduce()` (`store/feed.ts`) with fixed `ServerEvent` sequences (a replay,
+- `web/src/core/store/feedParity.test.ts` drives `reduce()` (`store/feed.ts`) with fixed `ServerEvent` sequences (a replay,
   streamed chunks, tool call/update/result including Agent calls, permission and answer, plan, shell run, compaction and
   `earlier`, held sends, voice text, an unknown kind) and writes the result as
   `mobile/app/test/fixtures/feed/<case>.json`: `{ events, items }`, where `items` is a projection of fields both models
@@ -359,7 +359,7 @@ without a shared type (`/complete`, the project icon's `/info.icon`) get one in 
 `mobile/app/lib/files/git.dart:7-40` and the hand parses in `files/remote.dart` and `hosts/project_icon.dart` use the
 generated classes. Each new root gets a fixture in `shared/fixtures/protocol.json`.
 
-## Testing harness (`web/src/testing/`)
+## Testing harness (`web/src/core/testing/`)
 
 - `testStore({ plugins?: Plugin[] = PLUGINS; events?: ServerEvent[]; hello?: Partial<HelloEvent>; state?: SocketState })
   → { store, conn: FakeConnection }`: wraps `makeStore` with a fake connect (today copied into 101 test files).
@@ -376,8 +376,8 @@ generated classes. Each new root gets a fixture in `shared/fixtures/protocol.jso
 §4.2 "Store" describes `combineSlices` with injected plugin slices and `PluginState`; the 16-slice list is grouped by
 owner. A new §4.5 "SDK and registries" holds the registry table and the data/storage rules (resources, prefs, `track`,
 flags). §3.3 "Versioning" points at `FEATURES`. §2.3 names `HostWindow.id` and the phone's `Sdk`, `WindowConnection`,
-`WindowState`. §7 "Testing" names `web/src/testing/` and the feed fixture. AGENTS.md's project map adds one line:
-`web/src/sdk/` is the only import of a feature folder (the rule's test and baseline in `scripts/`).
+`WindowState`. §7 "Testing" names `web/src/core/testing/` and the feed fixture. AGENTS.md's project map adds one line:
+`web/src/core/sdk/` is the only import of a feature folder (the rule's test and baseline in `scripts/`).
 
 ## Risks
 
@@ -400,7 +400,7 @@ flags). §3.3 "Versioning" points at `FEATURES`. §2.3 names `HostWindow.id` and
 3. **Plugins import `@/sdk` and `@/sdk/ui` only**, not other core folders directly; the 398 plugin→core imports are in
    the baseline and shrink by codemod as the SDK re-exports grow.
 4. **No folder moves into a `core/` directory**: core is a list of existing folders; new core code goes in
-   `web/src/sdk/`. Exceptions: `tree/` merges into `files/`, `shell/UpdateNotice.tsx` becomes `update/`, four shell
+   `web/src/core/sdk/`. Exceptions: `tree/` merges into `files/`, `shell/UpdateNotice.tsx` becomes `update/`, four shell
    files move to their plugins.
 5. **Composition root = root-level files** (`main.tsx`, `App.tsx`, new `plugins.ts`), no `app/` folder.
 6. **Plugin state via RTK 2 `combineSlices` + `inject` + module augmentation** of `PluginState` and `TabKinds`.
@@ -574,3 +574,10 @@ result.
     the `hello` itself reads its `protocol`, and the quick labels and the subagent's "known old" take the protocol
     number. `AgentConnection.has`, `FLAGS` / `flag` / `useFlag` and `track` were unused and went. `chat` no longer calls
     through (item 34): the store reaches no module that loads the SDK, so its bindings exist when the SDK runs.
+53. **Folders by part** (issue 570): the core's folders moved to `web/src/core/<name>/`, the plugins to
+    `web/src/plugins/<name>/`; the composition root (`main.tsx`, `App.tsx`, `plugins.ts`, the CSS, `test-setup.ts`)
+    stays at `web/src/`. Ruling: `@/sdk` stays the plugins' import, an alias of `core/sdk` (vite and tsconfig), so no
+    plugin file and no `declare module '@/sdk'` changed; every other `@/` path names its part (`@/core/testing`,
+    `@/plugins/files/slice.ts`). The boundary check reads a file's role from its directory, with no folder lists. Its
+    state rule also sees `s['<name>']` and a destructured `{ <name> }` of the state; a nested destructuring is not seen.
+    The folder names in this document are relative to their part.

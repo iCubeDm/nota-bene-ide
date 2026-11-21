@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
-import { PATH_MIME } from '@/cut/drag.ts';
-import { PATHS_MIME } from '@/lib/drag.ts';
+import { PATH_MIME } from '@/plugins/cut/drag.ts';
+import { PATHS_MIME } from '@/core/lib/drag.ts';
 import { buildRegistry } from '@/sdk/registry.ts';
 import { PLUGINS } from '@/plugins.ts';
 import { renderDir, type RowsCtx } from './TreeRow.tsx';

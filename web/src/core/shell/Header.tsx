@@ -1,10 +1,10 @@
 import { Fragment, useRef } from 'react';
-import { getLang, chooseLang, LANGS, useT } from '@/i18n/index.ts';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, MENU_ROW as row } from '@/components/ui/dropdown-menu.tsx';
-import { selectSession, useAppDispatch, useAppSelector } from '@/store/store.ts';
-import { openSettings, openUsage } from '@/tabs/slice.ts';
-import { ICONS, Svg } from '@/components/icons.tsx';
-import { shortHome } from '@/lib/paths.ts';
+import { getLang, chooseLang, LANGS, useT } from '@/core/i18n/index.ts';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, MENU_ROW as row } from '@/core/components/ui/dropdown-menu.tsx';
+import { selectSession, useAppDispatch, useAppSelector } from '@/core/store/store.ts';
+import { openSettings, openUsage } from '@/core/tabs/slice.ts';
+import { ICONS, Svg } from '@/core/components/icons.tsx';
+import { shortHome } from '@/core/lib/paths.ts';
 import { toast } from './toast.ts';
 import { useTabAligned } from './tabAlign.ts';
 import { isMac } from './keymap.ts';
@@ -14,7 +14,7 @@ import { Logo } from './Logo.tsx';
 import { Slots, type Own } from './Slots.tsx';
 import { theme, THEME_GROUPS, THEME_NAMES, useTheme } from './theme.ts';
 import { uiScale, useUiScale } from './uiScale.ts';
-import { percent } from '@/lib/format.ts';
+import { percent } from '@/core/lib/format.ts';
 
 const stepBtn = 'grid size-6 cursor-pointer place-items-center rounded-md text-[0.9375rem] leading-none text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent';
 const isMacLabel = (k: string) => `${isMac() ? '⌥' : 'Alt+'}${k}`;

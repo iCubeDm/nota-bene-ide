@@ -5,7 +5,7 @@ import { act, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, vi } from 'vitest';
 import { validateCut, type Cut } from '@nota-bene/shared/cut';
 import { setLang } from '@/sdk';
-import { renderWith, stubRoutes } from '@/testing';
+import { renderWith, stubRoutes } from '@/core/testing';
 import { CutBody } from './CutBody.tsx';
 import { SAVE_DELAY } from './useCutDoc.ts';
 

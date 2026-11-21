@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ClientMessage, ImageRef, ServerEvent } from '@nota-bene/shared';
-import { controlsPlugin } from '@/controls/plugin.ts';
+import { controlsPlugin } from '@/plugins/controls/plugin.ts';
 import { chat, definePlugin, type SendPart, type Taken } from '@/sdk';
-import { makeStore } from '@/testing';
+import { makeStore } from '@/core/testing';
 import { COMPOSITE_MS } from './send.ts';
 
 // The core's send over the plugins' parts (issue 511, step 10d): taken in order at the click, composed in order once

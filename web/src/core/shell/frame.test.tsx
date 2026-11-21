@@ -5,9 +5,9 @@
 import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { RemoteState } from '@nota-bene/shared';
-import { setLang } from '@/i18n/index.ts';
-import { events, renderWith, stubRoutes } from '@/testing';
-import { openStarter } from '@/projects/api.ts';
+import { setLang } from '@/core/i18n/index.ts';
+import { events, renderWith, stubRoutes } from '@/core/testing';
+import { openStarter } from '@/plugins/projects/api.ts';
 import { App } from '@/App.tsx';
 import { Slots } from './Slots.tsx';
 

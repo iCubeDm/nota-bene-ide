@@ -1,5 +1,5 @@
 // The chat's transcript, built from the window's events exactly as the desktop builds it: a port of
-// web/src/store/feed.ts (reduce / reduceAgent). Mutable on purpose: a replay of thousands of events is applied once.
+// web/src/core/store/feed.ts (reduce / reduceAgent). Mutable on purpose: a replay of thousands of events is applied once.
 import 'package:nb_protocol/nb_protocol.dart';
 
 sealed class FeedItem {}
@@ -121,7 +121,7 @@ String feedKey(FeedItem i) => switch (i) {
 };
 
 /// One row of the chat: a single item, or a run of two or more consecutive actions drawn as one folded group
-/// (web/src/feed/Feed.tsx). Anything but an action ends a run. Unlike the web, which draws a subagent's call as a card
+/// (web/src/plugins/feed/Feed.tsx). Anything but an action ends a run. Unlike the web, which draws a subagent's call as a card
 /// of its own, the phone has no such card: the call and the subagent's lines fold into the run (design 5.1).
 class FeedRow {
   FeedRow(this.start, this.items);
@@ -154,7 +154,7 @@ List<FeedRow> feedRows(List<FeedItem> items) {
   return rows;
 }
 
-/// Which action groups and action lines are open (web/src/feed/uiSlice.ts, feedUi). It belongs to the window's tab, not
+/// Which action groups and action lines are open (web/src/plugins/feed/uiSlice.ts, feedUi). It belongs to the window's tab, not
 /// to the widgets: the feed is a lazy list that drops what scrolls away, and the chat may be left and opened again. A
 /// group is keyed by its FIRST action's id, which stays the same while later actions join the run.
 class FeedUi {

@@ -13,7 +13,7 @@ Map<String, Object?> agent(Map<String, Object?> e) => {
   'ts': 1,
 };
 
-/// The fields both feeds hold, as web/src/store/feedParity.test.ts projects the desktop's items.
+/// The fields both feeds hold, as web/src/core/store/feedParity.test.ts projects the desktop's items.
 Map<String, Object?> project(FeedItem i) => switch (i) {
   UserItem() => {
     'kind': 'user',
@@ -84,12 +84,12 @@ Feed run(List<Map<String, Object?>> events) {
 }
 
 void main() {
-  // the desktop's reduce() wrote these (UPDATE_FIXTURES=1 in web/src/store/feedParity.test.ts)
+  // the desktop's reduce() wrote these (UPDATE_FIXTURES=1 in web/src/core/store/feedParity.test.ts)
   final cases =
       Directory('test/fixtures/feed').listSync().whereType<File>().toList()
         ..sort((a, b) => a.path.compareTo(b.path));
   test('has the desktop feed fixtures', () {
-    // as many as web/src/store/feedParity.test.ts writes (it fails on a file no case produces)
+    // as many as web/src/core/store/feedParity.test.ts writes (it fails on a file no case produces)
     expect(cases.length, 11);
   });
   for (final file in cases) {

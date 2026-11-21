@@ -2,15 +2,15 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Comment, ServerEvent } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
-import { addShape, selectDraft, setTool } from '@/media/markup/slice.ts';
-import { dismissToast, getToasts } from '@/shell/toast.ts';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { addShape, selectDraft, setTool } from '@/plugins/media/markup/slice.ts';
+import { dismissToast, getToasts } from '@/core/shell/toast.ts';
 import { FileView } from './FileView.tsx';
 import { jumpToFileComment, selectFileVersion } from './slice.ts';
-import { setStartAt } from '@/refs/startAt.ts';
+import { setStartAt } from '@/core/refs/startAt.ts';
 import { wrapLines } from './wrap.ts';
 
 // like the real one: awaits the version request it was handed and returns it in the anchor patch
@@ -18,7 +18,7 @@ const prepareMediaComment = vi.fn(async (_id: string, _el: unknown, _a: unknown,
   const version = await o?.version;
   return { images: ['1'.repeat(64), '2'.repeat(64)], anchor: version === undefined ? {} : { version } };
 });
-vi.mock('@/media/markup/createMediaComment.ts', () => ({
+vi.mock('@/plugins/media/markup/createMediaComment.ts', () => ({
   prepareMediaComment: (...a: Parameters<typeof prepareMediaComment>) => prepareMediaComment(...a),
   deleteMarks: vi.fn(async () => {}),
   composite: vi.fn(),

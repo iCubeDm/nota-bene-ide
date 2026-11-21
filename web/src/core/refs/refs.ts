@@ -1,11 +1,11 @@
 import type { MouseEvent as ReactMouseEvent } from 'react';
-import { t } from '@/i18n/index.ts';
+import { t } from '@/core/i18n/index.ts';
 import { fileUrl, isPath } from './kinds.ts';
 import { isTmpImagePath } from './tmpImages.ts';
 import { getSources, loadSources, refOf, sourceForAbs } from './sources.ts';
-import { isServerDrivePath, serverSep, slashRel, wireAbs } from '@/lib/paths.ts';
-import type { AppThunk } from '@/store/store.ts';
-import { openFile } from '@/tabs/slice.ts';
+import { isServerDrivePath, serverSep, slashRel, wireAbs } from '@/core/lib/paths.ts';
+import type { AppThunk } from '@/core/store/store.ts';
+import { openFile } from '@/core/tabs/slice.ts';
 
 /** Folds `.`/`..` of `p` onto `baseDir`. null when it would climb above the project root. */
 function normalize(p: string, baseDir?: string): string | null {

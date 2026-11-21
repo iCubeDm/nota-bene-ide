@@ -2,15 +2,15 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { anchorSource, type Comment, type ServerEvent } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { selectReplyLabel } from '@/comments/send.ts';
-import { makeStore } from '@/testing';
-import { CommentCard } from '@/comments/CommentCard.tsx';
-import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
-import { SelectionButton } from '@/comments/SelectionButton.tsx';
-import { whereOf } from '@/comments/send.ts';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { selectReplyLabel } from '@/plugins/comments/send.ts';
+import { makeStore } from '@/core/testing';
+import { CommentCard } from '@/plugins/comments/CommentCard.tsx';
+import { HighlightLayer } from '@/plugins/comments/HighlightLayer.tsx';
+import { SelectionButton } from '@/plugins/comments/SelectionButton.tsx';
+import { whereOf } from '@/plugins/comments/send.ts';
 import { Feed } from './Feed.tsx';
 
 const rect = (left: number, top: number, w: number, h: number) =>

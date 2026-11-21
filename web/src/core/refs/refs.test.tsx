@@ -3,16 +3,16 @@ import type { ReactNode } from 'react';
 import { Provider } from 'react-redux';
 import type { ServerEvent } from '@nota-bene/shared';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { textOf } from '@/anchors/text.ts';
-import { Markdown } from '@/components/markdown/Markdown.tsx';
-import { UserMessage } from '@/feed/UserMessage.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { makeStore, renderWith } from '@/testing';
-import { serverEvent } from '@/store/store.ts';
-import { selectTabs } from '@/tabs/slice.ts';
-import { tmpDirsOf } from '@/refs/tmpImages.ts';
-import { resetSources, setSources } from '@/refs/sources.ts';
-import { setServerSep } from '@/lib/paths.ts';
+import { textOf } from '@/core/anchors/text.ts';
+import { Markdown } from '@/core/components/markdown/Markdown.tsx';
+import { UserMessage } from '@/plugins/feed/UserMessage.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { makeStore, renderWith } from '@/core/testing';
+import { serverEvent } from '@/core/store/store.ts';
+import { selectTabs } from '@/core/tabs/slice.ts';
+import { tmpDirsOf } from '@/core/refs/tmpImages.ts';
+import { resetSources, setSources } from '@/core/refs/sources.ts';
+import { setServerSep } from '@/core/lib/paths.ts';
 import { clearRefCache, escapeMentions, markRefs, refClick, splitMentions } from './refs.ts';
 
 beforeEach(() => {

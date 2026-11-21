@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { en } from '../web/src/i18n/en.ts';
+import { en } from '../web/src/core/i18n/en.ts';
 
 // The header's update notice in a real browser. The server's /system/update* routes are stubbed: the page only shows
 // what the status says and posts install / restart, so no release is installed and the shared server never exits.

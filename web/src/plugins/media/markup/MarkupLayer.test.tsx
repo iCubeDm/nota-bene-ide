@@ -2,10 +2,10 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { MediaShape, ServerEvent } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { connState, serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { connState, serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 import { MarkupLayer } from './MarkupLayer.tsx';
 import { shapePath } from './geometry.ts';
 import { addShape, selectDraft, setMode } from './slice.ts';

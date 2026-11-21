@@ -1,8 +1,8 @@
 import { render, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { expect, it, vi } from 'vitest';
-import { makeStore } from '@/testing';
-import { Markdown } from '@/components/markdown/Markdown.tsx';
+import { makeStore } from '@/core/testing';
+import { Markdown } from '@/core/components/markdown/Markdown.tsx';
 
 vi.mock('mermaid', () => ({
   default: { initialize: vi.fn(), render: vi.fn(async () => ({ svg: '<svg data-test="m"></svg>' })) },

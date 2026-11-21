@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { enterRoot } from '../../tabs/slice.ts';
+import { enterRoot } from '../../../core/tabs/slice.ts';
 import { addShape, commitEdit, dropShapes, markupSlice, replaceShape, setMode, undo, type MarkupState } from './slice.ts';
 
 const r = markupSlice.reducer;

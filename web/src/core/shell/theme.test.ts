@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-vi.mock('@/net/auth.ts', () => ({ apiFetch: vi.fn(() => Promise.resolve({ ok: true })) }));
-import { apiFetch } from '@/net/auth.ts';
+vi.mock('@/core/net/auth.ts', () => ({ apiFetch: vi.fn(() => Promise.resolve({ ok: true })) }));
+import { apiFetch } from '@/core/net/auth.ts';
 import { theme } from './theme.ts';
 
 beforeEach(() => {

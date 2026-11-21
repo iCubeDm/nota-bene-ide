@@ -3,10 +3,10 @@ import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
-import { loadEmoji } from '@/comments/emoji.ts';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/testing';
+import { loadEmoji } from '@/plugins/comments/emoji.ts';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { makeStore } from '@/core/testing';
 import { Composer } from './Composer.tsx';
 
 // M6-05: the `:` emoji picker on the composer, next to the `@` picker, the suggestion Tab and the Shift+Tab mode cycle.

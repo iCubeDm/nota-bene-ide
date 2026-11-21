@@ -1,8 +1,8 @@
 import { act } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ServerEvent } from '@nota-bene/shared';
-import { connState, serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { connState, serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 import { startFavicon, FAV } from './Favicon.ts';
 
 let stop = () => {};

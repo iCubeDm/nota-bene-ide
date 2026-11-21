@@ -1,6 +1,6 @@
 import { act, cleanup, createEvent, fireEvent, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
-import { setLang } from '@/i18n/index.ts';
+import { setLang } from '@/core/i18n/index.ts';
 import { PATH_MIME } from './drag.ts';
 import { FLASH_MS } from './changes.ts';
 import { SAVE_DELAY } from './useCutDoc.ts';

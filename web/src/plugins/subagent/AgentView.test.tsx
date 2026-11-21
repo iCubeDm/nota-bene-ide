@@ -2,14 +2,14 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { anchorSource, type Comment, type ServerEvent, type SubagentView } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { SelectionButton } from '@/comments/SelectionButton.tsx';
-import { whereOf } from '@/comments/send.ts';
-import { Feed } from '@/feed/Feed.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
-import { activate, openAgent, restoreTabs, serializeTabs } from '@/tabs/slice.ts';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { SelectionButton } from '@/plugins/comments/SelectionButton.tsx';
+import { whereOf } from '@/plugins/comments/send.ts';
+import { Feed } from '@/plugins/feed/Feed.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { activate, openAgent, restoreTabs, serializeTabs } from '@/core/tabs/slice.ts';
 import { AgentView, POLL_MS } from './AgentView.tsx';
 
 const SESSION = 'S-1';
@@ -402,7 +402,7 @@ describe('comments in the subagent tab', () => {
   it('the card of a comment on a subagent reply that is not loaded is an orphan, and one in a loaded reply is not', async () => {
     const { store } = setup();
     await screen.findByText('hello brave world');
-    const { useCommentSource } = await import('@/comments/card/useCommentSource.ts');
+    const { useCommentSource } = await import('@/plugins/comments/card/useCommentSource.ts');
     const { renderHook } = await import('@testing-library/react');
     const mk = (id: string, agent: string): Comment => ({
       id: 'c1', text: 'x', status: 'sent', createdAt: 1, sentIn: 'u',
@@ -438,14 +438,14 @@ describe('after a reload, with the tab closed or a poll failing', () => {
     const { store } = setup();
     await flush(0);
     await flush(POLL_MS);
-    const { itemsOf } = await import('@/store/subagents.ts');
+    const { itemsOf } = await import('@/core/store/subagents.ts');
     expect(store.getState().subagents.byTool[TOOL]!.status).toBe('error');
     expect(itemsOf(store.getState(), TOOL)?.length).toBeGreaterThan(0);
   });
 
   it('the main composer says its message goes to the main agent while an agent tab is active', async () => {
     const { store } = setup();
-    const { Composer } = await import('@/composer/Composer.tsx');
+    const { Composer } = await import('@/plugins/composer/Composer.tsx');
     render(<Provider store={store}><TooltipProvider><Composer /></TooltipProvider></Provider>);
     expect(document.querySelector('#composer-input')).toHaveAttribute('placeholder', 'Message the main agent… comments on the subagent’s replies go to it too');
     act(() => void store.dispatch(activate('chat')));

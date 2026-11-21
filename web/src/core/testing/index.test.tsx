@@ -2,9 +2,9 @@
 import { act, screen } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { PROTOCOL } from '@nota-bene/shared';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/core/components/ui/tooltip.tsx';
 import { connectionsOf, useConnState } from '@/sdk/connections.ts';
-import { selectConn, selectSession } from '@/store/store.ts';
+import { selectConn, selectSession } from '@/core/store/store.ts';
 import { events, renderWith, stubResources, stubRoutes, testStore } from './index.tsx';
 
 let routes: ReturnType<typeof stubRoutes> | undefined;

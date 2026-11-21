@@ -3,11 +3,11 @@ import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { CLAUDE_CAPABILITIES, type ClientMessage, type Comment } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { addImage, selectImages, selectMarking } from '@/store/message.ts';
-import { setLang } from '@/i18n/index.ts';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { addImage, selectImages, selectMarking } from '@/core/store/message.ts';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 import { ComposerAttachments } from './ComposerAttachments.tsx';
 
 const A = 'a'.repeat(64), B = 'b'.repeat(64);
@@ -78,7 +78,7 @@ it('the overlay closes when its image leaves the composer', async () => {
   await userEvent.click(screen.getAllByRole('button', { name: /Mark up and comment/ })[0]!);
   expect(screen.getByRole('dialog')).toBeInTheDocument();
   vi.useRealTimers();
-  const { removeImage } = await import('@/store/message.ts');
+  const { removeImage } = await import('@/core/store/message.ts');
   act(() => void store.dispatch(removeImage(A)));
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(selectMarking(store.getState())).toBeNull();

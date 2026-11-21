@@ -1,11 +1,11 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
-import { makeStore, stubRoutes } from '@/testing';
+import { makeStore, stubRoutes } from '@/core/testing';
 import { clearRefCache, openRef } from '../refs/refs.ts';
 import { MediaController } from '../store/mediaController.ts';
-import { setFileLoad } from '../files/slice.ts';
+import { setFileLoad } from '../../plugins/files/slice.ts';
 import { requestJump } from './jump.ts';
-import { setSource, toggleDir } from '../files/treeSlice.ts';
+import { setSource, toggleDir } from '../../plugins/files/treeSlice.ts';
 import { activate, CLOSED_MAX, closeAll, closeOthers, closeRight, closeTab, diagramTabId, fileTabId, openChanges, openDiagram, openFile, openLog, openRemote, openSettings, openUsage, reopenClosed, selectActiveTab, selectTabs } from './slice.ts';
 
 function mk() {

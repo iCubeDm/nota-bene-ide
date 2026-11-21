@@ -2,12 +2,12 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { anchorSource, type ClientMessage } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { setLang } from '@/i18n/index.ts';
-import { whereOf } from '@/comments/send.ts';
-import { SelectionButton, type PendingSelection } from '@/comments/SelectionButton.tsx';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { whereOf } from '@/plugins/comments/send.ts';
+import { SelectionButton, type PendingSelection } from '@/plugins/comments/SelectionButton.tsx';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 import { Feed } from './Feed.tsx';
 
 beforeEach(() => {

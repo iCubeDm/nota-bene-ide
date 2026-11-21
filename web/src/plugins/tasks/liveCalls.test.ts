@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
-import { selectLiveCalls } from '@/store/tasks.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { selectLiveCalls } from '@/core/store/tasks.ts';
 
 it('the live calls are the call ids of the running tasks; a finished one (still listed) leaves', () => {
   const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });

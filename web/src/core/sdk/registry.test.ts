@@ -5,9 +5,9 @@ import { Provider } from 'react-redux';
 import { renderHook } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { PLUGINS } from '@/plugins.ts';
-import { makeStore, useService } from '@/store/store.ts';
+import { makeStore, useService } from '@/core/store/store.ts';
 import { useComposerField } from './composerField.ts';
-import type { TabKinds } from '@/tabs/slice.ts';
+import type { TabKinds } from '@/core/tabs/slice.ts';
 import { buildRegistry } from './registry.ts';
 import { kindOf } from '../refs/kinds.ts';
 import { CORE_COMMANDS, keysFor, withKey } from '../shell/keymap.ts';
@@ -88,7 +88,7 @@ it('every command\'s tooltip key resolves through withKey and keysFor, and every
   // a key no plugin of the store registers names nothing
   expect(keysFor(CORE_COMMANDS, 'hk_files')).toBe('');
   expect(withKey(CORE_COMMANDS, 'X', 'hk_files')).toBe('X');
-  const src = path.resolve(import.meta.dirname, '..');
+  const src = path.resolve(import.meta.dirname, '../..');
   const named = fs.readdirSync(src, { recursive: true, encoding: 'utf8' }).filter((f) => /\.tsx?$/.test(f) && !/\.test\./.test(f))
     .flatMap((f) => [...fs.readFileSync(path.join(src, f), 'utf8').matchAll(/\b(?:withKey|keysFor)\([^\n]*?'(hk_\w+)'/g)].map((m) => m[1]));
   expect(named.length).toBeGreaterThan(5);

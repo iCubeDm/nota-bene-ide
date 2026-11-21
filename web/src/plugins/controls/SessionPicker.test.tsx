@@ -3,16 +3,16 @@ import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { CommentsPanel } from '@/comments/CommentsPanel.tsx';
-import { Composer } from '@/composer/Composer.tsx';
-import { setDraft } from '@/composer/slice.ts';
-import { setLang } from '@/i18n/index.ts';
-import { Header } from '@/shell/Header.tsx';
-import { makeStore } from '@/testing';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { CommentsPanel } from '@/plugins/comments/CommentsPanel.tsx';
+import { Composer } from '@/plugins/composer/Composer.tsx';
+import { setDraft } from '@/plugins/composer/slice.ts';
+import { setLang } from '@/core/i18n/index.ts';
+import { Header } from '@/core/shell/Header.tsx';
+import { makeStore } from '@/core/testing';
 import { menuItems, SessionPicker, type SessionsView } from './SessionPicker.tsx';
-import { ago } from '@/lib/format.ts';
-import { brief } from '@/store/sessions.ts';
+import { ago } from '@/core/lib/format.ts';
+import { brief } from '@/core/store/sessions.ts';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 

@@ -1,10 +1,10 @@
 import { act } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PROTOCOL, type ClientMessage, type PromptEntry, type ServerEvent } from '@nota-bene/shared';
-import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
 import { setDraft } from './slice.ts';
-import { sendBatch } from '@/comments/send.ts';
+import { sendBatch } from '@/plugins/comments/send.ts';
 import { selectPromptItems } from './history.ts';
 
 const posts: { url: string; body: PromptEntry & { session: string | null } }[] = [];

@@ -7,7 +7,7 @@ import { check, generate } from './gen.ts';
 import { dartEnum, mobileStrings } from './mobileStrings.ts';
 import { SCHEMA_PATH } from './schema.ts';
 import { ALL_MODES } from '../../shared/src/protocol.ts';
-import { ru } from '../../web/src/i18n/ru.ts';
+import { ru } from '../../web/src/core/i18n/ru.ts';
 
 function writeAll(files: Map<string, string>): string {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-gen-'));

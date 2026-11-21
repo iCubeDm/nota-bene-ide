@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { setLang, t } from '@/i18n/index.ts';
+import { setLang, t } from '@/core/i18n/index.ts';
 import { nav, openStarter, validName } from './api.ts';
 import { Starter } from './Starter.tsx';
 
