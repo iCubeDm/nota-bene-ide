@@ -9,7 +9,6 @@ import { theme } from '@/shell/theme.ts';
  */
 export const HARDEN = { FORBID_TAGS: ['style', 'form', 'input', 'button', 'select', 'textarea'], ALLOW_DATA_ATTR: false };
 
-export type { DiagramLang };
 /** An svg string safe to put in the DOM, or the message to show instead (already in the current language). */
 export type Rendered = { svg: string } | { error: string };
 

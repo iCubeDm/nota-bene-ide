@@ -219,18 +219,19 @@ run in parallel with 5–11.
 - **Tests:** the full web suite.
 - **Baseline:** files↔tree edges → 0.
 
-### 9a. Tabs and file views registries
+### 9a. Tabs registry
 
-- **Goal:** tab kinds and file bodies are contributed, not imported. **e2e**
-- **Files:** `tabs/Panes.tsx`, `tabs/TabStrip.tsx`, `tabs/TabsMenu.tsx` (one `tabLabel`), `tabs/slice.ts` (ids and
-  save/restore from `TabView`; no `diagram/` import), `tabs/fileLabels.ts` → `files/`; `files/FileView.tsx` over
-  `fileViews` (cut, media, page, text register; each body handles its own jump).
-- **Produces:** `TabView`, `TabKinds`, `FileView`.
-- **Tests:** `registry.test.ts` (duplicate kind throws at build); `TabStrip`, `tabs/slice`, `agentTabs`, `fileLabels`,
-  `FileView` tests green; a test that the menu and the strip label a renamed file the same; e2e.
+- **Goal:** tab kinds are shown by their plugins, not imported. **e2e**
+- **Files:** `sdk/registry.ts` (`buildRegistry`, the `tabs` registry), `tabs/Panes.tsx`, `tabs/TabStrip.tsx`,
+  `tabs/TabsMenu.tsx` (one `tabLabel`), `tabs/slice.ts` (no `diagram/` import: `sha1` → `lib/`, `DiagramLang` in the
+  core), `tabs/fileLabels.ts` → `files/`; a `TabView` in each plugin that shows a kind.
+- **Produces:** `TabView` (rendering only: label, icon, strip extras, menu detail, edit, pane), `TabKinds`. Tab ids and
+  saved forms stay in the core with the tabs' actions, which several plugins dispatch. `fileViews` moved to 10c.
+- **Tests:** `registry.test.ts` (duplicate kind throws at build; every kind has a view); `TabStrip`, `tabs/slice`,
+  `agentTabs`, `fileLabels`, `FileView` tests green; a test that the menu and the strip label every tab the same; e2e.
 - **Behavior:** none intended. If `TabsMenu` ignoring `fileLabels` (inventory web-core #5) is fixed by the single
   `tabLabel`, the PR says so; that is the only visible change allowed here.
-- **Baseline:** core→plugin from `tabs/` 17 → 0; plugin→plugin −~20 (files↔cut, files→media/page).
+- **Baseline:** core→plugin from `tabs/` 17 → 0; plugin→plugin unchanged (the file bodies are 10c's).
 
 ### 9b. Slots and the four shell moves
 
@@ -274,6 +275,16 @@ run in parallel with 5–11.
   byte for byte; `Feed`, `UserMessage`, `toolComments`, `AgentCard`, Composer tests green; the anchor parity tests
   (`anchors/mobileParity`, `mobileChatParity`) and the feed fixture unchanged.
 - **Baseline:** plugin→plugin −~120 (feed's 22-folder fan-out, composer↔comments, feed↔subagent, comments→cut/page/media).
+
+### 10c. File views registry
+
+- **Goal:** file bodies are contributed, not imported. Needs 10b: the bodies reach the comment popup, the highlight
+  layer and the jump through the SDK, so moving them adds no plugin→plugin entry. **e2e**
+- **Files:** `files/FileView.tsx` over `fileViews` (cut, media, page, text register; each body handles its own jump),
+  `files/view/HtmlBody.tsx` → `page/`, `files/view/MediaBody.tsx` and `useMediaMarkup.ts` → `media/`.
+- **Produces:** `FileView`.
+- **Tests:** the `FileView*` tests green (jump, cut, edit, tmp); duplicate file view id throws at build; e2e.
+- **Baseline:** plugin→plugin −~20 (files↔cut, files→media/page).
 
 ### 11. Settings sections, resources registry, baseline to zero
 
