@@ -148,7 +148,6 @@ test('reload replays the conversation @chat', async ({ page }) => {
 // M6-05: real key events (the picker listens at window capture and writes through the native value setter)
 test('typing ":smi" in the composer opens the emoji list; Enter inserts 😄 and sends nothing @chat', async ({ page }) => {
   await open(page);
-  const before = await userBubbles(page).count();
   await composer(page).click();
   await page.keyboard.type(':smi');
   await expect(page.getByRole('listbox')).toBeVisible();
@@ -159,7 +158,8 @@ test('typing ":smi" in the composer opens the emoji list; Enter inserts 😄 and
   await expect(page.getByRole('option').first()).toContainText(':smile');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('listbox')).toBeHidden();
-  expect(await userBubbles(page).count()).toBe(before);
+  // nothing was sent: no bubble holds what was typed (a count would race the replay, issue 551)
+  await expect(userBubbles(page).filter({ hasText: /:smi|😄/ })).toHaveCount(0);
   await composer(page).fill('');
 });
 
