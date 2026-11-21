@@ -9,6 +9,7 @@ import 'chat/mermaid.dart';
 import 'home.dart';
 import 'hosts/host_link.dart';
 import 'hosts/hosts_screen.dart';
+import 'hosts/link_life.dart';
 import 'l10n/app_localizations.dart';
 import 'l10n/locale.dart';
 import 'lock/lock.dart';
@@ -101,8 +102,10 @@ class _AppRootState extends State<AppRoot> {
     final links = Links(hosts, connectChannel, id);
     seen.watch(hosts, links);
     hosts.addListener(() => notified.prune({for (final h in hosts.all) h.id}));
+    final life = LinkLife(links, _visible);
     final background = Background(
       links: links,
+      life: life,
       seen: seen,
       notified: notified,
       visible: _visible,
@@ -120,7 +123,13 @@ class _AppRootState extends State<AppRoot> {
         if (p != null) _opened.add(p);
       }),
     );
-    return Sdk(stores: stores, links: links, id: id, background: background);
+    return Sdk(
+      stores: stores,
+      links: links,
+      life: life,
+      id: id,
+      background: background,
+    );
   }();
 
   /// Why notifications are wanted, before Android's own question; true to go on to it.
@@ -150,6 +159,7 @@ class _AppRootState extends State<AppRoot> {
   void dispose() {
     _load.then((d) {
       d.background.dispose();
+      d.life.dispose();
       d.links.dispose();
     }, onError: (Object _) {});
     _visible.dispose();

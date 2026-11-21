@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/hosts/host_link.dart';
+import 'package:nb_app/hosts/link_life.dart';
 import 'package:nb_app/l10n/app_localizations.dart';
 import 'package:nb_app/notify/background.dart';
 import 'package:nb_app/notify/visible.dart';
@@ -42,6 +43,7 @@ class Kit {
   late Notified notified;
   late AppVisible visible;
   late FakeBackground platform;
+  late LinkLife life;
   late Background bg;
   late String hostId;
   late Hosts hosts;
@@ -80,8 +82,10 @@ class Kit {
     notified = await Notified.load(v);
     visible = AppVisible.test();
     platform = FakeBackground(answer: answer, allow: allow);
+    life = LinkLife(links, visible);
     bg = Background(
       links: links,
+      life: life,
       seen: seen,
       notified: notified,
       visible: visible,
@@ -98,6 +102,7 @@ class Kit {
 
   void dispose() {
     bg.dispose();
+    life.dispose();
     links.dispose();
   }
 }
