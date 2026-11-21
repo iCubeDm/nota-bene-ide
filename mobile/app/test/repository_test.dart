@@ -31,8 +31,10 @@ void main() {
   late FakeChannel ch;
   late AgentConnection c;
   late Repository repo;
+  late Completer<void> wake;
 
   setUp(() async {
+    wake = Completer<void>();
     f = FakeFactory();
     ch = FakeChannel([window(4791, '/p')]);
     f.results.add(ch);
@@ -45,7 +47,7 @@ void main() {
       ),
       f.factory,
       await Identity.load(MemoryVault()),
-      sleep: (_) => Completer<void>().future,
+      sleep: (_) => wake.future,
     );
     c = AgentConnection(link, window(4791, '/p'), onEvent: (_) {});
     repo = Repository(c);
@@ -90,6 +92,34 @@ void main() {
       await repo.tree('src');
       expect(ch.requests, hasLength(3));
     });
+
+    test('the same route with other headers is another request', () async {
+      final answer = Completer<HttpAnswer>();
+      ch.onHttp = (_, _, _) => answer.future;
+      final a = repo.get('/file?path=a');
+      final b = repo.get('/file?path=a', headers: {'range': 'bytes=0-9'});
+      expect(ch.requests, ['GET /file?path=a', 'GET /file?path=a']);
+      answer.complete(json(1));
+      await Future.wait([a, b]);
+    });
+
+    test(
+      'after a reconnect, a request does not wait on the old channel',
+      () async {
+        ch.onHttp = (_, _, _) =>
+            Completer<HttpAnswer>().future; // never answers
+        unawaited(repo.tree('src'));
+        final next = FakeChannel([window(4791, '/p')])
+          ..onHttp = (_, _, _) async => json([]);
+        f.results.add(next);
+        ch.drop();
+        wake.complete();
+        await settle();
+        expect(identical(link.channel, next), isTrue);
+        expect(await repo.tree('src'), isEmpty);
+        expect(next.requests, ['GET /tree?path=src']);
+      },
+    );
 
     test('a refusal is its status; a broken stream has none', () async {
       ch.onHttp = (_, _, _) async =>

@@ -63,11 +63,13 @@ class Repository {
   final _inFlight = <String, Future<HttpAnswer>>{};
 
   /// `GET` [route] of the window; [FilesError] (no status) when the host is offline or the stream broke. A request
-  /// for the same route and headers while one is on its way gets that one's answer.
+  /// for the same route and headers on the same channel while one is on its way gets that one's answer.
   Future<HttpAnswer> get(String route, {Map<String, String>? headers}) {
     final http = _conn.http;
     if (http == null) return Future.error(FilesError(null));
-    final key = headers == null ? route : '$route $headers';
+    // by channel too: after a reconnect a request does not wait on one still out on the dead channel
+    final key =
+        '${identityHashCode(_conn.link.channel)} $route${headers == null ? '' : ' $headers'}';
     return _inFlight[key] ??= http('GET', route, headers: headers)
         .catchError((Object _) => throw FilesError(null))
         .whenComplete(() {

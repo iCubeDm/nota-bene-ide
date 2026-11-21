@@ -31,6 +31,7 @@ abstract class Files {
 }
 
 /// The app's files dir (the parent of `nb/play`'s `outDir`); where the platform has none (tests), nothing is kept.
+/// It creates no directories: a path's parent must exist (`outDir` makes `voice-out`).
 class DiskFiles implements Files {
   Future<File?> _file(String path) async {
     final d = await outDir();
