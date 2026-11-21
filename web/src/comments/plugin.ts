@@ -4,7 +4,7 @@ import { commentsSlice, flushComments, setPanelOpen } from './slice.ts';
 import { CommentsToggle } from './CommentsToggle.tsx';
 import { Comments, SelectionComment } from './FrameParts.tsx';
 import { HighlightLayer } from './HighlightLayer.tsx';
-import { CommentCardPopover } from './CommentCard.tsx';
+import { CommentCardPopover, SentComments } from './CommentCard.tsx';
 
 declare module '@/sdk' {
   interface PluginState extends WithSlice<typeof commentsSlice> {}
@@ -20,6 +20,7 @@ export const commentsPlugin = definePlugin({
     { slot: 'overlay', order: 10, render: SelectionComment },
     { slot: 'overlay', order: 20, render: CommentCardPopover },
   ],
+  userParts: [{ id: 'comments', order: 40, render: SentComments }],
   commands: [{ id: 'hk_comments', codes: ['KeyC'], mods: { mod: true, shift: true }, inFields: true, order: 120,
     run: ({ store }) => void store.dispatch(setPanelOpen(!store.getState().comments.ui.panelOpen)) }],
   listeners: (start) => {

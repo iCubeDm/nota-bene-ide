@@ -47,7 +47,7 @@ export { markRefs, markMentions, escapeMentions, refClick, fileOfImage, openMedi
 
 // the store, the feed model and chat
 export { definePlugin, type Plugin, type PluginState } from './plugin.ts';
-export type { FeedItem, FeedState } from '../store/feed.ts';
+export { emptyFeed, reduce, historyPrepended, retriedVoice, ARG_KEYS, isAgentTool, TOOL_SRC, toolSrcId, type FeedItem, type FeedState, type HistoryPage } from '../store/feed.ts';
 export {
   useAppSelector,
   useAppDispatch,
@@ -67,6 +67,7 @@ export {
   type StartListening,
 } from '../store/store.ts';
 
+export { seekAndPause, type MediaController, type PipApi } from '../store/mediaController.ts';
 export { usePagePause } from '../shell/pagePause.ts';
 
 import { answerPermission, interrupt, sendMessage, takeOver } from '../store/store.ts';
@@ -83,5 +84,5 @@ export const chat = {
 };
 
 // tabs
-export { openFile, activate, closeTab, selectTabs, enterRoot, type Tab, type TabKinds, type DiagramLang } from '../tabs/slice.ts';
-export type { TabView, Slot, SlotName, Command, KeyId, Mods } from './registry.ts';
+export { openFile, openAgent, activate, closeTab, selectTabs, enterRoot, type Tab, type TabKinds, type DiagramLang } from '../tabs/slice.ts';
+export { feedRenderer, type TabView, type Slot, type SlotName, type Command, type KeyId, type Mods, type FeedRenderer, type AnyFeedRenderer, type FeedKind, type Held, type ToolRenderer, type ToolItem, type UserPart } from './registry.ts';

@@ -1,8 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { has, type SubagentView } from '@nota-bene/shared';
-import { routes, type FeedItem, type FeedState, type AppThunk, type RootState } from '@/sdk';
-import { emptyFeed, reduce } from '../store/feed.ts';
-import { openAgent } from '../tabs/slice.ts';
+import { routes, emptyFeed, reduce, openAgent, type FeedItem, type FeedState, type AppThunk, type RootState } from '@/sdk';
 
 /**
  * Subagent conversations (M2 step 1), by the tool-use id of the Agent call that started each. Fetched whole from
@@ -114,9 +112,6 @@ export const OLD_SERVER = 'old-server';
 
 /** A server that said hello and drops `source.agent` from a comment's anchor (before `subagentAnchors`): no comments in a subagent's tab. */
 export const knownOld = (protocol: number): boolean => protocol !== 0 && !has(protocol, 'subagentAnchors');
-
-/** Any Agent / Task call is a subagent's: `Agent` in current Claude Code, `Task` in older ones. */
-export const isAgentTool = (name: string, toolKind?: string): boolean => toolKind === 'agent' || name === 'Agent' || name === 'Task';
 
 /** Whether the Agent call has its tool_result, looked up in the chat and in every loaded subagent's feed (a nested call is in its parent's). */
 export const selectToolResulted = (s: RootState, tool: string): boolean => {

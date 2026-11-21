@@ -1,7 +1,7 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { anchorSource } from '@nota-bene/shared';
-import type { AppThunk, RootState, FeedItem } from '@/sdk';
-import { isAgentTool, itemsOf } from '../subagent/slice.ts';
+import { isAgentTool, TOOL_SRC, type AppThunk, type RootState, type FeedItem } from '@/sdk';
+import { itemsOf } from '../subagent/slice.ts';
 
 /**
  * Which action groups and tool panels are open (R-M7-19). In the store, not in the components, so a jump from a comment
@@ -33,10 +33,6 @@ export const { toggleTool, toggleGroup, revealTool } = feedUiSlice.actions;
 
 export const selectToolOpen = (s: RootState, id: string): boolean => s.feedUi.openTools.includes(id);
 export const selectGroupOpen = (s: RootState, id: string): boolean => s.feedUi.openGroups.includes(id);
-
-/** The anchor source id of a tool's panel (R-M7-18): the tool_use id is stable across a replay and a restart. */
-export const TOOL_SRC = 'tool:';
-export const toolSrcId = (toolId: string): string => TOOL_SRC + toolId;
 
 /**
  * The key of a tool (or a group's first tool) in the fold state and the comment counts: its id, scoped by the subagent

@@ -1,4 +1,4 @@
-import { generatedImages, isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, isTextAnchor } from '@nota-bene/shared';
+import { BATCH_HEAD, generatedImages, isAttachmentAnchor, isCutAnchor, isMediaAnchor, isPageAnchor, isTextAnchor } from '@nota-bene/shared';
 import { useCutState } from '@/cut/live.ts';
 import { cutLine } from '@/cut/quote.ts';
 import { pageQuote } from '@/page/quote.ts';
@@ -6,17 +6,17 @@ import { useEffect, useRef, useState, type HTMLAttributes, type KeyboardEvent } 
 import { Attachments } from '@/attachments/Attachments.tsx';
 import { mediaTypeOf } from '@/attachments/image.ts';
 import { addImage } from '@/composer/slice.ts';
-import { getLang, useT, useAppDispatch, useAppSelector, connections, routes } from '@/sdk';
+import { getLang, useT, useAppDispatch, useAppSelector, connections, routes, type UserPart } from '@/sdk';
 import { Tooltip, TooltipTrigger } from '@/sdk/ui';
 import { selectSwitching } from '@/controls/slice.ts';
 import { Markdown } from '@/feed/Markdown.tsx';
-import { mediaTime } from '@/media/markup/geometry.ts';
+import { mediaLine, mediaTime } from '@/media/markup/geometry.ts';
 import { ClipRow } from '@/voice/ClipRow.tsx';
 import { CardActions } from './CardActions.tsx';
 import { useCommentSource } from './useCommentSource.ts';
-import { labelText, QUICK_LABELS } from '../labels.ts';
+import { labelOf, labelText, QUICK_LABELS } from '../labels.ts';
 import { LabelTip } from '../LabelTip.tsx';
-import { editComment, removeComment, selectComments } from '../slice.ts';
+import { editComment, removeComment, selectComments, selectSentFor } from '../slice.ts';
 
 /**
  * One comment: number, where, quote (click = jump to source), text with inline edit, label chip.
@@ -171,5 +171,36 @@ export function CommentCard({ id, index, popover = false, handle }: { id: string
         </Tooltip>
       )}
     </div>
+  );
+}
+
+/**
+ * The comments a user message carried, folded under it (issue 511): each one's quote, label, text and recordings; a
+ * replay that has no comment records shows the batch text after its head instead.
+ */
+export function SentComments({ item }: Parameters<UserPart['render']>[0]) {
+  const t = useT();
+  const sent = useAppSelector((s) => selectSentFor(s, item.id));
+  const m = BATCH_HEAD.exec(item.text);
+  const raw = m ? item.text.slice(m.index + m[0].length) : '';
+  if (!sent.length && !raw) return null;
+  return (
+    <details data-anchor-skip className="mt-1.5 text-[0.8125rem] text-muted-foreground">
+      <summary className="cursor-pointer">{sent.length ? t('nComments', sent.length) : t('commentsLc')}</summary>
+      {sent.length
+        ? sent.map((c) => (
+            <div key={c.id} className="mt-1.5">
+              {/* the quote is text the user selected in rendered output: plain, never re-read as markdown */}
+              <blockquote className="whitespace-pre-wrap break-words border-l-2 border-nb-accent pl-2">{isMediaAnchor(c.anchor) ? mediaLine(c.anchor, (n) => t('markShapes', n)) : isPageAnchor(c.anchor) ? pageQuote(c.anchor, getLang()) : isCutAnchor(c.anchor) ? cutLine(c.anchor, getLang()) : isAttachmentAnchor(c.anchor) ? t('markShapes', c.anchor.shapes.length) : isTextAnchor(c.anchor) ? c.anchor.quote : ''}</blockquote>
+              <div className="md-tight flex items-baseline gap-1">
+                <span className="flex-none">→</span>
+                {c.label && <span className="flex-none rounded bg-muted px-1">{labelOf(c)}</span>}
+                <div className="min-w-0 flex-1"><Markdown text={c.text} final={false} breaks noHtml /></div>
+              </div>
+              {c.voice?.length ? <div className="mt-1 flex flex-col gap-1">{c.voice.map((v) => <ClipRow key={v.id} voice={v} text={v.text} />)}</div> : null}
+            </div>
+          ))
+        : <div className="md-tight mt-1.5"><Markdown text={raw} final={false} breaks noHtml /></div>}
+    </details>
   );
 }

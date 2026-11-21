@@ -1,6 +1,6 @@
 import type { Middleware, Slice } from '@reduxjs/toolkit';
 import type { RootState, StartListening } from '../store/store.ts';
-import type { AnyTabView, Command, Slot } from './registry.ts';
+import type { AnyFeedRenderer, AnyTabView, Command, Slot, ToolRenderer, UserPart } from './registry.ts';
 
 /**
  * The plugins' part of the store's state. Empty here: each plugin's `plugin.ts` adds its slices by declaration merging
@@ -33,6 +33,12 @@ export interface Plugin {
   slots?: Slot[];
   /** its global hotkeys; an id is declared once, the core's included */
   commands?: Command[];
+  /** how the feed draws its kinds of items; a kind is drawn by one plugin only */
+  feed?: AnyFeedRenderer[];
+  /** the heads of the actions it draws itself */
+  tools?: ToolRenderer[];
+  /** its parts of a user message */
+  userParts?: UserPart[];
 }
 
 export const definePlugin = (p: Plugin): Plugin => p;

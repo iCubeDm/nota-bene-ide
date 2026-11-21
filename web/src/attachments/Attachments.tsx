@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useT, connections, routes } from '@/sdk';
+import { useT, connections, routes, type UserPart } from '@/sdk';
 
 /** Full-size view. Esc / click closes; this Esc is consumed here (preventDefault + stop), so nothing else acts on it. */
 export function Lightbox({ id, onClose }: { id: string; onClose: () => void }) {
@@ -117,4 +117,9 @@ export function Attachments({ ids, pending = [], onRemove, onMark, onCancel, cou
       {open && <Lightbox id={open} onClose={() => setOpen(null)} />}
     </div>
   );
+}
+
+/** The images a user message carried (issue 511). */
+export function ImagesPart({ item }: Parameters<UserPart['render']>[0]) {
+  return item.images ? <Attachments ids={item.images.map((i) => i.id)} /> : null;
 }

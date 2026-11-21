@@ -6,10 +6,10 @@ import { agentConnection, bindConnections, connectionManager, SELF, type AgentCo
 import { t } from '../i18n/index.ts';
 import { activate, tabsSlice, type Tab, type TabsState } from '../tabs/slice.ts';
 import { AUDIO, VIDEO } from '@nota-bene/shared/cut';
-import { browserPip, MediaController, type PipApi } from '../media/mediaController.ts';
+import { browserPip, MediaController, type PipApi } from './mediaController.ts';
 import { agentName, itemsOf } from '../subagent/slice.ts';
 import { toast } from '../shell/toast.ts';
-import { TOOL_SRC } from '../feed/uiSlice.ts';
+import { TOOL_SRC } from './feed.ts';
 import { adoptHello } from '../sdk/storage.ts';
 import type { Plugin, PluginState } from '../sdk/plugin.ts';
 import { buildRegistry, type Registry } from '../sdk/registry.ts';
