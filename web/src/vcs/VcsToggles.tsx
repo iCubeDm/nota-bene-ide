@@ -1,6 +1,5 @@
-import { selectTabs, useAppDispatch, useAppSelector, useFocusWithin, useT, openChanges, openLog } from '@/sdk';
+import { selectTabs, useAppDispatch, useAppSelector, useFocusWithin, useT, openChanges, openLog, useService } from '@/sdk';
 import { ToolButton, ICONS, Svg } from '@/sdk/ui';
-import { setTreeOpen } from '@/files/treeSlice.ts';
 import { setPanel, useVcsUi } from './store.ts';
 
 // module-level getters: the hook re-subscribes when its getter changes
@@ -12,6 +11,7 @@ export function VcsToggles() {
   const t = useT();
   const d = useAppDispatch();
   const ui = useVcsUi();
+  const { setTreeOpen } = useService('files');
   const active = useAppSelector(selectTabs).active;
   const inChanges = useFocusWithin(changesSheet);
   const inLog = useFocusWithin(logPane);

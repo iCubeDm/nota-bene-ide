@@ -1,11 +1,7 @@
 import { anchorSource, isAttachmentAnchor, isMediaAnchor, type AnchorSource, type Comment } from '@nota-bene/shared';
 import { useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { revealRangeSideways, scrollRangeIntoView, rangeForAnchor, activate, t, useAppDispatch, useAppSelector, useRegistry, anchorView, TOOL_SRC, type RootState, textRootOf, usePageGen } from '@/sdk';
-import { jumpToFileComment, selectFileLoad, selectFileVersion } from '@/files/slice.ts';
-import { selectImages } from '@/composer/slice.ts';
-import { itemsOf, openSubagentTab, selectSubagent } from '@/subagent/slice.ts';
-import { revealToolOf } from '@/feed/uiSlice.ts';
+import { revealRangeSideways, scrollRangeIntoView, rangeForAnchor, activate, t, useAppDispatch, useAppSelector, useRegistry, useService, anchorView, TOOL_SRC, type RootState, textRootOf, usePageGen, selectImages, itemsOf, openSubagentTab, selectSubagent } from '@/sdk';
 import { selectReplyLabel, whereOfFile } from '../send.ts';
 
 /** How many times (100 ms apart) a jump into a subagent's tab waits for its conversation to be on screen. */
@@ -93,11 +89,13 @@ export function useCommentSource(c: Comment | undefined): CommentSource {
   const att = c && isAttachmentAnchor(c.anchor) ? c.anchor : undefined;
   const where = att ? (ownNo ? t('srcAttachment', ownNo, att.width, att.height) : null) : beforeCompact ? t('srcBeforeCompact') : label;
   // a file source: its open view's load state; undefined (tab closed / not loaded yet) means "unknown", not orphaned
-  const fileLoad = useAppSelector((s) => (anchorSrc?.kind === 'file' ? selectFileLoad(s, anchorSrc.path, anchorSrc.ref) : undefined));
+  const files = useService('files');
+  const fileLoad = useAppSelector((s) => (anchorSrc?.kind === 'file' ? files.selectFileLoad(s, anchorSrc.path, anchorSrc.ref) : undefined));
   // a media comment: the file's current version, known while its tab is open (undefined = unknown, no claim)
-  const version = useAppSelector((s) => (c && isMediaAnchor(c.anchor) ? selectFileVersion(s, c.anchor.source.path, c.anchor.source.ref) : undefined));
+  const version = useAppSelector((s) => (c && isMediaAnchor(c.anchor) ? files.selectFileVersion(s, c.anchor.source.path, c.anchor.source.ref) : undefined));
   const [orphan, setOrphan] = useState(false);
   const registry = useRegistry();
+  const { revealTool } = useService('feedUi');
   // a rendered page loads after its text (its frame): judged again once it is on screen
   const pageGen = usePageGen();
 
@@ -130,7 +128,7 @@ export function useCommentSource(c: Comment | undefined): CommentSource {
     const src = anchorSrc;
     if (!c || !src) return;
     // a file: open (or activate) its tab; the view scrolls once its text is loaded (the jump)
-    if (src.kind === 'file') return void dispatch(jumpToFileComment(src.path, c.id, src.ref));
+    if (src.kind === 'file') return void dispatch(files.jumpToFileComment(src.path, c.id, src.ref));
     // an action's panel exists only while it and its group are open (R-M7-19): open both, and render, before looking
     const tool = src.id.startsWith(TOOL_SRC);
     const agent = src.agent;
@@ -139,14 +137,14 @@ export function useCommentSource(c: Comment | undefined): CommentSource {
       // looked for until it is on screen, or give up after a few seconds (an orphan: the tab stays open)
       flushSync(() => dispatch(openSubagentTab(agent)));
       const attempt = (left: number) => {
-        if (tool) flushSync(() => dispatch(revealToolOf(src.id.slice(TOOL_SRC.length), (s) => itemsOf(s, agent), agent)));
+        if (tool) flushSync(() => dispatch(revealTool(src.id.slice(TOOL_SRC.length), (s) => itemsOf(s, agent), agent)));
         const root = itemRoot(src.id, agent);
         if (root) return void showAt(root, c);
         if (left > 0) setTimeout(() => attempt(left - 1), 100);
       };
       return attempt(JUMP_TRIES);
     }
-    if (tool) flushSync(() => { dispatch(activate('chat')); dispatch(revealToolOf(src.id.slice(TOOL_SRC.length), (s) => itemsOf(s))); });
+    if (tool) flushSync(() => { dispatch(activate('chat')); dispatch(revealTool(src.id.slice(TOOL_SRC.length), (s) => itemsOf(s))); });
     const root = itemRoot(src.id);
     if (!root) return;
     if (!tool) flushSync(() => dispatch(activate('chat'))); // a hidden chat pane cannot scroll: show it before measuring

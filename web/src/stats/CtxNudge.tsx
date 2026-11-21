@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { json, storage, useT, selectBusy, selectSession, useAppDispatch, useAppSelector, runCommand, selectCapabilities, selectSwitching, REFUSED, useNote } from '@/sdk';
-import { selectStats } from './slice.ts';
+import { json, storage, useT, selectBusy, selectSession, useAppDispatch, useAppSelector, runCommand, selectCapabilities, selectSwitching, REFUSED, useNote, selectStats } from '@/sdk';
 
 /** The context fill levels that bring up the reminder, in percent. */
 const NUDGE_STEPS = [25, 50, 75] as const;

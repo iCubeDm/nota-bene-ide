@@ -1,5 +1,5 @@
 import type { WithSlice } from '@reduxjs/toolkit';
-import { definePlugin } from '@/sdk';
+import { definePlugin, selectBuilding, selectImages, selectUploading } from '@/sdk';
 import { historyMiddleware, historySlice } from './history.ts';
 import { refusedMiddleware } from './refused.ts';
 import { Composer } from './Composer.tsx';
@@ -9,7 +9,7 @@ import { draftPart } from './send.ts';
 import { selectShellRunning } from './shellMode.ts';
 import { ShellBlock } from './ShellBlock.tsx';
 import { composerSettings } from './settings.tsx';
-import { composerSlice, selectBuilding, selectDraft, selectImages, selectUploading } from './slice.ts';
+import { composerSlice, selectDraft } from './slice.ts';
 
 declare module '@/sdk' {
   interface PluginState extends WithSlice<typeof composerSlice>, WithSlice<typeof historySlice> {}

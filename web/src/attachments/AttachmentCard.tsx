@@ -1,6 +1,5 @@
 import { isAttachmentAnchor } from '@nota-bene/shared';
-import { connections, routes, useAppDispatch, useAppSelector, useT, type AnchorView } from '@/sdk';
-import { addImage, markAttachment, selectImages } from '@/composer/slice.ts';
+import { connections, routes, useAppDispatch, useAppSelector, useT, type AnchorView, addImage, markAttachment, selectImages } from '@/sdk';
 import { mediaTypeOf } from './image.ts';
 
 /**

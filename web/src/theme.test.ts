@@ -13,7 +13,7 @@ it('media fits the pane and the natural size lifts the limits', () => {
 });
 
 /** The theme files: the only places a colour value may be written. */
-const THEME_FILES = new Set(['theme.css', 'feed/hljs.css', 'fonts.css']);
+const THEME_FILES = new Set(['theme.css', 'components/markdown/hljs.css', 'fonts.css']);
 
 const PALETTE = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
 const LITERAL = new RegExp(

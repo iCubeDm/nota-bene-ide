@@ -3,7 +3,7 @@ import { ProjectTitle } from './ProjectSwitcher.tsx';
 import { ProjectRail } from './ProjectRail.tsx';
 import { Starter } from './Starter.tsx';
 import { Seen } from './seen.ts';
-import { projectsMenu, projectsResource } from './api.ts';
+import { openFolder, projectsMenu, projectsResource, reasonText } from './api.ts';
 import { projectsSettings } from './settings.tsx';
 
 export const projectsPlugin = definePlugin({
@@ -19,4 +19,5 @@ export const projectsPlugin = definePlugin({
   commands: [{ id: 'hk_projects', codes: ['KeyP'], mods: { alt: true }, inFields: true, order: 70, run: () => projectsMenu.toggle() }],
   settings: projectsSettings,
   resources: [projectsResource],
+  projects: { openFolder: async (dir, provider) => { const why = await openFolder(dir, provider); return why && reasonText(why); } },
 });

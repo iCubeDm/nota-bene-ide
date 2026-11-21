@@ -1,5 +1,4 @@
-import { selectSession, useAppSelector, useResource } from '@/sdk';
-import { selectRefreshSeq, selectTree } from '@/files/treeSlice.ts';
+import { selectSession, useAppSelector, useResource, useService } from '@/sdk';
 import { baseOf, diffResource, useVcsUi } from './store.ts';
 
 /**
@@ -8,9 +7,10 @@ import { baseOf, diffResource, useVcsUi } from './store.ts';
  * list is never shown under this one's name.
  */
 export function useLiveDiff(on: boolean) {
-  const src = useAppSelector(selectTree).src;
+  const files = useService('files');
+  const src = useAppSelector(files.selectSource);
   const root = useAppSelector(selectSession)?.root ?? '';
-  const turn = useAppSelector(selectRefreshSeq);
+  const turn = useAppSelector(files.selectRefreshSeq);
   const base = baseOf(useVcsUi().bases, root, src);
   const { data, failed, refresh } = useResource(diffResource, { root, src, base }, { on: on && !!root, refreshOn: turn });
   return { root, src, base, data, failed, refresh };

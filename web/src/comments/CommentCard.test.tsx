@@ -10,7 +10,7 @@ import { setLang } from '@/i18n/index.ts';
 import { serverEvent } from '@/store/store.ts';
 import { makeStore } from '@/testing';
 import { setFileLoad, setFileVersion } from '@/files/slice.ts';
-import { addImage, selectImages, selectMarking } from '@/composer/slice.ts';
+import { addImage, selectImages, selectMarking } from '@/store/message.ts';
 import { CommentCard, CommentCardPopover } from './CommentCard.tsx';
 import { setLiveCut } from '@/cut/live.ts';
 import type { Cut } from '@nota-bene/shared/cut';

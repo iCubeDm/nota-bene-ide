@@ -5,7 +5,7 @@ import { Provider } from 'react-redux';
 import { renderHook } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { PLUGINS } from '@/plugins.ts';
-import { makeStore, useAttachments, useComments, useVoice } from '@/store/store.ts';
+import { makeStore, useAttachments, useComments, useService, useVoice } from '@/store/store.ts';
 import { useComposerField } from './composerField.ts';
 import type { TabKinds } from '@/tabs/slice.ts';
 import { buildRegistry } from './registry.ts';
@@ -193,6 +193,38 @@ it('the voice and the attachments are each one plugin\'s service; a second fails
   const wrapper = ({ children }: { children: ReactNode }) => createElement(Provider, { store: bare, children });
   expect(() => renderHook(() => useVoice(), { wrapper })).toThrow('no plugin provides the voice');
   expect(() => renderHook(() => useAttachments(), { wrapper })).toThrow('no plugin provides the attachments');
+});
+
+// other plugins' state and views are read through their owners' services, never their modules (issue 545)
+it('the files, git, projects, feed, edits and media services are each one plugin\'s, with only what the others read', () => {
+  const r = buildRegistry(PLUGINS);
+  const keys = (k: 'files' | 'vcs' | 'projects' | 'feedUi' | 'cut' | 'media') => Object.keys(r[k]!).sort();
+  expect(keys('files')).toEqual(['diskChanged', 'jumpToFileComment', 'pickSource', 'selectDiskSeq', 'selectFileLoad', 'selectFileVersion',
+    'selectRefreshSeq', 'selectSource', 'setTreeOpen']);
+  expect(keys('vcs')).toEqual(['showCommit']);
+  expect(keys('projects')).toEqual(['openFolder']);
+  expect(keys('feedUi')).toEqual(['revealTool']);
+  expect(keys('cut')).toEqual(['liveCutState']);
+  expect(keys('media')).toEqual(['ChatPlayer']);
+  expect(() => buildRegistry([{ id: 'a', files: r.files }, { id: 'b', files: r.files }])).toThrow('two plugins provide the files');
+  const bare = makeStore({ url: 'u', connect: () => ({ send: () => true, close() {} }), plugins: [] });
+  const wrapper = ({ children }: { children: ReactNode }) => createElement(Provider, { store: bare, children });
+  expect(() => renderHook(() => useService('files'), { wrapper })).toThrow('no plugin provides the files');
+});
+
+// Markdown is core: the diagram plugin draws its code blocks, each language by one plugin (issue 545)
+it('a fenced language is drawn by one plugin; a second fails the build', () => {
+  const r = buildRegistry(PLUGINS);
+  expect([...r.codeBlocks.keys()]).toEqual(['mermaid', 'svg']);
+  const twice: Plugin = { id: 'b', codeBlocks: [r.codeBlocks.get('svg')!] };
+  expect(() => buildRegistry([{ id: 'a', codeBlocks: [r.codeBlocks.get('svg')!] }, twice])).toThrow('the code block "svg" is drawn twice');
+});
+
+// the Files tree hosts the edits' menu items and drag (issue 545)
+it('the tree\'s file rows take other plugins\' parts by order; an id or an order twice fails the build', () => {
+  expect(buildRegistry(PLUGINS).treeActions.map((a) => `${a.order} ${a.id}`)).toEqual(['10 cut']);
+  expect(() => buildRegistry([{ id: 'a', treeActions: [{ id: 'x', order: 1 }] }, { id: 'b', treeActions: [{ id: 'x', order: 2 }] }])).toThrow('the tree action "x" is declared twice');
+  expect(() => buildRegistry([{ id: 'a', treeActions: [{ id: 'x', order: 1 }] }, { id: 'b', treeActions: [{ id: 'y', order: 1 }] }])).toThrow('two tree actions at order 1');
 });
 
 it('a picker outside a message field is told why', () => {

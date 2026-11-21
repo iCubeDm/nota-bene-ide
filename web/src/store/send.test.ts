@@ -68,7 +68,7 @@ it('waits for every part to be ready before composing, the send building meanwhi
   const { store, sent } = setup([part('a', 10, { text: 'A', ready: new Promise<void>((r) => (done = r)) })]);
   await open();
   expect(store.dispatch(chat.send(''))).toBe('building');
-  expect(store.getState().composer?.building).toBeUndefined(); // no composer here: the core only announces it
+  expect(store.getState().message.building).toBe(true); // the core holds it: the send buttons are off meanwhile
   expect(sent()).toEqual([]);
   done();
   await vi.waitFor(() => expect(sent()).toHaveLength(1));

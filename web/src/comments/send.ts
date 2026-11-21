@@ -1,13 +1,9 @@
 import { anchorSource, generatedImages, isAttachmentAnchor, isCutAnchor, isMediaAnchor, type AnchorSource, type Comment, type ImageRef } from '@nota-bene/shared';
 import { mediaTypeOf } from '../attachments/image.ts';
-import { getLang, t, tIn, type Lang, type RootState, chat, cutWhere, mediaTime, TOOL_SRC, type SendPart, instructionOf, labelOf } from '@/sdk';
+import { getLang, t, tIn, type Lang, type RootState, chat, cutWhere, mediaTime, TOOL_SRC, type SendPart, instructionOf, labelOf, selectImages, agentName, itemsOf } from '@/sdk';
 import { composeBatch } from './compose.ts';
-import { selectImages } from '../composer/slice.ts';
 import { createSelector } from '@reduxjs/toolkit';
 import { markSending, selectComments, selectPending, unmarkSending } from './slice.ts';
-import { selectFileVersion } from '../files/slice.ts';
-import { liveCutState } from '../cut/live.ts';
-import { agentName, itemsOf } from '../subagent/slice.ts';
 import { buildComposites, frameGroups, type FrameGroup } from './frameGroups.ts';
 
 /** A file source as the batch and the card name it: `path`, or `path @ ref` for another branch or worktree (M3-16). */
@@ -154,12 +150,12 @@ export const commentsPart: SendPart = {
           (c) => {
             const a = c.anchor;
             if (!isMediaAnchor(a) || a.version === undefined) return false;
-            const cur = selectFileVersion(s, a.source.path, a.source.ref);
+            const cur = registry.files?.selectFileVersion(s, a.source.path, a.source.ref);
             return cur !== undefined && cur !== a.version;
           },
           shared,
           // a cut comment: its clip gone, or its moment trimmed out of it, as the edit's open tab shows it
-          (c) => { const x = isCutAnchor(c.anchor) ? liveCutState(c.anchor) : undefined; return x === 'ok' ? undefined : x; },
+          (c) => { const x = isCutAnchor(c.anchor) ? registry.cut?.liveCutState(c.anchor) : undefined; return x === 'ok' ? undefined : x; },
         );
         return { text, images: images.slice(before.length), commentIds: ids };
       },

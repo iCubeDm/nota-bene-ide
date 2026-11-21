@@ -1,6 +1,7 @@
+// The agent's usage figures (issue 545): server data the stats meters and the model pill both read, so core.
 import { createSlice } from '@reduxjs/toolkit';
 import type { Stats } from '@nota-bene/shared';
-import { serverEvent, type RootState } from '@/sdk';
+import { serverEvent, type RootState } from './store.ts';
 
 /** null until the first `stats` event. Each event replaces the whole slice (its null parts mean "unknown"). */
 export const statsSlice = createSlice({

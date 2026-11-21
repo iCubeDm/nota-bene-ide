@@ -4,7 +4,7 @@ import { commitResource, logResource, logTab } from './LogView.tsx';
 import { ChangesPanel } from './ChangesPanel.tsx';
 import { branchesResource, GitBranch } from './GitBranch.tsx';
 import { VcsToggles } from './VcsToggles.tsx';
-import { diffResource, patchResource, setPanel } from './store.ts';
+import { diffResource, patchResource, setPanel, showCommit } from './store.ts';
 
 export const vcsPlugin = definePlugin({
   id: 'vcs',
@@ -17,4 +17,5 @@ export const vcsPlugin = definePlugin({
     { slot: 'panel.left', order: 40, render: ChangesPanel },
   ],
   resources: [diffResource, patchResource, logResource, commitResource, branchesResource],
+  vcs: { showCommit },
 });

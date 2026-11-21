@@ -1,6 +1,6 @@
 import type { ClipboardEvent, FC, MutableRefObject, Ref, RefObject, SyntheticEvent } from 'react';
-import type { PayloadAction } from '@reduxjs/toolkit';
-import type { Anchor, Comment, CutAnchor, ImageRef, ImageType, MediaAnchor, TextAnchor, Voice, VoiceError } from '@nota-bene/shared';
+import type { PayloadAction, UnknownAction } from '@reduxjs/toolkit';
+import type { AgentProvider, Anchor, Comment, CutAnchor, ImageRef, ImageType, MediaAnchor, TextAnchor, Voice, VoiceError } from '@nota-bene/shared';
 import type { I18nKey, Lang, t } from '../i18n/index.ts';
 import type { ru } from '../i18n/ru.ts';
 import type { AppDispatch, AppStore, AppThunk, RootState } from '../store/store.ts';
@@ -279,8 +279,11 @@ export interface VoiceService {
   /** a comment's recording with its transcript; its player stops on delete */
   ClipRow: FC<{ voice: Voice; text?: string; error?: VoiceError; onRetry?: () => void; onDelete?: () => void }>;
   transcribe(id: string, ask: { lang: string; detect?: true }): Promise<{ text: string; lang?: string } | { error: VoiceError }>;
-  /** a recording as a message of its own; `rides`: the pending comments go with it. False when nothing was sent */
-  send(voice: Voice, id?: string, force?: boolean, rides?: boolean): AppThunk<boolean>;
+  /**
+   * a recording as a message of its own; `force`: it interrupts the agent, `rides`: the pending comments go with it.
+   * False when nothing was sent
+   */
+  send(voice: Voice, o?: { id?: string; force?: boolean; rides?: boolean }): AppThunk<boolean>;
   /** a refused voice send's recording, back to its host */
   onRefused(fn: (v: Voice) => void): () => void;
 }
@@ -307,6 +310,113 @@ export interface AttachmentsService {
   /** the composer's strip, with each image's markup */
   ComposerAttachments: FC<{ pending: PendingThumb[]; onCancel?: (key: string) => void }>;
 }
+
+/**
+ * What an open file view shows, for the comments on it. `loaded`: its text is in the DOM (anchors resolve against it);
+ * `gone`: the view settled without text (deleted, too large, binary), so a comment on it is orphaned. No entry, or
+ * `loading`: unknown (tab closed, not fetched yet, a transient error): a comment is neither marked nor orphaned.
+ * `v` bumps on every settled load, so a reload re-runs the checks even when the state stays `loaded`.
+ */
+export type FileLoad = { s: 'loading' | 'loaded' | 'gone'; v: number };
+
+/**
+ * The Files tree and the open file views as other plugins read them (issue 545), provided by the files plugin: the
+ * source the tree shows (the git views show the same), what moves when the folder's files change, and each open file
+ * view's load and media version (keyed by path and `ref`, see `fileKey`).
+ */
+export interface FilesService {
+  /** the source the tree shows: 'here', 'ref:<branch>', 'dir:<hash>' */
+  selectSource(s: RootState): string;
+  /** moves when this folder's files changed outside a turn (a branch switch) */
+  selectDiskSeq(s: RootState): number;
+  /** moves after each live turn and each change of this folder outside one: the views that reload after a turn watch it */
+  selectRefreshSeq(s: RootState): number;
+  /** shows another source in the tree, with the folders that were open there last time */
+  pickSource(id: string): AppThunk;
+  /** this folder's files changed outside a turn: the views reload as after one */
+  diskChanged(): UnknownAction;
+  setTreeOpen(open: boolean): UnknownAction;
+  selectFileLoad(s: RootState, path: string, ref?: string): FileLoad | undefined;
+  /** an open media tab's file's current ETag; undefined: unknown (tab closed), no claim either way */
+  selectFileVersion(s: RootState, path: string, ref?: string): string | undefined;
+  /** opens the comment's file (a comment made on a commit: that commit in the log) and scrolls to its fragment once loaded */
+  jumpToFileComment(path: string, id: string, ref?: string): AppThunk;
+}
+
+/** The git views as other plugins reach them (issue 545), provided by the vcs plugin. */
+export interface VcsService {
+  /** the log shows this commit, with `path` picked (a comment on a commit asked for it) */
+  showCommit(sha: string, path: string): void;
+}
+
+/** The projects' windows as other plugins open them (issue 545), provided by the projects plugin. */
+export interface ProjectsService {
+  /** opens the folder in a window of its own (this tab moves there); the refusal, in words, or null */
+  openFolder(dir: string, provider: AgentProvider): Promise<string | null>;
+}
+
+/** The chat feed's panels as other plugins open them (issue 545), provided by the feed plugin. */
+export interface FeedUiService {
+  /** opens an action's panel and its group, read from its conversation's `items` (`agent`: a subagent's) at call time */
+  revealTool(toolId: string, items: (s: RootState) => FeedItem[] | null, agent?: string): AppThunk;
+}
+
+/** The edits as other plugins read them (issue 545), provided by the cut plugin. */
+export interface CutService {
+  /** how a cut comment stands in its edit as its open tab shows it; undefined while no tab shows it */
+  liveCutState(a: CutAnchor): 'ok' | 'trimmed' | 'gone' | undefined;
+}
+
+/** The media as other plugins' views play it (issue 545), provided by the media plugin. */
+export interface MediaService {
+  /** the player bar over a reply's video or audio element, inside its wrapper `box` */
+  ChatPlayer: FC<{ media: HTMLMediaElement; box: HTMLElement }>;
+}
+
+/**
+ * A fenced code block a plugin draws instead of highlighting it (issue 545): once the text is final, the block's
+ * `<pre>` gives way to an empty `<div class={className}>` that `draw` fills. `retheme`: the theme changed; the blocks
+ * under `root` draw again if they need to.
+ */
+export interface CodeBlock {
+  /** the fence's language */
+  lang: string;
+  className: string;
+  draw(out: HTMLElement, code: string, d: AppDispatch): void;
+  retheme?(root: HTMLElement, d: AppDispatch): void;
+}
+
+/**
+ * Another plugin's part of a file row in the Files tree (issue 545): its menu items, above the row's own, and what the
+ * row's drag carries for it. By ascending order.
+ */
+export interface TreeAction {
+  id: string;
+  order: number;
+  /** `picked`: the files the menu acts on, in the order picked; `busy`: the tree's spinner (one such job at a time) */
+  Menu?: FC<{ row: string; picked: readonly string[]; src: string; busy: boolean; setBusy: (on: boolean) => void }>;
+  /** a file row of the source `src` starts to drag: what it carries for this plugin */
+  drag?(path: string, src: string, dt: DataTransfer): void;
+}
+
+/**
+ * A plugin's service to other plugins (issue 545): each is provided by one plugin, and read with `useService(name)` in
+ * a view or `registry.<name>` in a thunk.
+ */
+export interface Services {
+  comments: CommentsService;
+  voice: VoiceService;
+  attachments: AttachmentsService;
+  files: FilesService;
+  vcs: VcsService;
+  projects: ProjectsService;
+  feedUi: FeedUiService;
+  cut: CutService;
+  media: MediaService;
+}
+const SERVICES: Record<keyof Services, true> = {
+  comments: true, voice: true, attachments: true, files: true, vcs: true, projects: true, feedUi: true, cut: true, media: true,
+};
 
 /**
  * How a send ended (`chat.send`). 'building': a part is being made ready (a combined image); the send finishes by
@@ -368,7 +478,7 @@ export interface SettingsSection {
 }
 
 /** What the plugins contribute, built once per store from its plugins and frozen. */
-export interface Registry {
+export interface Registry extends Partial<Services> {
   tabs: ReadonlyMap<string, AnyTabView>;
   /** each slot's contributions by ascending order */
   slots: ReadonlyMap<SlotName, readonly Slot[]>;
@@ -387,10 +497,10 @@ export interface Registry {
   settings: readonly SettingsSection[];
   /** the server data the plugins read, by id (a test answers one by its id) */
   resources: ReadonlyMap<string, Resource<never, unknown>>;
-  /** the comments' service, when a plugin provides it */
-  comments?: CommentsService;
-  voice?: VoiceService;
-  attachments?: AttachmentsService;
+  /** the fenced code blocks the plugins draw, by language */
+  codeBlocks: ReadonlyMap<string, CodeBlock>;
+  /** the parts of a file row in the Files tree, by ascending order */
+  treeActions: readonly TreeAction[];
 }
 
 /**
@@ -455,18 +565,30 @@ export function buildRegistry(plugins: readonly Plugin[], core: readonly Command
     if (resources.has(r.id)) throw new Error(`registry: the resource "${r.id}" is declared twice`);
     resources.set(r.id, r);
   }
-  const once = <K extends 'comments' | 'voice' | 'attachments'>(k: K): Plugin[K] => {
-    const all = plugins.flatMap((p) => p[k] ?? []);
+  const codeBlocks = new Map<string, CodeBlock>();
+  for (const b of plugins.flatMap((p) => p.codeBlocks ?? [])) {
+    if (codeBlocks.has(b.lang)) throw new Error(`registry: the code block "${b.lang}" is drawn twice`);
+    codeBlocks.set(b.lang, b);
+  }
+  const treeActions: TreeAction[] = [];
+  for (const a of plugins.flatMap((p) => p.treeActions ?? [])) {
+    if (treeActions.some((x) => x.id === a.id)) throw new Error(`registry: the tree action "${a.id}" is declared twice`);
+    if (treeActions.some((x) => x.order === a.order)) throw new Error(`registry: two tree actions at order ${a.order}`);
+    treeActions.push(a);
+  }
+  const services: Partial<Services> = {};
+  for (const k of Object.keys(SERVICES) as (keyof Services)[]) {
+    const all = plugins.filter((p) => p[k]);
     if (all.length > 1) throw new Error(`registry: two plugins provide the ${k}`);
-    return all[0] as Plugin[K];
-  };
+    if (all[0]) Object.assign(services, { [k]: all[0][k] });
+  }
   return Object.freeze({
     tabs, slots, commands: Object.freeze(commands.sort((a, b) => a.order - b.order)),
     feed, tools: Object.freeze(plugins.flatMap((p) => p.tools ?? [])), userParts: Object.freeze(userParts.sort((a, b) => a.order - b.order)),
     fileViews: Object.freeze(fileViews.sort((a, b) => a.order - b.order)), anchorViews,
     sendParts: Object.freeze(sendParts.sort((a, b) => a.order - b.order)),
     settings: Object.freeze(settings.sort((a, b) => a.order - b.order)), resources,
-    comments: once('comments'), voice: once('voice'), attachments: once('attachments'),
+    codeBlocks, treeActions: Object.freeze(treeActions.sort((a, b) => a.order - b.order)), ...services,
   });
 }
 

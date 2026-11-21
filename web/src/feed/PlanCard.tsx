@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { useT, type FeedItem, useAppDispatch, useAppSelector, chat, planApproved } from '@/sdk';
-import { Markdown } from './Markdown.tsx';
+import { Markdown } from '@/sdk/ui';
 
 /**
  * ExitPlanMode: the plan as commentable markdown plus approve / keep planning. The commentable root is the plan body

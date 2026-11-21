@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { useT, useAppDispatch, useAppSelector, selectSwitching } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, selectSwitching, selectBuilding, selectUploading } from '@/sdk';
 import { Button, PanelResizer, usePanelWidth } from '@/sdk/ui';
-import { selectBuilding, selectUploading } from '@/composer/slice.ts';
 import { CommentCard } from './CommentCard.tsx';
 import { selectSendable } from './send.ts';
 import { selectCommentsUi, selectPending, setPanelOpen } from './slice.ts';

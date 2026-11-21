@@ -3,7 +3,7 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { anchorSource, type ClientMessage, type Comment, type ServerEvent, type Source } from '@nota-bene/shared';
 import { App } from '@/App.tsx';
-import { Markdown } from '@/feed/Markdown.tsx';
+import { Markdown } from '@/components/markdown/Markdown.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { clearRefCache, refClick } from '@/refs/refs.ts';
 import { serverEvent } from '@/store/store.ts';

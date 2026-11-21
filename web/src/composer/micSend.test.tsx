@@ -13,7 +13,8 @@ import { selectSendable } from '@/comments/send.ts';
 import { installKeymap } from '@/shell/keymap.ts';
 import { PLANE_PATH } from '@/components/MessageInput.tsx';
 import { Composer } from './Composer.tsx';
-import { addImage, selectDraft, selectImages, setDraft } from './slice.ts';
+import { selectDraft, setDraft } from './slice.ts';
+import { addImage, selectImages } from '@/store/message.ts';
 
 const VOICE = { id: 'c'.repeat(64), ms: 3000, wave: Array.from({ length: 48 }, (_, i) => i % 32) };
 const wav = new Blob([new Uint8Array(44)], { type: 'audio/wav' });

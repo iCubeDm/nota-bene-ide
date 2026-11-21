@@ -1,8 +1,7 @@
 import { EnterFullscreenIcon, ExitFullscreenIcon, PauseIcon, PencilIcon, PipIcon, PlayIcon, ReplayIcon } from '@/sdk/ui';
 import { has } from '@nota-bene/shared';
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import { selectFileVersion } from '@/files/slice.ts';
-import { useT, useAppDispatch, useAppSelector, useMedia, SEEK_STEPS, seekStep, useSeekStep, type SeekStepValue, useComments } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, useMedia, SEEK_STEPS, seekStep, useSeekStep, type SeekStepValue, useComments, useService } from '@/sdk';
 import { changedSince } from './markup/MediaMarks.tsx';
 import { BarButton, ChoiceMenu, SPEEDS, VolumeControl } from './PlayerControls.tsx';
 import { applyPlayerKey, startAnnotate, type Flash } from './playerKeys.ts';
@@ -100,7 +99,8 @@ export function PlayerBar({ media, box, tabId, path = '', refName, flash, onTick
   const state = useMediaState(media);
   const offered = useAppSelector((s) => has(s.controls.protocol, 'mediaAnchors'));
   const comments = useAppSelector((s) => selectMediaComments(s, path, refName));
-  const version = useAppSelector((s) => selectFileVersion(s, path, refName));
+  const files = useService('files');
+  const version = useAppSelector((s) => files.selectFileVersion(s, path, refName));
   const items = useMemo<MarkerIn[]>(() => !video ? [] : comments.flatMap((c) =>
     c.anchor.time === undefined ? [] : [{ id: c.id, time: c.anchor.time, text: c.text, dim: c.status === 'sent' || changedSince(c, version) }],
   ), [video, comments, version]);

@@ -1,7 +1,7 @@
-import { activate, sendCount, sendWaiting, t, tIn, toast, type AppThunk, type SendPart } from '@/sdk';
+import { activate, sendCount, sendWaiting, t, tIn, toast, type AppThunk, type SendPart, removeImage, selectBuilding, selectImages, selectUploading } from '@/sdk';
 import { isClearCommand } from './slashRank.ts';
 import { runShellDraft, selectShellMode } from './shellMode.ts';
-import { draftSent, removeImage, selectBuilding, selectDraft, selectImages, selectUploading, setDraft, type ImageEntry } from './slice.ts';
+import { draftSent, selectDraft, setDraft, type ImageEntry } from './slice.ts';
 
 /**
  * Once the message went: only what was taken leaves the composer, the draft text (a tail typed since stays) and the

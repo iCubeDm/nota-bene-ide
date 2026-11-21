@@ -1,7 +1,7 @@
 import type { WithSlice } from '@reduxjs/toolkit';
 import { bool, clearRefCache, definePlugin, enterRoot, json, serverEvent, storage, loadSources, setTmpDirs } from '@/sdk';
-import { filesSlice } from './slice.ts';
-import { readSavedDirs, setDirs, treeKey, treeSlice } from './treeSlice.ts';
+import { filesSlice, jumpToFileComment, selectFileLoad, selectFileVersion } from './slice.ts';
+import { diskChanged, pickSource, readSavedDirs, selectRefreshSeq, setDirs, setTreeOpen, treeKey, treeSlice } from './treeSlice.ts';
 import { pushRecent, RECENT_DWELL_MS } from './recent.ts';
 import { fileTab } from './FileView.tsx';
 import { Tree } from './FileTree.tsx';
@@ -23,6 +23,10 @@ export const filesPlugin = definePlugin({
     { slot: 'overlay', order: 40, render: RecentFiles },
   ],
   commands: filesCommands,
+  files: {
+    selectSource: (s) => s.tree.src, selectDiskSeq: (s) => s.tree.diskSeq, selectRefreshSeq, pickSource, diskChanged, setTreeOpen,
+    selectFileLoad, selectFileVersion, jumpToFileComment,
+  },
   listeners: (start) => {
     // a root's saved folders: merged on the first root (folders expanded before it was known stay), replacing after
     start({

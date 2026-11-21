@@ -1,6 +1,6 @@
 import type { Middleware, Slice } from '@reduxjs/toolkit';
 import type { RootState, StartListening } from '../store/store.ts';
-import type { AnchorView, AnyFeedRenderer, AnyTabView, AttachmentsService, Command, CommentsService, FileView, SendPart, SettingsSection, Slot, ToolRenderer, UserPart, VoiceService } from './registry.ts';
+import type { AnchorView, AnyFeedRenderer, AnyTabView, CodeBlock, Command, FileView, SendPart, Services, SettingsSection, Slot, ToolRenderer, TreeAction, UserPart } from './registry.ts';
 import type { Resource } from './repository.ts';
 
 /**
@@ -12,9 +12,10 @@ export interface PluginState {}
 
 /**
  * A feature module, compiled into the bundle and listed in `web/src/plugins.ts` (issue 511). Order is behavior: the
- * core's part comes first, then each plugin's in `PLUGINS` order, a plugin's own in its declared order.
+ * core's part comes first, then each plugin's in `PLUGINS` order, a plugin's own in its declared order. Its services to
+ * other plugins (`Services`) are each provided by one plugin only.
  */
-export interface Plugin {
+export interface Plugin extends Partial<Services> {
   id: string;
   /** injected into the store once, at its creation, under each slice's own name */
   slices?: Slice[];
@@ -50,12 +51,10 @@ export interface Plugin {
   settings?: SettingsSection[];
   /** the server data it reads, each with an id declared once */
   resources?: Resource<never, unknown>[];
-  /** the comments' service to other plugins' views; one plugin provides it */
-  comments?: CommentsService;
-  /** the voice messages' service to the composer and the comment popup; one plugin provides it */
-  voice?: VoiceService;
-  /** the attachments' service to the composer and the comment popup; one plugin provides it */
-  attachments?: AttachmentsService;
+  /** the fenced code blocks it draws in Markdown; a language is drawn by one plugin only */
+  codeBlocks?: CodeBlock[];
+  /** its parts of a file row in the Files tree; an id and an order are declared once */
+  treeActions?: TreeAction[];
 }
 
 export const definePlugin = (p: Plugin): Plugin => p;

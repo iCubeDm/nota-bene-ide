@@ -1,6 +1,6 @@
 import { has, SHELL_CMD_MAX } from '@nota-bene/shared';
-import { t, toast, byteSize, activate, selectConn, sendWaiting, type AppThunk, type RootState } from '@/sdk';
-import { selectDraft, selectImages, setDraft, shellDraftSent } from './slice.ts';
+import { t, toast, byteSize, activate, selectConn, sendWaiting, type AppThunk, type RootState, selectImages } from '@/sdk';
+import { selectDraft, setDraft, shellDraftSent } from './slice.ts';
 
 
 /**
