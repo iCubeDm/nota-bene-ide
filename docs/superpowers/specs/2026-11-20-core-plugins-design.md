@@ -538,4 +538,4 @@ result.
     by one plugin, read with `useService(name)` (the three of item 47-48 included). Markdown is core UI
     (`components/markdown/`); the diagram plugin registers its `codeBlocks` (`mermaid`, `svg`), the media plugin the
     player. The cut plugin contributes `treeActions` (its menu items and the timeline drag). The session list shares
-    only `ago` and `ArchiveIcon`, so those moved to core, not a list component. The baseline went from 68 to 32 entries.
+    only `ago` and `ArchiveIcon`, so those moved to core, not a list component. The baseline went from 68 to 29 entries.
