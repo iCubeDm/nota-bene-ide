@@ -1,5 +1,5 @@
-import { memo, useContext, useId, useMemo, useState } from 'react';
-import { useT, selectBusy, useAppDispatch, useAppSelector, useRegistry, type FeedItem, collapsedLength, rawIndexOf, openFile, ARG_KEYS, toolSrcId } from '@/sdk';
+import { memo, useContext, useId, useMemo, useState, type ComponentProps } from 'react';
+import { useT, selectBusy, useAppDispatch, useAppSelector, useRegistry, type FeedItem, collapsedLength, rawIndexOf, openFile, ARG_KEYS, toolSrcId, type ToolRenderer } from '@/sdk';
 import { tmpImagePathsIn, useTmpDirs } from '@/files/tmpImages.ts';
 import { FeedScope } from './scope.ts';
 import { scopedId, selectToolAnchorEnds, selectToolCommentCounts, selectToolOpen, toggleTool } from './uiSlice.ts';
@@ -115,6 +115,17 @@ function TmpImages({ input }: { input: Record<string, unknown> }) {
   );
 }
 
+/**
+ * A plugin's head for an action, with whether its conversation still works: read here, so a plain action's line does not
+ * re-render when the chat's busy flag flips (issue 471).
+ */
+function ToolHead({ head, ...p }: Omit<ComponentProps<ToolRenderer['render']>, 'busy'> & { head: ToolRenderer }) {
+  const scope = useContext(FeedScope);
+  const mainBusy = useAppSelector(selectBusy);
+  const Head = head.render;
+  return <Head {...p} busy={scope.agent ? !!scope.busy : mainBusy} />;
+}
+
 /** One action: its line, and below it, while open (state in `feedUi`), the panel. A closed line names its comments. */
 export const ToolLine = memo(function ToolLine({ item }: { item: Tool }) {
   const t = useT();
@@ -124,13 +135,11 @@ export const ToolLine = memo(function ToolLine({ item }: { item: Tool }) {
   const comments = useAppSelector((s) => selectToolCommentCounts(s)[key] ?? 0);
   const end = useAppSelector((s) => selectToolAnchorEnds(s)[key] ?? 0);
   const panelId = useId();
-  const scope = useContext(FeedScope);
-  const mainBusy = useAppSelector(selectBusy);
-  const Head = useRegistry().tools.find((r) => r.match(item))?.render;
-  if (Head) {
+  const head = useRegistry().tools.find((r) => r.match(item));
+  if (head) {
     return (
       <div data-kind="tool">
-        <Head item={item} open={open} panelId={panelId} comments={comments} busy={scope.agent ? !!scope.busy : mainBusy} onToggle={() => dispatch(toggleTool(key))} />
+        <ToolHead head={head} item={item} open={open} panelId={panelId} comments={comments} onToggle={() => dispatch(toggleTool(key))} />
         {open && <Panel item={item} id={panelId} end={end} />}
       </div>
     );
