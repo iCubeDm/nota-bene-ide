@@ -267,8 +267,8 @@ export class CutExporter {
   }
 
   /** Removes a file without ever throwing (a close handler or the server's close calls it); a failure is told, not raised. */
-  private remove(file: string): void {
-    Promise.resolve().then(() => this.o.rm(file)).catch((e: unknown) => this.o.warn(e));
+  private remove(file: string): Promise<void> {
+    return Promise.resolve().then(() => this.o.rm(file)).catch((e: unknown) => this.o.warn(e));
   }
 
   /** Once per folder: the temp files of ours that a crash left there, older than STALE_MS, except a running export's. */
@@ -281,7 +281,7 @@ export class CutExporter {
         const file = path.join(dir, name);
         if (!TEMP.test(name) || ours.has(file)) continue;
         const st = await fs.promises.lstat(file).catch(() => null);
-        if (st?.isFile() && Date.now() - st.mtimeMs > STALE_MS) this.remove(file);
+        if (st?.isFile() && Date.now() - st.mtimeMs > STALE_MS) void this.remove(file);
       }
     })().catch((e: unknown) => this.o.warn(e));
   }
@@ -301,7 +301,7 @@ export class CutExporter {
     try {
       child = spawn(ffmpeg, args, { cwd: path.dirname(out), env: ffmpegEnv(), stdio: ['ignore', 'pipe', 'pipe'], shell: false, ...HIDDEN });
     } catch (e) {
-      this.remove(r.temp!);
+      void this.remove(r.temp!);
       r.temp = null;
       return fail(e instanceof Error ? e.message : String(e));
     }
@@ -328,6 +328,7 @@ export class CutExporter {
       untrack(child);
       const temp = r.temp!;
       r.temp = null;
+      let why: string | undefined; // the failure; none when cancelled
       if (code === 0 && !r.cancelled && !error) {
         try {
           renameRetry(temp, out);
@@ -335,11 +336,11 @@ export class CutExporter {
           r.job.progress = 1;
           return;
         } catch (e) {
-          fail(e instanceof Error ? e.message : String(e));
+          why = e instanceof Error ? e.message : String(e);
         }
-      } else if (r.cancelled) r.job.phase = 'cancelled';
-      else fail(error?.message ?? (lastLines() || `ffmpeg exited with ${signal ?? code}`));
-      this.remove(temp);
+      } else if (!r.cancelled) why = error?.message ?? (lastLines() || `ffmpeg exited with ${signal ?? code}`);
+      // the job ends once its temp file is gone, so an ended export never leaves one behind (issue 550)
+      void this.remove(temp).then(() => (why === undefined ? (r.job.phase = 'cancelled') : fail(why)));
     };
     child.on('error', (e) => done(null, null, e));
     child.on('close', (code, signal) => done(code, signal));
