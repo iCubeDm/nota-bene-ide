@@ -8,7 +8,6 @@ import 'package:nb_protocol/nb_protocol.dart';
 
 import '../chat/window_tab.dart';
 import '../comments/strings.g.dart';
-import '../files/image_screen.dart';
 import '../l10n/app_localizations.dart';
 import '../ui/insets.dart';
 import 'format.dart';
@@ -76,7 +75,7 @@ class _UsageScreenState extends State<UsageScreen> {
   Future<void> _load() async {
     _timer?.cancel();
     final gen = ++_gen;
-    final http = windowHttp(widget.tab);
+    final http = widget.tab.connection.http;
     try {
       if (http == null) throw 'offline';
       final a = await http(
@@ -128,7 +127,7 @@ class _UsageScreenState extends State<UsageScreen> {
       ),
     );
     if (ok != true || !mounted) return;
-    final http = windowHttp(widget.tab);
+    final http = widget.tab.connection.http;
     String? fail;
     try {
       if (http == null) throw 'network';

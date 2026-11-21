@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 
 import '../chat/window_tab.dart';
 import '../comments/strings.g.dart';
-import '../files/image_screen.dart' show windowHttp;
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/insets.dart';
@@ -67,7 +66,7 @@ class _WhisperSheetState extends State<WhisperSheet> {
     String path, [
     Object? json,
   ]) async {
-    final http = windowHttp(widget.tab);
+    final http = widget.tab.connection.http;
     if (http == null) return null;
     try {
       final r = await http(

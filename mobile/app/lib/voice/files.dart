@@ -1,21 +1,10 @@
-// The voice's folders on the phone, through MainActivity's `nb/play`: `dir` (the cache of played voices) and `outDir`
-// (the outboxes' recordings; the comment queues sit beside it). Apart from the player, so that the stores that keep
-// files there need not import it.
+// The played voices on the phone, in the cache dir `nb/play` names (`dir`). Apart from the player, so that the voice
+// outboxes that keep files there need not import it.
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 
-const playChannel = MethodChannel('nb/play');
-
-/// `filesDir/voice-out`; null where the platform has none (tests).
-Future<Directory?> outDir() async {
-  try {
-    final p = await playChannel.invokeMethod<String>('outDir');
-    return p == null ? null : Directory(p);
-  } on Object {
-    return null;
-  }
-}
+import '../store/storage.dart' show playChannel;
 
 /// What the voice outboxes ask of the player: keep a sent recording among the played voices, and let go of one that
 /// is over (stopped if it plays, its file deleted).

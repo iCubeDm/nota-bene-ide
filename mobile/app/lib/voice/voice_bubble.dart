@@ -8,7 +8,6 @@ import 'package:nb_protocol/nb_protocol.dart' show Voice, VoiceError;
 
 import '../chat/files.dart' show FileOpener;
 import '../chat/window_tab.dart';
-import '../files/image_screen.dart' show windowHttp;
 import '../l10n/app_localizations.dart';
 import '../store/voice_lang.dart';
 import '../theme.dart';
@@ -246,7 +245,7 @@ class VoiceLangBadge extends StatelessWidget {
 
 /// How the player fetches voice [id] of [tab]'s window.
 LoadVoice voiceLoader(WindowTab? tab, String id) => () async {
-  final http = tab == null ? null : windowHttp(tab);
+  final http = tab?.connection.http;
   if (http == null) return null;
   try {
     final r = await http('GET', '/voice/$id');

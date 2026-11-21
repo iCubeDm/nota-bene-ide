@@ -3,7 +3,7 @@
 // own in memory.
 import 'comments/queue.dart';
 import 'hosts/host_link.dart';
-import 'hosts/project_icon.dart';
+import 'store/project_icons.dart';
 import 'notify/background.dart';
 import 'store/hosts.dart';
 import 'store/notified.dart';
