@@ -13,8 +13,8 @@ import { makeStore } from '@/testing';
 import { Attachments } from './Attachments.tsx';
 
 const uploads = vi.hoisted(() => [] as Blob[]);
-vi.mock('./image.ts', async (orig) => ({
-  ...(await orig<typeof import('./image.ts')>()),
+vi.mock('@/lib/image.ts', async (orig) => ({
+  ...(await orig<typeof import('@/lib/image.ts')>()),
   prepareImage: async (f: File) => f,
   uploadImage: async (b: Blob) => (uploads.push(b), { id: (b as File).name.padEnd(64, '0'), mediaType: 'image/png' }),
 }));
@@ -154,7 +154,7 @@ it('a pasted image uploads, shows a thumbnail, and sends alone with a label', as
 
 it('a failed upload shows imgFail and drops the image', async () => {
   const { box } = setup();
-  const mod = await import('./image.ts');
+  const mod = await import('@/lib/image.ts');
   vi.spyOn(mod, 'uploadImage').mockRejectedValueOnce(new Error('x'));
   paste(box, [png(A)]);
   expect(await screen.findByText('Could not read the image')).toBeInTheDocument();
@@ -186,7 +186,7 @@ it('Attachments removes by id', async () => {
 });
 
 it('Send is disabled while an upload is pending and Enter sends nothing', async () => {
-  const mod = await import('./image.ts');
+  const mod = await import('@/lib/image.ts');
   let done!: (v: { id: string; mediaType: 'image/png' }) => void;
   vi.spyOn(mod, 'uploadImage').mockReturnValueOnce(new Promise((r) => (done = r)));
   const { sent, box } = setup();

@@ -8,7 +8,7 @@ import { setLang } from '@/i18n/index.ts';
 import { serverEvent } from '@/store/store.ts';
 import { makeStore } from '@/testing';
 import { selectDraft } from './markup/slice.ts';
-import { PLAYER_HELP } from './playerKeys.ts';
+import { PLAYER_HELP } from '@/sdk';
 import { seekStep } from '@/store/seekStep.ts';
 import { t } from '@/i18n/index.ts';
 

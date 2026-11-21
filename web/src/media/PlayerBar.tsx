@@ -1,10 +1,10 @@
 import { EnterFullscreenIcon, ExitFullscreenIcon, PauseIcon, PencilIcon, PipIcon, PlayIcon, ReplayIcon } from '@/sdk/ui';
 import { has } from '@nota-bene/shared';
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import { useT, useAppDispatch, useAppSelector, useMedia, SEEK_STEPS, seekStep, useSeekStep, type SeekStepValue, useComments, useService } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, useMedia, SEEK_STEPS, seekStep, useSeekStep, type SeekStepValue, useComments, useService, applyPlayerKey, type Flash } from '@/sdk';
 import { changedSince } from './markup/MediaMarks.tsx';
 import { BarButton, ChoiceMenu, SPEEDS, VolumeControl } from './PlayerControls.tsx';
-import { applyPlayerKey, startAnnotate, type Flash } from './playerKeys.ts';
+import { startAnnotate } from './playerKeys.ts';
 import { Timeline } from './Timeline.tsx';
 import { BAR_MIN_PX, useBarRect } from './useBarRect.ts';
 import { formatTime, type MarkerIn } from './timelineMath.ts';

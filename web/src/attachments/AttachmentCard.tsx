@@ -1,6 +1,5 @@
 import { isAttachmentAnchor } from '@nota-bene/shared';
-import { connections, routes, useAppDispatch, useAppSelector, useT, type AnchorView, addImage, markAttachment, selectImages } from '@/sdk';
-import { mediaTypeOf } from './image.ts';
+import { connections, routes, useAppDispatch, useAppSelector, useT, type AnchorView, addImage, markAttachment, selectImages, mediaTypeOf } from '@/sdk';
 
 /**
  * A mark on an attached image (protocol 17), on its comment's card: the image, and while it is no longer in the composer

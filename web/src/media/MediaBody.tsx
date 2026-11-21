@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { isMediaAnchor } from '@nota-bene/shared';
-import { useT, useAppDispatch, useAppSelector, clearJump, selectJump, seekAndPause, type MediaFileView, useComments } from '@/sdk';
-import { applyPlayerKey, usePlayerKeys } from './playerKeys.ts';
+import { useT, useAppDispatch, useAppSelector, clearJump, selectJump, seekAndPause, type MediaFileView, useComments, applyPlayerKey } from '@/sdk';
+import { usePlayerKeys } from './playerKeys.ts';
 import { PlayerBar } from './PlayerBar.tsx';
 import { PlayerFlash } from './PlayerFlash.tsx';
 import { MarkupLayer } from './markup/MarkupLayer.tsx';

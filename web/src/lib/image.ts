@@ -1,5 +1,6 @@
 import { IMAGE_TYPES, type ImageType } from '@nota-bene/shared';
-import { connections, routes } from '@/sdk';
+import { connections } from '../sdk/connections.ts';
+import { routes } from '../sdk/routes.ts';
 
 // Values copied from the prototype: the model works at <=1568 px on the long edge anyway, and the API caps an image at 5 MB.
 const IMG_OK: readonly string[] = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
@@ -12,7 +13,7 @@ export const mediaTypeOf = (id: string): ImageType => known.get(id) ?? 'image/pn
 
 const isImageType = (t: string): t is ImageType => (IMAGE_TYPES as readonly string[]).includes(t);
 
-export async function encode(c: OffscreenCanvas | HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
+export async function encodeImage(c: OffscreenCanvas | HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
   const blob = 'convertToBlob' in c
     ? await c.convertToBlob({ type, quality })
     : await new Promise<Blob | null>((res) => (c as HTMLCanvasElement).toBlob(res, type, quality));
@@ -40,8 +41,8 @@ export async function prepareImage(file: Blob): Promise<Blob> {
     const ctx = c.getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
     if (!ctx) throw new Error('no 2d canvas');
     ctx.drawImage(bmp, 0, 0, w, h);
-    let blob = await encode(c, 'image/png');
-    if (blob.size > IMG_BYTES) blob = await encode(c, 'image/jpeg', 0.9);
+    let blob = await encodeImage(c, 'image/png');
+    if (blob.size > IMG_BYTES) blob = await encodeImage(c, 'image/jpeg', 0.9);
     return blob;
   } finally {
     bmp.close();

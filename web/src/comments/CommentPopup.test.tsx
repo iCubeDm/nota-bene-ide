@@ -160,8 +160,8 @@ it('⌘Enter in the popup does not reach the composer', async () => {
   expect(screen.getByPlaceholderText(/Message the agent/)).toHaveValue('draft');
 });
 
-vi.mock('@/attachments/image.ts', async (orig) => ({
-  ...(await orig<typeof import('@/attachments/image.ts')>()),
+vi.mock('@/lib/image.ts', async (orig) => ({
+  ...(await orig<typeof import('@/lib/image.ts')>()),
   prepareImage: async (f: File) => f,
   uploadImage: async () => ({ id: 'e'.repeat(64), mediaType: 'image/png' }),
 }));

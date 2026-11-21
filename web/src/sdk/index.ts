@@ -27,6 +27,7 @@ export { autosize, useAutosize } from '../lib/autosize.ts';
 export { placeList, placeListFor, scrollTopFor, revealSelected } from '../lib/placeList.ts';
 export { useNote, REFUSED } from '../lib/useNote.ts';
 export { PATHS_MIME, draggedPaths, hasFiles, downloadUrl } from '../lib/drag.ts';
+export { prepareImage, uploadImage, encodeImage, mediaTypeOf } from '../lib/image.ts';
 export { useFocusWithin } from '../shell/focusWithin.ts';
 export { makeAnchor } from '../anchors/resolve.ts';
 export { textOf, collapsedLength, rawIndexOf, offsetsOf, rangeForAnchor } from '../anchors/text.ts';
@@ -123,6 +124,7 @@ export { selectSubagent, itemsOf, agentName, openSubagentTab, subagentRequested,
 export { seekAndPause, type MediaController, type PipApi } from '../store/mediaController.ts';
 export { usePagePause } from '../shell/pagePause.ts';
 export { SEEK_STEPS, seekStep, useSeekStep, type SeekStepValue } from '../store/seekStep.ts';
+export { applyPlayerKey, inPlayerScope, ONCE, THEIRS, PLAYER_HELP, type Flash } from '../store/playerKeys.ts';
 export { brief, renameSession, archiveSession, deleteSession } from '../store/sessions.ts';
 
 import { answerPermission, interrupt, takeOver } from '../store/store.ts';
@@ -146,4 +148,4 @@ export {
   setAgentTitle, selectTabs, selectActiveTab, enterRoot, fileTabId, type Tab, type TabKinds, type AgentTab, type SavedFile, type DiagramLang,
 } from '../tabs/slice.ts';
 export { requestJump, clearJump, dropJump, selectJump, type Jump } from '../tabs/jump.ts';
-export { feedRenderer, anchorView, type AnchorView, type AnchorKind, type TabView, type Slot, type SlotName, type Command, type KeyId, type Mods, type FeedRenderer, type AnyFeedRenderer, type FeedKind, type Held, type ToolRenderer, type ToolItem, type UserPart, type FileView, type SettingsSection, type SendPart, type Taken, type SendResult, type TextFileView, type MediaFileView, type MediaLoad, type FileBar, type CommentsService, type PendingComment, type VoiceService, type VoiceRecorder, type RecState, type AttachmentsService, type ImageEntry, type PendingThumb, type MediaComment, type MediaAnchorPatch, type Services, type FilesService, type FileLoad, type VcsService, type ProjectsService, type FeedUiService, type CutService, type MediaService, type CodeBlock, type TreeAction } from './registry.ts';
+export { feedRenderer, anchorView, type AnchorView, type AnchorKind, type TabView, type Slot, type SlotName, type Command, type KeyId, type Mods, type FeedRenderer, type AnyFeedRenderer, type FeedKind, type Held, type ToolRenderer, type ToolItem, type UserPart, type FileView, type SettingsSection, type SendPart, type Taken, type SendResult, type TextFileView, type MediaFileView, type MediaLoad, type FileBar, type CommentsService, type PendingComment, type VoiceService, type VoiceRecorder, type RecState, type AttachmentsService, type ImageEntry, type PendingThumb, type MediaComment, type MediaAnchorPatch, type Services, type FilesService, type FileLoad, type VcsService, type ProjectsService, type FeedUiService, type TasksService, type CutService, type MediaService, type CodeBlock, type TreeAction } from './registry.ts';

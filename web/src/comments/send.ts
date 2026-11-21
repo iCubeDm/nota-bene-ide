@@ -1,6 +1,5 @@
 import { anchorSource, generatedImages, isAttachmentAnchor, isCutAnchor, isMediaAnchor, type AnchorSource, type Comment, type ImageRef } from '@nota-bene/shared';
-import { mediaTypeOf } from '../attachments/image.ts';
-import { getLang, t, tIn, type Lang, type RootState, chat, cutWhere, mediaTime, TOOL_SRC, type SendPart, instructionOf, labelOf, selectImages, agentName, itemsOf } from '@/sdk';
+import { mediaTypeOf, getLang, t, tIn, type Lang, type RootState, chat, cutWhere, mediaTime, TOOL_SRC, type SendPart, instructionOf, labelOf, selectImages, agentName, itemsOf } from '@/sdk';
 import { composeBatch } from './compose.ts';
 import { createSelector } from '@reduxjs/toolkit';
 import { markSending, selectComments, selectPending, unmarkSending } from './slice.ts';

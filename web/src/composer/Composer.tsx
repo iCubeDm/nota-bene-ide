@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat, sendCount, sendWaiting, nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching, useAutosize, draggedPaths, useSeekStep, useVoice, useAttachments, insertPaths, hasFiles, ComposerFieldContext, addImage, selectBuilding, selectImages, selectUploading, uploadFinished, uploadStarted } from '@/sdk';
+import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat, sendCount, sendWaiting, nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching, useAutosize, draggedPaths, useSeekStep, useVoice, useAttachments, insertPaths, hasFiles, ComposerFieldContext, addImage, selectBuilding, selectImages, selectUploading, uploadFinished, uploadStarted, PLAYER_HELP } from '@/sdk';
 import { Button, MessageInput, MicButton, SendIcon, Slots, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { SlashPicker } from './SlashPicker.tsx';
 import { selectShellMode } from './shellMode.ts';
@@ -10,7 +10,6 @@ import { usePromptRecall } from './usePromptRecall.ts';
 import { useComposerKeys } from './useComposerKeys.ts';
 import { selectDraft, setDraft } from './slice.ts';
 import { VOICE_KEY } from './commands.ts';
-import { PLAYER_HELP } from '@/media/playerKeys.ts';
 
 export function Composer() {
   const t = useT();

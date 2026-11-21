@@ -196,16 +196,17 @@ it('the voice and the attachments are each one plugin\'s service; a second fails
 });
 
 // other plugins' state and views are read through their owners' services, never their modules (issue 545)
-it('the files, git, projects, feed, edits and media services are each one plugin\'s, with only what the others read', () => {
+it('the files, git, projects, feed, tasks, edits and media services are each one plugin\'s, with only what the others read', () => {
   const r = buildRegistry(PLUGINS);
-  const keys = (k: 'files' | 'vcs' | 'projects' | 'feedUi' | 'cut' | 'media') => Object.keys(r[k]!).sort();
+  const keys = (k: 'files' | 'vcs' | 'projects' | 'feedUi' | 'tasks' | 'cut' | 'media') => Object.keys(r[k]!).sort();
   expect(keys('files')).toEqual(['diskChanged', 'jumpToFileComment', 'pickSource', 'selectDiskSeq', 'selectFileLoad', 'selectFileVersion',
     'selectRefreshSeq', 'selectSource', 'setTreeOpen']);
   expect(keys('vcs')).toEqual(['showCommit']);
   expect(keys('projects')).toEqual(['openFolder']);
-  expect(keys('feedUi')).toEqual(['revealTool']);
+  expect(keys('feedUi')).toEqual(['Feed', 'revealTool']);
+  expect(keys('tasks')).toEqual(['CallMenu']);
   expect(keys('cut')).toEqual(['liveCutState']);
-  expect(keys('media')).toEqual(['ChatPlayer']);
+  expect(keys('media')).toEqual(['AttachmentMarkup', 'ChatPlayer']);
   expect(() => buildRegistry([{ id: 'a', files: r.files }, { id: 'b', files: r.files }])).toThrow('two plugins provide the files');
   const bare = makeStore({ url: 'u', connect: () => ({ send: () => true, close() {} }), plugins: [] });
   const wrapper = ({ children }: { children: ReactNode }) => createElement(Provider, { store: bare, children });

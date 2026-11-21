@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import { has, isAttachmentAnchor } from '@nota-bene/shared';
-import { useT, useAppDispatch, useAppSelector, useComments, type PendingThumb, markAttachment, removeImage, selectImages, selectMarking } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, useComments, useService, type PendingThumb, markAttachment, removeImage, selectImages, selectMarking } from '@/sdk';
 import { ConfirmDialog } from '@/sdk/ui';
-import { AttachmentMarkup } from './AttachmentMarkup.tsx';
 import { Attachments } from './Attachments.tsx';
 
 
@@ -12,6 +11,7 @@ import { Attachments } from './Attachments.tsx';
  */
 export function ComposerAttachments({ pending, onCancel }: { pending: PendingThumb[]; onCancel?: (key: string) => void }) {
   const { removeComment, selectComments } = useComments();
+  const { AttachmentMarkup } = useService('media');
   const t = useT();
   const dispatch = useAppDispatch();
   const images = useAppSelector(selectImages);

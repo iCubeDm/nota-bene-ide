@@ -1,6 +1,5 @@
 import { useEffect, useState, type MutableRefObject } from 'react';
-import { useT, editable } from '@/sdk';
-import { applyPlayerKey, ONCE, THEIRS, type Flash } from './playerKeys.ts';
+import { useT, editable, applyPlayerKey, ONCE, THEIRS, type Flash } from '@/sdk';
 
 /**
  * The player keys for one video/audio in a chat reply. Unlike a media tab's, they are off until the user has put focus

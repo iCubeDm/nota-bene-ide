@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { fileOfImage, openMediaFile, useAppDispatch, useMedia, setStartAt, refOf, fileTabId } from '@/sdk';
+import { fileOfImage, openMediaFile, useAppDispatch, useMedia, setStartAt, refOf, fileTabId, applyPlayerKey } from '@/sdk';
 import { PlayerBar } from './PlayerBar.tsx';
 import { PlayerFlash } from './PlayerFlash.tsx';
-import { applyPlayerKey } from './playerKeys.ts';
 import { useChatPlayerKeys } from './useChatPlayerKeys.ts';
 
 /**
