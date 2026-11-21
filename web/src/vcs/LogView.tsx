@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { VcsCommitDetail, VcsLog } from '@nota-bene/shared';
-import { useT, defineResource, routes, useResource, useAppDispatch, useAppSelector, type TabView, useSources, useComments } from '@/sdk';
+import { useT, defineResource, routes, useResource, useAppDispatch, useAppSelector, type TabView, useSources, useComments, useService } from '@/sdk';
 import { PanelResizer, usePanelWidth } from '@/sdk/ui';
-import { pickSource, selectRefreshSeq, selectTree } from '@/files/treeSlice.ts';
 import { FileDiff, StatusMark } from './DiffBody.tsx';
 import { SplitToggle, viewOf } from './ChangesView.tsx';
 import { layout, COLORS, STEP, ROW } from './graph.ts';
@@ -31,8 +30,9 @@ export function LogView({ active }: { active: boolean }) {
   const { HighlightLayer } = useComments();
   const t = useT();
   const d = useAppDispatch();
-  const { src } = useAppSelector(selectTree);
-  const turn = useAppSelector(selectRefreshSeq);
+  const tree = useService('files');
+  const src = useAppSelector(tree.selectSource);
+  const turn = useAppSelector(tree.selectRefreshSeq);
   const { split, commit } = useVcsUi();
   const sources = useSources();
   const [all, setAll] = useState(true);
@@ -85,7 +85,7 @@ export function LogView({ active }: { active: boolean }) {
               <Lanes r={rows[i]!} width={width} />
               {c.refs.filter((x) => !x.endsWith('/HEAD')).map((x) => {
                 const id = srcOfRef(refName(x));
-                return <span key={x} role={id ? 'link' : undefined} title={id ? undefined : x} onClick={id ? (e) => { e.stopPropagation(); d(pickSource(id)); } : undefined} className={`flex-none rounded px-1 font-mono text-[0.65625rem] leading-4 ${x.startsWith('HEAD') ? 'bg-nb-accent/20 text-nb-accent' : x.startsWith('tag:') ? 'bg-muted text-muted-foreground' : 'bg-primary/15 text-link'}`}>{refName(x)}</span>;
+                return <span key={x} role={id ? 'link' : undefined} title={id ? undefined : x} onClick={id ? (e) => { e.stopPropagation(); d(tree.pickSource(id)); } : undefined} className={`flex-none rounded px-1 font-mono text-[0.65625rem] leading-4 ${x.startsWith('HEAD') ? 'bg-nb-accent/20 text-nb-accent' : x.startsWith('tag:') ? 'bg-muted text-muted-foreground' : 'bg-primary/15 text-link'}`}>{refName(x)}</span>;
               })}
               <span className={`min-w-0 flex-1 truncate ${c.sha === log.tip ? 'font-semibold text-foreground' : 'text-foreground/85'}`}>{c.subject}</span>
               <span className="flex-none text-[0.6875rem] text-muted-foreground">{c.author}</span>

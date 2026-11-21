@@ -11,9 +11,11 @@ import { feedUiSlice } from '../feed/uiSlice.ts';
 import { filesSlice } from '../files/slice.ts';
 import { markupSlice } from '../media/markup/slice.ts';
 import { remoteSlice } from '../remote/slice.ts';
-import { statsSlice } from '../stats/slice.ts';
-import { subagentsSlice } from '../subagent/slice.ts';
-import { tasksSlice, tasksUiSlice } from '../tasks/slice.ts';
+import { statsSlice } from './stats.ts';
+import { subagentsSlice } from './subagents.ts';
+import { tasksSlice } from './tasks.ts';
+import { messageSlice } from './message.ts';
+import { tasksUiSlice } from '../tasks/slice.ts';
 import { tabsSlice } from '../tabs/slice.ts';
 import { jumpSlice } from '../tabs/jump.ts';
 import { treeSlice } from '../files/treeSlice.ts';
@@ -40,9 +42,9 @@ afterEach(() => { vi.unstubAllEnvs(); });
 
 it('the plugins inject every slice under its name of before issue 511, with the same initial state', () => {
   // the store as it was assembled before plugins (one reducer map naming every slice): persisted state and selectors rely on it;
-  // `jump` was `files.jump` (step 10c: each file view takes its own)
+  // `jump` was `files.jump` (step 10c: each file view takes its own); `message` was the composer's images (issue 545)
   const before = configureStore({
-    reducer: { feed: feedSlice.reducer, conn: connSlice.reducer, comments: commentsSlice.reducer, composer: composerSlice.reducer, tabs: tabsSlice.reducer, tree: treeSlice.reducer, files: filesSlice.reducer, controls: controlsSlice.reducer, stats: statsSlice.reducer, remote: remoteSlice.reducer, tasks: tasksSlice.reducer, tasksUi: tasksUiSlice.reducer, markup: markupSlice.reducer, feedUi: feedUiSlice.reducer, subagents: subagentsSlice.reducer, promptHistory: historySlice.reducer, jump: jumpSlice.reducer },
+    reducer: { feed: feedSlice.reducer, conn: connSlice.reducer, comments: commentsSlice.reducer, composer: composerSlice.reducer, message: messageSlice.reducer, tabs: tabsSlice.reducer, tree: treeSlice.reducer, files: filesSlice.reducer, controls: controlsSlice.reducer, stats: statsSlice.reducer, remote: remoteSlice.reducer, tasks: tasksSlice.reducer, tasksUi: tasksUiSlice.reducer, markup: markupSlice.reducer, feedUi: feedUiSlice.reducer, subagents: subagentsSlice.reducer, promptHistory: historySlice.reducer, jump: jumpSlice.reducer },
   });
   const store = coreStore({ url: 'u', connect: fake().connect, plugins: PLUGINS });
   expect(Object.keys(store.getState()).sort()).toEqual(Object.keys(before.getState()).sort());
@@ -50,8 +52,8 @@ it('the plugins inject every slice under its name of before issue 511, with the 
 });
 
 it('a slice name two plugins declare fails at creation', () => {
-  const twice = [{ id: 'a', slices: [statsSlice] }, { id: 'b', slices: [statsSlice] }];
-  expect(() => coreStore({ url: 'u', connect: fake().connect, plugins: twice })).toThrow(/stats/);
+  const twice = [{ id: 'a', slices: [tasksUiSlice] }, { id: 'b', slices: [tasksUiSlice] }];
+  expect(() => coreStore({ url: 'u', connect: fake().connect, plugins: twice })).toThrow(/tasksUi/);
 });
 
 it('inbound frames reach the feed', () => {

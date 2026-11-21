@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { openFolder, reasonText } from '@/projects/api.ts';
 import type { GitSwitchAnswer, Source, VcsBranch } from '@nota-bene/shared';
-import { useT, selectSession, selectTurnSeq, useAppDispatch, useAppSelector, routes, defineResource, useResource, loadSources, useSources, connections } from '@/sdk';
+import { useT, selectSession, selectTurnSeq, useAppDispatch, useAppSelector, routes, defineResource, useResource, loadSources, useSources, connections, useService } from '@/sdk';
 import { Popover, PopoverContent, PopoverTrigger, ICONS, Svg } from '@/sdk/ui';
-import { diskChanged, pickSource, selectTree } from '@/files/treeSlice.ts';
 import { setHasRepo } from './store.ts';
 
 type GitStatus = { branch: string | null; detached: boolean; dirty: boolean };
@@ -96,7 +94,10 @@ export function GitBranch() {
   const t = useT();
   const d = useAppDispatch();
   const root = useAppSelector(selectSession)?.root;
-  const { src, diskSeq } = useAppSelector(selectTree);
+  const files = useService('files');
+  const projects = useService('projects');
+  const src = useAppSelector(files.selectSource);
+  const diskSeq = useAppSelector(files.selectDiskSeq);
   const st = useGitStatus(root, useAppSelector(selectTurnSeq), diskSeq);
   const sources = useSources();
   const [open, setOpen] = useState(false);
@@ -130,9 +131,9 @@ export function GitBranch() {
     if (!s.dir) return;
     setGoing(true);
     setOpenErr(null);
-    const why = await openFolder(s.dir, provider);
+    const why = await projects.openFolder(s.dir, provider);
     setGoing(false);
-    if (why) setOpenErr(reasonText(why));
+    if (why) setOpenErr(why);
   };
   const switchTo = async (s: Source) => {
     setGoing(true);
@@ -144,8 +145,8 @@ export function GitBranch() {
       // the folder is now that branch: show it, and reload what a finished turn reloads (status, tree, tabs, Changes, log)
       setOpen(false);
       confirm(null);
-      d(pickSource('here'));
-      d(diskChanged());
+      d(files.pickSource('here'));
+      d(files.diskChanged());
       void loadSources(true);
     } catch {
       setErr(refusal(t, null));
@@ -156,7 +157,7 @@ export function GitBranch() {
   const row = (s: Source, wide = true) => {
     const i = info.find((x) => x.id === s.id);
     return (
-      <button key={s.id} type="button" onClick={() => { d(pickSource(s.id)); setOpen(false); }} className={`flex h-7 ${wide ? 'w-full' : 'min-w-0 flex-1'} items-center gap-2 rounded px-2 text-left text-[0.78125rem] hover:bg-muted ${s.id === src ? 'bg-primary/10' : ''}`}>
+      <button key={s.id} type="button" onClick={() => { d(files.pickSource(s.id)); setOpen(false); }} className={`flex h-7 ${wide ? 'w-full' : 'min-w-0 flex-1'} items-center gap-2 rounded px-2 text-left text-[0.78125rem] hover:bg-muted ${s.id === src ? 'bg-primary/10' : ''}`}>
         <span className="w-3 flex-none text-link">{s.id === src ? '✓' : ''}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-foreground">{s.id === 'here' ? here : s.label}</span>
         {i?.busy && <span data-agent-dot role="img" aria-label={t('vcsAgentHere')} title={t('vcsAgentHere')} className="size-2 flex-none animate-pulse rounded-full bg-nb-accent" />}

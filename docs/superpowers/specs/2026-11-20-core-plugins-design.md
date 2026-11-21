@@ -532,3 +532,10 @@ result.
     `composer.pickers` the mention and shortcode pickers of both message fields (`useComposerField()`). Voice and
     attachments are services (`useVoice()`, `useAttachments()`), not slots: each host drives them with its own state.
     `MessageInput` is core UI. The baseline went from 97 to 68 entries.
+49. **State reads, Markdown, tree menu, session list** (issue 545): state several plugins read moved to core slices
+    (`message`: the message's images, uploads and building; `stats`; `tasks`; `subagents`), the rest is read through
+    its owner's service (`files`, `vcs`, `projects`, `feedUi`, `cut`, `media`): one `Services` interface, each provided
+    by one plugin, read with `useService(name)` (the three of item 47-48 included). Markdown is core UI
+    (`components/markdown/`); the diagram plugin registers its `codeBlocks` (`mermaid`, `svg`), the media plugin the
+    player. The cut plugin contributes `treeActions` (its menu items and the timeline drag). The session list shares
+    only `ago` and `ArchiveIcon`, so those moved to core, not a list component. The baseline went from 68 to 32 entries.

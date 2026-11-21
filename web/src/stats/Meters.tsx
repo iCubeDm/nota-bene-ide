@@ -1,7 +1,6 @@
 import type { Limit } from '@nota-bene/shared';
-import { compact, money, percent, getLang, useT, useAppSelector, selectCapabilitiesKnown } from '@/sdk';
+import { compact, money, percent, getLang, useT, useAppSelector, selectCapabilitiesKnown, selectStats } from '@/sdk';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
-import { selectStats } from './slice.ts';
 
 type Level = '' | 'warn' | 'hot';
 export const meterLevel = (pct: number): Level => (pct >= 85 ? 'hot' : pct >= 60 ? 'warn' : '');

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { selectFileVersion } from '@/files/slice.ts';
-import { useT, useAppDispatch, useAppSelector, useComments, type MediaComment } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, useComments, type MediaComment, useService } from '@/sdk';
 import { shapePath } from './geometry.ts';
 import { shapeEls, STROKE_PX, useOverlayPlacement, type Media } from './overlay.tsx';
 import { selectDraft } from './slice.ts';
@@ -57,7 +56,8 @@ export function MediaMarks({ tabId, media, fit, path, refName: ref }: {
   const dispatch = useAppDispatch();
   const all = useAppSelector((s) => selectMediaComments(s, path, ref));
   const marking = useAppSelector((s) => selectDraft(s, tabId).on);
-  const current = useAppSelector((s) => selectFileVersion(s, path, ref));
+  const files = useService('files');
+  const current = useAppSelector((s) => files.selectFileVersion(s, path, ref));
   const at = usePausedAt(media);
   const video = media instanceof HTMLVideoElement;
   const shown = useMemo(() => {

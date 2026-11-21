@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useAppSelector, projectFileUrl } from '@/sdk';
-import { selectRefreshSeq } from '@/files/treeSlice.ts';
+import { useAppSelector, projectFileUrl, useService } from '@/sdk';
 
 /**
  * The edit's sources that are not in the project: one HEAD per source (of the file view's `src`, a worktree or a
  * branch), again after each turn (the agent may have added the file). Only a 404 counts: an error is no verdict.
  */
 export function useMissing(srcs: string[], fileSrc: string, active: boolean): ReadonlySet<string> {
-  const seq = useAppSelector(selectRefreshSeq);
+  const seq = useAppSelector(useService('files').selectRefreshSeq);
   const key = [...new Set(srcs)].sort().join('\n');
   const [missing, setMissing] = useState<ReadonlySet<string>>(new Set());
   useEffect(() => {

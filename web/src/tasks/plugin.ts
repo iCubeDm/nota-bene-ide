@@ -1,17 +1,17 @@
 import type { WithSlice } from '@reduxjs/toolkit';
 import { definePlugin } from '@/sdk';
-import { selectRunningCount, tasksSlice, tasksUiSlice, toggleDrawer } from './slice.ts';
+import { selectRunningCount, tasksUiSlice, toggleDrawer } from './slice.ts';
 import { shellTab } from './ShellView.tsx';
 import { TasksDrawer } from './TasksDrawer.tsx';
 import { TasksIndicator } from './TasksIndicator.tsx';
 
 declare module '@/sdk' {
-  interface PluginState extends WithSlice<typeof tasksSlice>, WithSlice<typeof tasksUiSlice> {}
+  interface PluginState extends WithSlice<typeof tasksUiSlice> {}
 }
 
 export const tasksPlugin = definePlugin({
   id: 'tasks',
-  slices: [tasksSlice, tasksUiSlice],
+  slices: [tasksUiSlice],
   // the server counts its own running tasks too
   pause: (s) => selectRunningCount(s) === 0,
   tabs: [shellTab],

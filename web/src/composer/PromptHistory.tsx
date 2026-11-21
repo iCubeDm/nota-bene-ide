@@ -1,7 +1,6 @@
 import { type ReactElement, type RefObject, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { useT, withKey, useAppSelector, useRegistry } from '@/sdk';
+import { useT, withKey, useAppSelector, useRegistry, ago } from '@/sdk';
 import { Button, Popover, PopoverAnchor, PopoverContent, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
-import { ago } from '@/controls/SessionPicker.tsx';
 import { searchPrompts, selectPromptItems } from './history.ts';
 import { promptHistoryModal } from './historyModal.ts';
 

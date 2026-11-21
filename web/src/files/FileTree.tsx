@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useT, openFile, selectTabs, useAppDispatch, useAppSelector, loadSources, useSources, selectActiveTab, useComments } from '@/sdk';
+import { useT, openFile, selectTabs, useAppDispatch, useAppSelector, loadSources, useSources, selectActiveTab, useComments, useRegistry } from '@/sdk';
 import { PanelResizer, usePanelWidth, ContextMenu, ContextMenuTrigger } from '@/sdk/ui';
 import { clearReveal, pickSource, revealFile, selectRefreshSeq, selectTree, setDirs, setTreeOpen, toggleDir } from './treeSlice.ts';
 import { useTreeEntries } from './tree/useTreeEntries.ts';
@@ -36,6 +36,7 @@ export function FileTree() {
   const pressed = useRef<string | null>(null);
   // a New edit from selection being made (issue 426): one at a time
   const [creating, setCreating] = useState(false);
+  const { treeActions } = useRegistry();
   useEffect(() => { setSel([]); anchor.current = null; }, [src]);
   const size = usePanelWidth('panel:tree:width', 300, TREE_MIN);
   const scroller = useRef<HTMLDivElement>(null);
@@ -74,7 +75,7 @@ export function FileTree() {
   }, [reveal, open, entries, d]);
 
   const rows = {
-    entries, dirs, f: filter.trim().toLowerCase(), counts, activePath, src, ref,
+    entries, dirs, f: filter.trim().toLowerCase(), counts, activePath, src, ref, actions: treeActions,
     onToggle: (p: string) => { setExpanding(false); d(toggleDir(p)); },
     sel,
     onPick: (p: string, how: { add: boolean; range: boolean }) => {

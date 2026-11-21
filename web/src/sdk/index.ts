@@ -17,7 +17,7 @@ export { uiScale, useUiScale } from '../shell/uiScale.ts';
 export { playCue } from '../shell/sounds.ts';
 
 // helpers
-export { num, compact, compactParts, percent, money, byteSize } from '../lib/format.ts';
+export { num, compact, compactParts, percent, money, byteSize, ago } from '../lib/format.ts';
 export { serverSep, isDrivePath, isServerDrivePath, wireAbs, underDir, folderName, shortWinHome, shortHome } from '../lib/paths.ts';
 export { keysInScope } from '../lib/keyScope.ts';
 export { editable } from '../lib/editable.ts';
@@ -57,6 +57,8 @@ export { AUDIO, IMAGE, VIDEO, HTML, kindOf, fileUrl, projectFileUrl, isPath, hea
 export { useSources, loadSources, sourcesKnown, refOf, srcIdOfRef, isCommitRef, isFixed, fileKey } from '../refs/sources.ts';
 export { setTmpDirs, useTmpDirs, isTmpTabPath, tmpImageUrl, tmpImagePathsIn, fetchTmpImage, type TmpLoad } from '../refs/tmpImages.ts';
 export { setStartAt, takeStartAt, type StartAt } from '../refs/startAt.ts';
+// what Markdown lets through of untrusted text
+export { HARDEN } from '../components/markdown/harden.ts';
 
 // this page: another computer's window, or on the window's own computer
 export { remotePage, isLocalPage } from '../net/local.ts';
@@ -89,6 +91,7 @@ export {
   useComments,
   useVoice,
   useAttachments,
+  useService,
   refusedWhy,
   type RootState,
   type AppThunk,
@@ -107,6 +110,15 @@ export {
   ACTIVITY_THROTTLE_MS, runCommand, switchSession, restartAgent, stopWindow, restartServer, restartInPause, cancelCompact, cancelRestart,
   SERVER_RESTART_TIMEOUT_MS, type SwitchResult,
 } from '../store/controls.ts';
+
+// the images of the message being written
+export { addImage, removeImage, markAttachment, uploadStarted, uploadFinished, selectImages, selectUploading, selectBuilding, selectMarking } from '../store/message.ts';
+
+// the agent's usage figures and its background tasks
+export { selectStats } from '../store/stats.ts';
+export { selectLiveCalls, selectCallEnd } from '../store/tasks.ts';
+// the subagents' conversations
+export { selectSubagent, itemsOf, agentName, openSubagentTab, subagentRequested, subagentLoaded, subagentFailed } from '../store/subagents.ts';
 
 export { seekAndPause, type MediaController, type PipApi } from '../store/mediaController.ts';
 export { usePagePause } from '../shell/pagePause.ts';
@@ -134,4 +146,4 @@ export {
   setAgentTitle, selectTabs, selectActiveTab, enterRoot, fileTabId, type Tab, type TabKinds, type AgentTab, type SavedFile, type DiagramLang,
 } from '../tabs/slice.ts';
 export { requestJump, clearJump, dropJump, selectJump, type Jump } from '../tabs/jump.ts';
-export { feedRenderer, anchorView, type AnchorView, type AnchorKind, type TabView, type Slot, type SlotName, type Command, type KeyId, type Mods, type FeedRenderer, type AnyFeedRenderer, type FeedKind, type Held, type ToolRenderer, type ToolItem, type UserPart, type FileView, type SettingsSection, type SendPart, type Taken, type SendResult, type TextFileView, type MediaFileView, type MediaLoad, type FileBar, type CommentsService, type PendingComment, type VoiceService, type VoiceRecorder, type RecState, type AttachmentsService, type ImageEntry, type PendingThumb, type MediaComment, type MediaAnchorPatch } from './registry.ts';
+export { feedRenderer, anchorView, type AnchorView, type AnchorKind, type TabView, type Slot, type SlotName, type Command, type KeyId, type Mods, type FeedRenderer, type AnyFeedRenderer, type FeedKind, type Held, type ToolRenderer, type ToolItem, type UserPart, type FileView, type SettingsSection, type SendPart, type Taken, type SendResult, type TextFileView, type MediaFileView, type MediaLoad, type FileBar, type CommentsService, type PendingComment, type VoiceService, type VoiceRecorder, type RecState, type AttachmentsService, type ImageEntry, type PendingThumb, type MediaComment, type MediaAnchorPatch, type Services, type FilesService, type FileLoad, type VcsService, type ProjectsService, type FeedUiService, type CutService, type MediaService, type CodeBlock, type TreeAction } from './registry.ts';

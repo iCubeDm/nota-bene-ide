@@ -1,14 +1,14 @@
 import { Svg, FileIcon } from '@/sdk/ui';
 import type { TreeEntry } from '@nota-bene/shared';
-import { isEditMedia } from '@/cut/assemble.ts';
-import { PATH_MIME } from '@/cut/drag.ts';
 import { join } from './useExpandAll.ts';
-import { fileKey, downloadUrl, PATHS_MIME } from '@/sdk';
+import { fileKey, downloadUrl, PATHS_MIME, type TreeAction } from '@/sdk';
 
 /** What the rows read: the listings, the open folders, the filter, the badges, the active file and the source. */
 export type RowsCtx = {
   entries: Record<string, TreeEntry[]>; dirs: string[]; f: string; counts: Record<string, number>;
   activePath: string | null; src: string; ref: string | undefined;
+  /** other plugins' parts of a file row (`treeActions`): what its drag carries for them */
+  actions: readonly TreeAction[];
   /** the picked files (issue 426), in the order they were picked */
   sel: readonly string[];
   onToggle: (path: string) => void;
@@ -39,13 +39,11 @@ export function renderDir(c: RowsCtx, dir: string, depth: number): React.ReactNo
     }
     if (f && !e.name.toLowerCase().includes(f)) return null;
     const n = counts[fileKey(p, ref)] ?? 0;
-    // a video, sound or photo of this folder drags onto an edit's timeline (issue 409)
-    const media = src === 'here' && isEditMedia(p);
     // issue 461: every file drags: its path (with the rest of the selection) onto the composer, and out of the browser as a
     // download (Chrome/Edge DownloadURL, the cookie-tier /file: no token or key in it)
     const dragStart = (ev: React.DragEvent) => {
       const dt = ev.dataTransfer;
-      if (media) dt.setData(PATH_MIME, p);
+      for (const a of c.actions) a.drag?.(p, src, dt); // a video, sound or photo of this folder onto an edit's timeline (issue 409)
       if (src === 'here') dt.setData(PATHS_MIME, JSON.stringify(c.sel.includes(p) ? c.sel : [p]));
       dt.setData('DownloadURL', downloadUrl(p, src));
       dt.setData('text/plain', p);

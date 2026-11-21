@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render as bare, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import hljs from 'highlight.js';
 import mermaid from 'mermaid';
 import DOMPurify from 'dompurify';
@@ -20,6 +21,9 @@ vi.mock('mermaid', () => ({
 }));
 
 const MERMAID = '```mermaid\ngraph TD; A-->B\n```';
+
+// in a store, as in the app: the diagram plugin draws the mermaid and svg blocks (issue 545)
+const render = (ui: ReactElement) => bare(ui, { wrapper: ({ children }) => <Provider store={makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) })}>{children}</Provider> });
 
 describe('Markdown', () => {
   it('a table goes into a sideways-scrolling box once; its short row labels stay on one line (issue 453)', () => {
@@ -210,6 +214,11 @@ describe('Markdown', () => {
     setLang('ru');
     vi.resetModules();
     const { Markdown: Fresh } = await import('./Markdown');
+    // the fresh modules' store and context: their diagram plugin has not loaded mermaid yet
+    const { Provider: FreshProvider } = await import('react-redux');
+    const { makeStore: freshStore } = await import('@/testing');
+    const st = freshStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+    const render = (ui: ReactElement) => bare(<FreshProvider store={st}>{ui}</FreshProvider>);
     vi.mocked(mermaid.initialize).mockImplementationOnce(() => { throw new Error('Failed to fetch dynamically imported module'); });
     const first = render(<Fresh text={MERMAID} final />);
     await waitFor(() => expect(first.container.querySelector('.mermaid-out')).toHaveTextContent('интерфейс обновился, перезагрузите страницу'));
@@ -248,9 +257,10 @@ describe('Markdown', () => {
       expect(selectActiveTab(st.getState())).toMatchObject({ kind: 'diagram', lang: 'mermaid', source: 'graph TD; A-->B' });
     });
 
-    it('works without a store (the button is inert, nothing throws)', async () => {
-      const { container } = render(<Markdown text={SVG} final />);
-      fireEvent.click(container.querySelector('.svg-out > button')!);
+    it('without a store no plugin draws: the block stays highlighted code, nothing throws', () => {
+      const { container } = bare(<Markdown text={SVG} final />);
+      expect(container.querySelector('.svg-out')).toBeNull();
+      expect(container.querySelector('pre code')).not.toBeNull();
     });
   });
 });

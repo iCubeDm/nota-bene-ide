@@ -1,15 +1,10 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { type RootState, openFile, requestJump, type AppThunk, fileKey, isCommitRef, loadSources, srcIdOfRef, enterRoot, openLog } from '@/sdk';
-import { showCommit } from '@/vcs/store.ts';
+import { type RootState, openFile, requestJump, type AppThunk, fileKey, isCommitRef, loadSources, srcIdOfRef, enterRoot, openLog, type FileLoad } from '@/sdk';
 
 /**
- * What an open file view shows, for the comments on it. `loaded`: its text is in the DOM (anchors resolve against it);
- * `gone`: the view settled without text (deleted, too large, binary), so a comment on it is orphaned. No entry, or
- * `loading`: unknown (tab closed, not fetched yet, a transient error): a comment is neither marked nor orphaned.
- * `v` bumps on every settled load, so a reload re-runs the checks even when the state stays `loaded`.
- * Keyed by `fileKey(path, ref)`: the path alone for this folder, so a.md and a.md @ feature/x never mix (M3-16).
+ * What an open file view shows, for the comments on it (`FileLoad`), keyed by `fileKey(path, ref)`: the path alone for
+ * this folder, so a.md and a.md @ feature/x never mix (M3-16).
  */
-type FileLoad = { s: 'loading' | 'loaded' | 'gone'; v: number };
 /** A file of some source: `ref` only when it is not this folder. */
 type FileRef = { path: string; ref?: string };
 /**
@@ -55,10 +50,10 @@ export const { setFileLoad, dropFileLoad, setFileVersion } = filesSlice.actions;
  * a `ref` opens from `ref:<branch>` (the view says when that branch is gone), or from the detached worktree carrying it.
  * A comment made on a commit opens that commit in the log.
  */
-export const jumpToFileComment = (path: string, id: string, ref?: string): AppThunk => (d) => {
+export const jumpToFileComment = (path: string, id: string, ref?: string): AppThunk => (d, _get, { registry }) => {
   if (isCommitRef(ref)) {
     d(openLog());
-    showCommit(ref, path);
+    registry.vcs?.showCommit(ref, path);
     return;
   }
   const go = (src: string) => {

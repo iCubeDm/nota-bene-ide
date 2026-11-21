@@ -1,16 +1,8 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { has, orderedTasks, reduceTasks, type Task, type TaskStatus, type TasksState } from '@nota-bene/shared';
+import { has, orderedTasks, type Task, type TaskStatus, type TasksState } from '@nota-bene/shared';
 import { serverEvent, type AppThunk, type RootState } from '@/sdk';
 
 export type { Task, TasksState } from '@nota-bene/shared';
-
-export const tasksSlice = createSlice({
-  name: 'tasks',
-  initialState: {} as TasksState,
-  reducers: {},
-  extraReducers: (b) => b.addCase(serverEvent, (s, a) => reduceTasks(s as TasksState, a.payload)),
-});
-
 
 /** The drawer's state: whether it is open (the rows come from `tasks`), and how many task refusals the server has sent. */
 export const tasksUiSlice = createSlice({
@@ -25,10 +17,6 @@ export const tasksUiSlice = createSlice({
 });
 export const { setDrawer, toggleDrawer } = tasksUiSlice.actions;
 export const selectDrawerOpen = (s: RootState): boolean => s.tasksUi.open;
-
-/** The tool-use ids of the Agent calls whose task is still running (the card's "running"). */
-export const selectLiveCalls = createSelector([(s: RootState) => s.tasks], (t): ReadonlySet<string> =>
-  new Set(Object.values(t).flatMap((x) => (x.call && x.status === 'running' ? [x.call] : []))));
 
 const selectTasks = (s: RootState): TasksState => s.tasks;
 /** How many tasks run (what the indicator, the pulse and the favicon count; a workflow's agents count as their workflow). */
@@ -110,12 +98,6 @@ export const selectTaskRows = createSelector([selectTasks], (t): TaskRow[] => {
 /** The id of the running task started by the tool call `call`, if any (a string, so a selector on it is stable). */
 export const selectTaskIdByCall = (s: RootState, call: string): string | undefined =>
   Object.entries(s.tasks).find(([, x]) => x.call === call && x.status === 'running')?.[0];
-
-/** How the task that started the tool call `call` ended, when it ended badly (the card says so instead of "done"). */
-export const selectCallEnd = (s: RootState, call: string): 'failed' | 'stopped' | undefined => {
-  const e = Object.values(s.tasks).find((x) => x.call === call && (x.status === 'failed' || x.status === 'stopped'));
-  return e?.status === 'failed' || e?.status === 'stopped' ? e.status : undefined;
-};
 
 /** The ids of the tool calls that have their result, in the chat and in every loaded subagent feed: one scan per change, not one per button. */
 const selectResultedIds = createSelector(

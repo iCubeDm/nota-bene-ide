@@ -7,7 +7,8 @@ import { Composer } from '@/composer/Composer.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { serverEvent } from '@/store/store.ts';
 import { makeStore } from '@/testing';
-import { addImage, setDraft } from '@/composer/slice.ts';
+import { setDraft } from '@/composer/slice.ts';
+import { addImage } from '@/store/message.ts';
 import { editComment, removeComment } from './slice.ts';
 import { getToasts, resetToasts } from '@/shell/toast.ts';
 import { drawBadges } from '@/media/markup/badges.ts';
@@ -72,13 +73,13 @@ it('a send with a shared frame builds one composite, disables a second send, and
   let r1 = '', r2 = '';
   act(() => { r1 = store.dispatch(sendBatch(false)); });
   expect(r1).toBe('building');
-  expect(store.getState().composer.building).toBe(true);
+  expect(store.getState().message.building).toBe(true);
   act(() => { r2 = store.dispatch(sendBatch(false)); }); // double click
   expect(r2).toBe('empty');
   expect(build).toHaveBeenCalledTimes(1);
   expect(sent).toHaveLength(0);
   await done(new Map([['1:c1,2:c2,3:c3', COMP]]));
-  expect(store.getState().composer.building).toBe(false);
+  expect(store.getState().message.building).toBe(false);
   expect(sent).toHaveLength(1);
   const m = sentOf(sent[0]!);
   expect(m.images?.map((i) => i.id)).toEqual([COMP, h('b') + '.jpg']);
@@ -93,7 +94,7 @@ it('a composite that could not be built: each comment of the group goes with its
   const { sent, store } = setup([mc('c1'), mc('c2')]);
   await act(async () => void store.dispatch(sendBatch(false)));
   expect(sentOf(sent[0]!).images?.map((i) => i.id)).toEqual([h('a') + '.jpg', h('a') + '.jpg']); // frames, never the layer
-  expect(store.getState().composer.building).toBe(false);
+  expect(store.getState().message.building).toBe(false);
 });
 
 it('buildComposites itself never rejects: a failing group is left out', async () => {
@@ -166,7 +167,7 @@ it('text typed and an image pasted during the build stay in the composer; the sn
   expect(m.text.startsWith('go\n\nComments on fragments:')).toBe(true);
   expect(m.images?.map((i) => i.id)).toEqual([A, COMP]);
   expect(store.getState().composer.draft).toBe('and more');
-  expect(store.getState().composer.images.map((i) => i.id)).toEqual([B]);
+  expect(store.getState().message.images.map((i) => i.id)).toEqual([B]);
 });
 
 it('a media comment with a pasted image sends the frame and the pasted image; the old two-generated layout too', async () => {
@@ -238,6 +239,6 @@ it('a build that never finishes: past COMPOSITE_MS the comments go with their ow
     act(() => void store.dispatch(sendBatch(false)));
     await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
     expect(sentOf(sends(sent)[0]!).images?.map((i) => i.id)).toEqual([h('a') + '.jpg', h('a') + '.jpg']);
-    expect(store.getState().composer.building).toBe(false);
+    expect(store.getState().message.building).toBe(false);
   } finally { vi.useRealTimers(); }
 });

@@ -1,8 +1,6 @@
 import type { ComponentProps } from 'react';
-import { useT, useAppDispatch, useAppSelector, openAgent, isAgentTool, type ToolRenderer } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, openAgent, isAgentTool, type ToolRenderer, selectCallEnd, selectLiveCalls, selectSubagent } from '@/sdk';
 import { CardMenu } from '@/tasks/CardMenu.tsx';
-import { selectCallEnd, selectLiveCalls } from '@/tasks/slice.ts';
-import { selectSubagent } from './slice.ts';
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 

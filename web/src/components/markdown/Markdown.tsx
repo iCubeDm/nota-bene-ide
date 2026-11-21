@@ -5,10 +5,19 @@ import { marked } from 'marked';
 import { memo, type MouseEvent as ReactMouseEvent, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ReactReduxContext } from 'react-redux';
-import { t, fileOfImage, markMentions, markRefs, openMediaFile, toast, type DiagramLang, AUDIO, VIDEO, fileUrl, useSources, useTmpDirs, setStartAt, openDiagram, fileTabId, theme } from '@/sdk';
-import { HARDEN, renderMermaid, sanitizeSvg } from '@/diagram/render.ts';
-import { ChatPlayer } from '@/media/ChatPlayer.tsx';
+import { t } from '../../i18n/index.ts';
+import { toast } from '../../shell/toast.ts';
+import { theme } from '../../shell/theme.ts';
+import { AUDIO, VIDEO, fileUrl } from '../../refs/kinds.ts';
+import { useSources } from '../../refs/sources.ts';
+import { useTmpDirs } from '../../refs/tmpImages.ts';
+import { setStartAt } from '../../refs/startAt.ts';
+import { fileOfImage, markMentions, markRefs, openMediaFile } from '../../refs/refs.ts';
+import { fileTabId } from '../../tabs/slice.ts';
+import { registry, type AppDispatch, type AppStore } from '../../store/store.ts';
+import type { CodeBlock } from '../../sdk/registry.ts';
 import { addCopyButton, copyCode, numberLines } from './codeBlock.ts';
+import { HARDEN } from './harden.ts';
 import './markdown.css';
 
 // external links in agent replies open in a new browser tab instead of replacing the app
@@ -47,26 +56,10 @@ marked.use({
   },
 });
 
-/** The source and language behind each ⤢ button (kept out of the DOM: sanitized content must not be able to forge one). */
 /** A stable React key per media element, so a re-collect of the same wrappers keeps their players mounted. */
 let playerSeq = 0;
 const playerIds = new WeakMap<Element, number>();
 const playerId = (m: Element) => { let n = playerIds.get(m); if (!n) playerIds.set(m, (n = ++playerSeq)); return n; };
-
-const openers = new WeakMap<Element, { source: string; lang: DiagramLang }>();
-
-/** The ⤢ button, made after sanitizing and skipped by comment anchors; shown on hover (markdown.css). */
-function addOpenButton(out: HTMLElement, source: string, lang: DiagramLang) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'md-open-diagram';
-  b.textContent = '⤢';
-  b.setAttribute('data-anchor-skip', '');
-  b.setAttribute('aria-label', t('openDiagram'));
-  b.title = t('openDiagram');
-  openers.set(b, { source: source.replace(/\s+$/, ''), lang });
-  out.appendChild(b);
-}
 
 /**
  * Video and audio get a wrapper (the host of our player bar); project media (src is a /file URL; not /attach, not http)
@@ -92,21 +85,6 @@ function addMediaButtons(root: HTMLElement) {
     b.setAttribute('aria-label', t('openInTab'));
     b.title = t('openInTab');
     wrap.appendChild(b);
-  });
-}
-
-/** The source and theme kind of every mermaid drawing in the chat: a theme switch draws again the ones of the other kind. */
-const mermaidBlocks = new WeakMap<HTMLElement, { code: string; kind: 'dark' | 'light' }>();
-
-function drawMermaid(out: HTMLElement, code: string) {
-  const kind = theme.kind();
-  mermaidBlocks.set(out, { code, kind });
-  void renderMermaid(code).then((r) => {
-    if (mermaidBlocks.get(out)?.kind !== kind) return; // a newer drawing owns the block
-    if ('svg' in r) {
-      out.innerHTML = r.svg;
-      addOpenButton(out, code, 'mermaid');
-    } else out.textContent = r.error;
   });
 }
 
@@ -149,25 +127,20 @@ function wrapTables(root: HTMLElement) {
   });
 }
 
-function postProcess(root: HTMLElement, final: boolean) {
+/** `blocks`: the code blocks the plugins draw (none without a store), `d` the store's dispatch. */
+function postProcess(root: HTMLElement, final: boolean, blocks?: ReadonlyMap<string, CodeBlock>, d?: AppDispatch) {
   wrapTables(root);
   if (final) addMediaButtons(root);
   markColours(root);
   root.querySelectorAll<HTMLElement>('pre code').forEach((c) => {
     const lang = /language-(\w+)/.exec(c.className)?.[1];
     const pre = c.parentElement!;
-    if (final && lang === 'mermaid') {
+    const block = final && lang ? blocks?.get(lang) : undefined;
+    if (block && d) {
       const out = document.createElement('div');
-      out.className = 'mermaid-out';
+      out.className = block.className;
       pre.replaceWith(out);
-      const code = c.textContent ?? '';
-      drawMermaid(out, code);
-    } else if (final && lang === 'svg') {
-      const out = document.createElement('div');
-      out.className = 'svg-out';
-      out.innerHTML = sanitizeSvg(c.textContent ?? '');
-      addOpenButton(out, c.textContent ?? '', 'svg');
-      pre.replaceWith(out);
+      block.draw(out, c.textContent ?? '', d);
     } else if (!c.dataset.highlighted) {
       hljs.highlightElement(c);
       c.dataset.highlighted = 'yes';
@@ -186,8 +159,10 @@ export const Markdown = memo(
    */
   function Markdown({ text, final, baseDir, src, breaks, mentions, noHtml }: { text: string; final: boolean; baseDir?: string; src?: string; breaks?: boolean; mentions?: boolean; noHtml?: boolean }) {
     const ref = useRef<HTMLDivElement>(null);
-    // Markdown is also rendered without a store in tests: the ⤢ button is then inert
-    const redux = useContext(ReactReduxContext);
+    // Markdown is also rendered without a store in tests: no plugin draws its code blocks or plays its media then
+    const store = useContext(ReactReduxContext)?.store as AppStore | undefined;
+    const reg = store ? registry(store) : undefined;
+    const Player = reg?.media?.ChatPlayer;
     // absolute paths become refs only inside a known source's dir: re-mark when the list arrives or changes
     const sources = useSources();
     const tmpDirs = useTmpDirs(); // likewise a temp folder's images
@@ -219,16 +194,14 @@ export const Markdown = memo(
     const [players, setPlayers] = useState<{ media: HTMLMediaElement; box: HTMLElement }[]>([]);
     useLayoutEffect(() => {
       if (!ref.current) return;
-      postProcess(ref.current, final);
-      if (!final || !redux) return setPlayers((p) => (p.length ? [] : p));
+      postProcess(ref.current, final, reg?.codeBlocks, store?.dispatch);
+      if (!final || !Player) return setPlayers((p) => (p.length ? [] : p));
       setPlayers(Array.from(ref.current.querySelectorAll<HTMLMediaElement>('.md-media > video, .md-media > audio'), (media) => ({ media, box: media.parentElement! })));
-    }, [html, final, redux]);
+    }, [html, final, reg, store, Player]);
     useEffect(() => theme.subscribe(() => {
-      ref.current?.querySelectorAll<HTMLElement>('.mermaid-out').forEach((out) => {
-        const b = mermaidBlocks.get(out);
-        if (b && b.kind !== theme.kind()) drawMermaid(out, b.code);
-      });
-    }), []);
+      if (!ref.current || !reg || !store) return;
+      for (const b of reg.codeBlocks.values()) b.retheme?.(ref.current, store.dispatch);
+    }), [reg, store]);
     const onClick = (e: ReactMouseEvent<HTMLDivElement>) => {
       const cb = (e.target as Element).closest('button.md-copy-code');
       if (cb && e.currentTarget.contains(cb)) {
@@ -242,23 +215,20 @@ export const Markdown = memo(
         e.stopPropagation();
         const m = mb.parentElement?.querySelector('img, video, audio');
         const open = m && openMediaFile(m);
-        if (!open || !redux) return;
+        if (!open || !store) return;
         // a played video/audio opens at that time, a playing one plays on (consumed once by the file view, see refs/startAt.ts)
         if (m instanceof HTMLMediaElement && m.currentTime > 0) {
           const f = fileOfImage(m)!;
           setStartAt(fileTabId(f.path, f.src), m.currentTime, !m.paused && !m.ended);
         }
-        redux.store.dispatch(open);
+        store.dispatch(open);
         return;
       }
-      const b = (e.target as Element).closest('button.md-open-diagram');
-      const d = b && e.currentTarget.contains(b) ? openers.get(b) : undefined;
-      if (d) redux?.store.dispatch(openDiagram(d));
     };
     return (
       <>
         <div ref={ref} className="md" onClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />
-        {players.map((p) => createPortal(<ChatPlayer media={p.media} box={p.box} />, p.box, String(playerId(p.media))))}
+        {Player && players.map((p) => createPortal(<Player media={p.media} box={p.box} />, p.box, String(playerId(p.media))))}
       </>
     );
   },

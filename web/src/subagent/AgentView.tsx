@@ -1,9 +1,8 @@
 import { useEffect } from 'react';
 import { useStore } from 'react-redux';
-import { useT, useAppDispatch, useAppSelector, type AppStore, type TabView, setAgentTitle, type AgentTab, useComments } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, type AppStore, type TabView, setAgentTitle, type AgentTab, useComments, selectLiveCalls, selectSubagent } from '@/sdk';
 import { Feed } from '@/feed/Feed.tsx';
-import { selectLiveCalls } from '@/tasks/slice.ts';
-import { OLD_SERVER, fetchSubagent, knownOld, selectSubagent, selectToolResulted } from './slice.ts';
+import { OLD_SERVER, fetchSubagent, knownOld, selectToolResulted } from './slice.ts';
 
 /** How often a running subagent is read again while its tab is the visible one. */
 export const POLL_MS = 1500;

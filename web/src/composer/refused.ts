@@ -1,10 +1,10 @@
 import type { Middleware } from '@reduxjs/toolkit';
-import { t, toast, serverEvent, refusedWhy } from '@/sdk';
-import { addImage, setDraft } from './slice.ts';
+import { t, toast, serverEvent, refusedWhy, addImage } from '@/sdk';
+import { setDraft } from './slice.ts';
 import type { SentDraft, ShellDraft } from './slice.ts';
 
 // RootState is derived from this middleware's store: naming it here would make the type circular
-type Slice = { composer: { draft: string; images: unknown[]; unconfirmed: SentDraft | null; shellUnconfirmed: ShellDraft | null } };
+type Slice = { composer: { draft: string; unconfirmed: SentDraft | null; shellUnconfirmed: ShellDraft | null }; message: { images: unknown[] } };
 
 /**
  * The server refused a send (`send-refused`, only to the asking socket, never stored). Put the draft back unless the
@@ -33,8 +33,8 @@ export const refusedMiddleware: Middleware = (api) => (next) => (action) => {
   const result = next(action);
   if (!ev || !last || last.id !== refused) return result;
   const why = refusedWhy(ev.reason);
-  const now = (api.getState() as Slice).composer;
-  if (!now.draft.trim() && !now.images.length) {
+  const now = api.getState() as Slice;
+  if (!now.composer.draft.trim() && !now.message.images.length) {
     api.dispatch(setDraft(last.text));
     for (const im of last.images) api.dispatch(addImage(im));
     toast(why, '');

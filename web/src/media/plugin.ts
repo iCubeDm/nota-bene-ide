@@ -4,6 +4,7 @@ import { markupSlice, selectDraft } from './markup/slice.ts';
 import { MediaBody } from './MediaBody.tsx';
 import { MediaCard } from './MediaCard.tsx';
 import { composite } from './markup/createMediaComment.ts';
+import { ChatPlayer } from './ChatPlayer.tsx';
 
 declare module '@/sdk' {
   interface PluginState extends WithSlice<typeof markupSlice> {}
@@ -19,4 +20,6 @@ export const mediaPlugin = definePlugin({
   }],
   // a mark is drawn from relative coordinates: never orphaned; marks on one frame in one send share one picture
   anchorViews: [{ kind: 'media', Card: MediaCard, orphan: false, composite }],
+  // the player bar over a reply's video and audio
+  media: { ChatPlayer },
 });

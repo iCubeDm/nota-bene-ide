@@ -2,12 +2,16 @@ import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { PATH_MIME } from '@/cut/drag.ts';
 import { PATHS_MIME } from '@/lib/drag.ts';
+import { buildRegistry } from '@/sdk/registry.ts';
+import { PLUGINS } from '@/plugins.ts';
 import { renderDir, type RowsCtx } from './TreeRow.tsx';
 
 afterEach(cleanup);
 const ctx = (src: string, sel: string[] = []): RowsCtx => ({
   entries: { '': [{ name: 'clip.mp4', dir: false }, { name: 'notes.md', dir: false }] } as RowsCtx['entries'],
   dirs: [], f: '', counts: {}, activePath: null, src, ref: undefined, sel, onToggle: () => {}, onPick: () => {},
+  // the edits' part of the row is the cut plugin's (issue 545)
+  actions: buildRegistry(PLUGINS).treeActions,
 });
 
 it('a media file of this folder drags its path onto an edit; other sources do not', () => {

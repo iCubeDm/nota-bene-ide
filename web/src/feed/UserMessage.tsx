@@ -1,10 +1,10 @@
 import { BATCH_HEAD } from '@nota-bene/shared';
 import { getLang, useT, escapeMentions, useRegistry, type FeedItem, type Held } from '@/sdk';
 import { memo, useContext } from 'react';
-import { Markdown } from './Markdown.tsx';
 import { MsgTime } from './MsgTime.tsx';
 import { clockTime } from './time.ts';
 import { FeedScope } from './scope.ts';
+import { Markdown } from '@/sdk/ui';
 
 type User = Extract<FeedItem, { kind: 'user' }>;
 

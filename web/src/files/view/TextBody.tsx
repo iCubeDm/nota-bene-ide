@@ -1,9 +1,9 @@
 import type { Ref } from 'react';
-import { Markdown } from '@/feed/Markdown.tsx';
 import { refClick, useT, useAppDispatch, type FileKind, useComments } from '@/sdk';
 import { CodeText } from './CodeText.tsx';
 import { useWrapLines } from '../wrap.ts';
 import type { Loaded } from './useFileLoad.ts';
+import { Markdown } from '@/sdk/ui';
 
 /** The pane of a text or markdown file: the text, or a note (too big, binary, gone, an error). */
 export function TextBody({ data, kind, path, src, fileRef, tabId, active, url, paneRef }: {

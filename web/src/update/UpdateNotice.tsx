@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useT, routes, storage, string, defineResource, useResource, usePagePause, reloadPage, connections } from '@/sdk';
-import { Popover, PopoverContent, PopoverTrigger } from '@/sdk/ui';
-import { Markdown } from '@/feed/Markdown.tsx';
+import { Popover, PopoverContent, PopoverTrigger, Markdown } from '@/sdk/ui';
 
 /** the newest version the user put off with Later */
 const SEEN = storage.local<string | null>('nb.updateSeen', string, null);

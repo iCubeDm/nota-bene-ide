@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Comment, ServerEvent } from '@nota-bene/shared';
-import { Markdown } from '@/feed/Markdown.tsx';
+import { Markdown } from '@/components/markdown/Markdown.tsx';
 import { takeStartAt } from '@/refs/startAt.ts';
 import { setLang } from '@/i18n/index.ts';
 import { serverEvent } from '@/store/store.ts';

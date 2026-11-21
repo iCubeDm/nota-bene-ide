@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { textOf } from '@/anchors/text.ts';
-import { Markdown } from '@/feed/Markdown.tsx';
+import { Markdown } from '@/components/markdown/Markdown.tsx';
 import { UserMessage } from '@/feed/UserMessage.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/testing';

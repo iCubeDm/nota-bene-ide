@@ -1,11 +1,11 @@
 import { memo } from 'react';
 import type { AnyFeedRenderer, FeedItem, Held } from '@/sdk';
-import { Markdown } from './Markdown.tsx';
 import { DoneLine, IdleCompactLine, MarkerLine, NoticeLine } from './DoneLine.tsx';
 import { MsgTime } from './MsgTime.tsx';
 import { PermissionCard } from './PermissionCard.tsx';
 import { PlanCard } from './PlanCard.tsx';
 import { UserMessage } from './UserMessage.tsx';
+import { Markdown } from '@/sdk/ui';
 
 type Of<K extends FeedItem['kind']> = Extract<FeedItem, { kind: K }>;
 

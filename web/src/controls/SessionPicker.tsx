@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { getLang, t as tNow, useT, selectBusy, selectSession, useAppDispatch, useAppSelector, connections, byteSize, routes, selectSwitching, switchSession, REFUSED, useNote, archiveSession, brief, deleteSession, renameSession } from '@/sdk';
-import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog } from '@/sdk/ui';
+import { ago, useT, selectBusy, selectSession, useAppDispatch, useAppSelector, connections, byteSize, routes, selectSwitching, switchSession, REFUSED, useNote, archiveSession, brief, deleteSession, renameSession } from '@/sdk';
+import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog, ArchiveIcon } from '@/sdk/ui';
 
 /** GET /sessions (server/src/sessions.ts SessionsView). */
 export type SessionsView = {
@@ -10,13 +10,6 @@ export type SessionsView = {
   sessions: { id: string; title: string; at: number; size: number; cwd: string; archived?: true }[];
 };
 type Item = SessionsView['sessions'][number];
-
-/** Prototype `ago`: just now, N min ago, N h ago, then a short date. */
-export const ago = (at: number, now = Date.now()): string => {
-  const m = Math.round((now - at) / 60000);
-  return m < 1 ? tNow('justNow') : m < 60 ? tNow('minAgo', m) : m < 1440 ? tNow('hAgo', Math.round(m / 60))
-    : new Date(at).toLocaleDateString(getLang(), { day: 'numeric', month: 'short' });
-};
 
 const matches = (x: Item, needle: string) => !needle || x.title.toLowerCase().includes(needle);
 
@@ -354,10 +347,3 @@ export function SessionPicker() {
     </>
   );
 }
-
-/** An archive box: a lid over a box with a slot. */
-export const ArchiveIcon = () => (
-  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden className="inline-block align-[-1px]">
-    <rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4" />
-  </svg>
-);

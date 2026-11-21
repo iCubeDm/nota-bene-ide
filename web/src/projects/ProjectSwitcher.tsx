@@ -5,9 +5,8 @@
 // Recent folders come from the launcher's list and from this window's session history; one opens in a window of its agent,
 // ✕ removes one from both (the server keeps it out until it is launched again).
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { useT, shortHome, folderName, connections, routes, toast, withKey, selectSession, useAppSelector, remotePage, useRegistry } from '@/sdk';
+import { useT, shortHome, folderName, connections, routes, toast, withKey, selectSession, useAppSelector, remotePage, useRegistry, ago } from '@/sdk';
 import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog, ICONS, Svg } from '@/sdk/ui';
-import { ago } from '@/controls/SessionPicker.tsx';
 import { enterProject, forgetRecent, onPageRestore, openFolder, reasonText, openStarter, PROVIDER_LABEL, projectsMenu, stopProject, useProjects, type Provider } from './api.ts';
 import { ProjectSessions, type LocalSession } from './ProjectSessions.tsx';
 import { badgeOf, foldRows, rowKey, rowTitle, titlePrefix, type ProjectRow } from './rows.ts';
