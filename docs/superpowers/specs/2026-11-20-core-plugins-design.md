@@ -167,7 +167,7 @@ re-exported by name, not by wildcard, so the SDK surface is visible in one file.
 |---|---|---|
 | `tabs` | `TabView { kind; label(tab, t, state): string; Icon?: FC<{ tab }>; Extra?: FC<{ tab }> /* after the name in the strip */; detail?(tab, t): string /* the tabs menu column */; edit?: { when(state); label; Input } /* the chat's rename */; render?: FC<{ tab; active; rootGen }> }`. Rendering only: the core owns tab data (ids, open actions, saved form) in `TabKinds`, because several plugins open each kind. A plugin's new kind may extend `TabKinds`, but it gets no id rule or persistence from the registry: those are added to the core's tabs | the `tab.kind` chain in `tabs/Panes.tsx`, label chains in `TabStrip`/`TabsMenu` (one `tabLabel`), `tabs/slice.ts` importing `diagram/render.ts` and `diagram/sha1.ts` for ids |
 | `slots` | `Slot { slot: 'header.title' \| 'header.center' \| 'header.end' \| 'header.menu' \| 'header.badge' \| 'strip.left' \| 'strip.right' \| 'panel.left' \| 'panel.right' \| 'chat' \| 'panes' \| 'footer' \| 'overlay'; order; render: FC }`, merged with the frame's own parts by order (one order per slot); `composer.*` slots come with the composer's plugins | `App.tsx`, `Header`, `Footer`, `ToolStrip` importing features (GitBranch, RestartMenu, TasksIndicator, UpdateNotice, meters, panels, overlays) |
-| `fileViews` | `FileView { id; match(path, kind): boolean; order; render: FC<{ path; src; ref?; tabId; active }>; jump?(target) }` | `files/FileView.tsx` importing cut, media, page, diagram; its `files.jump` special cases |
+| `fileViews` | `TextFileView { id; order; match(path, kind); label; tip; writes?; jump?(c); render: FC<{ path; src; fileRef; tabId; active; text; bar }> }` or `MediaFileView { id; order; match; media: true; holds?(s, tabId); render: FC<{ kind; path; src; fileRef; tabId; active; media: MediaLoad }> }`: the tab keeps the header, the one load, the ‹View \| Source› switch and the editor; text is the tab's own; the jump is the core's `tabs/jump.ts` (plan step 10c) | `files/FileView.tsx` importing cut, media, page, diagram; its `files.jump` special cases |
 | `feed` | `FeedRenderer { kind: Exclude<FeedItem['kind'], 'tool'>; render: FC<{ item; held? }> }` (runs of actions are the feed's own) | the `switch` in `feed/Feed.tsx` |
 | `tools` | `ToolRenderer { match(it: ToolItem): boolean; render: FC<{ item; open; panelId; comments; busy; onToggle }> }`: the head; the feed keeps the fold and the commentable panel | `feed/ToolLine.tsx` and `Feed.tsx` importing `subagent/` for Agent calls |
 | `userParts` | `UserPart { id; order; render: FC<{ item: UserItem }> }` | `feed/UserMessage.tsx` importing voice, attachments |
@@ -323,8 +323,8 @@ inventing one.
 | `AgentConnection` | `WindowConnection` (`chat/window_connection.dart`): the mux stream, open/close, reconnect, passive and takeover, `send`, `has(Feature)`; split out of `WindowTab` |
 | window state | `WindowState` (`chat/window_state.dart`, `ChangeNotifier`): feed, models/mode/effort, held sends, compaction and restart pending, stats; `apply(ServerEvent)` |
 | `WindowTab` | stays as the per-window composition (screens use it): owns one `WindowConnection`, one `WindowState` and the window's feature controllers (`Comments`, voice outbox, `MediaCache`), no logic of its own |
-| `repository` | `Repository` classes over `WindowHttp` with generated types: `FilesRepository` (`files/remote.dart`: `/tree`, `/complete`, `/file`), `GitRepository` (`files/git.dart`), `IconRepository` (`hosts/project_icon.dart`). No shared poll object: the host stream pushes the window list, and the one data poll left (`/dictation` in `dictation/whisper_sheet.dart`) does not pay for one |
-| `storage` | `AppStores`: the record of vault-backed stores built in `main.dart` `_load` (hosts, seen, notified, notify choice, voice lang, voice outboxes, comment queues, project icons), replacing `CommentQueues.instance`, `VoiceStore.instance`, `ProjectIcons.instance` and the resets in `test/support/rig.dart:58-60` |
+| `repository` | Not built (call 30, issue 547): free functions with generated types take a `WindowTab` (`files/remote.dart`: `/tree`, `/complete`, `/file`; `files/git.dart`), and `putProjectIcon`/`deleteProjectIcon` take a `WindowHttp` (`hosts/project_icon.dart`). The design was `Repository` classes over `WindowHttp` (`FilesRepository`, `GitRepository`, `IconRepository`). No shared poll object: the host stream pushes the window list, and the one data poll left (`/dictation` in `dictation/whisper_sheet.dart`) does not pay for one |
+| `storage` | `AppStores`: the record of stores built in `main.dart` `_load` (hosts, seen, notified, notify choice, voice outboxes, comment queues, project icons), replacing `CommentQueues.instance`, `VoiceStore.instance`, `ProjectIcons.instance` and the resets in `test/support/rig.dart:58-60`. The voice language is not in it (call 31). There is no storage interface: the members are the stores themselves (call 30, issue 547) |
 | `Sdk` | `Sdk` (`lib/sdk.dart`): `{ AppStores stores; Links links; Identity id; Background background }`, passed down where `_load`'s record is today |
 | capabilities | generated `Feature` / `hasFeature`; `WindowConnection.has(f)` |
 | registries | none. Events and anchors are generated sealed classes and the feed items hand-written sealed classes (`chat/feed.dart`); an exhaustive `switch` is the registry and the compiler checks completeness. Screens are pushed routes. A Dart registry would add indirection and lose that check |
@@ -438,3 +438,90 @@ flags). §3.3 "Versioning" points at `FEATURES`. §2.3 names `HostWindow.id` and
 24. **One state rule** (slice / `useResource` / `storage` / component state); no new `useSyncExternalStore`
     singletons, counted by the boundary check.
 25. **A Dart import test** (`test/imports_test.dart`) for the two leak classes the review found, instead of a lint.
+
+### As built (step 14)
+
+What the steps decided differently from the calls and tables above; the code and `docs/architecture.md` describe the
+result.
+
+26. **Boundary check** (steps 1, 6, 9c): the regex held, no oxc. An unclassified `web/src` folder fails the scan; a text
+    rule records one entry per file; a protocol gate is any comparison with a number or a protocol constant. Step 6
+    added the `visibilityState` rule, step 9c the `sdkReach` test (the SDK barrels load no plugin module).
+27. **Features** (steps 2a, 2b): `heldSends: 27` beside `compactOrder: 27`; the constants' comments were dropped, not
+    moved (they repeated the entries). `protocol > 0` ("a hello came") became `protocol !== 0` in one helper.
+28. **Window id** (step 3): `windowKey` and `rootHash` went into the existing `server/src/windows.ts`. The generated
+    `fromJson` is strict, so a malformed window is left out of the list. `iconsSupported` is per host and sticky per
+    channel. A chat looks up its window on its own port first and by key once that port is gone, so a second window
+    of the folder does not move it.
+29. **Answers** (step 4b): the union variants got names (`VcsNoRepo`, `VcsRepoDiff`, `GitSwitched`, `GitSwitchRefusal`).
+    The hand-parsed icon answer was `PUT /project-icon` `{ icon }`, not `/info.icon`. Parsing is strict.
+30. **The phone does not mirror the web's names** (steps 4b, 12, 13). This departs from the owner's decision that both
+    apps share one architecture and its names (Connection, Repository, Storage, Capabilities, Registry, Sdk). It awaits
+    the owner's sign-off, and issue 547 tracks closing the gap. What exists, by the web's name:
+    - Connection: `WindowConnection` (`chat/window_connection.dart`), not `AgentConnection`.
+    - Repository: none. The data helpers are free functions over a `WindowTab` (`files/remote.dart`,
+      `files/git.dart`), or over a `WindowHttp` (`putProjectIcon`, `deleteProjectIcon` in `hosts/project_icon.dart`),
+      not over the `WindowConnection` (see call 32).
+    - Storage: none. The stores are `AppStores` members.
+    - Capabilities: the generated `Feature` / `hasFeature` and `WindowConnection.has`, not `FEATURES` / `has`.
+    - Registry: none (call 16).
+    - Sdk: `Sdk` and `AppStores` (`lib/sdk.dart`), as designed.
+
+    This replaces call 16's `Repository` and the mirror table's `repository` row.
+31. **`AppStores`** (step 12) leaves out the voice language and the other choices loaded before the first frame, which
+    keep one owner in `main()`. `VoicePlayer.shared` and `ClipFiles.shared` stay: they are platform players, not
+    stores.
+32. **`WindowTab` is not thin** (step 13): about 290 lines with about 45 one-line forwarders to `connection` and
+    `windowState`, so the screens and their tests read it unchanged. The voice retry, the comment composition and
+    the outbox reconcile after a replay stay in it. A later mechanical follow-up has the screens read
+    `tab.connection.*` / `tab.windowState.*`, drops the forwarders and moves that glue into the voice outbox and
+    comments. The data helpers of call 30 still take the `WindowTab` (or a `WindowHttp`), not the `WindowConnection`;
+    issue 547 covers moving them too.
+33. **Connection** (step 5a): the socket opens at an internal `open()` once the connection is registered. `useFeature`
+    reads the `controls` slice's protocol, not a copy in `conn`. A repeated identical state is not mirrored. The
+    thunk extra is `{ connections, registry, sent }`: the registry came with step 9a, the taken send parts with step
+    10d.
+34. **SDK** (steps 5b, 11): `connections` is exported for non-React code; `chat.*` calls through, because the SDK can
+    be evaluated inside the store's import cycle. `keyLabel` did not exist: `keysLabel` was kept, and step 11 added
+    `keysFor(commands, id)`, with `withKey` taking the commands, when the global `BINDINGS` went.
+35. **Harness** (steps 5c, 11): `testStore({ hello?, events?, state? })` always has `PLUGINS` (a subset goes through
+    the harness's `makeStore`); `state` is a `SocketState`; with no `hello` none is sent. `stubResources` answers by a
+    registered resource's id. `renderWith` adds the `Provider` and the `TooltipProvider`; the registry is the store's.
+36. **Data** (step 6): `parse` takes the body text and there is no `same`: unchanged text keeps the object for every
+    resource. `useResource` also takes `every` (a number, or a function of the snapshot), `whileHidden` and
+    `refreshOn`; a snapshot carries `error` and `status`. `UpdateNotice` polls while hidden during `installing` and
+    `ready`, so a ready update still restarts in a pause (the one exception to pause-while-hidden); loops that did not
+    pause while hidden now do. `tasks/ShellView.tsx` and `subagent/AgentView.tsx` keep their own retry chains.
+37. **Storage** (step 7): `dictationLang` is not a `SharedPrefs` entry (the server keeps it at `/dictation/lang`, the
+    `controls` slice holds it), so `adoptHello` adopts language, scale and theme. A write the storage refuses is held
+    in memory for the page.
+38. **Store** (steps 8a, 8b): `enterRoot` carries the core tabs, as call 23 says, and only the plugin data left it. The
+    appended middleware runs toast, refused, history, compactTiming, media; the two listener middlewares became one.
+    A subset of `PLUGINS` still types the full `RootState`.
+39. **Tabs** (step 9a): `TabView` is render-only (`label`, `Icon`, `Extra`, `detail`, `edit`, `render`). Tab data (ids,
+    open actions, saved form) stays core in `TabKinds`, because several plugins open each kind and a plugin may not
+    import another. `fileViews` moved to step 10c.
+40. **Slots** (step 9b): the names are the frame's real places: `header.title`, `header.center`, `header.end`,
+    `header.menu`, `header.badge`, `strip.left`, `strip.right`, `panel.left`, `panel.right`, `chat`, `panes`,
+    `footer`, `overlay`. No `composer.*` slot exists yet (issue 545).
+41. **Commands** (steps 9c, 11): `Command` has an `order`, because the help interleaves core and plugin keys. It has
+    no `label`, `when` or `connection`. The core's keys are `CORE_COMMANDS`.
+42. **Feed** (step 10b): `FeedRenderer` covers every kind but `tool`, and `ToolRenderer` gets the head's props. There
+    is no `AnchorKind` registry: the batch text stays core (`anchors/quote.ts`), the agent's contract the phone
+    mirrors, pinned by store-free tests.
+43. **File and anchor views** (step 10c): a text view is `{ label, tip, writes?, jump?(c), render({ …, text, bar }) }`
+    and a media view `{ media: true, holds?(s, tabId), render({ …, media }) }`. The tab keeps the header, the one load,
+    the ‹View | Source› switch and the editor; text is the tab's own. The jump is a core slice (`tabs/jump.ts`).
+    `AnchorView` is UI only: `orphan` is `false` or a check over the pane, `place` draws the outline, `reveal` returns
+    a thunk, and `composite` (step 10d) draws a frame's combined picture. The batch text stays core. The large-file
+    `noHighlight` note is hidden under any view, not only the page.
+44. **`sendParts`** (step 10d): two phases. `take(s, d, { voice, registry })` may return a `SendResult` that ends the
+    send (a `! cmd`, a held /clear, nothing to send); `count` and `waiting` feed the Send button. `Taken` has `ready?`,
+    `unchanged?(s)`, `compose({ s, lang, images })`, `sent?(id)` and `released?()`. The parts are the draft (composer)
+    and the comments: images ride with the draft, and voice calls `chat.send` with the recording. DoneLine's
+    "continue" sends with no parts. A refusal of an older unanswered send now gives its comments back.
+45. **Settings** (step 11): `SettingsSection` has `in` (a row of another section), `aside`, an optional `title`. The
+    frame's prefs are rows of the settings plugin, since `shell/` is core. The `controls` slice is core
+    (`store/controls.ts`): several plugins read it.
+46. **Survivors** (step 11): the baseline keeps 119 entries (102 plugin→plugin, 17 `useSyncExternalStore`), each needing
+    a contract rather than a move; issue 545 tracks them. plugin→core and core→plugin are 0, `sdkReach` is empty.

@@ -17,8 +17,8 @@ wording, hidden commands and error texts.
 flowchart TB
   subgraph Browser["Browser (the window's owner tab)"]
     UI["React UI"] --> RS["Redux store"]
-    RS <--> WSC["net/socket.ts"]
-    UI -- fetch --> HTTPC["HTTP clients in components"]
+    RS <--> WSC["sdk/connections.ts over net/socket.ts"]
+    UI -- fetch --> HTTPC["sdk/repository.ts: shared reads"]
   end
   subgraph Server["The window's Node server (server/src)"]
     HTTP["http.ts: Host/Origin filter, auth and router"]
@@ -59,7 +59,7 @@ flowchart TB
 
 | Package | Contents |
 |---|---|
-| `shared/` | The contract shared by web and server. `protocol.ts`: the protocol types (`ClientMessage`, `ServerEvent`, `Comment`, `Anchor`, `MediaShape`, `Capabilities`), the validator `parseClientMessage` and the `PROTOCOL` version. `features.ts`: `FEATURES`, what each protocol added by name, and `has`. `agent.ts`: the normalized `AgentEvent`. `tasks.ts`: the pure task reducer `reduceTasks`. |
+| `shared/` | The contract shared by web and server. `protocol.ts`: the protocol types (`ClientMessage`, `ServerEvent`, `Comment`, `Anchor`, `MediaShape`, `Capabilities`), the validator `parseClientMessage` and the `PROTOCOL` version. `features.ts`: `FEATURES`, what each protocol added by name, and `has`. `agent.ts`: the normalized `AgentEvent` and `AgentProvider`. `host.ts`: the host stream's window list (`HostWindow`, [2.3](#23-remote-relay)). `tasks.ts`: the pure task reducer `reduceTasks`. |
 | `server/` | In a checkout, Node >= 23.6 runs the `.ts` files directly, with no build. The published package ships the server compiled to plain JS (Node >= 22). Dependencies: `@anthropic-ai/claude-agent-sdk` and `ws`, nothing else (no HTTP framework). |
 | `web/` | React 19, Redux Toolkit 2, Radix UI, Tailwind 4, Vite 8. Markdown on `marked` + `dompurify` + `highlight.js` + `mermaid`. Fonts (Inter, Geist Mono) are bundled; the page makes no request to a font service. |
 | `bin/nota-bene.mjs` | The launcher: port choice, folder lock, rebuild of a stale `web/dist`, supervision, and the helpers `--find`, `--last`, `--url`, `--front`. |
@@ -133,7 +133,9 @@ The marketplace is for local clients, not a listing in the public ChatGPT plugin
 
 The host side is `nota-bene remote` (`server/src/remote/`), one process per user. It keeps one outgoing connection to the relay (`relayClient.ts`), finds the windows of all three providers in their registries and proves each with that provider's token before sending anything (`discover.ts`), and runs one end-to-end channel per phone connection (`device.ts`): Noise IK (`noise.ts`, on `node:crypto`, checked against the official vectors), then a stream mux with per-stream and per-connection credit (`mux.ts`) carrying the host's window list, WebSockets to a window's `/ws` and HTTP requests to its routes, with the window's helper bearer added on the host. Pairing, the device list and revoking are in `connector.ts`; `pair`, `devices` and `revoke` reach the running connector over a Unix socket (`control.ts`). Every window keeps one connector running while a relay is saved (`keeper.ts`, as the Whisper host is kept), serves the Remote tab's `/remote` routes (`routes.ts`) and sends the page its state as the `remote` event. The channel's contract, for the phone's implementation, is [server/src/remote/CHANNEL.md](../server/src/remote/CHANNEL.md). The same connector is also a device of other computers (issue 297): `hostLink.ts` is the device end of the channel (relay admission as a device, the Noise initiator, the mux), with its own `device.key`; `pairHost` pairs with another computer's code, and one `HostLink` per computer in `hosts.json` keeps the channel and that computer's `windows` list. A window keeps the connector running for these links even with no relay of its own. A window's `GET /system/projects` adds each online computer's windows as rows with `remote: {host, name}` (the connector's `computers` control op; `projects.ts` `remoteRows`), and `POST /system/remote/open` has the connector open a desktop proxy for one (`proxy.ts`): a loopback listener per open on a port the system picks, outside the windows' range, served as `localhost` while the windows stay on `127.0.0.1`, so the other computer's pages and this one's windows share no cookie and are different sites. It runs its own auth with the window's code (`auth.ts`: token, login, cookie, key, the `nb.<key>` subprotocol, the Origin) and strips it; requests go over the channel as `http` streams with the helper bearer added on the other computer, before the page logged in as `public` streams without it (the app shell only), and `/ws` as a `ws` stream. It answers `GET /system/remote/page` (`{host, name}`: the page hides what that computer's page cannot do, `web/src/net/local.ts`) and `/system/projects` itself (this computer's and other computers' rows bare: folder, agent, port, state, no title, session or last message, `projects.ts` `bareRow`), and refuses the rest of what a device may not reach (`device.ts` `goodPath`) with 403. The switch from such a page is a top-level navigation to its `/system/remote/enter`, which only a same-origin navigation passes (`Sec-Fetch-*`) and which answers with a 303 to the target's login: page code never reads the redirect or its fragment, so it never holds a credential for this computer's windows. A switch that cannot go comes back as a 303 to `/?enter=<code>`, which the page says in words; a navigation the window cannot answer (the computer offline, or an older one that refuses `public`) gets a short page in the person's UI language, kept in `proxy.ts` since the app never loaded. Requests carrying `Service-Worker` are refused, and a listener never takes a port an earlier one of the process had. A listener closes a minute after its last connection, and keeps the connector up while it lives. All of a computer's tabs share its one channel (64 streams, 512 KiB window).
 
-The phone side is in `mobile/`: `mobile/channel` (`nb_channel`, pure Dart) is the same channel from the other end (Noise IK on the `cryptography` package, checked against the same vectors and worked examples; the mux; relay admission), proved end to end against the real relay and connector by `cross_test.dart`, which drives `server/src/remote/crossHost.ts`. `mobile/app` (`nb_app`, Flutter, Android) keeps one link per paired host (`hosts/host_link.dart`) and is an ordinary tab of a window over it (`chat/window_tab.dart`, the feed a port of `web/src/store/feed.ts`); it uses the protocol types generated into `mobile/protocol`. Build and test commands are in [mobile/README.md](../mobile/README.md).
+The host stream's `windows` message is typed in `shared/src/host.ts` (`HostWindow`, `HostStreamMessage`, `HOST_WINDOW_INFO`) and generated for Dart. Each window carries `id = windowKey(provider, root)`: the provider, a colon and the first 16 hex digits of the root's sha1 (`server/src/windows.ts`, the hash of the launcher's per-folder lock). It survives restarts and port changes and is opaque to clients. Among listed windows with one key (an unlocked launch, a dev server) the lowest port keeps the bare id and the others get `<id>:<port>` (`device.ts`). The field is optional: a host before it is keyed `port:<n>` (`HostWindow.key` in `nb_channel`). The port only opens streams.
+
+The phone side is in `mobile/`: `mobile/channel` (`nb_channel`, pure Dart) is the same channel from the other end (Noise IK on the `cryptography` package, checked against the same vectors and worked examples; the mux; relay admission), proved end to end against the real relay and connector by `cross_test.dart`, which drives `server/src/remote/crossHost.ts`. `mobile/app` (`nb_app`, Flutter, Android) uses the protocol types generated into `mobile/protocol`, including `Feature` and `hasFeature`. `main.dart` `_load` builds one `Sdk` (`lib/sdk.dart`: `AppStores`, the host `Links`, the phone's `Identity`, the `Background` check) and passes it down; `AppStores` holds the vault-backed stores, the voice outboxes, the comment queues and the project pictures, so no store is a singleton and a test builds its own in memory. The app keeps one link per paired host (`hosts/host_link.dart`) and keys a window by `(host id, window key)`. It is an ordinary tab of a window over that link: `WindowTab` (`chat/window_tab.dart`) composes a `WindowConnection` (`chat/window_connection.dart`: the stream, reconnects, passive and takeover, `send`, `has(Feature)`) and a `WindowState` (`chat/window_state.dart`: the feed, a port of `web/src/store/feed.ts`, the models, mode and effort, held sends, a pending compaction or restart, stats; `apply(event)`), with the window's comments, voice outbox and media cache. The screens read the window through `WindowTab`, which forwards to the two. The phone does not yet use the web's names for connection, repository, storage, capabilities and registry: the design's [call 30](superpowers/specs/2026-11-20-core-plugins-design.md#as-built-step-14) lists the mapping, which awaits the owner's sign-off (issue 547). Build and test commands are in [mobile/README.md](../mobile/README.md).
 
 ### 2.4 Projects across windows
 
@@ -292,100 +294,217 @@ Carry a CLI/Desktop conversation into a separate branch with fork.
 
 ## 4. Web client
 
-### 4.1 Organised by feature
+### 4.1 Core, SDK and plugins
 
-The directories of `web/src` are cut by feature, not by layer. Each holds its own `slice.ts`, components and pure logic:
+`web/src` is one bundle in three parts. The **core** owns the connection, data, storage, capabilities, the frame and
+the registries. The **SDK** (`web/src/sdk/index.ts`, and `web/src/sdk/ui.ts` for UI primitives) is the only core module
+a plugin imports. The **plugins** are the feature folders, each with a `plugin.ts` exporting its `definePlugin(...)`;
+everything else in a plugin folder is private to it. `web/src/plugins.ts` lists them in order (`PLUGINS`). The
+root-level files (`main.tsx`, `App.tsx`, `plugins.ts`) are the composition root and may import anything.
+`web/src/testing/` is the test harness ([7](#7-testing)).
 
-| Directory | Contents |
-|---|---|
-| `store/` | `store.ts` (store assembly, socket, middleware), `persist.ts` (listener middleware: saving UI state, in place of `store.subscribe`) and `feed.ts` (the pure reducer of the feed from `AgentEvent`, plus `prependHistory`). |
-| `net/` | `socket.ts`: the WebSocket with automatic reconnection after 1 s; `open` means "connected" (the replay arrived), not the opening of the socket; after 4001 there is no reconnection, only `reconnect()` on a click. It does not enter Redux. `auth.ts`: the login (the page takes `#t=` out of the address bar, posts it to `/auth`, keeps the key) and `apiFetch`, which every request except `/file` and `/attach` goes through. |
-| `feed/` | Rendering of the feed: Markdown, ToolLine, PermissionCard, PlanCard, DoneLine, ShellBlock; `EarlierButton` "Show before compaction" and `history.ts` (`GET /history`). |
-| `diagram/` | The diagram tab (mermaid): rendering, zoom. |
-| `tasks/` | Tasks: `slice.ts` (`reduceTasks` from `shared`: running tasks and the last 20 finished, nested by `parent`; agents launched by one model response share a `group` and get an umbrella row; a workflow's agents are `inner` tasks under it), `TasksDrawer.tsx` (the bottom drawer, an overlay that does not resize the feed), `TaskButtons.tsx` (Stop, To background), `ShellView.tsx` (the `shell:<taskId>` tab over `/task-output`). Watchers (`ambient`) show in the drawer but are not counted by the indicator (`tasks/TasksIndicator.tsx`), the pulse or the favicon. |
-| `subagent/` | The `agent:<toolUseId>` tab: a subagent's conversation, read-only, through the same `reduce()` kept apart from `feed`; polled while the agent works and the tab is visible. |
-| `composer/` | The input field, `@` mentions (`/complete`), the `/` menu (`SlashPicker`, `slashRank.ts`), the `!` shell mode (`shellMode.ts`), rollback of a refused send (`refused.ts`), the prompt history (`history.ts`: the `promptHistory` slice and the middleware that records a prompt on the server's echo, `PromptHistory.tsx`: the Alt+H list; ↑/↓ recall lives in `Composer.tsx`). |
-| `comments/` | Selection to popup to card, the panel, `HighlightLayer`, batch assembly (`compose.ts`, `send.ts`), labels, emoji. |
-| `anchors/` | Anchors as text offsets plus `quote/prefix/suffix` of 32 characters each, and re-anchoring when the text changes (`resolve.ts`). |
-| `page/` | Rendered HTML pages (`HtmlBody.tsx`, a file view). `prep.ts` strips what could run and points relative resources at `/file`; the page goes into an `<iframe sandbox="allow-same-origin" srcdoc>` (no scripts) as tall as the page. Core `anchors/frame.ts` carries the comment machinery across the frame (selection, rects); `HtmlBody` its mouse and key events. `anchor.ts`: `PageAnchor` from an element or an SVG area, and `resolvePage`. |
-| `files/`, `tree/`, `tabs/` | The tree, file viewing and editing, icons, recent files, sources (branches and worktrees), tabs and the ▾ menu. Subfolders: `files/tree`, `files/view` (`TextBody`, `FileEditor`, `useFileLoad`). A file tab shows a file through the first matching `fileViews` entry (`cut`, `page`, `media`), else as text. Where files are (kinds and URLs, sources, temp images) is core: `refs/`. |
-| `cut/` | The video editor. An edit is a `*.nbcut.json` file; its types and `validateCut` are in `shared/src/cut.ts` and `cutCheck.ts`. `FileView` shows it through `CutBody`, its file view (Timeline / Source); `layout.ts` places what it can of the parsed JSON, valid or not; `cut/export/` is the export. |
-| `media/` | `MediaController` (pause and PiP between tabs), the player and its keys, and `markup/` (geometry in 0..1, rendering to `frame.jpg` + `layer.png`, and `mask.png` for polygons). |
-| `controls/` | Mode, session switcher, compact/clear, restart, idle compaction, model and effort. |
-| `settings/`, `shell/`, `stats/` | The Settings tab; header, footer, strips, keymap, toasts, favicon, `OneTab` (the overlay "the window is already open" / "open in another tab"), `LoginRequired` (the overlay "This window is not logged in"); meters. |
-| `refs/` | Recognising paths in text and jumping to the file (`src/a.ts:42`). |
-| `components/ui/` | Wrappers over Radix (shadcn style). |
-| `i18n/` | Six languages (`LANGS` in `index.ts`), no library. The choice is saved on the server (`prefs.json`) so all windows share it. |
-| `projects/`, `remote/`, `vcs/`, `voice/`, `attachments/`, `usage/` | The project rail and switcher; the Remote tab; Changes and the Git log; recording and playing voice; composer attachments; the Usage tab. |
-| `lib/`, `theme/` | Small shared helpers (paths, formatting); theme tests. |
+| Folder | Role | Contents |
+|---|---|---|
+| `sdk/` | core | The facade (`index.ts`, `ui.ts`) and the core's own modules: `connections.ts`, `routes.ts`, `repository.ts`, `storage.ts`, `flags.ts`, `track.ts`, `plugin.ts`, `registry.ts`, `settings.ts` (the Settings tab's host) ([4.5](#45-sdk-and-registries)). |
+| `store/` | core | `store.ts` (store assembly: the core slices `feed` and `conn`, slice injection, middleware, the chat thunks), `feed.ts` (the pure reducer of the feed from `AgentEvent`, plus `prependHistory`), `chunks.ts`, `persist.ts` (the core's listeners), `send.ts` (`chat.send` over `sendParts`), `controls.ts` (the `controls` slice: mode, model, commands, the hello's protocol, a switch or restart, held sends), `mediaController.ts` (pause and PiP between tabs), `seekStep.ts`, `sessions.ts`. |
+| `net/` | core | `socket.ts`: the WebSocket with automatic reconnection after 1 s; `open` means "connected" (the replay arrived), not the opening of the socket; after 4001 there is no reconnection, only `reconnect()` on a click. It does not enter Redux. `auth.ts`: the login (the page takes `#t=` out of the address bar, posts it to `/auth`, keeps the key) and `apiFetch`, behind `AgentConnection.fetch`. `local.ts`: whether this page is another computer's window. |
+| `tabs/` | core | The tab host over the `tabs` registry (`Panes`, `TabStrip`, `TabsMenu`), the `tabs` slice (`TabKinds`, ids, open actions, saved form, `enterRoot`), the `jump` slice (`jump.ts`: jump to a comment's source). |
+| `shell/` | core | The frame: `Header`, `Footer`, `ToolStrip` and `Slots` (the frame's own parts among the plugins' slots), the keymap (`keymap.ts`), toasts, theme, UI scale, sounds, favicon, `OneTab` ("the window is already open" / "open in another tab"), `LoginRequired`, `Stopped`, `PanelResizer`, `pagePause.ts` (the AND of every `Plugin.pause`). |
+| `anchors/` | core | Anchors as text offsets plus `quote/prefix/suffix` of 32 characters each, re-anchoring when the text changes (`resolve.ts`), the batch text of each anchor kind (`quote.ts`, the agent's contract the phone mirrors), labels, a rendered page's frame (`frame.ts`: text root, rects, selection) and scrolling. |
+| `refs/` | core | Paths in agent text (`src/a.ts:42`) and where files are: kinds and URLs (`kinds.ts`), sources (branches and worktrees), temp images, a media tab's start time. |
+| `i18n/` | core | Six languages (`LANGS` in `index.ts`), no library. The choice is saved on the server (`prefs.json`) so all windows share it. |
+| `components/`, `lib/`, `theme/` | core | UI primitives (Radix wrappers in `components/ui/`, icons, `ConfirmDialog`, `SettingsRow`); small pure helpers (paths, formatting, `sha1`); theme tests. |
+| `feed/` | plugin | Rendering of the feed: `Feed` over the `feed`, `tools` and `userParts` registries, its own kinds (`items.tsx`), Markdown, ToolLine, PermissionCard, PlanCard, DoneLine; `EarlierButton` "Show before compaction" and `history.ts` (`GET /history`). |
+| `composer/` | plugin | The input field, `@` mentions (`/complete`), the `/` menu (`SlashPicker`, `slashRank.ts`), the `!` shell mode (`shellMode.ts`, its feed block `ShellBlock`), the draft's send part (`send.ts`), rollback of a refused send (`refused.ts`), the prompt history (`history.ts`: the `promptHistory` slice and its middleware, `PromptHistory.tsx`: the Alt+H list), keys and recall (`useComposerKeys.ts`, `usePromptRecall.ts`). |
+| `comments/` | plugin | Selection to popup to card, the panel, `HighlightLayer`, the comments' send part and batch assembly (`send.ts`, `compose.ts`), emoji. |
+| `attachments/`, `voice/` | plugin | Composer images and their card; recording and playing voice, the voice part of a user message, the dictation settings. |
+| `controls/` | plugin | Mode, session switcher, compact/clear, restart and stop, idle compaction, model and effort, the chat tab, the connection note. |
+| `files/` | plugin | The tree (`tree` slice in `treeSlice.ts`), the file tab (`FileView.tsx` over the `fileViews` registry; the text is its own), editing, recent files. Subfolders: `files/tree`, `files/view` (`TextBody`, `FileEditor`, `useFileLoad`). |
+| `page/`, `cut/`, `media/` | plugin | File views: rendered HTML pages (`HtmlBody.tsx`; `prep.ts` strips what could run, the page goes into an `<iframe sandbox="allow-same-origin" srcdoc>`, no scripts); the video editor (an edit is a `*.nbcut.json` file, types and `validateCut` in `shared/src/cut.ts`; `cut/export/` is the export); the player, its keys and `markup/` (geometry in 0..1, rendering to `frame.jpg` + `layer.png`, and `mask.png` for polygons). Each also shows its kind of comment anchor. |
+| `tasks/` | plugin | Tasks: `slice.ts` (`reduceTasks` from `shared`: running tasks and the last 20 finished, nested by `parent`; agents launched by one model response share a `group` and get an umbrella row; a workflow's agents are `inner` tasks under it), `TasksDrawer.tsx` (the bottom drawer, an overlay that does not resize the feed), `TaskButtons.tsx`, `ShellView.tsx` (the `shell:<taskId>` tab over `/task-output`), `TasksIndicator.tsx`. Watchers (`ambient`) show in the drawer but are not counted by the indicator, the pulse or the favicon. |
+| `subagent/` | plugin | The `agent:<toolUseId>` tab: a subagent's conversation, read-only, through the same `reduce()` kept apart from `feed`; polled while the agent works and the tab is visible. The card of an Agent call in the feed. |
+| `diagram/`, `settings/`, `usage/`, `remote/`, `update/` | plugin | The diagram tab (mermaid); the Settings tab, which hosts the `settings` sections; the Usage tab; the Remote tab; the update notice. |
+| `stats/`, `projects/`, `vcs/` | plugin | Footer meters and the context nudge; the project rail and switcher; Changes (panel and tab), the Git log, the branch pill. |
+
+**The import rule.** A plugin file imports only `@/sdk`, `@/sdk/ui`, its own folder, `@nota-bene/shared*` and npm
+packages. A core file never imports a plugin folder. `@/testing` is imported only by test files and the listed test
+setups (`cut/testCut.tsx`); test files are exempt from the two folder rules. Text rules: no `localStorage` outside
+`sdk/` and `net/auth.ts`; no `visibilityState` and no new `useSyncExternalStore` outside `sdk/`; no comparison of a
+protocol with a number or a protocol constant in `web/src` or `mobile/app/lib`. Type-only imports count.
+
+**The check.** `scripts/boundaries.test.ts` (in the `node` Vitest project, no dependency) scans every file with a
+newline-tolerant pattern after stripping comments and strings, and resolves `@/` and relative specifiers. A folder it
+does not classify fails it. What breaks a rule today is listed in `scripts/boundaries.baseline.json` (`"<file> -> <module>"`,
+or `-> localStorage`, `-> protocol gate`, ...). The baseline only shrinks: a new violation fails, and so does an entry that
+is gone (`UPDATE_BOUNDARIES=1` rewrites it). The test prints the count per rule. The remaining entries (plugin to plugin
+imports and module singletons) each need a contract, not a move, and are tracked in issue 545. A second test,
+`sdkReach`, follows the SDK barrels' runtime imports through the core and fails on any plugin module it reaches: a plugin
+evaluated inside the SDK's own evaluation would see `@/sdk` half-built.
 
 ### 4.2 Store
 
-16 slices: `feed`, `conn`, `comments`, `composer`, `tabs`, `tree`, `files`, `controls`, `stats`, `remote`, `tasks`, `tasksUi`, `markup`, `feedUi`, `subagents`, `promptHistory`.
+The reducer is RTK 2 `combineSlices` over the core slices (`feed`, `conn`, `tabs`, `jump`, `controls`)
+`.withLazyLoadedSlices<PluginState>()`, and `makeStore({ url, plugins, connect?, pip? })` injects each plugin's slices
+once, before the store exists, under their own names (a name taken twice throws). `PluginState` is an empty interface
+in `sdk/plugin.ts` that each plugin's `plugin.ts` extends by declaration merging (`declare module '@/sdk' { interface
+PluginState extends WithSlice<typeof slice> {} }`), so `RootState` is fully typed without the store importing a
+plugin. `TabKinds` is augmentable the same way. The plugin slices by owner: `comments`; `composer`, `promptHistory`
+(composer); `tree`, `files` (files); `stats`; `remote`; `tasks`, `tasksUi` (tasks); `markup` (media); `feedUi` (feed);
+`subagents` (subagent).
 
 ```mermaid
 flowchart TB
-  WS["socket.onmessage"] -->|"serverEvent(ev), the only entry of server data"| MW
-  subgraph MW["middleware"]
-    CL["controlsListener · persist (prepend)"] --> TH["thunk {extra: send, takeOver}"] --> TO["toast"] --> CT["compactTiming"] --> RF["refused"] --> MD["media"]
+  C["AgentConnection (sdk/connections.ts)"] -->|"serverEvent(ev, SELF): the only entry of server data"| MW
+  C -->|"connState(s): one dispatch per change"| MW
+  subgraph MW["middleware, in order"]
+    LM["listener middleware (prepended)"] --> TH["thunk, extra: connections, registry, sent"] --> TO["toast"] --> PM["plugins' middleware in PLUGINS order: refused, history (composer), compactTiming (feed)"] --> MD["media (last)"]
   end
-  MW --> R["reducers: feed · comments · controls · stats · tasks · …"]
-  R --> SUB["persist (listener middleware): localStorage<br/>panel:*, tabs:root, tree:root, recent:root, enterRoot when the root changes"]
-  UI["components"] -->|"thunks: sendMessage, sendBatch, pickMode…"| TH
-  TH -->|"send(ClientMessage)"| WS2["socket.send"]
+  MW --> R["reducers: feed, conn, tabs, jump, controls and the injected plugin slices"]
+  R --> LS["listeners: root change (enterRoot), tabs save, send, then each plugin's in PLUGINS order"]
+  C -. "onEvent, after the store applied it" .-> REPO["repository: a resource's events read it again"]
+  UI["components"] -->|"chat.send, chat.answer, pickMode..."| TH
+  TH -->|"connections.current().send(ClientMessage)"| C
 ```
 
 Principles:
 
-- **One entry.** Server data arrives only as the action `serverEvent(ev)`. Several slices handle it through `extraReducers`. The feed reducer `reduce()` is a pure function, so replay is deterministic.
-- **Non-serialisable things stay out of state.** The socket lives in the closure of `makeStore` and reaches thunks through `extraArgument` (`send`, `takeOver`). `MediaController` (which holds DOM elements) lives in a `WeakMap` and is fetched by the hook `useMedia`.
-- **Side effects live in middleware, not in reducers**: toasts, tracking of PiP and pauses, rollback of the draft on `send-refused`.
-- **UI persistence** is concentrated in `store/persist.ts`: one listener per concern, each comparing the state before and after an action. When the root changes (`feed.session.root`) the first listener reads the saved tabs and tree of that root and dispatches `enterRoot`; it is registered first, so the others already see the restored state.
-- **Pending state of a send** has no optimistic updates: a comment becomes `sent` only on the server's echo, and until then its id sits in `sendingIds`.
+- **One entry.** Server data arrives only as the action `serverEvent(ev)`, which carries `meta.agent` (always `SELF`
+  until issue 383). Several slices handle it through `extraReducers`. The feed reducer `reduce()` is a pure function,
+  so replay is deterministic.
+- **The connection owns its state.** The store mirrors it into the `conn` slice with one `connState` dispatch per
+  change; components read the slice (`useConnState`), non-React code `conn.state()`.
+- **Non-serialisable things stay out of state.** The connection manager lives in the closure of `makeStore` and reaches
+  thunks through the thunk `extra` argument (`{ connections, registry, sent }`: `sent` holds what each unanswered send
+  took, given back on a refusal). `MediaController` (which holds DOM elements) lives in a `WeakMap` and is fetched by
+  the hook `useMedia`.
+- **Side effects live in middleware and listeners, not in reducers**: toasts, tracking of PiP and pauses (`media`, last,
+  so it sees every tab change once), rollback of the draft on `send-refused` (composer's `refused`).
+- **Listener order is registration order.** One listener middleware; the core's listeners first: the root-change
+  listener (`store/persist.ts`) sees a new `feed.session.root` and dispatches `enterRoot({ root, first, tabs })` with
+  the core tabs' saved state in the action (one tab change for the media middleware), then the tabs' save, then the
+  send listener. Then each plugin's in `PLUGINS` order, a plugin's own in its declared order. Each plugin restores its
+  own saved state on `enterRoot` (`files`: tree dirs, recent files, sources, the ref cache). Saving listeners compare
+  the state before and after an action, so a restore an earlier listener dispatched is seen by the later ones.
+- **Pending state of a send** has no optimistic updates: a comment becomes `sent` only on the server's echo, and until
+  then its id sits in `sendingIds`.
 
 ### 4.3 UI composition
 
+`App.tsx` lays out the frame; every feature part in it is a plugin's `Slot`, rendered by `Slots` at its place by
+ascending `order` among the frame's own parts:
+
 ```
 App
-├── Header (session, mode, ⚙, language, ↻ + ▾ RestartMenu)
-├── LeftStrip · FileTree (key=rootGen) │ TabStrip + TabsMenu │ CommentsPanel · RightStrip
-│                                       Panes: chat (Feed + HighlightLayer) | FileView×N | DiagramView | Settings
-│                                       Footer (Composer, meters, tasks)
-└── overlays: SelectionButton, CommentPopup, CommentCardPopover, Toasts, RecentFiles, OneTab, LoginRequired
+├── Header: header.title · header.center · header.end · header.menu (⚙) · header.badge
+├── panel.left (ProjectRail, LeftStrip, the tree, Changes) │ TabStrip + TabsMenu │ panel.right (comments, RightStrip)
+│        Panes: chat (the chat slot: Feed, HighlightLayer) | each tab's TabView pane; the panes slot (TasksDrawer)
+│        Footer: the footer slot (TasksIndicator, Composer)
+└── overlay (the selection's comment, CommentCardPopover, Toasts, RecentFiles, the starter…), OneTab, LoginRequired, Stopped
 ```
 
-- **Large components are split into compositions:** `FileTree` = `TreeHeader` + `TreeRow` + the hooks `useTreeEntries` / `useExpandAll`; `FileView` = a file view (`MediaBody`, `HtmlBody`, `CutBody`) or `TextBody` + `useFileLoad`; `CommentCard` = `CardActions` + `useCommentSource`.
+- **Large components are split into compositions:** `FileTree` = `TreeHeader` + `TreeRow` + the hooks `useTreeEntries` / `useExpandAll`; `FileView` = the tab's header and load (`useFileLoad`) + a `fileViews` entry (`MediaBody`, `HtmlBody`, `CutBody`) or `TextBody`; `CommentCard` = `CardActions` + `useCommentSource`.
 - **Panels are docked**: an open panel narrows the middle column instead of covering it.
 - **All tab panes stay mounted**; inactive ones are just `hidden`. Anchors, `HighlightLayer` and autoscroll depend on the stable DOM of the chat.
 - **Highlights** are drawn as `Range.getClientRects()` rectangles in a layer over the content; the text DOM is not touched.
-- **Hotkeys** are one module, `shell/keymap.ts`: one document listener, matching by `code`, Alt by default, aware of modal dialogs and text fields.
+- **Hotkeys** are one module, `shell/keymap.ts`, over the `commands` registry (the core's `CORE_COMMANDS` and the plugins'): one document listener, matching by `code`, Alt by default, aware of modal dialogs and text fields. A tooltip names a key through `withKey(commands, label, id)`.
 
 ### 4.4 Integration with the server
 
 | Client | Server | Purpose |
 |---|---|---|
-| `store.ts` → `net/socket.ts` | `/ws?tab=<id>` (`&passive=1` for a busy or taken-over tab) | All live session state. |
+| `sdk/connections.ts` → `net/socket.ts` | `/ws?tab=<id>` (`&passive=1` for a busy or taken-over tab) | All live session state. |
 | `tasks/ShellView.tsx` | `GET /task-output?session&task` | A shell task's output. |
 | `subagent/slice.ts` (`fetchSubagent`), `subagent/AgentView.tsx` | `GET /subagent?session&tool` | A subagent's conversation; comments on it go to the main session. |
 | `feed/history.ts`, `feed/EarlierButton.tsx` | `GET /history?session&before` | An archived segment before a compaction. |
 | `comments/slice.ts` (`flushComments`, add/edit/remove) | WS `comment-op`, `comments`, `comment-ack`, `comment-refused` | Comment sync by ops: a change is queued and shown at once (the server's set with the queue folded on top), sent in order once the socket is open and again after a reconnect, and leaves the queue on its ack. `gone` / `sent` refusals drop it with a toast; `failed` keeps it for the next open. Only the owner tab writes. The phone queues ops the same way and keeps the queue on disk. |
-| `comments/send.ts` → `sendMessage` | WS `send{commentIds, images}` | The batch: the draft plus all pending comments as one message. |
+| `store/send.ts` (`chat.send`) over the `sendParts` of `composer/send.ts` and `comments/send.ts` | WS `send{commentIds, images}` | The batch: the draft plus all pending comments as one message. |
 | `composer/shellMode.ts` | WS `shell-run{id, cmd}`, `shell-stop{id}` | A `! cmd` run; the block in the feed is driven by `shell-start` / `shell-out` / `shell-end`. |
 | `attachments/image.ts` | `POST /attach`, `GET /attach/<id>` | Image upload; only ids travel over the socket. |
 | `voice/` | `POST /voice`, `GET /voice/<id>`, `POST /voice/<id>/text` | The recorder (16 kHz mono WAV, 10-minute cap), upload, player, the composer's record bar and comment clips. No recording without Whisper. |
 | `media/markup/createMediaComment.ts` | `POST/DELETE /marks/<id>/<name>` | The frame and layer of media markup. |
 | `files/FileTree.tsx` | `/tree?path&src` | Lazy loading of the tree, up to 8 requests in parallel. |
-| `files/view/useTmpImage.ts` | `GET /tmpimage?path` | A temp image through `apiFetch` into a blob URL. |
+| `files/view/useTmpImage.ts` | `GET /tmpimage?path` | A temp image through the connection's `fetch` into a blob URL. |
 | `files/FileView.tsx` | `/file` (HEAD, Range probe, GET) | Viewing; the ETag serves as the version for media anchors. |
 | `composer/MentionPicker.tsx`, `files/RecentFiles.tsx` | `/complete?q` | The CLI's search (`file_suggestions`) and our own file index in parallel; the results are merged. |
 | `refs/sources.ts`, `vcs/GitBranch.tsx` | `/sources`, `/git-status`, `/vcs-branches` | Branches and worktrees, the branch picker. |
 | `vcs/` | `/vcs-*` | Changes (panel and tab, one file at a time) and the Git log. |
 | `controls/AgentAccount.tsx` | `GET/POST /agent-account` | Codex account status and native sign-in URL; retry restarts the session. |
 | `controls/SessionPicker.tsx` | `/sessions` | Sessions of the window's provider with their cwd; native Codex list or Claude SDK list. |
-| `controls/RestartMenu.tsx`, `controls/slice.ts` | `/info`, `POST /restart-server` | The "Restart the server" item (only under the launcher). |
-| `settings/SettingsView.tsx` | `/system/*` | Windows, storage, defaults, about. |
+| `controls/RestartMenu.tsx`, `store/controls.ts` | `/info`, `POST /restart-server` | The "Restart the server" item (only under the launcher). |
+| `settings/SettingsView.tsx` and the plugins' `settings` sections | `/system/*` | Windows, storage, defaults, about. |
 | `usage/UsageView.tsx` | `/usage`, `/usage/reset` | The token report; polls while the first import runs. |
-| `net/auth.ts` | `POST /auth`, then the key header on every `apiFetch` | Login ([Access token](agent-reference.md#access-token)). |
+| `net/auth.ts` | `POST /auth`, then the key header on every `apiFetch` (`AgentConnection.fetch`) | Login ([Access token](agent-reference.md#access-token)). |
+
+### 4.5 SDK and registries
+
+A plugin sees the core through `@/sdk` (the runtime API, re-exported by name so the surface is one file; export order is
+evaluation order, leaf modules first) and `@/sdk/ui` (buttons, menus, dialogs, `ConfirmDialog`, `PanelResizer`,
+`SettingsRow`, icons). A plugin is `definePlugin({ id, slices?, middleware?, listeners?, pause?, ...registries })`
+(`sdk/plugin.ts`). `buildRegistry` (`sdk/registry.ts`) builds the registries once per store from its plugins and the
+core's commands, frozen; a kind, id or order claimed twice throws there. Components read them with `useRegistry()`,
+thunks through their `extra`, other code with `registry(store)`.
+
+| Registry | Entry | What it does |
+|---|---|---|
+| `tabs` | `TabView { kind; label(tab, t, state); Icon?; Extra?; detail?(tab, t); edit?; render? }` | How a tab kind looks (strip, ▾ menu, one `tabLabel`) and its pane. Rendering only: the tab's data, id, open action and saved form are the core's (`TabKinds` in `tabs/slice.ts`), because several plugins open each kind. |
+| `slots` | `Slot { slot; order; render }` | A part of the frame at `header.title`, `header.center`, `header.end`, `header.menu`, `header.badge`, `strip.left`, `strip.right`, `panel.left`, `panel.right`, `chat`, `panes`, `footer` or `overlay`, by ascending `order` among the frame's own parts. |
+| `commands` | `Command { id: KeyId; codes; mods; inFields; inModal?; anyMod?; helpOnly?; order; run({ store, e }) }` | A global hotkey. The id is the i18n key of its help line; `order` is the help's and the match order, so core and plugin keys interleave as before. The core's are `CORE_COMMANDS` (`shell/keymap.ts`); `keysFor(commands, id)` names a key. |
+| `feed` | `FeedRenderer { kind; render({ item, held? }) }` | How the feed draws one kind of item; every kind but `tool`, whose runs are the feed's own. |
+| `tools` | `ToolRenderer { match(item); render({ item, open, panelId, comments, busy, onToggle }) }` | The head of an action a plugin draws itself (the subagent's card); the feed keeps the fold and the commentable panel. First match wins. |
+| `userParts` | `UserPart { id; order; render({ item }) }` | A part of a user message: voice 10, text 20, images 30, comments 40. |
+| `fileViews` | `TextFileView { id; order; match(path, kind); label; tip; writes?; jump?(c); render({ ..., text, bar }) }` or `MediaFileView { media: true; holds?(s, tabId); render({ ..., media }) }` | How a file tab shows a file: `cut` 10, `page` 20, `media` 30, first match. The tab keeps the header, the one load, the ‹View \| Source› switch and the editor; a view gets the text or the loaded media. Text is the tab's own (every unmatched file, and a text view's ‹Source›). |
+| `anchorViews` | `AnchorView { kind; Card?; reveal?(c); orphan?; place?(c, root); composite?(members) }` | How a comment on one anchor kind shows in the UI: its card, reveal, orphan check, outline, and a frame's combined picture (media). A kind without one shows the core's `anchorLine`. What the agent reads of a comment stays core (`anchors/quote.ts`): the batch is a contract the phone mirrors. |
+| `sendParts` | `SendPart { id; order; count?(s); waiting?(s); take(s, d, { voice, registry }) }` | A part of a message: the draft (composer, 10), the comments (30). See below. |
+| `settings` | `SettingsSection { id; order; title?; in?; render?({ active }); aside? }` | A section of the Settings tab, or with `in` a row of another section; the tab is the host (`SettingsContext`: one `post()`, one status line, one confirm). |
+| `resources` | `Resource` | The server data a plugin reads, by id, so a test answers it by id (`stubResources`). |
+
+**A send** (`chat.send(text, { force?, parts?, voice? })`, `store/send.ts`) is two-phase. At the click every part is
+taken in order (`take` marks its items, so a second click or a later change does not touch them); `take` may instead
+return a result that ends the send (a `! cmd` runs, a held /clear, nothing to send). A `Taken` may be `ready` later (a
+combined frame image): the send waits up to `COMPOSITE_MS` with Send off. Then, if the session and every part are
+`unchanged`, the parts `compose` in order, each seeing the images before its own, and the message goes; each part's
+`sent(id)` follows. Any other end, and a later `send-refused`, calls `released` (the core keeps send id → taken parts),
+so a refusal gives back the draft and the comments without either plugin knowing the other. A recording is
+`chat.send` with its `voice`.
+
+**Connection** (`sdk/connections.ts`). `AgentConnection { id; base; state(); subscribe; hello(); has(f); send(m);
+fetch(route, init?); url(route); takeOver(); stop(); onEvent(fn) }` over `net/socket.ts`, whose semantics are
+unchanged. `ConnectionManager { current(); get(id); list() }`; `makeStore` makes exactly one connection, `SELF`
+(`'self'`, issue 383 gives real ids). `onEvent` delivers each event after the store applied it. Hooks:
+`useConnection()`, `useConnState()`, `useFeature(f)` (over the `controls` slice's protocol, 0 until a hello);
+`connections` serves code outside React.
+
+**Data** (`sdk/routes.ts`, `sdk/repository.ts`). `routes` builds every server path (`Route`: path and query, no base),
+for `conn.fetch(route)` or, as an img/video/iframe `src`, `conn.url(route)`. `defineResource({ id?, key, route, every?,
+events?, parse?, timeout? })` declares a read; `useResource(res, args, { on?, every?, whileHidden?, refreshOn? })` gives
+`{ data, failed, error, loading, status?, refresh() }`, and `repository` (`load`, `watch`, `peek`, `subscribe`,
+`invalidate`) serves code outside React. Per connection there is one cache entry per key: its watchers share one
+request in flight and one timer (the shortest period asked), a timeout or failure keeps the data and marks it failed,
+and an answer with the same text keeps the same object. The poll pauses while the connection is down and while the page
+is hidden (a watcher may ask `whileHidden`: the update notice while an update installs); showing the page reads what
+the pause missed, a reconnect reads everything watched, and a resource's `events` read it again.
+
+**Storage** (`sdk/storage.ts`, `flags.ts`, `track.ts`). `storage.local(key, codec, fallback)` is a `Stored<T> { get;
+set; remove; subscribe }` over this origin's localStorage under the keys the app always used (codecs `bool`, `string`,
+`json(valid)`, `oneOf(values)`; a refused write is held in memory for the page). `storage.pref(name)` is a server
+setting of every window (`SharedPrefs`: `lang`, `uiScale`, `theme`, `projectRail`, `sounds`; `POST /system/prefs`
+through the current connection, chained, last wins), cached locally so a reload does not flash. A connection's `hello`
+is adopted in one place (`adoptHello`: language, scale, theme). The dictation language is the server's dictation
+setting, held in the `controls` slice. `useStored(item)` reads either in React. `flag(name)` / `useFlag(name)` are local
+feature flags (`nb.flag.<name>` over the typed, empty `FLAGS`). `track(name, props?)` appends to an in-memory ring of
+200 events (`track.recent()`); nothing is stored or sent.
+
+**The state rule.** Each piece of state has one home:
+
+| What | Where |
+|---|---|
+| Server data pushed over the socket, and UI state several components or a reload share | A slice (core or a plugin's), fed by `serverEvent` and actions. State another plugin reads is a core slice (`controls`). |
+| Server data fetched over HTTP | `useResource` / `repository`: its cache is the one copy. |
+| Anything that outlives the page (local or server prefs, saved UI state) | `storage.local` / `storage.pref`; a slice may mirror it through a listener, as `persist.ts` does. |
+| State of one component instance | `useState` / `useReducer`. |
+
+No new `useSyncExternalStore` module singletons outside `sdk/`: the boundary check counts the existing ones, which fold
+into a slice, `storage` or `repository` when a change touches them.
 
 ## 5. End-to-end scenarios
 
@@ -399,10 +518,11 @@ sequenceDiagram
   participant CS as CommentStore
   participant SM as SessionManager
   participant A as Agent
-  U->>S: sendBatch()
-  S->>S: composeBatch(draft, pending, labels, where, images)
+  U->>S: chat.send()
+  S->>S: take each send part (draft, comments: markSending), wait for a combined frame image
+  S->>S: compose in order: the draft, composeBatch(pending, labels, where, images)
   S->>SV: WS send{id, text, commentIds, images}
-  S->>S: draftSent, markSending(ids), activate the chat
+  S->>S: each part's sent(id): draftSent, the draft cleared, activate the chat
   SV->>CS: markSent(ids) before the agent is called
   SV-->>S: comments (to the owner)
   SV->>SM: send()
@@ -417,7 +537,7 @@ sequenceDiagram
 1. The client sends `switch{id, dir}`.
 2. `checkTarget` checks the target, then teardown with `gen++`.
 3. `hub.reset(transcript)` redraws the owner's feed.
-4. The server sends `session{root}`, and the listener in `persist` sees the new root: `enterRoot` (the tabs and tree of that root), `rootGen++` (remounting `FileTree` and `FileView`), cache reset.
+4. The server sends `session{root}`, and the root-change listener in `persist` sees the new root: `enterRoot` with that root's saved tabs, `rootGen++` (remounting `FileTree` and `FileView`); the files plugin restores its tree dirs and recent files on `enterRoot`, reloads the sources and resets the ref cache.
 5. `onSwitch` delivers the new session's comments. A running `! cmd` is stopped quietly and the queue of runs for the agent is dropped.
 
 **Compaction and "Show before compaction":**
@@ -459,7 +579,9 @@ that prove a listener before they send, and a state folder that is never served.
 
 ## 7. Testing
 
-- **Unit (vitest).** Worker environments explicitly reset the invoking NB provider and supervision/launcher flags; provider-specific tests select their provider. The server is tested through `startServer` on port 0 with a fake backend; the auth tests run with auth on. The web is tested through `makeStore` with `connect` and `pip` replaced.
+- **Unit (vitest).** Worker environments explicitly reset the invoking NB provider and supervision/launcher flags; provider-specific tests select their provider. The server is tested through `startServer` on port 0 with a fake backend; the auth tests run with auth on. The web is tested through `makeStore` with `connect` and `pip` replaced, by the harness in `web/src/testing/` (test files only): `testStore({ hello?, events?, state? })` gives `{ store, conn }` on a `FakeConnection` (`sent`, `emit`, `setState`) with every plugin; `renderWith(ui, o)` renders inside its `Provider`; `stubRoutes` answers fetch by path (an unmatched one is a recorded 404), `stubResources` by a registered resource's id; `events.*` build typed server events. `cut/testCut.tsx` is built on it.
+- **The import rule** is a unit test, `scripts/boundaries.test.ts`, with its shrinking baseline ([4.1](#41-core-sdk-and-plugins)).
+- **Parity fixtures** pin what the phone mirrors to the web: `web/src/store/feedParity.test.ts` drives `reduce()` with fixed event sequences and writes each case as `mobile/app/test/fixtures/feed/<case>.json` (`{ events, items }`, a projection both models hold, with the phone's tool `phase`), which `mobile/app/test/feed_test.dart` replays through the phone's feed; the anchor and media parity fixtures work the same way. `UPDATE_FIXTURES=1` rewrites them.
 - **E2E (Playwright, ports 4791 to 4795)** on `--fake` scripts, with the media fixtures generated by ffmpeg. The e2e servers are seeded with a known token and nonce.
 - **Codex integration.** RPC fixtures exercise transport, mapping, history, cancellation, policy and child cleanup. `npm run e2e:codex` runs the native-adapter browser fixture separately; `native.test.ts` drives the installed app-server against a local Responses mock without paid model calls. Marketplace smoke tests use isolated `CODEX_HOME`, NB state and a temporary project; npm runtime checks use the published package. Serialize browser suites that share ports.
 - **The `AgentBackend` seam** is the main reason almost everything can be tested without a real CLI.

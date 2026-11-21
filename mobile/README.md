@@ -8,6 +8,11 @@ The phone side of remote access (issue #63), in three Dart packages:
 | `channel/` (`nb_channel`) | the end-to-end channel of `server/src/remote/CHANNEL.md`: Noise IK, pairing values, relay admission, the stream mux |
 | `app/` (`nb_app`) | the Android app (Flutter) |
 
+In `app/lib`, `sdk.dart` is what the app is built on (`Sdk`: the `AppStores`, the host links, the phone's identity, the
+background check), made once by `main.dart` and passed down. A window is `chat/window_tab.dart`, composing
+`chat/window_connection.dart` (the socket) and `chat/window_state.dart` (what the window said). `app/test/imports_test.dart`
+keeps model and store files free of screens and `main.dart`. Details: [architecture 2.3](../docs/architecture.md#23-remote-relay).
+
 ## Checks
 
 ```sh
