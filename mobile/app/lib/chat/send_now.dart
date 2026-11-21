@@ -35,7 +35,7 @@ Future<String?> askSendNow(BuildContext context) {
 Future<void> sendPendingComments(BuildContext context, WindowTab tab) async {
   if (tab.comments.sendable.isEmpty) return;
   var force = false;
-  if (tab.busy) {
+  if (tab.windowState.busy) {
     final choice = await askSendNow(context);
     if (choice == null || !context.mounted) return;
     force = choice == 'force';
@@ -44,12 +44,12 @@ Future<void> sendPendingComments(BuildContext context, WindowTab tab) async {
   final comments = tab.comments.sendable;
   if (comments.isEmpty) return;
   final lang = Localizations.localeOf(context).languageCode;
-  final batch = tab.composeComments('', comments, lang);
+  final batch = tab.comments.compose(tab.windowState, '', comments, lang);
   final id = uuidV4();
   final ids = {for (final c in comments) c.id};
   final messenger = ScaffoldMessenger.maybeOf(context);
   final t = AppLocalizations.of(context);
-  final sent = tab.send(
+  final sent = tab.connection.send(
     ClientMessageSend(
       id: id,
       text: batch.text,
@@ -61,7 +61,7 @@ Future<void> sendPendingComments(BuildContext context, WindowTab tab) async {
   if (!sent) return;
   tab.comments.sending(ids);
   unawaited(
-    tab.refusals
+    tab.windowState.refusals
         .firstWhere((r) => r.id == id)
         .timeout(const Duration(seconds: 20))
         .then((r) {

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_app/chat/window_tab.dart' show transcribes;
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_app/store/voice_lang.dart';
 import 'package:nb_app/voice/outbox.dart';
@@ -179,10 +180,10 @@ void main() {
           'capabilities': Rig.caps(dictation: 'whisper'),
         },
       );
-      expect(r.tab!.whisper, isTrue);
+      expect(transcribes(r.tab!), isTrue);
       r.event({'kind': 'voice-text', 'id': 'u1', 'error': 'off', 'ts': 2});
       await t.pump();
-      expect(r.tab!.whisper, isFalse);
+      expect(transcribes(r.tab!), isFalse);
     },
   );
 

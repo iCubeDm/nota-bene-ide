@@ -514,7 +514,7 @@ void main() {
         expect(find.byType(ImageScreen), findsOneWidget);
         expect(r.ch.requests, contains('HEAD /file?path=docs%2Fshot.png'));
         expect(reads(r), 1);
-        expect(r.tab!.fileVersions['docs/shot.png'], 'W/"1"');
+        expect(r.tab!.windowState.fileVersions['docs/shot.png'], 'W/"1"');
         Navigator.of(t.element(find.byType(ImageScreen))).pop();
         await t.pump();
         await t.pump(const Duration(seconds: 1));
@@ -523,7 +523,7 @@ void main() {
         etag = 'W/"2"';
         await tapPreview();
         expect(reads(r), 2);
-        expect(r.tab!.fileVersions['docs/shot.png'], 'W/"2"');
+        expect(r.tab!.windowState.fileVersions['docs/shot.png'], 'W/"2"');
         r.dispose();
       },
     );

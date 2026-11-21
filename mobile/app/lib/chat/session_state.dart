@@ -55,8 +55,10 @@ bool awaitsAnswer(Feed f) =>
 
 /// Whether the agent acts or waits for the user: the pill's line takes the accent colour.
 bool sessionActive(WindowTab tab) =>
-    tab.state == TabState.open &&
-    (tab.busy || tab.feed.compacting || awaitsAnswer(tab.feed));
+    tab.connection.state == TabState.open &&
+    (tab.windowState.busy ||
+        tab.windowState.feed.compacting ||
+        awaitsAnswer(tab.windowState.feed));
 
 String elapsedText(Duration d) {
   final s = d.inSeconds < 0 ? 0 : d.inSeconds;
@@ -81,11 +83,11 @@ String sessionLine(
   DateTime now,
   String locale,
 ) {
-  switch (tab.state) {
+  switch (tab.connection.state) {
     case TabState.connecting:
       return t.stateConnecting;
     case TabState.offline:
-      final l = tab.link;
+      final l = tab.connection.link;
       if (l.state == LinkState.connecting) return t.stateConnecting;
       return l.lastSeen == null
           ? t.stateOffline
@@ -97,13 +99,13 @@ String sessionLine(
     case TabState.open:
       break;
   }
-  final f = tab.feed;
-  if (tab.state == TabState.open) {
+  final f = tab.windowState.feed;
+  if (tab.connection.state == TabState.open) {
     if (awaitsAnswer(f)) return t.stateWaitingAnswer;
     if (f.compacting) return t.stateCompacting;
-    if (tab.busy) {
+    if (tab.windowState.busy) {
       final phase = sessionPhase(f);
-      final since = tab.busySince;
+      final since = tab.windowState.busySince;
       return phase == null || since == null
           ? t.stateWorking
           : t.stateWorkingPhase(
@@ -112,7 +114,7 @@ String sessionLine(
             );
     }
   }
-  final done = tab.lastDoneAt;
+  final done = tab.windowState.lastDoneAt;
   return done == null
       ? t.stateOnline
       : t.stateOnlineDone(DateFormat.Hm(locale).format(done));

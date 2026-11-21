@@ -28,10 +28,10 @@ List<TreeEntry> sortEntries(Iterable<TreeEntry> entries) =>
 
 /// A JSON answer of the window's route [path]; [FilesError] when it did not answer 200.
 Future<dynamic> getJson(WindowTab tab, String path) async {
-  final ch = tab.link.channel;
+  final ch = tab.connection.link.channel;
   if (ch == null) throw FilesError(null);
   final r = await ch
-      .http(tab.port, 'GET', path)
+      .http(tab.connection.port, 'GET', path)
       .catchError((Object _) => throw FilesError(null));
   if (r.status != 200) throw FilesError(r.status);
   try {
@@ -80,11 +80,11 @@ const _probe = 8000;
 /// Reads [path] (relative to the project) for the code view. Asks for the first [fileMaxBytes] + 1 bytes with a Range
 /// request: a file over the cap is told by its total size and not downloaded.
 Future<FileRead> readTextFile(WindowTab tab, String path) async {
-  final ch = tab.link.channel;
+  final ch = tab.connection.link.channel;
   if (ch == null) throw FilesError(null);
   final r = await ch
       .http(
-        tab.port,
+        tab.connection.port,
         'GET',
         '/file?path=${Uri.encodeQueryComponent(path)}',
         headers: {'range': 'bytes=0-$fileMaxBytes'},

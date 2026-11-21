@@ -73,25 +73,25 @@ void main() {
   test('opens /ws with a tab id and waits for the replay', () async {
     final path = ch.wsOpens.single['path'] as String;
     expect(path, matches(RegExp(r'^/ws\?tab=[0-9a-f-]{36}&held=1$')));
-    expect(tab.state, TabState.connecting);
+    expect(tab.connection.state, TabState.connecting);
     ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': 13});
     ch.event(ch.lastWsId, replay([user('u1')]));
     await settle();
-    expect(tab.state, TabState.open);
-    expect(tab.feed.items.single, isA<UserItem>());
-    expect(tab.protocol, 13);
+    expect(tab.connection.state, TabState.open);
+    expect(tab.windowState.feed.items.single, isA<UserItem>());
+    expect(tab.connection.protocol, 13);
   });
 
   test('occupied then Work here sends takeover and opens on replay', () async {
     ch.event(ch.lastWsId, {'kind': 'occupied'});
     await settle();
-    expect(tab.state, TabState.occupied);
-    tab.takeOver();
+    expect(tab.connection.state, TabState.occupied);
+    tab.connection.takeOver();
     await settle();
     expect(ch.sentOn(ch.lastWsId).single, {'type': 'takeover'});
     ch.event(ch.lastWsId, replay([user('u1')]));
     await settle();
-    expect(tab.state, TabState.open);
+    expect(tab.connection.state, TabState.open);
   });
 
   test(
@@ -102,9 +102,9 @@ void main() {
       ch.event(ch.lastWsId, {'kind': 'taken-over'});
       ch.host(Close(ch.lastWsId, 4001));
       await settle();
-      expect(tab.state, TabState.taken);
+      expect(tab.connection.state, TabState.taken);
       expect(ch.wsOpens, hasLength(1));
-      tab.takeOver();
+      tab.connection.takeOver();
       await settle();
       expect(ch.wsOpens, hasLength(2));
       expect(ch.wsOpens.last['path'], endsWith('&passive=1'));
@@ -113,7 +113,7 @@ void main() {
       expect(ch.sentOn(ch.lastWsId).single, {
         'type': 'takeover',
       }, reason: 'the wanted takeover goes at once');
-      expect(tab.state, isNot(TabState.occupied));
+      expect(tab.connection.state, isNot(TabState.occupied));
     },
   );
 
@@ -126,8 +126,12 @@ void main() {
     f.results.add(ch2);
     ch.drop();
     await settle();
-    expect(tab.state, TabState.offline);
-    expect(tab.feed.items, hasLength(1), reason: 'what arrived stays readable');
+    expect(tab.connection.state, TabState.offline);
+    expect(
+      tab.windowState.feed.items,
+      hasLength(1),
+      reason: 'what arrived stays readable',
+    );
     // the link's backoff sleeps forever in this test: let it go now
     link.stop();
     link.start();
@@ -135,7 +139,10 @@ void main() {
     expect(ch2.wsOpens.single['path'], first);
     ch2.event(ch2.lastWsId, replay([user('u1'), user('u2')]));
     await settle();
-    expect(tab.feed.items.map((i) => (i as UserItem).id), ['u1', 'u2']);
+    expect(tab.windowState.feed.items.map((i) => (i as UserItem).id), [
+      'u1',
+      'u2',
+    ]);
   });
 
   test(
@@ -199,9 +206,9 @@ void main() {
     ch.push([]);
     ch.host(Close(ch.lastWsId, 4904));
     await settle();
-    expect(tab.state, TabState.gone);
+    expect(tab.connection.state, TabState.gone);
     expect(ch.wsOpens, hasLength(1));
-    expect(tab.feed.items, hasLength(1));
+    expect(tab.windowState.feed.items, hasLength(1));
     ch.push([window(4791, '/p')]);
     await settle();
     expect(ch.wsOpens, hasLength(2));
@@ -222,16 +229,16 @@ void main() {
       await settle();
       ch.event(ch.lastWsId, replay([user('u1')]));
       await settle();
-      expect(own.state, TabState.open);
+      expect(own.connection.state, TabState.open);
       ch.push([]);
       ch.host(Close(ch.lastWsId, 4904));
       await settle();
-      expect(own.state, TabState.gone);
+      expect(own.connection.state, TabState.gone);
       ch.push([window(4795, '/p', id: id)]);
       await settle();
       expect(ch.wsOpens.last['port'], 4795);
-      expect((own.key, own.port), (id, 4795));
-      expect(own.feed.items, hasLength(1), reason: 'the same chat');
+      expect((own.connection.key, own.connection.port), (id, 4795));
+      expect(own.windowState.feed.items, hasLength(1), reason: 'the same chat');
       own.dispose();
     },
   );
@@ -256,8 +263,8 @@ void main() {
           window(4792, '/p', id: '$id:4792'),
         ]);
         await settle();
-        expect(own.port, 4792);
-        expect(own.window!.port, 4792);
+        expect(own.connection.port, 4792);
+        expect(own.connection.window!.port, 4792);
         own.dispose();
       },
     );
@@ -279,7 +286,7 @@ void main() {
         await settle();
         ch.push([window(4792, '/p', id: id)]);
         await settle();
-        expect(own.window!.port, 4792);
+        expect(own.connection.window!.port, 4792);
         // and it still follows its window when that restarts on another port
         ch.event(ch.lastWsId, replay([]));
         await settle();
@@ -288,7 +295,7 @@ void main() {
         await settle();
         ch.push([window(4795, '/p', id: id)]);
         await settle();
-        expect(own.port, 4795);
+        expect(own.connection.port, 4795);
         expect(ch.wsOpens.last['port'], 4795);
         own.dispose();
       },
@@ -296,12 +303,12 @@ void main() {
   });
 
   test('send writes JSON on the stream only while open', () async {
-    tab.send(const ClientMessageInterrupt());
+    tab.connection.send(const ClientMessageInterrupt());
     await settle();
     expect(ch.sentOn(ch.lastWsId), isEmpty);
     ch.event(ch.lastWsId, replay([]));
     await settle();
-    tab.send(const ClientMessageInterrupt());
+    tab.connection.send(const ClientMessageInterrupt());
     await settle();
     expect(ch.sentOn(ch.lastWsId).single, {'type': 'interrupt'});
   });
@@ -320,15 +327,18 @@ void main() {
       ],
     });
     ch.event(ch.lastWsId, {'kind': 'model', 'model': 'opus', 'effort': 'high'});
-    final refused = tab.refusals.first;
+    final refused = tab.windowState.refusals.first;
     ch.event(ch.lastWsId, {
       'kind': 'send-refused',
       'id': 's1',
       'reason': 'busy',
     });
     await settle();
-    expect(tab.models.single.value, 'opus');
-    expect((tab.model, tab.effort), ('opus', AgentEffort.high));
+    expect(tab.windowState.models.single.value, 'opus');
+    expect(
+      (tab.windowState.model, tab.windowState.effort),
+      ('opus', AgentEffort.high),
+    );
     expect((await refused).id, 's1');
   });
 
@@ -337,7 +347,7 @@ void main() {
     await settle();
     ch.host(Close(ch.lastWsId, 4904));
     await settle();
-    expect(tab.state, TabState.gone);
+    expect(tab.connection.state, TabState.gone);
     expect(
       ch.wsOpens,
       hasLength(1),
@@ -375,17 +385,17 @@ void main() {
       () async {
         var n = 0;
         tab.addListener(() => n++);
-        expect(tab.mode, isNull);
+        expect(tab.windowState.mode, isNull);
         ch.event(ch.lastWsId, {'kind': 'mode', 'mode': 'plan'});
         await settle();
-        expect(tab.mode, AgentMode.plan);
+        expect(tab.windowState.mode, AgentMode.plan);
         expect(n, greaterThan(0));
         ch.event(ch.lastWsId, replay([]));
         await settle();
-        expect(tab.mode, AgentMode.plan);
+        expect(tab.windowState.mode, AgentMode.plan);
         ch.event(ch.lastWsId, {'kind': 'mode', 'mode': 'default', 'ack': 'x'});
         await settle();
-        expect(tab.mode, AgentMode.default_);
+        expect(tab.windowState.mode, AgentMode.default_);
       },
     );
 
@@ -393,20 +403,20 @@ void main() {
       await open(caps());
       ch.event(ch.lastWsId, {'kind': 'mode', 'mode': 'default'});
       await settle();
-      expect(tab.setMode(AgentMode.plan), isTrue);
+      expect(tab.windowState.setMode(AgentMode.plan), isTrue);
       await settle();
       final m = ch.sentOn(ch.lastWsId).single;
       expect(m['type'], 'mode');
       expect(m['mode'], 'plan');
       expect(m['id'], matches(RegExp(r'^[0-9a-f-]{36}$')));
-      expect(tab.mode, AgentMode.default_);
+      expect(tab.windowState.mode, AgentMode.default_);
       ch.event(ch.lastWsId, {'kind': 'mode', 'mode': 'plan', 'ack': m['id']});
       await settle();
-      expect(tab.mode, AgentMode.plan);
+      expect(tab.windowState.mode, AgentMode.plan);
     });
 
     test('setMode on a window the tab does not own sends nothing', () async {
-      expect(tab.setMode(AgentMode.plan), isFalse);
+      expect(tab.windowState.setMode(AgentMode.plan), isFalse);
     });
   });
 }

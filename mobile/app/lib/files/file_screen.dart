@@ -60,13 +60,13 @@ class _FileScreenState extends State<FileScreen> {
     if (!isMarkdownPath(widget.path)) {
       return setState(() => _fail = _Fail.notMarkdown);
     }
-    final ch = widget.tab.link.channel;
+    final ch = widget.tab.connection.link.channel;
     if (ch == null) return setState(() => _fail = _Fail.unreadable);
     _Fail? fail;
     String? text;
     try {
       final r = await ch.http(
-        widget.tab.port,
+        widget.tab.connection.port,
         'GET',
         '/file?path=${Uri.encodeQueryComponent(widget.path)}',
       );

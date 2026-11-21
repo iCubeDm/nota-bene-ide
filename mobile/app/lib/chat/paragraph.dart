@@ -166,7 +166,7 @@ class ParagraphTargets extends ChangeNotifier {
 
   /// The target as the reply is now, not as it was when tapped (null: the reply is gone from the feed).
   _Para? _fresh(_Para p) {
-    for (final it in tab.feed.items) {
+    for (final it in tab.windowState.feed.items) {
       if (it is AssistantItem && it.id == p.item.id) {
         return p.ctx.mounted ? _para(p.ctx, it, p.block, p.li) : null;
       }

@@ -133,7 +133,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// The feed key of the item message [id] names, or null.
   String? _keyOf(String id) {
-    for (final it in widget.tab.feed.items) {
+    for (final it in widget.tab.windowState.feed.items) {
       final k = feedKey(it);
       if (k == 'user:$id' ||
           k == 'assistant:$id' ||
@@ -151,7 +151,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<bool> _scrollTo(String id) async {
     final key = _keyOf(id);
     if (key == null || !_scroll.hasClients) return false;
-    final rows = feedRows(widget.tab.feed.items);
+    final rows = feedRows(widget.tab.windowState.feed.items);
     final at = rows.indexWhere((r) => r.items.any((it) => feedKey(it) == key));
     if (at < 0) return false;
     final row = rows[at];
@@ -160,7 +160,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final isTool = key.startsWith('tool:');
     final inner = isTool && row.isGroup ? key : null;
     if (isTool) {
-      widget.tab.feedUi.reveal(
+      widget.tab.windowState.feedUi.reveal(
         key.substring(5),
         group: row.isGroup ? (row.items.first as ToolItem).id : null,
       );
@@ -232,11 +232,11 @@ class _ChatScreenState extends State<ChatScreen> {
     builder: (context, _) {
       final t = AppLocalizations.of(context);
       final c = Theme.of(context).extension<NbColors>()!;
-      final f = widget.tab.feed;
+      final f = widget.tab.windowState.feed;
       final pending = widget.tab.voiceOutbox.entries;
       // issue 499: the messages the window holds behind a pending restart or compaction, and the pending compaction's chip
-      final held = widget.tab.held;
-      final chip = widget.tab.compactPending ? 1 : 0;
+      final held = widget.tab.windowState.held;
+      final chip = widget.tab.windowState.compactPending ? 1 : 0;
       final below = chip + pending.length + held.length;
       final items = f.items;
       final rows = feedRows(items);
@@ -293,9 +293,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                         (widget.bottom == null ? 0 : blurFade) +
                                         // the floating Stop and paperclip must not cover the end of the last bubble
                                         (clip ||
-                                                (widget.tab.state ==
+                                                (widget.tab.connection.state ==
                                                         TabState.open &&
-                                                    widget.tab.busy)
+                                                    widget.tab.windowState.busy)
                                             ? 8 + 56
                                             : 8),
                                   ),
@@ -326,7 +326,10 @@ class _ChatScreenState extends State<ChatScreen> {
                                       final h = held[held.length - 1 - i];
                                       return HeldBubble(
                                         h,
-                                        restart: widget.tab.restartPending,
+                                        restart: widget
+                                            .tab
+                                            .windowState
+                                            .restartPending,
                                         key: ValueKey('held:${h.id}'),
                                       );
                                     }
@@ -334,7 +337,10 @@ class _ChatScreenState extends State<ChatScreen> {
                                     if (i == rows.length) {
                                       return Center(
                                         child: TextButton(
-                                          onPressed: widget.tab.loadEarlier,
+                                          onPressed: widget
+                                              .tab
+                                              .windowState
+                                              .loadEarlier,
                                           child: Text(t.showEarlier),
                                         ),
                                       );
@@ -831,7 +837,9 @@ class FeedItemView extends StatelessWidget {
                                   : VoiceStage.transcribed),
                         error: voiceError,
                         onRetry:
-                            FileOpener.of(context)?.isRetrying(voice.id) ??
+                            FileOpener.of(
+                                  context,
+                                )?.voiceOutbox.isRetrying(voice.id) ??
                                 false
                             ? null
                             : () => retryVoice(context, voice),
@@ -1036,7 +1044,7 @@ class _ToolLineState extends State<ToolLine> {
     final c = Theme.of(context).extension<NbColors>()!;
     final it = widget.item;
     final running = it.result == null;
-    final ui = FileOpener.of(context)?.feedUi;
+    final ui = FileOpener.of(context)?.windowState.feedUi;
     final open =
         (ui == null ? _local : ui.toolOpen(it.id)) ??
         (widget.inGroup && it.isError);
@@ -1045,7 +1053,7 @@ class _ToolLineState extends State<ToolLine> {
     final path = toolPath(it);
     final file = tab == null || path == null
         ? null
-        : projectPath(tab.root, path);
+        : projectPath(tab.connection.root, path);
     return Padding(
       padding: EdgeInsets.only(left: it.sub ? 16 : 0, top: 2, bottom: 2),
       child: Column(

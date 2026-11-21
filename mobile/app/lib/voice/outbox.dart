@@ -9,7 +9,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
-import '../chat/window_connection.dart' show uuidV4;
+import '../chat/agent_connection.dart' show uuidV4;
+import '../chat/feed.dart' show UserItem;
+import '../chat/window_state.dart';
 import '../media/media_comment.dart';
 import 'files.dart';
 import 'upload.dart';
@@ -240,6 +242,8 @@ class VoiceOutbox extends ChangeNotifier {
   }) {
     _canDetect = canDetect;
     _owner = owner;
+    _retrying.clear();
+    _reconcileHeld = false;
     _send = send;
     _http = http;
     _compose = compose;
@@ -248,6 +252,8 @@ class VoiceOutbox extends ChangeNotifier {
   void detach(Object owner) {
     if (!identical(_owner, owner)) return;
     _owner = _send = _http = _compose = _canDetect = null;
+    _retrying.clear();
+    _reconcileHeld = false;
     for (final e in entries) {
       e._timer?.cancel();
       e._timer = null;
@@ -428,6 +434,72 @@ class VoiceOutbox extends ChangeNotifier {
       }
     }
     _changed();
+  }
+
+  // message id -> voice id of the Retry sends the window has not answered yet
+  final _retrying = <String, String>{};
+
+  /// A Retry of voice [voiceId] is out: pressing it again would send the message twice.
+  bool isRetrying(String voiceId) => _retrying.containsValue(voiceId);
+
+  /// Sends [voice] again as a new message (the Retry of a failed bubble that is in the feed, no longer an entry here).
+  /// False when the window did not take it.
+  bool retryVoice(Voice voice, String lang, {bool detect = false}) {
+    if (isRetrying(voice.id)) return true;
+    final id = uuidV4();
+    final send = _send;
+    if (send == null ||
+        !send(
+          ClientMessageSend(
+            id: id,
+            text: '',
+            voice: voice,
+            lang: lang,
+            detect: detect && (_canDetect?.call() ?? false) ? true : null,
+          ),
+        )) {
+      return false;
+    }
+    _retrying[id] = voice.id;
+    notifyListeners();
+    return true;
+  }
+
+  bool _reconcileHeld = false;
+
+  /// An event of the window, once [state] has applied it: what the window answered of the sends, and after a replay
+  /// the [reconcile]. A window that [holdsUntold] (protocol 27) may hold a message it never told this socket of (issue
+  /// 499): it is judged once its `compact-pending`, which follows the replay, says what it holds.
+  void event(ServerEvent e, WindowState state, {required bool holdsUntold}) {
+    switch (e) {
+      case ServerEventReplay():
+        _retrying.clear();
+        if (holdsUntold) {
+          _reconcileHeld = true;
+        } else {
+          _reconcileWith(state);
+        }
+      case ServerEventCompactPending():
+        if (_reconcileHeld) _reconcileWith(state);
+      case ServerEventSendRefused(:final id):
+        _retrying.remove(id);
+        refused(id);
+      // a send-held is taken: it waits in the state's `held` and comes back as a `user` event when it goes
+      case ServerEventSendHeld(:final id) || ServerEventUser(:final id):
+        _retrying.remove(id);
+        arrived(id);
+      default:
+    }
+  }
+
+  /// What the window shows or holds has arrived; what was sent and is in neither was lost with the socket.
+  void _reconcileWith(WindowState state) {
+    _reconcileHeld = false;
+    reconcile({
+      for (final i in state.feed.items)
+        if (i is UserItem) i.id,
+      for (final h in state.held) h.id,
+    });
   }
 
   void _changed() {

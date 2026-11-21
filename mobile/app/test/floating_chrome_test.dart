@@ -64,7 +64,7 @@ void main() {
     expect(p.top, cover);
     final composer = t.getTopLeft(find.byKey(const ValueKey('composer'))).dy;
     // the band's own height (field, strip, nav bar) and a little air; a turn in progress adds room for Stop
-    expect(r.tab!.busy, isTrue);
+    expect(r.tab!.windowState.busy, isTrue);
     expect(p.bottom, closeTo(800 - composer + blurFade + 8 + 56, 0.5));
     // at the end the newest message is above the field
     // and clear of the blur's fade above the field
@@ -292,7 +292,7 @@ void main() {
         },
       ],
     );
-    expect(r.tab!.busy, isFalse);
+    expect(r.tab!.windowState.busy, isFalse);
     final composer = t.getTopLeft(find.byKey(const ValueKey('composer'))).dy;
     final idle = padding(t).bottom;
     await t.enterText(find.byType(TextField), 'draft');

@@ -40,7 +40,7 @@ enum Feature {
 }
 
 /// Whether a peer that announced [protocol] understands [f].
-bool hasFeature(num? protocol, Feature f) => (protocol ?? 0) >= f.protocol;
+bool has(num? protocol, Feature f) => (protocol ?? 0) >= f.protocol;
 
 enum AgentEffort implements _Json {
   low,

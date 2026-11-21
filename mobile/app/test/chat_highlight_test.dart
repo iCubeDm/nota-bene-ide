@@ -25,7 +25,7 @@ void main() {
 
   /// Comment on [quote] (the [nth] occurrence) of the reply a1.
   Comment on(String quote, {int nth = 0, String text = 'why'}) {
-    final item = r.tab!.feed.items.last;
+    final item = r.tab!.windowState.feed.items.last;
     final rt = chatText(item).text;
     var at = -1;
     for (var i = 0; i <= nth; i++) {
@@ -105,7 +105,7 @@ void main() {
     'a comment whose quote is gone paints nothing, stays in the strip',
     (t) async {
       await openChat(t);
-      final item = r.tab!.feed.items.last;
+      final item = r.tab!.windowState.feed.items.last;
       r.tab!.comments.add(
         makeAnchor(chatSource(item)!, 'gone words here', 0, 5),
         'orphan',
@@ -123,7 +123,7 @@ void main() {
     on('echo', nth: 1);
     await t.pumpAndSettle();
     expect(painted(t), ['echo']);
-    final rt = chatText(r.tab!.feed.items.last);
+    final rt = chatText(r.tab!.windowState.feed.items.last);
     final c = r.tab!.comments.all.single.anchor as TextAnchor;
     expect(c.start, rt.text.indexOf('echo', 1));
     // the painted one is in the second block
@@ -160,7 +160,7 @@ void main() {
 
   testWidgets('a whole-message comment: badge, no highlight', (t) async {
     await openChat(t);
-    final item = r.tab!.feed.items.last;
+    final item = r.tab!.windowState.feed.items.last;
     final rt = chatText(item).text;
     final x = r.tab!.comments.add(
       makeAnchor(chatSource(item)!, rt, 0, rt.length),

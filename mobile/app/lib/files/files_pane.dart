@@ -108,7 +108,11 @@ class _PaneHomeState extends State<_PaneHome> {
 
   /// Asked once the window is open, and again later when the host could not say.
   Future<void> _maybeAsk() async {
-    if (_repo != null || _asking || widget.tab.state != TabState.open) return;
+    if (_repo != null ||
+        _asking ||
+        widget.tab.connection.state != TabState.open) {
+      return;
+    }
     _asking = true;
     final repo = await isGitRepo(widget.tab);
     _asking = false;
@@ -420,7 +424,10 @@ class _FolderPageState extends State<FolderPage> {
     final t = AppLocalizations.of(context);
     final c = Theme.of(context).extension<NbColors>()!;
     final title = _root
-        ? (widget.tab.root.split('/').where((s) => s.isNotEmpty).lastOrNull ??
+        ? (widget.tab.connection.root
+                  .split('/')
+                  .where((s) => s.isNotEmpty)
+                  .lastOrNull ??
               t.projectFolder)
         : widget.dir;
     return Scaffold(

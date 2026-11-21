@@ -1,6 +1,6 @@
 // What one window says of itself over its socket (issue 511): the feed, the agent's models, mode and effort, the held
 // messages, a pending compaction or restart, the stats. [WindowState.apply] takes each event; the socket itself is
-// [WindowConnection]'s.
+// [AgentConnection]'s.
 import 'dart:async';
 import 'dart:convert';
 
@@ -9,7 +9,7 @@ import 'package:nb_protocol/nb_protocol.dart';
 
 import '../media/media_comment.dart' show WindowHttp;
 import 'feed.dart';
-import 'window_connection.dart' show uuidV4;
+import 'agent_connection.dart' show uuidV4;
 
 class WindowState extends ChangeNotifier {
   WindowState({

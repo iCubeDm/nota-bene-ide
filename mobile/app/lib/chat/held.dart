@@ -33,8 +33,8 @@ class CompactPendingChip extends StatelessWidget {
             ),
           ),
           TextButton(
-            onPressed: tab.state == TabState.open
-                ? () => tab.send(const ClientMessageCompactCancel())
+            onPressed: tab.connection.state == TabState.open
+                ? () => tab.connection.send(const ClientMessageCompactCancel())
                 : null,
             child: Text(webString(WebKey.compactCancel, lang)),
           ),

@@ -41,6 +41,7 @@ void main() {
           (p.startsWith('chat/window_') && !p.endsWith('_sheet.dart')) ||
           p == 'sdk.dart' ||
           const {
+            'chat/agent_connection.dart',
             'chat/feed.dart',
             'chat/session_state.dart',
             'comments/comments.dart',
@@ -62,7 +63,7 @@ void main() {
 
   test('the reach follows imports, also up a folder and two hops away', () {
     final r = _reach('chat/window_tab.dart').map((p) => p.last).toSet();
-    expect(r, containsAll(['chat/window_connection.dart', 'sdk.dart']));
+    expect(r, containsAll(['chat/agent_connection.dart', 'sdk.dart']));
     expect(
       r,
       contains('comments/queue.dart'),

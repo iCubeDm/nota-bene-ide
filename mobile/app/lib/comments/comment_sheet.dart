@@ -453,12 +453,12 @@ class _SheetState extends State<_Sheet> {
     final lang = c.lang ??= voiceLangOf(context);
     final detect =
         (c.detect ??= voiceDetectOf(context)) &&
-        (tab?.detectProtocolOk ?? false);
+        (tab?.connection.has(Feature.voiceDetect) ?? false);
     setState(() {
       c.busy = true;
       c.error = null;
     });
-    final http = tab?.http;
+    final http = tab?.connection.http;
     if (http == null) return _done(c, error: VoiceError.failed);
     if (c.id == null) {
       try {
@@ -478,7 +478,7 @@ class _SheetState extends State<_Sheet> {
       }
     }
     final r = await transcribeClip(http, c.id!, lang, detect: detect);
-    if (r.error == VoiceError.off) tab!.whisperOn = false;
+    if (r.error == VoiceError.off) tab!.windowState.whisperOn = false;
     _done(c, text: r.text, error: r.error);
   }
 
@@ -728,7 +728,8 @@ class _SheetState extends State<_Sheet> {
         typed ||
         _label != null ||
         _clips.isNotEmpty ||
-        (_images.isNotEmpty && hasFeature(tab?.protocol, Feature.imagesAlone));
+        (_images.isNotEmpty &&
+            has(tab?.connection.protocol, Feature.imagesAlone));
     final voice = tab != null;
     return Builder(
       // a context under the sheet's own messenger, so "Whisper is on" shows above the sheet
@@ -741,8 +742,8 @@ class _SheetState extends State<_Sheet> {
         maxLines: 8,
         session: _session,
         open: true,
-        voiceProtocol: tab?.voiceProtocol ?? false,
-        whisperAvailable: tab?.whisper ?? false,
+        voiceProtocol: tab?.connection.has(Feature.voice) ?? false,
+        whisperAvailable: tab != null && transcribes(tab),
         onWhisperMissing: () => showWhisperSheet(inner, tab!),
         micEnabled: _clips.length < maxClips && !_busy && !_failed,
         showMic: voice && !typed,

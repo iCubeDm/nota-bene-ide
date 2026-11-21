@@ -145,7 +145,7 @@ void main() {
     await t.pumpAndSettle();
     final c = r.tab!.comments.all.single;
     final a = c.anchor as TextAnchor;
-    final text = chatText(r.tab!.feed.items.last).text;
+    final text = chatText(r.tab!.windowState.feed.items.last).text;
     expect((c.label, c.text), (QuickLabelId.clarify, ''));
     expect(a.quote, second);
     expect(a.start, text.indexOf(second));
@@ -524,7 +524,7 @@ void main() {
   ) async {
     await open(t, text: '- alpha one\n- beta two');
     // the second chat, in the same tree, with the same ids
-    final item = r.tab!.feed.items.last;
+    final item = r.tab!.windowState.feed.items.last;
     final a = ParagraphTargets(r.tab!), b = ParagraphTargets(r.tab!);
     addTearDown(a.dispose);
     addTearDown(b.dispose);
@@ -679,7 +679,7 @@ void main() {
         find.descendant(of: bubble, matching: find.text(quickLabels[2].emoji)),
       );
       await t.pumpAndSettle();
-      final text = chatText(r.tab!.feed.items.last).text;
+      final text = chatText(r.tab!.windowState.feed.items.last).text;
       var a = r.tab!.comments.all.single.anchor as TextAnchor;
       expect(a.quote, 'delta four');
       expect((a.start, a.end), (text.indexOf('delta four'), text.length));

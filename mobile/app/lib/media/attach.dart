@@ -112,7 +112,7 @@ Future<ImageRef> uploadImageVia(
 
 /// [uploadImageVia] through [tab]'s window; an [AttachError] while its host is offline.
 Future<ImageRef> uploadImage(WindowTab tab, Prepared p, String label) async {
-  final http = tab.http;
+  final http = tab.connection.http;
   if (http == null) throw AttachError('offline');
   return await uploadImageVia(http, p, label);
 }
