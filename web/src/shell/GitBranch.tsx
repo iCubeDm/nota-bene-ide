@@ -9,7 +9,7 @@ import { defineResource, useResource } from '@/sdk/repository.ts';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
 import { loadSources, useSources } from '@/files/sources.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
-import { diskChanged, pickSource, selectTree } from '@/tree/slice.ts';
+import { diskChanged, pickSource, selectTree } from '@/files/treeSlice.ts';
 import { setHasRepo } from '@/vcs/store.ts';
 
 type GitStatus = { branch: string | null; detached: boolean; dirty: boolean };

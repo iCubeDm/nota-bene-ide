@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
 import { useT } from '@/i18n/index.ts';
 import { selectCommentsUi, selectPending, setPanelOpen } from '@/comments/slice.ts';
-import { selectTree, setTreeOpen } from '@/tree/slice.ts';
+import { selectTree, setTreeOpen } from '@/files/treeSlice.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { useAppDispatch, useAppSelector } from '@/store/store.ts';
 import { openChanges, openLog, selectTabs } from '@/tabs/slice.ts';

@@ -2,7 +2,6 @@
 import type { Plugin } from '@/sdk';
 import { commentsPlugin } from './comments/plugin.ts';
 import { composerPlugin } from './composer/plugin.ts';
-import { treePlugin } from './tree/plugin.ts';
 import { filesPlugin } from './files/plugin.ts';
 import { controlsPlugin } from './controls/plugin.ts';
 import { statsPlugin } from './stats/plugin.ts';
@@ -12,4 +11,4 @@ import { mediaPlugin } from './media/plugin.ts';
 import { feedPlugin } from './feed/plugin.ts';
 import { subagentPlugin } from './subagent/plugin.ts';
 
-export const PLUGINS: readonly Plugin[] = [commentsPlugin, composerPlugin, treePlugin, filesPlugin, controlsPlugin, statsPlugin, remotePlugin, tasksPlugin, mediaPlugin, feedPlugin, subagentPlugin];
+export const PLUGINS: readonly Plugin[] = [commentsPlugin, composerPlugin, filesPlugin, controlsPlugin, statsPlugin, remotePlugin, tasksPlugin, mediaPlugin, feedPlugin, subagentPlugin];

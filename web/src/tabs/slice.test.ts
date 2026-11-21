@@ -4,7 +4,7 @@ import { makeStore, stubRoutes } from '@/testing';
 import { clearRefCache, openRef } from '../refs/refs.ts';
 import { MediaController } from '../media/mediaController.ts';
 import { filesSlice, setFileLoad } from '../files/slice.ts';
-import { setSource, toggleDir } from '../tree/slice.ts';
+import { setSource, toggleDir } from '../files/treeSlice.ts';
 import { activate, CLOSED_MAX, closeAll, closeOthers, closeRight, closeTab, diagramTabId, fileTabId, openChanges, openDiagram, openFile, openLog, openRemote, openSettings, openUsage, reopenClosed, selectActiveTab, selectTabs } from './slice.ts';
 
 function mk() {

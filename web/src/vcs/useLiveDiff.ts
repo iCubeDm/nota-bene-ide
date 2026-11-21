@@ -1,5 +1,5 @@
 import { selectSession, useAppSelector, useResource } from '@/sdk';
-import { selectRefreshSeq, selectTree } from '@/tree/slice.ts';
+import { selectRefreshSeq, selectTree } from '@/files/treeSlice.ts';
 import { baseOf, diffResource, useVcsUi } from './store.ts';
 
 /**

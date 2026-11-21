@@ -3,7 +3,7 @@ import type { VcsCommitDetail, VcsLog } from '@nota-bene/shared';
 import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
 import { useT, defineResource, routes, useResource, useAppDispatch, useAppSelector } from '@/sdk';
 import { PanelResizer, usePanelWidth } from '@/sdk/ui';
-import { pickSource, selectRefreshSeq, selectTree } from '@/tree/slice.ts';
+import { pickSource, selectRefreshSeq, selectTree } from '@/files/treeSlice.ts';
 import { useSources } from '@/files/sources.ts';
 import { FileDiff, StatusMark } from './DiffBody.tsx';
 import { SplitToggle, viewOf } from './ChangesView.tsx';

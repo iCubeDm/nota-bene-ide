@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { projectFileUrl } from '@/files/kinds.ts';
 import { useAppSelector } from '@/sdk';
-import { selectRefreshSeq } from '@/tree/slice.ts';
+import { selectRefreshSeq } from '@/files/treeSlice.ts';
 
 /**
  * The edit's sources that are not in the project: one HEAD per source (of the file view's `src`, a worktree or a

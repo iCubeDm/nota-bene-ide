@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { connections, useAppDispatch, useAppSelector } from '@/sdk';
 import { selectMediaComments } from '@/comments/slice.ts';
-import { selectRefreshSeq } from '@/tree/slice.ts';
+import { selectRefreshSeq } from '../treeSlice.ts';
 import type { FileKind } from '../kinds.ts';
 import { fileTabId } from '@/tabs/slice.ts';
 import { takeStartAt, type StartAt } from '../startAt.ts';

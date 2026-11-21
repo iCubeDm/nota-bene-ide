@@ -212,8 +212,10 @@ run in parallel with 5–11.
 
 ### 8c. `tree/` into `files/`
 
-- **Goal:** one plugin folder for the tree and files. A pure move, no code change.
-- **Files:** `web/src/tree/slice.ts` → `web/src/files/treeSlice.ts`, imports updated.
+- **Goal:** one plugin folder for the tree and files. A move, no behavior change.
+- **Files:** `web/src/tree/slice.ts` → `web/src/files/treeSlice.ts` (slice name stays `tree`), imports updated;
+  `tree/plugin.ts` folds into `files/plugin.ts` (slices `[treeSlice, filesSlice]`, tree's listeners first, as the
+  separate `tree` plugin ran before `files`), and `plugins.ts` drops the `tree` entry.
 - **Tests:** the full web suite.
 - **Baseline:** files↔tree edges → 0.
 

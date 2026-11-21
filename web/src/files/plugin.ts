@@ -1,18 +1,38 @@
 import type { WithSlice } from '@reduxjs/toolkit';
-import { clearRefCache, definePlugin, enterRoot, serverEvent } from '@/sdk';
+import { bool, clearRefCache, definePlugin, enterRoot, json, serverEvent, storage } from '@/sdk';
 import { filesSlice } from './slice.ts';
+import { readSavedDirs, setDirs, treeKey, treeSlice } from './treeSlice.ts';
 import { loadSources } from './sources.ts';
 import { pushRecent, RECENT_DWELL_MS } from './recent.ts';
 import { setTmpDirs } from './tmpImages.ts';
 
 declare module '@/sdk' {
-  interface PluginState extends WithSlice<typeof filesSlice> {}
+  interface PluginState extends WithSlice<typeof treeSlice>, WithSlice<typeof filesSlice> {}
 }
 
 export const filesPlugin = definePlugin({
   id: 'files',
-  slices: [filesSlice],
+  slices: [treeSlice, filesSlice],
   listeners: (start) => {
+    // a root's saved folders: merged on the first root (folders expanded before it was known stay), replacing after
+    start({
+      actionCreator: enterRoot,
+      effect: ({ payload: { root, first } }, api) => {
+        const saved = readSavedDirs(root);
+        if (saved) api.dispatch(setDirs(first ? [...new Set([...saved, ...api.getState().tree.dirs])] : saved));
+      },
+    });
+    start({
+      predicate: (_a, st, was) => st.tree.open !== was.tree.open,
+      effect: (_a, api) => storage.local('panel:tree', bool, true).set(api.getState().tree.open),
+    });
+    start({
+      predicate: (_a, st, was) => st.tree.dirs !== was.tree.dirs,
+      effect: (_a, api) => {
+        const { tabs: { root }, tree: { dirs, src } } = api.getState();
+        if (root) storage.local(treeKey(root, src), json<string[]>(), []).set(dirs);
+      },
+    });
     // where the server keeps the agent's temporary images: from its hello
     start({ actionCreator: serverEvent, effect: ({ payload: ev }) => void (ev.kind === 'hello' && setTmpDirs(ev.tmpDirs)) });
     // source ids are stable (M3-16): every saved tab comes back at once, whatever /sources says; a tab whose source is

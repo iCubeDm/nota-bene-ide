@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { setDirs } from '@/tree/slice.ts';
+import { setDirs } from '../treeSlice.ts';
 import { useAppDispatch } from '@/sdk';
 import { loadDir, shownIn, type TreeEntries } from './useTreeEntries.ts';
 

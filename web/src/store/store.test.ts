@@ -15,7 +15,7 @@ import { statsSlice } from '../stats/slice.ts';
 import { subagentsSlice } from '../subagent/slice.ts';
 import { tasksSlice, tasksUiSlice } from '../tasks/slice.ts';
 import { tabsSlice } from '../tabs/slice.ts';
-import { treeSlice } from '../tree/slice.ts';
+import { treeSlice } from '../files/treeSlice.ts';
 import { refusedMiddleware } from '../composer/refused.ts';
 import { historyMiddleware } from '../composer/history.ts';
 import { compactTimingMiddleware } from '../feed/compactTiming.ts';

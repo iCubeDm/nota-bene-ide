@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Source, TreeEntry } from '@nota-bene/shared';
-import { setDirs } from '@/tree/slice.ts';
+import { setDirs } from '../treeSlice.ts';
 import { useAppDispatch, type RootState, connections, routes } from '@/sdk';
 import { useStore } from 'react-redux';
 import { isFixed } from '../sources.ts';
