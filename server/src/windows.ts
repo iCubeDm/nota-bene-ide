@@ -9,7 +9,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { AgentProvider } from './agent/provider.ts';
 import { SecretError, verifiedBearer } from './auth.ts';
-import { pidAlive, renameRetry } from './platform.ts';
+import { writeJsonAtomic } from './atomicFile.ts';
+import { pidAlive } from './platform.ts';
 import { stateDir } from './state.ts';
 
 export type WindowEntry = {
@@ -68,11 +69,8 @@ export function readWindows(base?: string): Record<string, WindowEntry> {
 
 export function registerWindow(port: number, root: string, pid: number, launcherPid?: number, version?: string, nonce?: string): void {
   fs.mkdirSync(dir(), { recursive: true });
-  const f = fileOf(port);
-  const tmp = `${f}.tmp${process.pid}`;
   const entry: WindowEntry = { root, pid, ...(launcherPid !== undefined ? { launcherPid } : {}), startedAt: Date.now(), ...(version !== undefined ? { version } : {}), ...(nonce !== undefined ? { nonce } : {}) };
-  fs.writeFileSync(tmp, JSON.stringify(entry, null, 2));
-  renameRetry(tmp, f);
+  writeJsonAtomic(fileOf(port), entry, { space: 2 });
 }
 
 /**
@@ -90,10 +88,7 @@ export function setBuilding(port: number, launcherPid: number, on: boolean): voi
   const w = readEntry(port);
   if (!w || w.launcherPid !== launcherPid || Boolean(w.building) === on) return;
   const { building: _, ...rest } = w;
-  const f = fileOf(port);
-  const tmp = `${f}.tmp${process.pid}`;
-  fs.writeFileSync(tmp, JSON.stringify(on ? { ...rest, building: true } : rest, null, 2));
-  renameRetry(tmp, f);
+  writeJsonAtomic(fileOf(port), on ? { ...rest, building: true } : rest, { space: 2 });
 }
 
 /** Removes the port's entry only if it is still this pid's (or unreadable): a newer window on the port keeps its own. */

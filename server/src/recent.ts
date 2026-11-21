@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readChoices } from './agent/choice.ts';
 import { parseProvider, type AgentProvider } from './agent/provider.ts';
-import { renameRetry } from './platform.ts';
+import { withLock, writeJsonAtomic } from './atomicFile.ts';
 import { wirePath } from './wirePath.ts';
 
 export type RecentEntry = { root: string; provider: AgentProvider; at: number };
@@ -46,27 +46,32 @@ export function readHidden(base: string): string[] {
   }
 }
 
-function write(base: string, name: string, data: unknown): void {
+const write = (base: string, name: string, data: unknown) => writeJsonAtomic(path.join(base, name), data, { space: 2, newline: true, mode: 0o600 });
+
+/** Both lists' read-modify-writes, under one lock against other windows' (issue 562). */
+function locked(base: string, fn: () => void): void {
   fs.mkdirSync(base, { recursive: true, mode: 0o700 });
-  const file = path.join(base, name), tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 });
-  renameRetry(tmp, file);
+  withLock(path.join(base, FILE), fn);
 }
 
 export function recordRecent(base: string, root: string, provider: AgentProvider, now = Date.now()): void {
   try {
-    const rest = readOwn(base).filter((e) => e.root !== root || e.provider !== provider);
-    write(base, FILE, [{ root, provider, at: now }, ...rest].slice(0, RECENT_MAX));
-    const hidden = readHidden(base);
-    if (hidden.some((h) => same(root, h))) write(base, HIDDEN, hidden.filter((h) => !same(root, h)));
+    locked(base, () => {
+      const rest = readOwn(base).filter((e) => e.root !== root || e.provider !== provider);
+      write(base, FILE, [{ root, provider, at: now }, ...rest].slice(0, RECENT_MAX));
+      const hidden = readHidden(base);
+      if (hidden.some((h) => same(root, h))) write(base, HIDDEN, hidden.filter((h) => !same(root, h)));
+    });
   } catch { /* only a list for the switcher */ }
 }
 
 /** Removes `root` from the list, for every provider; throws when the files cannot be written (the page says so). */
 export function forgetRecent(base: string, root: string): void {
-  const own = readOwn(base);
-  if (own.some((e) => same(e.root, root))) write(base, FILE, own.filter((e) => !same(e.root, root)));
-  write(base, HIDDEN, [root, ...readHidden(base).filter((h) => h !== root)].slice(0, HIDDEN_MAX));
+  locked(base, () => {
+    const own = readOwn(base);
+    if (own.some((e) => same(e.root, root))) write(base, FILE, own.filter((e) => !same(e.root, root)));
+    write(base, HIDDEN, [root, ...readHidden(base).filter((h) => h !== root)].slice(0, HIDDEN_MAX));
+  });
 }
 
 export function readRecent(base: string): RecentEntry[] {

@@ -194,7 +194,7 @@ export function realpathNative(p: string): string {
 
 const RETRY_CODES = new Set(['EPERM', 'EACCES', 'EBUSY']);
 const RETRY_FOR_MS = 2000;
-const sleepSync = (ms: number): void => {
+export const sleepSync = (ms: number): void => {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 };
 

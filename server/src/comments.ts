@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Comment, CommentOp, CommentRefusal } from '@nota-bene/shared';
 import { isCutAnchor } from '@nota-bene/shared';
-import { renameRetry } from './platform.ts';
+import { writeJsonAtomic } from './atomicFile.ts';
 
 /** a session id that is safe as a file name (the fake backend's ids are no UUIDs) */
 export const SAFE_SESSION_ID = /^[0-9a-zA-Z-]{1,100}$/;
@@ -155,9 +155,7 @@ export class CommentStore {
     }
     const file = v2For(this.dir, sessionId);
     fs.mkdirSync(this.dir, { recursive: true });
-    const tmp = `${file}.tmp${process.pid}`;
-    fs.writeFileSync(tmp, JSON.stringify({ v: 2, ...st }, null, 2));
-    renameRetry(tmp, file);
+    writeJsonAtomic(file, { v: 2, ...st }, { space: 2 });
   }
 
   /** Marks the given comments as sent in `sentIn`; returns the full updated set. */
