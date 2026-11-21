@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
-import { bool, storage, useStored, useT, useAppDispatch, useAppSelector } from '@/sdk';
+import { useState } from 'react';
+import { bool, storage, useStored, useT, useAppDispatch } from '@/sdk';
 import { PanelResizer, usePanelWidth } from '@/sdk/ui';
 import { openChanges } from '@/tabs/slice.ts';
-import { selectTree } from '@/files/treeSlice.ts';
 import { StatusMark } from './DiffBody.tsx';
 import { fileTree, type TreeDir } from './fileTree.ts';
-import { currentFile, focusFile, pickBase, setPanel, useVcsUi } from './store.ts';
+import { currentFile, focusFile, pickBase, useVcsUi } from './store.ts';
 import { useLiveDiff } from './useLiveDiff.ts';
 
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
@@ -18,7 +17,6 @@ export function ChangesPanel() {
   const t = useT();
   const d = useAppDispatch();
   const { panel, focus } = useVcsUi();
-  const treeOpen = useAppSelector(selectTree).open;
   const { root, src, base: picked, data, refresh } = useLiveDiff(panel);
   const repo = data?.repo ? data : null;
   const files = repo?.files ?? [];
@@ -28,7 +26,6 @@ export function ChangesPanel() {
   const [shut, setShut] = useState<ReadonlySet<string>>(new Set()); // folders of the tree folded by hand
   const setTree = (on: boolean) => treeView.set(on);
   const toggle = (path: string) => setShut((s) => { const n = new Set(s); if (!n.delete(path)) n.add(path); return n; });
-  useEffect(() => { if (treeOpen) setPanel(false); }, [treeOpen]); // a reveal opened Files
   if (!panel) return null;
   const add = files.reduce((n, f) => n + (f.add ?? 0), 0), del = files.reduce((n, f) => n + (f.del ?? 0), 0);
   const cur = currentFile(files, focus?.path);
