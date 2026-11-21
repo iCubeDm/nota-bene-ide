@@ -1,0 +1,257 @@
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { dismissToast, getToasts } from '@/core/shell/toast.ts';
+import { App } from '@/App.tsx';
+import { closeTab, openFile, selectTabs } from './slice.ts';
+
+beforeEach(() => { localStorage.clear(); setLang('en'); });
+afterEach(cleanup);
+
+function setup(files: string[] = []) {
+  const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+  for (const f of files) store.dispatch(openFile(f));
+  render(<Provider store={store}><App /></Provider>);
+  return store;
+}
+const tab = (name: string) => screen.getByRole('tab', { name: new RegExp(name) });
+const ids = (s: ReturnType<typeof setup>) => selectTabs(s.getState()).open.map((t) => t.id);
+const menu = (el: HTMLElement) => { fireEvent.contextMenu(el); return screen.getByRole('menu'); };
+
+it('the chat context menu has no Close, only Close others and Close all', () => {
+  setup(['a/x.ts']);
+  const m = within(menu(tab('Chat')));
+  expect(m.queryByRole('menuitem', { name: 'Close' })).toBeNull();
+  expect(m.getByRole('menuitem', { name: 'Close others' })).toBeInTheDocument();
+  expect(m.getByRole('menuitem', { name: 'Close all' })).toBeInTheDocument();
+  expect(m.queryByRole('menuitem', { name: 'Copy path' })).toBeNull();
+});
+
+describe('renaming the session from the chat tab', () => {
+  const open = (title: string | null = 'Old title') => {
+    const posts: unknown[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith('/sessions/rename')) { posts.push(JSON.parse(String(init?.body))); return new Response(rejected ?? 'ok', { status: rejected ? 500 : 200 }); }
+      throw new Error('offline');
+    }));
+    const s = setup();
+    act(() => { s.dispatch(serverEvent({ kind: 'session', id: 'a1b2', root: '/p', title, model: null })); });
+    return { s, posts };
+  };
+  const pick = () => {
+    fireEvent.click(within(menu(screen.getByRole('tab', { selected: true }))).getByRole('menuitem', { name: 'Rename' }));
+    return screen.getByRole('textbox', { name: 'Rename' });
+  };
+  let rejected: string | null = null;
+  beforeEach(() => { rejected = null; });
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+  it('no session yet, no item; a file tab has none either', () => {
+    setup(['a.ts']);
+    expect(within(menu(tab('Chat'))).queryByRole('menuitem', { name: 'Rename' })).toBeNull();
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    expect(within(menu(tab('a.ts'))).queryByRole('menuitem', { name: 'Rename' })).toBeNull();
+  });
+
+  it('Enter sends the trimmed title for the open session', async () => {
+    const { posts } = open();
+    const box = pick();
+    expect(box).toHaveValue('Old title');
+    fireEvent.change(box, { target: { value: '  New title ' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await vi.waitFor(() => expect(screen.queryByRole('textbox', { name: 'Rename' })).toBeNull());
+    expect(posts).toEqual([{ id: 'a1b2', title: 'New title' }]);
+  });
+
+  it('Esc and a click elsewhere cancel; an empty or unchanged title sends nothing', () => {
+    const { posts } = open();
+    fireEvent.keyDown(pick(), { key: 'Escape' });
+    expect(screen.queryByRole('textbox', { name: 'Rename' })).toBeNull();
+    const box = pick();
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    fireEvent.blur(box);
+    expect(screen.queryByRole('textbox', { name: 'Rename' })).toBeNull();
+    fireEvent.keyDown(pick(), { key: 'Enter' });
+    expect(screen.queryByRole('textbox', { name: 'Rename' })).toBeNull();
+    const empty = pick();
+    fireEvent.change(empty, { target: { value: '   ' } });
+    fireEvent.keyDown(empty, { key: 'Enter' });
+    expect(posts).toEqual([]);
+  });
+
+  it('Esc does not reach the composer as an interrupt', () => {
+    open();
+    const seen = vi.fn((e: KeyboardEvent) => e.defaultPrevented);
+    document.addEventListener('keydown', seen);
+    fireEvent.keyDown(pick(), { key: 'Escape' });
+    document.removeEventListener('keydown', seen);
+    expect(seen).toHaveReturnedWith(true);
+  });
+
+  it('losing the focus to another app keeps the edit', () => {
+    open();
+    const box = pick();
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    fireEvent.blur(box);
+    expect(box).toBeInTheDocument();
+  });
+
+  it('a refused rename stays open and says why', async () => {
+    rejected = 'no such session';
+    open();
+    const box = pick();
+    fireEvent.change(box, { target: { value: 'New title' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await vi.waitFor(() => expect(getToasts().some((x) => x.msg.includes('no such session'))).toBe(true));
+    expect(box).toBeInTheDocument();
+    act(() => { for (const x of getToasts()) dismissToast(x.id); });
+  });
+});
+
+it('Close others keeps the chat and that tab', () => {
+  const s = setup(['a.ts', 'b.ts', 'c.ts']);
+  fireEvent.click(within(menu(tab('b.ts'))).getByRole('menuitem', { name: 'Close others' }));
+  expect(ids(s)).toEqual(['chat', 'file:b.ts']);
+});
+
+it('middle click closes a tab, but not the chat', () => {
+  const s = setup(['a.ts']);
+  fireEvent(tab('Chat'), new MouseEvent('auxclick', { bubbles: true, button: 1 }));
+  expect(ids(s)).toEqual(['chat', 'file:a.ts']);
+  fireEvent(tab('a.ts'), new MouseEvent('auxclick', { bubbles: true, button: 1 }));
+  expect(ids(s)).toEqual(['chat']);
+});
+
+it('the × button closes and has an accessible name', () => {
+  const s = setup(['a.ts']);
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  expect(ids(s)).toEqual(['chat']);
+});
+
+it('Copy path writes the project-relative path; Reveal is not in the menu (it is in the tree header, M6-10)', () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  setup(['src/a/x.ts']);
+  fireEvent.click(within(menu(tab('x.ts'))).getByRole('menuitem', { name: 'Copy path' }));
+  expect(writeText).toHaveBeenCalledWith('src/a/x.ts');
+  expect(within(menu(tab('x.ts'))).queryByRole('menuitem', { name: /reveal/i })).toBeNull();
+});
+
+it('labels are basenames, no tooltip (issue 463); aria-selected follows the active tab', () => {
+  setup(['src/a/x.ts']);
+  expect(tab('x.ts').querySelector('[data-icon]')?.getAttribute('data-icon')).toBe('ts'); // M6-11
+  expect(tab('x.ts')).not.toHaveAttribute('title');
+  expect(within(tab('x.ts')).getByRole('button', { name: 'Close' })).not.toHaveAttribute('title');
+  expect(tab('x.ts')).toHaveAttribute('aria-selected', 'true');
+  expect(tab('Chat')).toHaveAttribute('aria-selected', 'false');
+});
+
+it('the chat pane is the same element across tab switches, only hidden', () => {
+  const s = setup();
+  const pane = document.querySelector('[data-chat-pane]') as HTMLElement;
+  expect(pane).toHaveAttribute('data-pane', 'chat');
+  pane.scrollTop = 120;
+  act(() => { s.dispatch(openFile('a.ts')); });
+  expect(document.querySelector('[data-chat-pane]')).toBe(pane);
+  expect(pane).toHaveAttribute('hidden');
+  expect(document.querySelector('[data-pane="file:a.ts"]')).not.toHaveAttribute('hidden');
+  fireEvent.click(tab('Chat'));
+  expect(document.querySelector('[data-chat-pane]')).toBe(pane);
+  expect(pane).not.toHaveAttribute('hidden');
+  expect(pane.scrollTop).toBe(120);
+  expect(document.querySelector('[data-pane="file:a.ts"]')).toHaveAttribute('hidden');
+});
+
+it('the chat tab shows the session title, else Chat; no tooltip', () => {
+  const store = setup();
+  const chat = screen.getByRole('tab', { name: /Chat/ });
+  expect(chat).not.toHaveAttribute('title');
+  act(() => void store.dispatch(serverEvent({ kind: 'session', id: 'abcdefgh', root: '/p', title: 'Fix login', model: null })));
+  const titled = screen.getByRole('tab', { name: /Fix login/ });
+  expect(titled).not.toHaveAttribute('title');
+});
+
+it('file tabs that share a name show enough of their folder to tell them apart', () => {
+  setup(['src/app.ts', 'lib/app.ts', 'notes.md']);
+  const files = screen.getAllByRole('tab').filter((el) => el.dataset.tab?.startsWith('file:'));
+  expect(files.map((el) => [el.dataset.tab, el.textContent])).toEqual([
+    ['file:src/app.ts', 'src/app.ts'], ['file:lib/app.ts', 'lib/app.ts'], ['file:notes.md', 'notes.md'],
+  ]);
+});
+
+it('the Sessions menu opens from ▾ on the chat tab, also while a file tab is in front; no line above the chat', () => {
+  setup(['a.md']);
+  const chat = screen.getByRole('tab', { name: /Chat/ });
+  expect(within(chat).getByRole('button', { name: 'Sessions' })).toBeVisible();
+  expect(document.querySelector('#items')?.previousElementSibling?.querySelector('#sessBtn') ?? null).toBeNull();
+  expect(document.querySelectorAll('#sessBtn')).toHaveLength(1);
+});
+
+// ---- M6-12: overflow
+const rect = (left: number, width: number) => ({ left, right: left + width, top: 0, bottom: 28, width, height: 28, x: left, y: 0, toJSON() {} }) as DOMRect;
+
+it('▾ lists the hidden tabs first, then all; the filter matches paths; ↓ Enter opens; the strip has no scrollbar (M6-12)', async () => {
+  const s = setup(['src/a.ts', 'src/b.ts', 'docs/c.md']);
+  const strip = screen.getByRole('tablist');
+  expect(strip.className).toContain('nb-no-scrollbar');
+  // layout: the strip shows 0..300 px; c.md sits past its right edge
+  vi.spyOn(strip, 'getBoundingClientRect').mockReturnValue(rect(0, 300));
+  const at: Record<string, number> = { chat: 0, 'file:src/a.ts': 100, 'file:src/b.ts': 200, 'file:docs/c.md': 320 };
+  for (const el of strip.querySelectorAll<HTMLElement>('[data-tab]')) vi.spyOn(el, 'getBoundingClientRect').mockReturnValue(rect(at[el.dataset.tab!]!, 90));
+  fireEvent.click(screen.getByRole('button', { name: 'All tabs' }));
+  const list = await screen.findByRole('listbox', { name: 'All tabs' });
+  const items = () => [...list.querySelectorAll<HTMLElement>('[data-tab-item]')].map((b) => b.dataset.tabItem);
+  expect(within(list).getByText('Hidden')).toBeInTheDocument();
+  expect(items()).toEqual(['file:docs/c.md', 'chat', 'file:src/a.ts', 'file:src/b.ts', 'file:docs/c.md']);
+  const box = screen.getByRole('combobox', { name: 'Find a tab…' });
+  fireEvent.change(box, { target: { value: 'src/' } });
+  expect(items()).toEqual(['file:src/a.ts', 'file:src/b.ts']);
+  fireEvent.keyDown(box, { key: 'ArrowDown' });
+  fireEvent.keyDown(box, { key: 'Enter' });
+  expect(selectTabs(s.getState()).active).toBe('file:src/b.ts');
+  expect(screen.queryByRole('listbox')).toBeNull();
+});
+
+it('▾ labels same-name files as the strip does (issue 469)', async () => {
+  setup(['src/app.ts', 'lib/app.ts', 'docs/c.md']);
+  fireEvent.click(screen.getByRole('button', { name: 'All tabs' }));
+  const list = await screen.findByRole('listbox', { name: 'All tabs' });
+  const label = (id: string) => list.querySelector(`[data-tab-item="${id}"] span.truncate`)?.textContent;
+  expect([label('file:src/app.ts'), label('file:lib/app.ts'), label('file:docs/c.md')]).toEqual(['src/app.ts', 'lib/app.ts', 'c.md']);
+});
+
+it('▾ names every tab as the strip does, a renamed session and a closed rival included (issue 511: one tabLabel)', async () => {
+  const s = setup(['src/app.ts', 'lib/app.ts']);
+  act(() => void s.dispatch(serverEvent({ kind: 'session', id: 'abcdefgh', root: '/p', title: 'Renamed', model: null })));
+  act(() => void s.dispatch(closeTab('file:lib/app.ts')));
+  const strip = Object.fromEntries(screen.getAllByRole('tab').map((el) => [el.dataset.tab, el.querySelector('span.truncate')?.textContent]));
+  fireEvent.click(screen.getByRole('button', { name: 'All tabs' }));
+  const list = await screen.findByRole('listbox', { name: 'All tabs' });
+  const menu = Object.fromEntries([...list.querySelectorAll<HTMLElement>('[data-tab-item]')].map((el) => [el.dataset.tabItem, el.querySelector('span.truncate')?.textContent]));
+  expect(strip).toEqual({ chat: 'Renamed', 'file:src/app.ts': 'app.ts' });
+  expect(menu).toEqual(strip);
+});
+
+it('the wheel scrolls the strip sideways (M6-12)', () => {
+  setup(['a.ts']);
+  const strip = screen.getByRole('tablist');
+  fireEvent.wheel(strip, { deltaY: 120, deltaX: 0 });
+  expect(strip.scrollLeft).toBe(120);
+});
+
+it('the active tab is scrolled into view when it changes (M6-12)', () => {
+  const seen: string[] = [];
+  const orig = Element.prototype.scrollIntoView;
+  Element.prototype.scrollIntoView = function (this: Element) { seen.push((this as HTMLElement).dataset.tab ?? ''); };
+  try {
+    const s = setup(['a.ts', 'b.ts']);
+    seen.length = 0;
+    act(() => void s.dispatch(openFile('a.ts')));
+    expect(seen).toContain('file:a.ts');
+  } finally {
+    Element.prototype.scrollIntoView = orig;
+  }
+});

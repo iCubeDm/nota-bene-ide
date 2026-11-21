@@ -1,4 +1,4 @@
-// Consecutive actions as one folded line, "▸ 3 actions · 1 error · 2 comments": a port of web/src/feed/ToolGroup.tsx.
+// Consecutive actions as one folded line, "▸ 3 actions · 1 error · 2 comments": a port of web/src/plugins/feed/ToolGroup.tsx.
 import 'package:flutter/material.dart';
 import 'package:nb_protocol/nb_protocol.dart'
     show AnchorSourceMessage, TextAnchor;

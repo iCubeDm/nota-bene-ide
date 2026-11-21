@@ -1,6 +1,6 @@
 // The chat's anchors: which feed items can be commented on, the text of one as the desktop's anchor model reads it
-// (web/src/anchors/text.ts over the item's element: the "you" header, the sent-comments details and the images are
-// skipped), and what the batch calls the place (web/src/store/store.ts selectReplyLabel).
+// (web/src/core/anchors/text.ts over the item's element: the "you" header, the sent-comments details and the images are
+// skipped), and what the batch calls the place (web/src/core/store/store.ts selectReplyLabel).
 import 'dart:convert';
 
 import 'package:markdown/markdown.dart' as md;

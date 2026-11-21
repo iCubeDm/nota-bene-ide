@@ -8,39 +8,37 @@ import { expect, it } from 'vitest';
 
 const REPO = path.resolve(import.meta.dirname, '..');
 
-// Every web/src folder by role (the spec's folder table). A folder not listed fails the scan until it is classified.
-const CORE = ['anchors', 'components', 'i18n', 'lib', 'net', 'refs', 'sdk', 'shell', 'store', 'tabs', 'theme'];
-const PLUGINS = ['attachments', 'comments', 'composer', 'controls', 'cut', 'diagram', 'feed', 'files', 'media', 'page',
-  'projects', 'remote', 'settings', 'stats', 'subagent', 'tasks', 'update', 'usage', 'vcs', 'voice'];
+// A file's role is its directory (issue 570): `web/src/core/<name>/` is the core, `web/src/plugins/<name>/` a plugin,
+// `core/testing/` the harness, a file at `web/src/` the composition root. Any other folder fails the scan.
 const HARNESS = 'testing'; // test-only code, importable from tests only
-const SDK = ['sdk/index.ts', 'sdk/ui.ts'];
+const SDK = ['core/sdk/index.ts', 'core/sdk/ui.ts'];
 // shared test setups outside the harness, held to the test files' rules
-const TEST_HELPERS = ['cut/testCut.tsx'];
+const TEST_HELPERS = ['plugins/cut/testCut.tsx'];
 // The module singletons kept outside the store by design (issue 545, the spec's As built 50), each read with `useStored`.
 // Any other value with its own listeners outside the SDK is a module singleton the state rule puts in a slice,
 // `useResource` or `storage`: the check counts a `useStored({ … })` read and a module-level listener set.
 const SINGLETONS: Record<string, string> = {
   // ticks with a media element: through Redux it would re-render the store's readers at frame rate
-  'cut/Meter.tsx': "the edit player's state",
-  'cut/Timeline.tsx': "the edit player's clock",
-  'cut/CutBody.tsx': "the edit's reversed copies, made as it plays",
-  'voice/player.ts': "the voice bubbles' playback position",
-  'tabs/TabStrip.tsx': "the media controller's playing tab",
+  'plugins/cut/Meter.tsx': "the edit player's state",
+  'plugins/cut/Timeline.tsx': "the edit player's clock",
+  'plugins/cut/CutBody.tsx': "the edit's reversed copies, made as it plays",
+  'plugins/voice/player.ts': "the voice bubbles' playback position",
+  'core/tabs/TabStrip.tsx': "the media controller's playing tab",
   // live objects of mounted views (callbacks, the open edits), not data a reducer can hold
-  'cut/live.ts': 'the edits open in a tab',
-  'cut/targets.ts': 'the open edits "Add to edit" can add to',
+  'plugins/cut/live.ts': 'the edits open in a tab',
+  'plugins/cut/targets.ts': 'the open edits "Add to edit" can add to',
   // called where no store is in reach (a fetch catch, a middleware), transient, never replayed
-  'shell/toast.ts': 'the toasts',
-  'shell/Toasts.tsx': 'the toasts',
+  'core/shell/toast.ts': 'the toasts',
+  'core/shell/Toasts.tsx': 'the toasts',
   // HTTP data, yet not a resource: it loads on demand (a root change, the tree opening, a refresh) with a 5 s
   // time-to-live, and a forced load drops an answer still in flight; the repository has watches and polls, no TTL for a
   // load, and pauses its reads while the page is hidden. Folding it needs that option in the repository first
-  'refs/sources.ts': 'the sources',
+  'core/refs/sources.ts': 'the sources',
   // browser values, not app state
-  'feed/time.ts': 'the local day, moved at midnight',
-  'feed/MsgTime.tsx': 'the local day',
-  'projects/ProjectRail.tsx': 'the width media query',
-  'anchors/frame.ts': "the page frames' render count",
+  'plugins/feed/time.ts': 'the local day, moved at midnight',
+  'plugins/feed/MsgTime.tsx': 'the local day',
+  'plugins/projects/ProjectRail.tsx': 'the width media query',
+  'core/anchors/frame.ts': "the page frames' render count",
 };
 const WEB = 'web/src';
 const PHONE = 'mobile/app/lib';
@@ -85,6 +83,8 @@ function files(dir: string, ext: RegExp): string[] {
 // `@/x` and `./x` to a web/src-relative file; a package or an unresolvable path returns undefined.
 function resolve(from: string, spec: string, src: string): string | undefined {
   spec = spec.replace(/\?.*$/, '');
+  // `@/sdk` is an alias of the core's SDK folder (web/vite.config.ts, web/tsconfig.json)
+  if (/^@\/sdk(?:\/|$)/.test(spec)) spec = `@/core/${spec.slice(2)}`;
   const abs = spec.startsWith('@/') ? path.join(src, spec.slice(2)) : spec.startsWith('.') ? path.resolve(path.dirname(from), spec) : undefined;
   if (!abs) return undefined;
   const hit = ['', '.ts', '.tsx', '/index.ts', '/index.tsx'].map((e) => abs + e).find((p) => fs.statSync(p, { throwIfNoEntry: false })?.isFile());
@@ -93,19 +93,30 @@ function resolve(from: string, spec: string, src: string): string | undefined {
 
 type Role = 'core' | 'plugin' | 'root' | 'harness';
 function role(rel: string): { role: Role; folder: string } {
-  const folder = rel.includes('/') ? rel.slice(0, rel.indexOf('/')) : '';
-  if (!folder) return { role: 'root', folder };
-  if (folder === HARNESS) return { role: 'harness', folder };
-  if (CORE.includes(folder)) return { role: 'core', folder };
-  if (PLUGINS.includes(folder)) return { role: 'plugin', folder };
-  throw new Error(`boundaries: web/src/${folder}/ is neither core nor a plugin; classify it in scripts/boundaries.test.ts`);
+  const [part, folder, more] = rel.split('/');
+  if (folder === undefined) return { role: 'root', folder: '' };
+  if (more !== undefined && part === 'core') return { role: folder === HARNESS ? 'harness' : 'core', folder };
+  if (more !== undefined && part === 'plugins') return { role: 'plugin', folder };
+  throw new Error(`boundaries: web/src/${part}/ is neither core/<name>/ nor plugins/<name>/`);
 }
 
 // The state rule of issue 563: a plugin's slice is read only inside that plugin; the core's slices are anyone's
 // (directly or through the SDK's selectors), and another plugin's state comes through its service. A slice's owner is
-// the folder of its `createSlice({ name })`; a read is `s.<name>`, `st.`, `state.`, `was.` or `getState().<name>`.
+// the folder of its `createSlice({ name })`; a read is `s.<name>` or `s['<name>']` (also `st`, `state`, `was`,
+// `getState()`), or a destructured `{ <name> }` of the state: a selector's parameter, one typed `RootState`, or one
+// taken from `getState()`, `s`, `st`, `state` (issue 570). A nested destructuring (`{ a: { b }, <name> }`) is not seen.
 const SLICE = /createSlice\(\s*\{\s*name:\s*"(\d+)"/g;
-const READ = /(?:(?<![\w$.])(?:s|st|state|was)|\bgetState\(\s*\))\s*\.\s*([\w$]+)/g;
+const STATE = String.raw`(?:(?<![\w$.])(?:s|st|state|was)|\bgetState\(\s*\))`;
+const READ = new RegExp(`${STATE}\\s*\\.\\s*([\\w$]+)`, 'g');
+const INDEX = new RegExp(`${STATE}\\s*\\[\\s*"(\\d+)"\\s*\\]`, 'g');
+const TAKEN = /useAppSelector\(\s*\(\s*\{([^{}]*)\}|\{([^{}]*)\}\s*:\s*RootState\b|\{([^{}]*)\}\s*=\s*(?:(?:[\w$]+\.)?getState\(\s*\)|(?:s|st|state)\b)/g;
+// the slice names an access reads, from the masked code and its strings
+function reads(code: string, strings: string[]): string[] {
+  const out = [...code.matchAll(READ)].map((m) => m[1]!);
+  for (const m of code.matchAll(INDEX)) out.push(strings[Number(m[1])]!);
+  for (const m of code.matchAll(TAKEN)) for (const k of (m[1] ?? m[2] ?? m[3]!).split(',')) out.push(k.split(':')[0]!.trim());
+  return out;
+}
 
 // The violations in `root` (a repository checkout), as sorted "<file> -> <what>" entries.
 function scan(root: string): string[] {
@@ -130,21 +141,22 @@ function scan(root: string): string[] {
       const it = role(target);
       if (it.role === 'harness') {
         if (!test) add(`${WEB}/${target}`);
-      } else if (!test && it.folder !== me.folder) {
+      } else if (!test && (it.role !== me.role || it.folder !== me.folder)) {
         const bad = (me.role === 'plugin' && !SDK.includes(target)) || (me.role === 'core' && it.role === 'plugin');
         if (bad) add(`${WEB}/${target}`);
       }
     }
     if (test) continue;
-    if (/\blocalStorage\b/.test(code) && me.folder !== 'sdk' && rel !== 'net/auth.ts') add('localStorage');
+    const sdk = me.role === 'core' && me.folder === 'sdk';
+    if (/\blocalStorage\b/.test(code) && !sdk && rel !== 'core/net/auth.ts') add('localStorage');
     if (GATE.test(code)) add('protocol gate');
-    if (/\buseSyncExternalStore\b/.test(code) && me.folder !== 'sdk') add('useSyncExternalStore');
-    if (singleton(code) && me.folder !== 'sdk' && !SINGLETONS[rel]) add('module singleton');
+    if (/\buseSyncExternalStore\b/.test(code) && !sdk) add('useSyncExternalStore');
+    if (singleton(code) && !sdk && !SINGLETONS[rel]) add('module singleton');
     // the page's visibility pauses polls in the SDK's repository and is read nowhere else (pageVisible)
-    if (/\bvisibilityState\b/.test(code) && me.folder !== 'sdk') add('visibilityState');
-    for (const m of code.matchAll(READ)) {
-      const of = owner.get(m[1]);
-      if (of && of !== me.folder) add(`slice ${m[1]}`);
+    if (/\bvisibilityState\b/.test(code) && !sdk) add('visibilityState');
+    for (const name of reads(code, strings)) {
+      const of = owner.get(name);
+      if (of && (me.role !== 'plugin' || of !== me.folder)) add(`slice ${name}`);
     }
   }
   const phone = path.join(root, PHONE);
@@ -212,59 +224,59 @@ function tree(files: Record<string, string>): string {
 
 const W = 'web/src';
 const base = {
-  [`${W}/sdk/index.ts`]: '',
-  [`${W}/sdk/ui.ts`]: '',
-  [`${W}/sdk/connections.ts`]: '',
-  [`${W}/media/x.ts`]: '',
-  [`${W}/media/y.ts`]: '',
-  [`${W}/media/side.ts`]: '',
-  [`${W}/media/lazy.ts`]: '',
-  [`${W}/media/types.ts`]: '',
-  [`${W}/feed/own.ts`]: '',
-  [`${W}/lib/util.ts`]: '',
-  [`${W}/testing/index.tsx`]: '',
+  [`${W}/core/sdk/index.ts`]: '',
+  [`${W}/core/sdk/ui.ts`]: '',
+  [`${W}/core/sdk/connections.ts`]: '',
+  [`${W}/plugins/media/x.ts`]: '',
+  [`${W}/plugins/media/y.ts`]: '',
+  [`${W}/plugins/media/side.ts`]: '',
+  [`${W}/plugins/media/lazy.ts`]: '',
+  [`${W}/plugins/media/types.ts`]: '',
+  [`${W}/plugins/feed/own.ts`]: '',
+  [`${W}/core/lib/util.ts`]: '',
+  [`${W}/core/testing/index.tsx`]: '',
 };
 
 it('finds every import form, across lines, and resolves `@/` and relative specifiers', () => {
   const root = tree({
     ...base,
-    [`${W}/feed/Feed.tsx`]: [
-      "import {\n  a,\n  b,\n} from '@/media/x.ts';",
+    [`${W}/plugins/feed/Feed.tsx`]: [
+      "import {\n  a,\n  b,\n} from '@/plugins/media/x.ts';",
       "import type { T } from '../media/types.ts';",
-      "export { c } from '@/media/y.ts';",
-      "export * from \"../lib/util.ts\";",
-      "import '@/media/side.ts';",
-      "const lazy = () => import('@/media/lazy.ts');",
+      "export { c } from '@/plugins/media/y.ts';",
+      "export * from \"../../core/lib/util.ts\";",
+      "import '@/plugins/media/side.ts';",
+      "const lazy = () => import('@/plugins/media/lazy.ts');",
     ].join('\n'),
   });
   expect(scan(root)).toEqual([
-    `${W}/feed/Feed.tsx -> ${W}/lib/util.ts`,
-    `${W}/feed/Feed.tsx -> ${W}/media/lazy.ts`,
-    `${W}/feed/Feed.tsx -> ${W}/media/side.ts`,
-    `${W}/feed/Feed.tsx -> ${W}/media/types.ts`,
-    `${W}/feed/Feed.tsx -> ${W}/media/x.ts`,
-    `${W}/feed/Feed.tsx -> ${W}/media/y.ts`,
+    `${W}/plugins/feed/Feed.tsx -> ${W}/core/lib/util.ts`,
+    `${W}/plugins/feed/Feed.tsx -> ${W}/plugins/media/lazy.ts`,
+    `${W}/plugins/feed/Feed.tsx -> ${W}/plugins/media/side.ts`,
+    `${W}/plugins/feed/Feed.tsx -> ${W}/plugins/media/types.ts`,
+    `${W}/plugins/feed/Feed.tsx -> ${W}/plugins/media/x.ts`,
+    `${W}/plugins/feed/Feed.tsx -> ${W}/plugins/media/y.ts`,
   ]);
 });
 
 it('ignores a specifier inside a string, a template or a comment', () => {
   const root = tree({
     ...base,
-    [`${W}/feed/Feed.tsx`]: [
-      "const s = \"import a from '@/media/x.ts'\";",
-      "const t = `export * from '@/media/y.ts'`;",
-      "// import b from '@/media/side.ts';",
-      "/* import('@/media/lazy.ts');\n import '@/media/types.ts'; */",
-      "const u = 'http://example.test'; import { ok } from '@/lib/util.ts';",
+    [`${W}/plugins/feed/Feed.tsx`]: [
+      "const s = \"import a from '@/plugins/media/x.ts'\";",
+      "const t = `export * from '@/plugins/media/y.ts'`;",
+      "// import b from '@/plugins/media/side.ts';",
+      "/* import('@/plugins/media/lazy.ts');\n import '@/plugins/media/types.ts'; */",
+      "const u = 'http://example.test'; import { ok } from '@/core/lib/util.ts';",
     ].join('\n'),
   });
-  expect(scan(root)).toEqual([`${W}/feed/Feed.tsx -> ${W}/lib/util.ts`]);
+  expect(scan(root)).toEqual([`${W}/plugins/feed/Feed.tsx -> ${W}/core/lib/util.ts`]);
 });
 
 it('allows the SDK entries, the own folder, shared and packages to a plugin', () => {
   const root = tree({
     ...base,
-    [`${W}/feed/Feed.tsx`]: [
+    [`${W}/plugins/feed/Feed.tsx`]: [
       "import { a } from '@/sdk';",
       "import { b } from '@/sdk/ui.ts';",
       "import { c } from './own.ts';",
@@ -280,73 +292,73 @@ it('allows the SDK entries, the own folder, shared and packages to a plugin', ()
 it('names each rule: plugin→core past the SDK, core→plugin, @/testing outside tests', () => {
   const root = tree({
     ...base,
-    [`${W}/feed/Feed.tsx`]: "import { c } from '@/sdk/connections.ts';\nimport { u } from '@/lib/util.ts';",
-    [`${W}/shell/Header.tsx`]: "import { x } from '@/media/x.ts';\nimport { u } from '@/lib/util.ts';",
-    [`${W}/lib/h.ts`]: "import { t } from '@/testing';",
-    [`${W}/App.tsx`]: "import { x } from '@/media/x.ts';",
+    [`${W}/plugins/feed/Feed.tsx`]: "import { c } from '@/sdk/connections.ts';\nimport { u } from '@/core/lib/util.ts';",
+    [`${W}/core/shell/Header.tsx`]: "import { x } from '@/plugins/media/x.ts';\nimport { u } from '@/core/lib/util.ts';",
+    [`${W}/core/lib/h.ts`]: "import { t } from '@/core/testing';",
+    [`${W}/App.tsx`]: "import { x } from '@/plugins/media/x.ts';",
   });
   const found = scan(root);
   expect(found).toEqual([
-    `${W}/feed/Feed.tsx -> ${W}/lib/util.ts`,
-    `${W}/feed/Feed.tsx -> ${W}/sdk/connections.ts`,
-    `${W}/lib/h.ts -> ${W}/testing/index.tsx`,
-    `${W}/shell/Header.tsx -> ${W}/media/x.ts`,
+    `${W}/core/lib/h.ts -> ${W}/core/testing/index.tsx`,
+    `${W}/core/shell/Header.tsx -> ${W}/plugins/media/x.ts`,
+    `${W}/plugins/feed/Feed.tsx -> ${W}/core/lib/util.ts`,
+    `${W}/plugins/feed/Feed.tsx -> ${W}/core/sdk/connections.ts`,
   ]);
-  expect(found.map(classify)).toEqual(['plugin→core', 'plugin→core', 'testing outside tests', 'core→plugin']);
-  expect(classify(`${W}/feed/a.ts -> ${W}/media/x.ts`)).toBe('plugin→plugin');
+  expect(found.map(classify)).toEqual(['testing outside tests', 'core→plugin', 'plugin→core', 'plugin→core']);
+  expect(classify(`${W}/plugins/feed/a.ts -> ${W}/plugins/media/x.ts`)).toBe('plugin→plugin');
 });
 
 it('exempts test files, the listed test helpers and the harness from the folder rules', () => {
   const root = tree({
     ...base,
-    [`${W}/feed/Feed.test.tsx`]: "import { x } from '@/media/x.ts';\nimport { t } from '@/testing';",
-    [`${W}/shell/Header.test.ts`]: "import { x } from '@/media/x.ts';\nlocalStorage.clear();",
-    [`${W}/testing/fake.ts`]: "import { x } from '@/media/x.ts';",
-    [`${W}/cut/testCut.tsx`]: "import { u } from '@/lib/util.ts';\nimport { t } from '@/testing';",
+    [`${W}/plugins/feed/Feed.test.tsx`]: "import { x } from '@/plugins/media/x.ts';\nimport { t } from '@/core/testing';",
+    [`${W}/core/shell/Header.test.ts`]: "import { x } from '@/plugins/media/x.ts';\nlocalStorage.clear();",
+    [`${W}/core/testing/fake.ts`]: "import { x } from '@/plugins/media/x.ts';",
+    [`${W}/plugins/cut/testCut.tsx`]: "import { u } from '@/core/lib/util.ts';\nimport { t } from '@/core/testing';",
   });
   expect(scan(root)).toEqual([]);
   // any other file named like a helper is product code
-  expect(scan(tree({ ...base, [`${W}/feed/testMode.ts`]: "import { t } from '@/testing';\nlocalStorage.clear();" }))).toEqual([
-    `${W}/feed/testMode.ts -> localStorage`,
-    `${W}/feed/testMode.ts -> ${W}/testing/index.tsx`,
+  expect(scan(tree({ ...base, [`${W}/plugins/feed/testMode.ts`]: "import { t } from '@/core/testing';\nlocalStorage.clear();" }))).toEqual([
+    `${W}/plugins/feed/testMode.ts -> localStorage`,
+    `${W}/plugins/feed/testMode.ts -> ${W}/core/testing/index.tsx`,
   ]);
 });
 
 it('counts the text rules: localStorage, protocol gates, useSyncExternalStore, visibilityState', () => {
   const root = tree({
     ...base,
-    [`${W}/feed/Feed.tsx`]: [
+    [`${W}/plugins/feed/Feed.tsx`]: [
       "const v = localStorage.getItem('k'); // localStorage",
       "const on = useAppSelector((s) => s.controls.protocol >= 14);",
       "const n = useSyncExternalStore(sub, get);",
       "const best = (stamps.get(a) ?? 0) >= (stamps.get(b) ?? 0);",
       "if (document.visibilityState === 'hidden') return;",
     ].join('\n'),
-    [`${W}/comments/named.ts`]: "s.ops = ev.protocol >= OPS_PROTOCOL;",
-    [`${W}/comments/below.ts`]: "if (st.controls.protocol < 16) return;",
-    [`${W}/comments/table.ts`]: "const labelsFor = (protocol: number) => ALL.filter((l) => protocol >= (SINCE[l.id] ?? 0));",
-    [`${W}/comments/notGates.ts`]: [
+    [`${W}/plugins/comments/named.ts`]: "s.ops = ev.protocol >= OPS_PROTOCOL;",
+    [`${W}/plugins/comments/below.ts`]: "if (st.controls.protocol < 16) return;",
+    [`${W}/plugins/comments/table.ts`]: "const labelsFor = (protocol: number) => ALL.filter((l) => protocol >= (SINCE[l.id] ?? 0));",
+    [`${W}/plugins/comments/notGates.ts`]: [
       "const https = loc.protocol === 'https:';",
       "s.protocol = 0;",
       "const f = (protocol: number) => protocol;",
       "if (tab.detectProtocolOk) go();",
       "const OPS_PROTOCOL = 7;",
     ].join('\n'),
-    [`${W}/lib/quiet.ts`]: "// localStorage, useSyncExternalStore and protocol >= 4 in a comment\nconst k = 'localStorage';",
-    [`${W}/sdk/storage.ts`]: "localStorage.setItem('k', 'v'); useSyncExternalStore(a, b); document.visibilityState;",
-    [`${W}/net/auth.ts`]: "localStorage.getItem('t');",
+    [`${W}/core/lib/quiet.ts`]: "// localStorage, useSyncExternalStore and protocol >= 4 in a comment\nconst k = 'localStorage';",
+    [`${W}/core/sdk/storage.ts`]: "localStorage.setItem('k', 'v'); useSyncExternalStore(a, b); document.visibilityState;",
+    [`${W}/core/net/auth.ts`]: "localStorage.getItem('t');",
     ['mobile/app/lib/chat/window_tab.dart']: "bool get v => (protocol ?? 0) >= 14;\nbool get o => (tab.protocol ?? 0) >= opsProtocol;",
     ['mobile/app/lib/chat/quiet.dart']: "/// (protocol ?? 0) >= 14 is how it used to read\nconst p = 3;",
   });
   expect(scan(root)).toEqual([
     'mobile/app/lib/chat/window_tab.dart -> protocol gate',
-    `${W}/comments/below.ts -> protocol gate`,
-    `${W}/comments/named.ts -> protocol gate`,
-    `${W}/comments/table.ts -> protocol gate`,
-    `${W}/feed/Feed.tsx -> localStorage`,
-    `${W}/feed/Feed.tsx -> protocol gate`,
-    `${W}/feed/Feed.tsx -> useSyncExternalStore`,
-    `${W}/feed/Feed.tsx -> visibilityState`,
+    `${W}/plugins/comments/below.ts -> protocol gate`,
+    `${W}/plugins/comments/named.ts -> protocol gate`,
+    `${W}/plugins/comments/table.ts -> protocol gate`,
+    `${W}/plugins/feed/Feed.tsx -> localStorage`,
+    `${W}/plugins/feed/Feed.tsx -> protocol gate`,
+    `${W}/plugins/feed/Feed.tsx -> useSyncExternalStore`,
+    `${W}/plugins/feed/Feed.tsx -> visibilityState`,
   ]);
   expect(classify('mobile/app/lib/chat/window_tab.dart -> protocol gate')).toBe('protocol gate');
 });
@@ -355,39 +367,46 @@ it('counts a module singleton outside the SDK that the allowlist does not name',
   const root = tree({
     ...base,
     // a hand-rolled value: a listener set at module level, read through useStored
-    [`${W}/feed/flag.ts`]: "let on = false;\nconst subs = new Set<() => void>();\nexport const useOn = () => useStored({ subscribe: (f) => (subs.add(f), () => subs.delete(f)), get: () => on });",
+    [`${W}/plugins/feed/flag.ts`]: "let on = false;\nconst subs = new Set<() => void>();\nexport const useOn = () => useStored({ subscribe: (f) => (subs.add(f), () => subs.delete(f)), get: () => on });",
     // an object-literal read alone counts too
-    [`${W}/media/y.ts`]: "export const usePlaying = (p) => useStored({ subscribe: p.subscribe, get: p.state });",
+    [`${W}/plugins/media/y.ts`]: "export const usePlaying = (p) => useStored({ subscribe: p.subscribe, get: p.state });",
     // the allowlist's own, a stored item, a set inside a function, the SDK's
-    [`${W}/feed/MsgTime.tsx`]: "const useDay = () => useStored({ subscribe: subscribeDay, get: currentDay });",
-    [`${W}/feed/own.ts`]: "const v = useStored(savedSplit);\nfunction f() {\n  const subs = new Set<() => void>();\n}",
-    [`${W}/sdk/storage.ts`]: "const subs = new Set<() => void>();\nuseStored({ subscribe, get });",
+    [`${W}/plugins/feed/MsgTime.tsx`]: "const useDay = () => useStored({ subscribe: subscribeDay, get: currentDay });",
+    [`${W}/plugins/feed/own.ts`]: "const v = useStored(savedSplit);\nfunction f() {\n  const subs = new Set<() => void>();\n}",
+    [`${W}/core/sdk/storage.ts`]: "const subs = new Set<() => void>();\nuseStored({ subscribe, get });",
   });
-  expect(scan(root)).toEqual([`${W}/feed/flag.ts -> module singleton`, `${W}/media/y.ts -> module singleton`]);
-  expect(classify(`${W}/feed/flag.ts -> module singleton`)).toBe('module singleton');
+  expect(scan(root)).toEqual([`${W}/plugins/feed/flag.ts -> module singleton`, `${W}/plugins/media/y.ts -> module singleton`]);
+  expect(classify(`${W}/plugins/feed/flag.ts -> module singleton`)).toBe('module singleton');
 });
 
 it("counts a read of another plugin's slice, wherever it is read from", () => {
   const root = tree({
     ...base,
-    [`${W}/comments/slice.ts`]: "export const commentsSlice = createSlice({ name: 'comments', initialState, reducers: {} });\nconst own = (s: RootState) => s.comments.items;",
-    [`${W}/files/treeSlice.ts`]: "export const treeSlice = createSlice({\n  name: 'tree',\n  initialState,\n  reducers: {},\n});",
-    [`${W}/feed/uiSlice.ts`]: [
+    [`${W}/plugins/comments/slice.ts`]: "export const commentsSlice = createSlice({ name: 'comments', initialState, reducers: {} });\nconst own = (s: RootState) => s.comments.items;",
+    [`${W}/plugins/files/treeSlice.ts`]: "export const treeSlice = createSlice({\n  name: 'tree',\n  initialState,\n  reducers: {},\n});",
+    [`${W}/plugins/feed/uiSlice.ts`]: [
       "const n = createSelector([(s: RootState) => s.comments.items], f);",
       "const core = (s: RootState) => s.feed.items.length + s.controls.protocol;",
       "const other = (x: Box) => x.comments + this.s.tree;",
       "const text = 's.comments'; // st.tree.open",
     ].join('\n'),
-    [`${W}/vcs/store.ts`]: "start({ predicate: (_a, st, was) => st.tree.open && !was.tree.open, effect: (_a, api) => api.getState().tree });",
-    [`${W}/shell/Header.tsx`]: "const open = useAppSelector((state) => state.tree.open);",
-    [`${W}/comments/Feed.test.tsx`]: "expect(store.getState().tree.open).toBe(true);",
+    [`${W}/plugins/vcs/store.ts`]: "start({ predicate: (_a, st, was) => st.tree.open && !was.tree.open, effect: (_a, api) => api.getState().tree });",
+    [`${W}/core/shell/Header.tsx`]: "const open = useAppSelector((state) => state.tree.open);",
+    // issue 570: a bracket read and a destructured state
+    [`${W}/plugins/cut/a.ts`]: "const n = (s: RootState) => s['comments'].items;\nconst t = useAppSelector(({ tree, tabs }) => tree.open);",
+    [`${W}/plugins/media/b.ts`]: "const f = ({ files }: RootState) => files.load;\nconst { tree: t } = getState();\nconst { feed } = api.getState();",
+    [`${W}/plugins/page/props.tsx`]: "const View = ({ files, tree }: { files: string[]; tree: Node }) => files.length;\nconst { comments } = props;",
+    [`${W}/plugins/comments/Feed.test.tsx`]: "expect(store.getState().tree.open).toBe(true);",
   });
   expect(scan(root)).toEqual([
-    `${W}/feed/uiSlice.ts -> slice comments`,
-    `${W}/shell/Header.tsx -> slice tree`,
-    `${W}/vcs/store.ts -> slice tree`,
+    `${W}/core/shell/Header.tsx -> slice tree`,
+    `${W}/plugins/cut/a.ts -> slice comments`,
+    `${W}/plugins/cut/a.ts -> slice tree`,
+    `${W}/plugins/feed/uiSlice.ts -> slice comments`,
+    `${W}/plugins/media/b.ts -> slice tree`,
+    `${W}/plugins/vcs/store.ts -> slice tree`,
   ]);
-  expect(classify(`${W}/vcs/store.ts -> slice tree`)).toBe('foreign slice');
+  expect(classify(`${W}/plugins/vcs/store.ts -> slice tree`)).toBe('foreign slice');
 });
 
 it('refuses a web/src folder the rule does not know', () => {

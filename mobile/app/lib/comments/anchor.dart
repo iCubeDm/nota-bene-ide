@@ -1,4 +1,4 @@
-// The desktop's text anchors (web/src/anchors/resolve.ts, line for line): offsets into the "rendered text", with a
+// The desktop's text anchors (web/src/core/anchors/resolve.ts, line for line): offsets into the "rendered text", with a
 // quote and its context to find the place again when the text moved.
 import 'package:markdown/markdown.dart' as md;
 import 'package:nb_protocol/nb_protocol.dart';
@@ -111,7 +111,7 @@ class TextRun {
 class RenderedText {
   RenderedText(this.text, this.runs, this.blocks, [this.items = const []]);
 
-  /// the desktop's anchor text model (web/src/anchors/text.ts): whitespace runs as one space, block boundaries as a
+  /// the desktop's anchor text model (web/src/core/anchors/text.ts): whitespace runs as one space, block boundaries as a
   /// space, the ends trimmed
   final String text;
   final List<TextRun> runs;

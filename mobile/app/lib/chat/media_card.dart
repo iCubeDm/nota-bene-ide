@@ -19,7 +19,7 @@ final _tmpImage = RegExp(
   caseSensitive: false,
 );
 
-/// An absolute image path lexically under a temp folder of the window (as web/src/files/tmpImages.ts).
+/// An absolute image path lexically under a temp folder of the window (as web/src/plugins/files/tmpImages.ts).
 bool isTmpImagePath(String abs, List<String> dirs) {
   if (!abs.startsWith('/') ||
       abs.startsWith('//') ||

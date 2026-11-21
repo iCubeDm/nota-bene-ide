@@ -8,7 +8,7 @@ import 'package:nb_app/theme.dart';
 /// One theme's token block of the web's theme.css (comments dropped), with `var(--x)` resolved.
 Map<String, String> themeTokens(String id) {
   final css = File(
-    '../../web/src/theme.css',
+    '../../web/src/core/theme.css',
   ).readAsStringSync().replaceAll(RegExp(r'/\*.*?\*/', dotAll: true), '');
   final sel = id == 'darcula'
       ? ':root, [data-theme="darcula"]'

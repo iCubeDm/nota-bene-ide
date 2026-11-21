@@ -1,0 +1,129 @@
+import { act, cleanup, render, screen } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { afterEach, beforeEach, expect, it } from 'vitest';
+import type { ServerEvent, Stats } from '@nota-bene/shared';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { Meters, meterLevel } from './Meters.tsx';
+
+globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
+
+beforeEach(() => setLang('en'));
+afterEach(cleanup);
+
+function setup() {
+  const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+  const { container } = render(
+    <Provider store={store}>
+      <TooltipProvider><Meters /></TooltipProvider>
+    </Provider>,
+  );
+  act(() => { store.dispatch(serverEvent({ kind: 'hello', protocol: 5 } as ServerEvent)); }); // gated on hello (M7-09)
+  const stats = (s: Stats) => act(() => { store.dispatch(serverEvent({ kind: 'stats', stats: s } as ServerEvent)); });
+  return { stats, container };
+}
+const none: Stats = { context: null, limits: null, cost: null };
+const ctx = (pct: number) => ({ used: 50000, max: 200000, pct });
+
+it('59 has no class, 60 warn, 85 hot', () => {
+  expect(meterLevel(59)).toBe('');
+  expect(meterLevel(60)).toBe('warn');
+  expect(meterLevel(84.9)).toBe('warn');
+  expect(meterLevel(85)).toBe('hot');
+  const { stats } = setup();
+  stats({ ...none, context: ctx(59) });
+  expect(screen.getByRole('meter')).not.toHaveAttribute('data-level');
+  stats({ ...none, context: ctx(60) });
+  expect(screen.getByRole('meter')).toHaveClass('warn');
+  stats({ ...none, context: ctx(85) });
+  expect(screen.getByRole('meter')).toHaveClass('hot');
+});
+
+it('meter has aria value and label', () => {
+  const { stats } = setup();
+  stats({ ...none, context: ctx(41.6) });
+  const m = screen.getByRole('meter', { name: 'context 42%' });
+  expect(m).toHaveAttribute('aria-valuenow', '42');
+  expect(m).toHaveAttribute('aria-valuemin', '0');
+  expect(m).toHaveAttribute('aria-valuemax', '100');
+});
+
+it('the track keeps its 4px height and takes no space for its outline', () => {
+  const { stats } = setup();
+  stats({ ...none, context: ctx(41.6) });
+  const track = screen.getByRole('meter').querySelector('span')!;
+  expect(track).toHaveClass('h-1', 'w-11', 'outline', 'outline-1', 'outline-meter-line');
+  expect(track).not.toHaveClass('h-1.5');
+  expect(track).not.toHaveClass('border');
+});
+
+it('cost shows with or without limits; on a plan it is labelled the cost at API prices', () => {
+  const { stats } = setup();
+  stats({ ...none, cost: 1.234 });
+  expect(screen.getByLabelText('API cost of this session')).toHaveTextContent('$1.23');
+  const lim = { utilization: 30, resets_at: null };
+  stats({ ...none, cost: 1.234, limits: { five_hour: lim, seven_day: lim } });
+  expect(screen.getByLabelText('This session at API prices')).toHaveTextContent('$1.23');
+  expect(screen.getAllByRole('meter')).toHaveLength(2);
+});
+
+it('null stats and null parts render nothing', () => {
+  const { stats, container } = setup();
+  expect(container).toBeEmptyDOMElement();
+  stats(none);
+  expect(container).toBeEmptyDOMElement();
+  stats({ ...none, limits: { five_hour: null, seven_day: { utilization: 10, resets_at: null } } });
+  expect(screen.getAllByRole('meter')).toHaveLength(1);
+  stats(none); // a new event replaces the slice
+  expect(container).toBeEmptyDOMElement();
+});
+
+it('shows context, 5h and week in the same order for both provider formats', () => {
+  const { stats } = setup();
+  const five = { utilization: 30, resets_at: null };
+  const week = { utilization: 10, resets_at: null };
+  stats({ ...none, context: ctx(42), limits: { five_hour: five, seven_day: week } });
+  const labels = () => screen.getAllByRole('meter').map((m) => m.getAttribute('aria-label'));
+  expect(labels()).toEqual(['context 42%', '5h 30%', 'week 10%']);
+  stats({ ...none, context: ctx(42), windows: [
+    { ...week, label: 'secondary', minutes: 10080 },
+    { ...five, label: 'primary', minutes: 300 },
+  ] });
+  expect(labels()).toEqual(['context 42%', '5h 30%', 'week 10%']);
+  act(() => setLang('ru'));
+  expect(labels()).toEqual(['контекст 42\u00a0%', '5ч 30\u00a0%', 'неделя 10\u00a0%']);
+});
+
+it('keeps nonstandard and unknown native windows after standard windows, including zero usage', () => {
+  const { stats } = setup();
+  stats({ ...none, windows: [
+    { label: 'custom', minutes: 120, utilization: 15, resets_at: null },
+    { label: 'unknown', minutes: null, utilization: 7, resets_at: null },
+    { label: 'secondary', minutes: 10080, utilization: 0, resets_at: null },
+  ] });
+  expect(screen.getAllByRole('meter').map((m) => m.getAttribute('aria-label')))
+    .toEqual(['week 0%', '2h 15%', 'unknown 7%']);
+});
+
+it('labels follow the language', () => {
+  const { stats } = setup();
+  stats({ ...none, context: ctx(10) });
+  expect(screen.getByRole('meter')).toHaveAttribute('aria-label', 'context 10%');
+  act(() => setLang('ru'));
+  expect(screen.getByRole('meter')).toHaveAttribute('aria-label', 'контекст 10\u00a0%');
+});
+
+it('the meters sit in the composer tools row, left of the compact and clear buttons (prototype footer)', async () => {
+  const { Composer } = await import('@/plugins/composer/Composer.tsx');
+  const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+  render(<Provider store={store}><TooltipProvider><Composer /></TooltipProvider></Provider>);
+  act(() => { store.dispatch(serverEvent({ kind: 'hello', protocol: 5 } as ServerEvent)); }); // gated on hello (M7-09)
+  act(() => { store.dispatch(serverEvent({ kind: 'stats', stats: { context: ctx(40), limits: null, cost: null } } as ServerEvent)); });
+  const meter = screen.getByRole('meter');
+  const compact = screen.getByRole('button', { name: /Compact context/ });
+  const row = meter.closest('[data-tools-row]')!;
+  expect(row).toContainElement(compact);
+  expect(meter.compareDocumentPosition(compact) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});

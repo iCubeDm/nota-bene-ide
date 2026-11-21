@@ -1,4 +1,4 @@
-// Media marks as the desktop makes them (web/src/media/markup: geometry.ts, render.ts, MarkupLayer's shapeOf): shapes
+// Media marks as the desktop makes them (web/src/plugins/media/markup: geometry.ts, render.ts, MarkupLayer's shapeOf): shapes
 // relative to the media's natural size, their batch lines, and their painting, so a mark made here reads and looks
 // the same on the desktop. Checked against the desktop's own results in test/shapes_test.dart.
 import 'dart:math' as math;

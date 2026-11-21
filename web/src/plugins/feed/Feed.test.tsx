@@ -1,0 +1,474 @@
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ClientMessage } from '@nota-bene/shared';
+import { setLang } from '@/core/i18n/index.ts';
+import { historyPrepended } from '@/core/store/feed.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { Feed } from './Feed.tsx';
+import { inputText, ToolLine } from './ToolLine.tsx';
+import { clockTime, fullTime } from './time.ts';
+
+// counts renders: every feed element and the feed itself call useT once a render
+const renders = vi.hoisted(() => ({ n: 0 }));
+vi.mock('@/core/i18n/index.ts', async (orig) => {
+  const m = await orig<typeof import('@/core/i18n/index.ts')>();
+  return { ...m, useT: () => (renders.n++, m.useT()) };
+});
+
+beforeEach(() => setLang('en'));
+afterEach(cleanup);
+
+function setup() {
+  const sent: ClientMessage[] = [];
+  const connect = vi.fn(() => ({ send: (m: ClientMessage) => (sent.push(m), true), close() {} }));
+  const store = makeStore({ url: 'ws://x', connect });
+  const view = render(
+    <Provider store={store}>
+      <Feed />
+    </Provider>,
+  );
+  return { sent, store, view };
+}
+
+it('renders one element per feed item in order', () => {
+  const { store, view } = setup();
+  act(() => {
+    store.dispatch(serverEvent({ kind: 'user', id: 'u1', text: 'hello', ts: 0, historic: true }));
+    store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'message', id: 'a:0', text: 'hi **there**' } }));
+    store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'tool-call', id: 't1', name: 'Bash', input: { command: 'ls' }, sub: false } }));
+    store.dispatch(serverEvent({ kind: 'agent', ts: 2, e: { t: 'turn-end', stop: 'done', secs: 3, answers: 'none', queued: 0 } }));
+  });
+  const els = [...view.container.querySelectorAll('[data-kind]')];
+  expect(els.map((e) => e.getAttribute('data-kind'))).toEqual(['user', 'assistant', 'tool', 'done']);
+  expect(els[0]).toHaveAttribute('data-item-id', 'u1');
+  expect(els[1]).toHaveAttribute('data-item-id', 'a:0');
+  expect(els[2]).toHaveTextContent('▸ Bash · ls');
+  expect(els[3]).toHaveTextContent(/^done · 3s/);
+});
+
+it('user meta shows "while working"', () => {
+  const { store, view } = setup();
+  act(() => {
+    store.dispatch(serverEvent({ kind: 'user', id: 'u1', text: 'first', ts: Date.now() }));
+    store.dispatch(serverEvent({ kind: 'user', id: 'u2', text: 'second', ts: Date.now() }));
+  });
+  const [first, second] = [...view.container.querySelectorAll('[data-kind="user"]')];
+  expect(first!.firstElementChild!.textContent).toMatch(/^you · \d/);
+  expect(first!.firstElementChild!.textContent).not.toContain('while working');
+  expect(second!.firstElementChild!.textContent).toContain(' · while working');
+});
+
+it('permission buttons dispatch answerPermission and the card shows the answer', () => {
+  const { store, sent } = setup();
+  act(() => {
+    store.dispatch(serverEvent({ kind: 'permission', id: 'p1', toolName: 'Bash', input: { command: 'rm -rf x' }, ts: 1 }));
+  });
+  expect(screen.getByText('Allow Bash?')).toBeInTheDocument();
+  expect(screen.getByText('rm -rf x').tagName).toBe('PRE');
+  fireEvent.click(screen.getByRole('button', { name: 'Allow' }));
+  expect(sent).toContainEqual({ type: 'permission', id: 'p1', allow: true });
+  act(() => {
+    store.dispatch(serverEvent({ kind: 'permission-done', id: 'p1', allow: true, ts: 2 }));
+  });
+  expect(screen.queryByRole('button')).toBeNull();
+  expect(screen.getByText('✓ allowed')).toBeInTheDocument();
+});
+
+it('an empty chat shows a prompt to start, gone after the first message', () => {
+  const { store, view } = setup();
+  expect(view.container.querySelector('[data-kind="empty"]')).toHaveTextContent('Write to the agent to get started');
+  act(() => { store.dispatch(serverEvent({ kind: 'user', id: 'u1', text: 'hi', ts: 1 })); });
+  expect(view.container.querySelector('[data-kind="empty"]')).toBeNull();
+});
+
+function toolFeed(command: string, output: string | undefined, isError = false) {
+  const h = setup();
+  act(() => {
+    h.store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'tool-call', id: 't1', name: 'Bash', input: { command, description: 'd' }, sub: false } }));
+    if (output !== undefined) {
+      h.store.dispatch(serverEvent({ kind: 'agent', ts: 2, e: { t: 'tool-update', id: 't1', text: output, isError } }));
+    }
+  });
+  return h;
+}
+
+it('clicking the line shows the full command and the output', () => {
+  const { view } = toolFeed('ls -la\necho second-line', 'file-a\nfile-b');
+  const btn = screen.getByRole('button', { name: /Bash/ });
+  expect(btn).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.queryByTestId('tool-panel')).toBeNull();
+  fireEvent.click(btn);
+  expect(btn).toHaveAttribute('aria-expanded', 'true');
+  const panel = screen.getByTestId('tool-panel');
+  // M7-17 (R-M7-18): the panel is a commentable root, the toggle line stays out of anchors
+  expect(panel).not.toHaveAttribute('data-anchor-skip');
+  expect(panel).toHaveAttribute('data-item-id', 'tool:t1');
+  expect(btn).toHaveAttribute('data-anchor-skip');
+  expect(panel).toHaveTextContent('ls -la');
+  expect(panel).toHaveTextContent('echo second-line');
+  expect(panel).toHaveTextContent('file-a');
+  expect(view.container.querySelector('[data-anchor-skip] pre')).toBeNull();
+  fireEvent.click(btn);
+  expect(screen.queryByTestId('tool-panel')).toBeNull();
+});
+
+it('a tool without a result shows the running hint while busy and "no output" otherwise', () => {
+  const { store } = toolFeed('sleep 9', undefined);
+  fireEvent.click(screen.getByRole('button', { name: /Bash/ }));
+  expect(screen.getByText('no output')).toBeInTheDocument();
+  act(() => {
+    store.dispatch(serverEvent({ kind: 'user', id: 'u9', text: 'go', ts: 3 }));
+  });
+  expect(screen.getByText('running…')).toBeInTheDocument();
+});
+
+it('an empty result shows "no output"; the toggle is wired to its panel', () => {
+  toolFeed('true', '');
+  const btn = screen.getByRole('button', { name: /Bash/ });
+  fireEvent.click(btn);
+  expect(screen.getByText('no output')).toBeInTheDocument();
+  expect(btn).toHaveAttribute('aria-controls', screen.getByTestId('tool-panel').id);
+});
+
+it('inputText prints string fields raw with the main argument first', () => {
+  expect(inputText('Task', { subagent_type: 'x', prompt: 'a\nb', opts: { n: 1 } })).toBe('prompt:\na\nb\n\nsubagent_type:\nx\n\nopts:\n{\n  "n": 1\n}');
+  expect(inputText('Bash', { command: 'ls', description: 'd' })).toBe('ls');
+});
+
+it('error output is red', () => {
+  toolFeed('false', 'boom', true);
+  fireEvent.click(screen.getByRole('button', { name: /Bash/ }));
+  expect(screen.getByText('boom')).toHaveClass('text-destructive');
+});
+
+it('renders only the first 20000 characters of a long output until show all', () => {
+  toolFeed('big', 'x'.repeat(20_000) + 'TAIL');
+  fireEvent.click(screen.getByRole('button', { name: /Bash/ }));
+  expect(screen.getByTestId('tool-panel')).not.toHaveTextContent('TAIL');
+  fireEvent.click(screen.getByRole('button', { name: 'show all' }));
+  expect(screen.getByTestId('tool-panel')).toHaveTextContent('TAIL');
+  expect(screen.queryByRole('button', { name: 'show all' })).toBeNull();
+});
+
+it('a server error is not a chat item (it is a toast)', () => {
+  const { store, view } = setup();
+  act(() => void store.dispatch(serverEvent({ kind: 'server-error', where: 'ws', message: 'boom' })));
+  expect(view.container.querySelector('[data-kind="notice"]')).toBeNull();
+});
+
+it('scrolled up: a "jump to the latest" button appears, marks new items, and scrolls to the end', () => {
+  const store = makeStore({ url: 'ws://x', connect: vi.fn(() => ({ send: () => true, close() {} })) });
+  render(
+    <Provider store={store}>
+      <main data-chat-pane>
+        <Feed />
+      </main>
+    </Provider>,
+  );
+  const pane = document.querySelector<HTMLElement>('[data-chat-pane]')!;
+  Object.defineProperty(pane, 'scrollHeight', { configurable: true, value: 5000 });
+  Object.defineProperty(pane, 'clientHeight', { configurable: true, value: 600 });
+  const scrollTo = vi.fn();
+  pane.scrollTo = scrollTo as never;
+  expect(screen.queryByRole('button', { name: 'Jump to the latest' })).toBeNull();
+  pane.scrollTop = 1000; // far from the end
+  fireEvent.scroll(pane);
+  const btn = screen.getByRole('button', { name: 'Jump to the latest' });
+  expect(btn.dataset.unread).toBeUndefined();
+  act(() => { store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'message', id: 'a1:0', text: 'new' } })); });
+  expect(btn.dataset.unread).toBe('true'); // something new below while away
+  fireEvent.click(btn);
+  expect(scrollTo).toHaveBeenCalledWith({ top: 5000, behavior: 'smooth' });
+  pane.scrollTop = 4400; // arrived at the end
+  fireEvent.scroll(pane);
+  expect(screen.queryByRole('button', { name: 'Jump to the latest' })).toBeNull();
+});
+
+describe('action groups', () => {
+  function run(store: ReturnType<typeof makeStore>, n: number, o: { errors?: number; end?: boolean } = {}) {
+    act(() => {
+      store.dispatch(serverEvent({ kind: 'user', id: 'u1', text: 'go', ts: 0 } as never));
+      for (let i = 1; i <= n; i++) {
+        store.dispatch(serverEvent({ kind: 'agent', ts: i, e: { t: 'tool-call', id: `t${i}`, name: 'Bash', input: { command: `cmd-${i}` }, sub: false } }));
+        store.dispatch(serverEvent({ kind: 'agent', ts: i, e: { t: 'tool-update', id: `t${i}`, text: 'out', isError: i <= (o.errors ?? 0) } }));
+      }
+      if (o.end) store.dispatch(serverEvent({ kind: 'agent', ts: 99, e: { t: 'turn-end', stop: 'done', secs: 1, answers: ['u1'], queued: 0 } }));
+    });
+  }
+
+  it('a single action stays a plain line', () => {
+    const { store, view } = setup();
+    run(store, 1, { end: true });
+    expect(view.container.querySelector('[data-kind="tool-group"]')).toBeNull();
+    expect(screen.getByRole('button', { name: /Bash · cmd-1/ })).toBeInTheDocument();
+  });
+
+  it('consecutive actions fold into "N actions", collapsed; a click shows every line, each still expandable', () => {
+    const { store, view } = setup();
+    run(store, 3, { end: true });
+    const group = view.container.querySelector('[data-kind="tool-group"]')!;
+    const head = screen.getByRole('button', { name: '3 actions' });
+    expect(head).toHaveAttribute('aria-expanded', 'false');
+    expect(group.querySelectorAll('[data-kind="tool"]')).toHaveLength(0); // done: nothing below the head
+    fireEvent.click(head);
+    expect(group.querySelectorAll('[data-kind="tool"]')).toHaveLength(3);
+    fireEvent.click(screen.getByRole('button', { name: /Bash · cmd-2/ }));
+    expect(screen.getByTestId('tool-panel')).toHaveTextContent('cmd-2');
+  });
+
+  it('while the turn runs, the last action shows under the head', () => {
+    const { store, view } = setup();
+    run(store, 2);
+    const group = view.container.querySelector('[data-kind="tool-group"]')!;
+    const shown = [...group.querySelectorAll('[data-kind="tool"]')];
+    expect(shown).toHaveLength(1);
+    expect(shown[0]).toHaveTextContent('Bash · cmd-2');
+  });
+
+  it('errors are counted on the head in red, the group stays collapsed', () => {
+    setLang('ru');
+    const { store } = setup();
+    run(store, 5, { errors: 2, end: true });
+    const head = screen.getByRole('button', { name: /^5 действий/ });
+    expect(head).toHaveTextContent('5 действий · 2 ошибки');
+    expect(head.querySelector('.text-destructive')).toHaveTextContent('2 ошибки');
+    expect(head).toHaveAttribute('aria-expanded', 'false');
+  });
+});
+
+it('prepending an earlier segment keeps the live lines (an open group, done, marker) on the same DOM nodes', () => {
+  const { store, view } = setup();
+  const turn = (n: number, ids: string[]) => [
+    { kind: 'user', id: `u${n}`, text: 'go', ts: n, historic: true },
+    ...ids.flatMap((id) => [
+      { kind: 'agent', ts: n, e: { t: 'tool-call', id, name: 'Bash', input: { command: id }, sub: false } },
+      { kind: 'agent', ts: n, e: { t: 'tool-update', id, text: 'out', isError: false } },
+    ]),
+    { kind: 'agent', ts: n, e: { t: 'turn-end', stop: 'done', secs: 1, answers: ['u' + n], queued: 0 } },
+    { kind: 'agent', ts: n, e: { t: 'compacted', preTokens: 5 } },
+  ];
+  act(() => {
+    store.dispatch(serverEvent({ kind: 'replay', earlier: 1, events: turn(2, ['live1', 'live2']) } as never));
+    store.dispatch(serverEvent({ kind: 'session', id: 's1', root: '/r', title: null, model: null } as never));
+  });
+  fireEvent.click(screen.getByRole('button', { name: '2 actions' }));
+  const group = view.container.querySelector('[data-kind="tool-group"]')!;
+  const done = view.container.querySelector('[data-kind="done"]')!;
+  const marker = view.container.querySelector('[data-kind="marker"]')!;
+  expect(group.querySelectorAll('[data-kind="tool"]')).toHaveLength(2);
+  const f = store.getState().feed;
+  act(() => {
+    store.dispatch(historyPrepended({ events: turn(1, ['old1', 'old2']) as never, segment: 1, more: false, session: 's1', epoch: f.epoch }));
+  });
+  expect(view.container.querySelectorAll('[data-kind="tool-group"]')).toHaveLength(2);
+  expect(view.container.querySelectorAll('[data-kind="done"]')).toHaveLength(2);
+  expect(view.container.querySelectorAll('[data-kind="tool-group"]')[1]).toBe(group);
+  expect(group.querySelectorAll('[data-kind="tool"]')).toHaveLength(2);
+  expect(view.container.querySelectorAll('[data-kind="done"]')[1]).toBe(done);
+  expect(view.container.querySelectorAll('[data-kind="marker"]')[1]).toBe(marker);
+});
+
+it('structured questions send actual typed answers and stop accepting input after resolution', () => {
+  const { store, sent } = setup();
+  act(() => { store.dispatch(serverEvent({ kind: 'permission', id: 'native', toolName: 'Codex', input: {}, prompt: { title: 'Pick a colour', choices: [{ id: 'submit', label: 'Send answers' }], fields: [{ id: 'q', label: 'Colour', required: true, options: ['Blue', 'Red'] }] }, ts: 1 })); });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Colour' }), { target: { value: 'Green' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send answers' }));
+  expect(sent).toContainEqual({ type: 'permission', id: 'native', allow: true, response: { choice: 'submit', values: { q: 'Green' } } });
+  act(() => { store.dispatch(serverEvent({ kind: 'permission-done', id: 'native', allow: true, ts: 2 })); });
+  expect(screen.queryByRole('textbox', { name: 'Colour' })).toBeNull();
+});
+
+it('AskUserQuestion: options show their descriptions; a single choice replaces, several are comma-separated, free text still works', () => {
+  const { store, sent } = setup();
+  const fields = [
+    { id: 'q0', label: 'Which library?', header: 'Library', required: true, options: ['dayjs', 'luxon'], notes: ['small', 'zones'] },
+    { id: 'q1', label: 'Which features?', header: 'Features', required: true, multi: true, options: ['A', 'B', 'C'], notes: ['a', 'b', 'c'] },
+  ];
+  act(() => { store.dispatch(serverEvent({ kind: 'permission', id: 'ask', toolName: 'Claude', input: {}, prompt: { title: 'Claude', choices: [{ id: 'submit', label: 'Send answers' }, { id: 'cancel', label: 'Cancel' }], fields }, ts: 1 })); });
+  expect(screen.getByText('Library')).toBeTruthy();
+  expect(screen.getByText('zones')).toBeTruthy();
+  const send = screen.getByRole('button', { name: 'Send answers' }) as HTMLButtonElement;
+  expect(send.disabled).toBe(true);
+  fireEvent.click(screen.getByRole('radio', { name: /dayjs/ }));
+  fireEvent.click(screen.getByRole('radio', { name: /luxon/ }));
+  fireEvent.click(screen.getByRole('checkbox', { name: /^Aa$/ }));
+  fireEvent.click(screen.getByRole('checkbox', { name: /^Cc$/ }));
+  expect(screen.getByRole('radio', { name: /luxon/ }).getAttribute('aria-checked')).toBe('true');
+  expect(screen.getByRole('radio', { name: /dayjs/ }).getAttribute('aria-checked')).toBe('false');
+  fireEvent.click(send);
+  expect(sent).toContainEqual({ type: 'permission', id: 'ask', allow: true, response: { choice: 'submit', values: { q0: 'luxon', q1: 'A, C' } } });
+  fireEvent.click(screen.getByRole('checkbox', { name: /^Aa$/ }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Which library?' }), { target: { value: 'my own' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send answers' }));
+  expect(sent.at(-1)).toEqual({ type: 'permission', id: 'ask', allow: true, response: { choice: 'submit', values: { q0: 'my own', q1: 'C' } } });
+});
+
+it('AskUserQuestion: an option label with a comma is one option, alone or among several, with free text beside it', () => {
+  const { store, sent } = setup();
+  const fields = [
+    { id: 'q0', label: 'Go on?', required: true, options: ['Yes, proceed', 'No'] },
+    { id: 'q1', label: 'Which?', required: true, multi: true, options: ['Red, dark', 'Blue', 'Green'] },
+  ];
+  act(() => { store.dispatch(serverEvent({ kind: 'permission', id: 'c', toolName: 'AskUserQuestion', input: {}, prompt: { title: 'Claude', choices: [{ id: 'submit', label: 'Send answers' }], fields }, ts: 1 })); });
+  fireEvent.click(screen.getByRole('radio', { name: /Yes, proceed/ }));
+  expect(screen.getByRole('radio', { name: /Yes, proceed/ }).getAttribute('aria-checked')).toBe('true');
+  fireEvent.click(screen.getByRole('checkbox', { name: /Red, dark/ }));
+  fireEvent.click(screen.getByRole('checkbox', { name: /Green/ }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Which?' }), { target: { value: 'teal' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send answers' }));
+  expect(sent.at(-1)).toEqual({ type: 'permission', id: 'c', allow: true, response: { choice: 'submit', values: { q0: 'Yes, proceed', q1: 'Red, dark, Green, teal' } } });
+});
+
+it('ACP permission options and omp approval answers read as the UI\'s own words', () => {
+  const { store } = setup();
+  act(() => { store.dispatch(serverEvent({ kind: 'permission', id: 'acp', toolName: 'omp', input: { command: 'echo hi' }, prompt: { title: 'echo hi', choices: [{ id: 'allow_once', label: 'Allow once', allow: true }, { id: 'allow_always', label: 'Always allow', allow: true }, { id: 'reject_once', label: 'Reject' }, { id: 'reject_always', label: 'Always reject' }] }, ts: 1 })); });
+  expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Allow', 'Always allow', 'Deny', 'Always reject']);
+  act(() => { store.dispatch(serverEvent({ kind: 'permission-done', id: 'acp', allow: true, ts: 2 })); });
+  act(() => { store.dispatch(serverEvent({ kind: 'permission', id: 'form', toolName: 'omp', input: { path: 'hello.txt' }, prompt: { title: 'Allow tool: write', choices: [{ id: 'Approve', label: 'Approve', allow: true }, { id: 'Approve write for this session', label: 'Approve write for this session', allow: true }, { id: 'Deny', label: 'Deny' }] }, ts: 3 })); });
+  expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Allow', 'Allow for this session', 'Deny']);
+});
+
+it('native compaction with unknown token count does not display an invented zero', () => {
+  const { store, view } = setup();
+  act(() => { store.dispatch(serverEvent({ kind: 'agent', e: { t: 'compacted' }, ts: 0 })); });
+  expect(view.container.textContent).toContain('context compacted');
+  expect(view.container.textContent).not.toContain('0 tokens');
+});
+
+it('native completion upgrades the original tool to an agent card without duplicating its anchor', () => {
+  const { store } = setup();
+  act(() => {
+    store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'tool-call', id: 'codex-spawn', name: 'spawnAgent', input: { prompt: 'Investigate' }, toolKind: 'other', sub: false } }));
+    store.dispatch(serverEvent({ kind: 'agent', ts: 2, e: { t: 'tool-update', id: 'codex-spawn', toolKind: 'agent', childSessionId: 'child', text: '', isError: false } }));
+  });
+  expect(store.getState().feed.items.filter((e) => e.kind === 'tool' && e.id === 'codex-spawn')).toEqual([expect.objectContaining({ toolKind: 'agent', childSessionId: 'child', input: { prompt: 'Investigate' } })]);
+});
+
+describe('message times and day separators', () => {
+  const today = new Date(new Date().setHours(9, 5, 0, 0)).getTime();
+  const yesterday = new Date(new Date(today).setDate(new Date(today).getDate() - 1)).setHours(22, 40);
+
+  it('a separator where the day changes, none for undated items; replies show their time, the full date on hover', () => {
+    const { store, view } = setup();
+    act(() => {
+      store.dispatch(serverEvent({ kind: 'user', id: 'u0', text: 'old', ts: 0, historic: true }));
+      store.dispatch(serverEvent({ kind: 'agent', ts: 0, e: { t: 'message', id: 'a0:0', text: 'old reply' } }));
+      store.dispatch(serverEvent({ kind: 'user', id: 'u1', text: 'q', ts: yesterday, historic: true }));
+      store.dispatch(serverEvent({ kind: 'agent', ts: yesterday, e: { t: 'message', id: 'a1:0', text: 'a' } }));
+      store.dispatch(serverEvent({ kind: 'user', id: 'u2', text: 'q2', ts: today }));
+      store.dispatch(serverEvent({ kind: 'agent', ts: today, e: { t: 'message', id: 'a2:0', text: 'b' } }));
+    });
+    const seps = [...view.container.querySelectorAll('[data-day]')];
+    expect(seps.map((s) => s.textContent)).toEqual(['Yesterday', 'Today']);
+    // each sits right before the item that starts its day
+    expect(seps[0]!.nextElementSibling).toHaveAttribute('data-item-id', 'u1');
+    expect(seps[1]!.nextElementSibling).toHaveAttribute('data-item-id', 'u2');
+    const time = (id: string) => view.container.querySelector(`[data-item-id="${id}"] time`);
+    expect(time('a0:0')).toBeNull();
+    expect(time('a2:0')).toHaveTextContent(clockTime(today, 'en'));
+    expect(time('a2:0')).toHaveAttribute('title', fullTime(today, 'en'));
+    expect(time('a1:0')).toHaveTextContent(clockTime(yesterday, 'en')); // with its date: it is not today
+    expect(time('u1')).toHaveTextContent(clockTime(yesterday, 'en'));
+    expect(time('u1')).toHaveAttribute('title', fullTime(yesterday, 'en'));
+    expect(time('u0')).toBeNull();
+  });
+
+  it('in the UI language', () => {
+    setLang('de');
+    const { store, view } = setup();
+    act(() => { store.dispatch(serverEvent({ kind: 'user', id: 'u1', text: 'q', ts: yesterday })); });
+    expect(view.container.querySelector('[data-day]')).toHaveTextContent('Gestern');
+  });
+});
+
+describe('a feed left open past midnight', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('re-renders at local midnight: Today becomes Yesterday and the times get their date', () => {
+    const evening = new Date(2026, 10, 16, 23, 0).getTime();
+    vi.useFakeTimers({ now: new Date(2026, 10, 16, 23, 58) });
+    const { store, view } = setup();
+    act(() => {
+      store.dispatch(serverEvent({ kind: 'user', id: 'u1', text: 'q', ts: evening }));
+      store.dispatch(serverEvent({ kind: 'agent', ts: evening, e: { t: 'message', id: 'a1:0', text: 'a' } }));
+    });
+    const sep = () => view.container.querySelector('[data-day]')!.textContent;
+    const time = (id: string) => view.container.querySelector(`[data-item-id="${id}"] time`)!.textContent;
+    expect(sep()).toBe('Today');
+    expect(time('a1:0')).toBe(clockTime(evening, 'en', evening));
+    act(() => { vi.advanceTimersByTime(3 * 60_000); });
+    expect(sep()).toBe('Yesterday');
+    expect(time('a1:0')).toBe(clockTime(evening, 'en', Date.now()));
+    expect(time('u1')).toMatch(/^Nov 16, /);
+  });
+});
+
+describe('a resume after a restart that cut a turn (gh-422)', () => {
+  function open() {
+    const sent: ClientMessage[] = [];
+    const connect = ((_u: unknown, _e: unknown, s: (x: 'open') => void) => { s('open'); return { send: (m: ClientMessage) => (sent.push(m), true), close() {} }; }) as never;
+    const store = makeStore({ url: 'ws://x', connect });
+    const view = render(<Provider store={store}><Feed /></Provider>);
+    return { sent, store, view };
+  }
+
+  it('says so with Continue, which sends a short continue message once; nothing goes by itself', () => {
+    const { store, sent } = open();
+    act(() => { store.dispatch(serverEvent({ kind: 'replay', events: [{ kind: 'resumed', id: 'abcdefghij', cut: true }] })); });
+    expect(screen.getByText('The server restarted during a turn')).toBeInTheDocument();
+    expect(sent.filter((m) => m.type === 'send')).toEqual([]);
+    const btn = screen.getByRole('button', { name: 'Continue' });
+    expect(btn).toHaveAttribute('title', 'Ask the agent to continue the cut-off turn');
+    fireEvent.click(btn);
+    expect(sent.filter((m) => m.type === 'send')).toMatchObject([{ type: 'send', text: 'The server restarted during your last turn and cut it off. Please continue where you stopped.' }]);
+  });
+
+  it('once the user has sent something after it, the note stays and Continue goes', () => {
+    const { store } = open();
+    act(() => {
+      store.dispatch(serverEvent({ kind: 'replay', events: [{ kind: 'resumed', id: 'abcdefghij', cut: true }, { kind: 'user', id: 'u1', text: 'go on', ts: 1, historic: true }] }));
+    });
+    expect(screen.getByText('The server restarted during a turn')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
+  });
+
+  it('a plain resume has no such note', () => {
+    const { store } = open();
+    act(() => { store.dispatch(serverEvent({ kind: 'replay', events: [{ kind: 'resumed', id: 'abcdefghij' }] })); });
+    expect(screen.queryByText('The server restarted during a turn')).toBeNull();
+  });
+});
+
+it('a streamed token re-renders the feed and the reply it extends, not every item (issue 471)', () => {
+  const { store } = setup();
+  act(() => {
+    for (let i = 0; i < 20; i++) {
+      store.dispatch(serverEvent({ kind: 'user', id: `u${i}`, text: `q${i}`, ts: 1 }));
+      store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'tool-call', id: `t${i}`, name: 'Bash', input: { command: 'ls' }, sub: false } }));
+      store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'message', id: `a:${i}`, text: `a${i}` } }));
+    }
+    store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'message-start' } }));
+  });
+  renders.n = 0;
+  act(() => { store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'message-chunk', text: 'x' } })); });
+  // the feed, its earlier button, the first day's separator and the streaming reply's time; the 60 other items stay
+  expect(renders.n).toBe(4);
+});
+
+it('a plain action\'s line does not re-render when the chat turns busy; a subagent card\'s head does (issue 471)', () => {
+  const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+  const tool = (name: string) => ({ kind: 'tool' as const, id: name, name, arg: '', sub: false, input: {} });
+  const count = (name: string) => {
+    render(<Provider store={store}><ToolLine item={tool(name)} /></Provider>);
+    renders.n = 0;
+    act(() => { store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'turn-start' } })); });
+    const n = renders.n;
+    act(() => { store.dispatch(serverEvent({ kind: 'agent', ts: 1, e: { t: 'turn-end' } as never })); });
+    cleanup();
+    return n;
+  };
+  expect(count('Bash')).toBe(0);
+  expect(count('Agent')).toBeGreaterThan(0);
+});

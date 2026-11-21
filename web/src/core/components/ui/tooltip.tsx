@@ -1,0 +1,65 @@
+import * as React from "react"
+import { cn } from "@/core/lib/utils"
+import { Tooltip as TooltipPrimitive } from "radix-ui"
+
+function TooltipProvider({
+  delayDuration = 0,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  return (
+    <TooltipPrimitive.Provider
+      data-slot="tooltip-provider"
+      delayDuration={delayDuration}
+      {...props}
+    />
+  )
+}
+
+function Tooltip({
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Root>) {
+  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+}
+
+/**
+ * A disabled control gets no pointer events, so it would never open its tooltip (issue 463): with `asChild`, a child
+ * that has a `disabled` prop at all is wrapped in a span, which does. On the prop's presence, not its value, so the
+ * control is not remounted (and its focus lost) when it is disabled or enabled.
+ */
+function TooltipTrigger({
+  asChild,
+  children,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
+  const wrap = !!asChild && React.isValidElement<object>(children) && 'disabled' in children.props
+  return (
+    <TooltipPrimitive.Trigger data-slot="tooltip-trigger" asChild={asChild} {...props}>
+      {wrap ? <span className="inline-flex">{children}</span> : children}
+    </TooltipPrimitive.Trigger>
+  )
+}
+
+function TooltipContent({
+  className,
+  sideOffset = 6,
+  children,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+  return (
+    <TooltipPrimitive.Portal>
+      <TooltipPrimitive.Content
+        data-slot="tooltip-content"
+        sideOffset={sideOffset}
+        className={cn(
+          "z-50 w-fit origin-(--radix-tooltip-content-transform-origin) animate-in rounded-lg border border-border bg-popover px-[9px] py-1.5 text-[0.71875rem] leading-[1.6] text-muted-foreground shadow-[0_8px_24px_color-mix(in_oklch,var(--shade)_45%,transparent)] fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
+          className
+        )}
+        {...props}
+      >
+        {children}
+      </TooltipPrimitive.Content>
+    </TooltipPrimitive.Portal>
+  )
+}
+
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }

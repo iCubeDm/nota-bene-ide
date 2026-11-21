@@ -4,6 +4,6 @@
   "rsc": false,
   "tsx": true,
   "tailwind": { "config": "", "css": "src/theme.css", "baseColor": "neutral", "cssVariables": true, "prefix": "" },
-  "aliases": { "components": "@/components", "utils": "@/lib/utils", "ui": "@/components/ui", "lib": "@/lib", "hooks": "@/hooks" },
+  "aliases": { "components": "@/core/components", "utils": "@/core/lib/utils", "ui": "@/core/components/ui", "lib": "@/core/lib", "hooks": "@/core/hooks" },
   "iconLibrary": "lucide"
 }

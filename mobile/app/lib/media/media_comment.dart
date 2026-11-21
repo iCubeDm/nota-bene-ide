@@ -1,4 +1,4 @@
-// A media comment's files, made and stored as the desktop's prepareMediaComment does (web/src/media/markup/
+// A media comment's files, made and stored as the desktop's prepareMediaComment does (web/src/plugins/media/markup/
 // createMediaComment.ts): the natural-size frame and layer to `/marks/<comment id>/`, the agent's frame to `/attach`.
 import 'dart:convert';
 import 'dart:typed_data';

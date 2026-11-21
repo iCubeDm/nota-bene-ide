@@ -1,4 +1,4 @@
-// The usage statistics of the window's host, as on the desktop's Usage tab (web/src/usage/UsageView.tsx): the same
+// The usage statistics of the window's host, as on the desktop's Usage tab (web/src/plugins/usage/UsageView.tsx): the same
 // requests, the same sections, in one column. Words come from the generated usage strings.
 import 'dart:async';
 import 'dart:convert';

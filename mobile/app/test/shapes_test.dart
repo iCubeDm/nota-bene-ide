@@ -1,4 +1,4 @@
-// geometry.ts and render.ts of the web, against the desktop's own results (web/src/media/markup/mobileParity.test.ts).
+// geometry.ts and render.ts of the web, against the desktop's own results (web/src/plugins/media/markup/mobileParity.test.ts).
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;

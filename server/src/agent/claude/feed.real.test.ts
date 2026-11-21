@@ -19,7 +19,7 @@ const resultAt = entries.flatMap((e, i) => (isResult(e) ? [i] : []));
 let reduce!: (s: FeedState, e: ServerEvent) => FeedState;
 let emptyFeed!: FeedState;
 beforeAll(async () => {
-  const href = new URL('../../../../web/src/store/feed.ts', import.meta.url).href;
+  const href = new URL('../../../../web/src/core/store/feed.ts', import.meta.url).href;
   ({ reduce, emptyFeed } = (await import(/* @vite-ignore */ href)) as never);
 });
 /** the feed after the first n fixture entries */

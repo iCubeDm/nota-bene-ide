@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { en } from '../web/src/i18n/en.ts';
-import { ru } from '../web/src/i18n/ru.ts';
+import { en } from '../web/src/core/i18n/en.ts';
+import { ru } from '../web/src/core/i18n/ru.ts';
 
 const DONE = /готово|done/;
 const INTERRUPTED = /прервано|interrupted/;

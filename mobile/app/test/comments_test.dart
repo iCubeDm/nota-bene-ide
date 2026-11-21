@@ -38,7 +38,7 @@ Comment c(
 
 Map<String, Object?> json(Comment x) => x.toJson();
 
-/// the desktop's batch for the same comments (web/src/comments/mobileBatch.test.ts)
+/// the desktop's batch for the same comments (web/src/plugins/comments/mobileBatch.test.ts)
 final fixture =
     jsonDecode(File('test/fixtures/batch/media.json').readAsStringSync())
         as Map<String, Object?>;

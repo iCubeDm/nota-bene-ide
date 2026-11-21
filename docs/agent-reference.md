@@ -107,7 +107,7 @@ The only write into a project is `<root>/.nota-bene/marks/` (`server/src/marks.t
 
 A published window (package root without `.git`) updates itself; a checkout never does. Code: `server/src/update.ts`
 (the check), `runtime.ts` (the runtime store, `runtime/<x.y.z>/`, `current`, `state.json`), `updater.ts`, the
-`/system/update*` routes, `web/src/update/UpdateNotice.tsx`.
+`/system/update*` routes, `web/src/plugins/update/UpdateNotice.tsx`.
 
 - Handover: the outer launcher runs `runtime/current`'s launcher as its child when that is a newer plain `x.y.z`, on
   the same port with the same nonce. Exit 77 means "a newer version is current: hand over"; the server exits 77 only
@@ -199,7 +199,7 @@ The canonical security model. Nothing on the machine reaches the API or the sock
 - **Two tiers.** The cookie alone opens **only `GET`/`HEAD` of `/file`, `/attach/<id>` and `/voice/<id>`** (what
   `<img>`, `<video>` and `<audio>` load; `cookieRoute`). **Every other route needs the key too, the socket included,
   and so does any route added later** (`server/src/auth.test.ts` pins every route in a table). The key travels as the
-  `x-nota-bene-key` header through `apiFetch` (`web/src/net/auth.ts`) and as the `nb.<key>` WebSocket subprotocol,
+  `x-nota-bene-key` header through `apiFetch` (`web/src/core/net/auth.ts`) and as the `nb.<key>` WebSocket subprotocol,
   never in a URL. A helper's `Authorization: Bearer <helper>` and the raw token as a Bearer open both tiers.
 - **Public:** `/`, static assets, `POST /auth` (own Origin only) and `GET /hello`. A non-GET request needs an allowlisted
   Origin **even with a Bearer**; `/ws` accepts an unset Origin only with valid auth. `/control/` uses `control-token`

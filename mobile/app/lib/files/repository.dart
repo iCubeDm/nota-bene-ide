@@ -1,4 +1,4 @@
-// The window's data over its connection (issue 547), as the web's `web/src/sdk/repository.ts`: one load path for the
+// The window's data over its connection (issue 547), as the web's `web/src/core/sdk/repository.ts`: one load path for the
 // routes the screens read, `GET /tree?path=<dir>` (a list of `TreeEntry`), `/complete?q=` (`CompleteAnswer`: up to 30
 // project-relative paths, folders ending in `/`), `/file?path=` (raw bytes, Range supported) and git's read-only views
 // as the desktop's panel reads them (server/src/vcs.ts, shared/src/vcs.ts): `/git-status` (null outside a repository),

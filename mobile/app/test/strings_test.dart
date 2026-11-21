@@ -21,7 +21,7 @@ void main() {
   });
 
   test('label texts and the batch heading in every app language', () {
-    final ru = File('../../web/src/i18n/ru.ts').readAsStringSync();
+    final ru = File('../../web/src/core/i18n/ru.ts').readAsStringSync();
     expect(
       ru,
       contains("'label_looks-good': '${quickLabels.first.text['ru']}'"),
@@ -74,7 +74,7 @@ void main() {
       'de': 'de',
     };
     for (final MapEntry(key: lang, value: file) in files.entries) {
-      final src = File('../../web/src/i18n/$file.ts').readAsStringSync();
+      final src = File('../../web/src/core/i18n/$file.ts').readAsStringSync();
       final reset = RegExp(
         r"^  usageReset: '(.*)',$",
         multiLine: true,
@@ -107,7 +107,7 @@ void main() {
       'de': 'de',
     };
     for (final MapEntry(key: lang, value: file) in files.entries) {
-      final src = File('../../web/src/i18n/$file.ts').readAsStringSync();
+      final src = File('../../web/src/core/i18n/$file.ts').readAsStringSync();
       for (final k in [WebKey.working, WebKey.offline]) {
         final v = RegExp(
           '^  ${k.name}: \'(.*)\',\$',
@@ -129,7 +129,7 @@ void main() {
       'de': 'de',
     };
     for (final MapEntry(key: lang, value: file) in files.entries) {
-      final src = File('../../web/src/i18n/$file.ts').readAsStringSync();
+      final src = File('../../web/src/core/i18n/$file.ts').readAsStringSync();
       for (final (k, got) in [
         ('clearBtn', webString(WebKey.clearBtn, lang)),
         ('clearTitle', webString(WebKey.clearTitle, lang)),

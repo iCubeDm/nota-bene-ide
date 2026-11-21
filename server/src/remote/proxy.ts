@@ -51,7 +51,7 @@ const UNREACHABLE_PAGE: Record<UiLang, (name: string) => string> = {
   'zh-CN': (n) => `无法连接 ${n}：它已离线，或其 Nota Bene 比这里的旧。恢复后请重新加载。`,
 };
 const escapeHtml = (v: string): string => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-/** Why a failed switch came back (`/?enter=<code>`, web/src/projects/api.ts says it in words). */
+/** Why a failed switch came back (`/?enter=<code>`, web/src/plugins/projects/api.ts says it in words). */
 const ENTER_CODES: Record<string, string> = { 'no such window': 'no-window', 'window not answering': 'not-answering', 'not connected': 'not-connected' };
 /** Ports listeners had in this process: a new one takes another (a page's origin-scoped storage stays its own). */
 const usedPorts = new Set<number>();

@@ -1,0 +1,154 @@
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { afterEach, expect, it, vi } from 'vitest';
+import type { ServerEvent } from '@nota-bene/shared';
+import { setLang } from '@/core/i18n/index.ts';
+import { serverEvent } from '@/core/store/store.ts';
+import { makeStore } from '@/core/testing';
+import { Header } from './Header.tsx';
+import { uiScale } from './uiScale.ts';
+import { theme } from './theme.ts';
+
+afterEach(cleanup);
+
+function setup() {
+  let state!: (s: 'open' | 'closed') => void;
+  const store = makeStore({ url: 'ws://x', connect: (_u, _e, s) => { state = s; return { send: () => true, close() {} }; } });
+  render(
+    <Provider store={store}>
+      <Header />
+    </Provider>,
+  );
+  return {
+    state: (s: 'open' | 'closed') => act(() => state(s)),
+    ev: (e: ServerEvent) => act(() => { store.dispatch(serverEvent(e)); }),
+  };
+}
+
+it('⚙ is a menu: the language is a submenu, a pick re-renders the header; the scale steps with the menu open', async () => {
+  setLang('ru');
+  setup();
+  const btn = screen.getByRole('button', { name: 'Настройки' });
+  expect(screen.getByText('подключение…')).toBeInTheDocument();
+  fireEvent.keyDown(btn, { key: 'Enter' });
+  fireEvent.keyDown(screen.getByRole('menuitem', { name: /^Язык интерфейса/ }), { key: 'ArrowRight' });
+  expect(await screen.findByRole('menuitem', { name: 'Русский' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('menuitem', { name: 'English' }));
+  expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
+  expect(screen.getByText('connecting…')).toBeInTheDocument();
+  fireEvent.keyDown(screen.getByRole('button', { name: 'Settings' }), { key: 'Enter' });
+  expect(document.getElementById('scaleValue')).toHaveTextContent('100%');
+  expect(screen.getByRole('button', { name: 'Smaller' })).toBeEnabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Larger' }));
+  expect(document.getElementById('scaleValue')).toHaveTextContent('110%'); // still open
+  expect(document.documentElement.style.fontSize).toBe('110%');
+  uiScale.choose(1.5);
+  await act(async () => {});
+  expect(screen.getByRole('button', { name: 'Larger' })).toBeDisabled(); // the last step
+  uiScale.choose(1);
+  setLang('ru');
+});
+
+it('the Theme row lists the themes and picks one', async () => {
+  setLang('en');
+  theme.choose('darcula');
+  setup();
+  fireEvent.keyDown(screen.getByRole('button', { name: 'Settings' }), { key: 'Enter' });
+  const row = screen.getByRole('menuitem', { name: /^Theme/ });
+  expect(row).toHaveAttribute('id', 'themeMenu');
+  expect(row).toHaveTextContent('Darcula');
+  fireEvent.keyDown(row, { key: 'ArrowRight' });
+  const dark = await screen.findByRole('menuitemradio', { name: 'Darcula' });
+  expect(dark).toHaveAttribute('aria-checked', 'true');
+  // dark first, then light, each under its heading
+  const menu = dark.closest('[role="group"], [role="menu"]')!.parentElement!;
+  const order = [...menu.querySelectorAll('[data-theme-heading], [role="menuitemradio"]')].map((n) => n.textContent);
+  expect(order).toEqual(['Dark themes', 'Darcula', 'Plannotator', 'Solarized Dark', 'Light themes', 'IntelliJ Light', 'GitHub Light', 'Solarized Light']);
+  expect(screen.getByRole('menuitemradio', { name: 'Plannotator' })).toHaveAttribute('aria-checked', 'false');
+  fireEvent.click(screen.getByRole('menuitemradio', { name: 'Plannotator' }));
+  expect(theme.get()).toBe('plannotator');
+  theme.choose('darcula');
+});
+
+it('connection label: connecting before the first open, nothing while open, offline after a drop', () => {
+  setLang('en');
+  const { state } = setup();
+  expect(document.getElementById('conn')).toHaveTextContent('connecting…');
+  state('open');
+  expect(document.getElementById('conn')).toHaveTextContent('');
+  state('closed');
+  expect(document.getElementById('conn')).toHaveTextContent('no connection to the server…');
+  state('open');
+  expect(document.getElementById('conn')).toHaveTextContent('');
+});
+
+it('path and short session id come from the session event', () => {
+  const { ev } = setup();
+  expect(document.getElementById('root-path')).toHaveTextContent('');
+  ev({ kind: 'session', id: null, root: '/Users/me/proj', title: null, model: null });
+  expect(document.getElementById('root-path')).toHaveTextContent('~/proj');
+  expect(document.getElementById('session')).toHaveTextContent('');
+  ev({ kind: 'session', id: '5f0c2a9e-7d41-4c4b', root: '/Users/me/proj', title: null, model: null });
+  expect(document.getElementById('session')).toHaveTextContent(/^5f0c2a9e$/);
+});
+
+it('the project name, not the app name, titles the header and the browser tab', () => {
+  const { ev } = setup();
+  expect(document.getElementById('proj')).toHaveTextContent('Nota Bene');
+  ev({ kind: 'session', id: null, root: '/Users/me/my-project', title: null, model: null });
+  expect(document.getElementById('proj')).toHaveTextContent(/^my-project$/);
+  expect(document.title).toBe('my-project · Nota Bene');
+  // a Windows server sends C:/...; a drive root has no folder name
+  ev({ kind: 'session', id: null, root: 'C:/Users/me/win-project', title: null, model: null });
+  expect(document.getElementById('proj')).toHaveTextContent(/^win-project$/);
+  expect(document.title).toBe('win-project · Nota Bene');
+  ev({ kind: 'session', id: null, root: 'D:/', title: null, model: null });
+  expect(document.getElementById('proj')).toHaveTextContent(/^Nota Bene$/);
+});
+
+it('document title: session title first when there is one; header shows the model pill and id8, or id8 alone', () => {
+  const { ev } = setup();
+  ev({ kind: 'session', id: '5f0c2a9e-7d41', root: '/p/proj', title: 'Fix login', model: 'opus' });
+  expect(document.title).toBe('Fix login · proj · Nota Bene');
+  expect(document.getElementById('session')).toHaveTextContent(/^5f0c2a9e$/);
+  expect(screen.getByRole('button', { name: /Model and effort|Модель и усилие/ })).toHaveTextContent('opus'); // no list yet: the name as reported
+  ev({ kind: 'session', id: '5f0c2a9e-7d41', root: '/p/proj', title: null, model: null });
+  expect(screen.queryByRole('button', { name: /Model and effort|Модель и усилие/ })).toBeNull();
+  expect(document.title).toBe('proj · Nota Bene');
+  expect(document.getElementById('session')).toHaveTextContent(/^5f0c2a9e$/);
+});
+
+it('the path stands under the project name, in one block with it', () => {
+  setLang('en');
+  const { ev } = setup();
+  ev({ kind: 'session', id: 'abcdefgh-1', root: '/w/notes', title: null, model: null } as ServerEvent);
+  const block = document.getElementById('proj')!.closest('[data-proj-block]');
+  expect(block).not.toBeNull();
+  expect(block!.querySelector('#root-path')).toHaveTextContent('/w/notes');
+  expect(block!.className).toMatch(/flex-col/);
+});
+
+it('a long path does not widen the block (the git branch stays put): it fits the name, its end shown, no tooltip', () => {
+  const { ev } = setup();
+  ev({ kind: 'session', id: null, root: '/Users/me/very/long/path/to/proj', title: null, model: null });
+  const p = document.getElementById('root-path')!;
+  expect(p.parentElement!.className).toMatch(/\bw-0\b/);
+  expect(p.parentElement!.className).toMatch(/\bmin-w-full\b/);
+  expect(p.className).toMatch(/\btruncate\b/);
+  expect(p).toHaveAttribute('dir', 'rtl');
+  expect(p).not.toHaveAttribute('title');
+});
+
+it('the path shows the home folder as ~ and its copy icon copies the whole path', async () => {
+  const writeText = vi.fn(async () => {});
+  vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+  setLang('en');
+  const { ev } = setup();
+  expect(document.getElementById('copy-root')).toBeNull();
+  ev({ kind: 'session', id: null, root: '/Users/me/proj', title: null, model: null });
+  expect(document.getElementById('root-path')).toHaveTextContent(/^~\/proj$/);
+  const copy = screen.getByRole('button', { name: 'Copy path' });
+  copy.click();
+  await waitFor(() => expect(writeText).toHaveBeenCalledWith('/Users/me/proj'));
+  vi.unstubAllGlobals();
+});

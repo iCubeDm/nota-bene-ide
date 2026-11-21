@@ -1,4 +1,4 @@
-// web/src/attachments/image.ts: an image is scaled to [imgEdge] on its long edge and re-encoded when it is too big,
+// web/src/plugins/attachments/image.ts: an image is scaled to [imgEdge] on its long edge and re-encoded when it is too big,
 // small png/jpeg/gif/webp stay as they are; then POST /attach with the raw bytes (the id is the content hash).
 import 'dart:convert';
 import 'dart:isolate';

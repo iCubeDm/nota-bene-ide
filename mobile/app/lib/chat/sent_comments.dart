@@ -1,5 +1,5 @@
 // Under a user's message: the comments that went with it, folded as "N comments" and opened by a tap, as the desktop's
-// UserMessage.tsx shows them (web/src/feed/UserMessage.tsx). They are the window's comment set's `sent` ones with
+// UserMessage.tsx shows them (web/src/plugins/feed/UserMessage.tsx). They are the window's comment set's `sent` ones with
 // `sentIn` this message, so a replay shows them too; when the set has none of them but the message's text carries the
 // batch, the batch's own text is shown folded instead.
 import 'package:flutter/material.dart';

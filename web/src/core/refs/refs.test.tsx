@@ -1,0 +1,288 @@
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { Provider } from 'react-redux';
+import type { ServerEvent } from '@nota-bene/shared';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { textOf } from '@/core/anchors/text.ts';
+import { Markdown } from '@/core/components/markdown/Markdown.tsx';
+import { UserMessage } from '@/plugins/feed/UserMessage.tsx';
+import { setLang } from '@/core/i18n/index.ts';
+import { makeStore, renderWith } from '@/core/testing';
+import { serverEvent } from '@/core/store/store.ts';
+import { selectTabs } from '@/core/tabs/slice.ts';
+import { tmpDirsOf } from '@/core/refs/tmpImages.ts';
+import { resetSources, setSources } from '@/core/refs/sources.ts';
+import { setServerSep } from '@/core/lib/paths.ts';
+import { clearRefCache, escapeMentions, markRefs, refClick, splitMentions } from './refs.ts';
+
+beforeEach(() => {
+  setLang('en');
+  clearRefCache();
+});
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  window.getSelection()?.removeAllRanges();
+  setServerSep('/');
+});
+
+const div = (html: string) => {
+  const d = document.createElement('div');
+  d.innerHTML = html;
+  return d;
+};
+
+it('marks project paths in code and relative links', () => {
+  const d = div('<p><code>src/App.tsx</code> <a href="docs/a.md">x</a> <code>src/a.ts:42:7</code></p>');
+  markRefs(d);
+  const [c, c2] = d.querySelectorAll('code');
+  expect(c.classList.contains('ref')).toBe(true);
+  expect(c.dataset.path).toBe('src/App.tsx');
+  expect(d.querySelector('a')!.dataset.path).toBe('docs/a.md');
+  expect(c2.dataset.path).toBe('src/a.ts');
+});
+
+it('leaves commands, urls, anchors, absolute paths and code blocks alone', () => {
+  const d = div(
+    '<code>npm test</code> <code>https://a.b/c.md</code>' +
+      '<a href="https://x.y/z">h</a><a href="mailto:a@b.c">m</a><a href="#top">t</a><a href="file:///etc/x">f</a><a href="/abs.md">a</a>' +
+      '<pre><code>src/in/block.ts</code></pre>',
+  );
+  markRefs(d);
+  expect(d.querySelectorAll('.ref').length).toBe(0);
+});
+
+it('marks a backticked path with spaces and symbols, but not a bare command', () => {
+  const d = div('<code>docs/Отчёт #1 (final).md</code> <code>npm test</code>');
+  markRefs(d);
+  const [a, b] = d.querySelectorAll('code');
+  expect(a.dataset.path).toBe('docs/Отчёт #1 (final).md');
+  expect(b.classList.contains('ref')).toBe(false);
+});
+
+it('links resolve against baseDir first (alt: the root), strip fragment and query, refuse to leave the root', () => {
+  const d = div('<a href="../b.md#s">1</a><a href="c.md?x=1">2</a><a href="../../../x.md">3</a>');
+  markRefs(d, 'docs/sub');
+  const got = [...d.querySelectorAll<HTMLElement>('a')].map((e) => [e.dataset.path, e.dataset.alt]);
+  expect(got).toEqual([['docs/b.md', undefined], ['docs/sub/c.md', 'c.md'], [undefined, undefined]]);
+});
+
+it('code in an md file resolves against the root first (alt: the file dir); one that climbs out uses the file dir', () => {
+  const d = div('<code>src/a.ts</code><code>./d.ts</code><code>../src/a.ts</code><code>x/y.ts</code>');
+  markRefs(d, 'docs');
+  const got = [...d.querySelectorAll<HTMLElement>('code')].map((e) => [e.dataset.path, e.dataset.alt]);
+  expect(got).toEqual([['src/a.ts', 'docs/src/a.ts'], ['d.ts', 'docs/d.ts'], ['src/a.ts', undefined], ['x/y.ts', 'docs/x/y.ts']]);
+  const chat = div('<code>src/a.ts</code>');
+  markRefs(chat);
+  expect(chat.querySelector('code')!.dataset.alt).toBeUndefined();
+});
+
+it('does not change the text that comment anchors read', () => {
+  const d = div('<p>see <code>src/a.ts</code> and <a href="docs/a.md">the doc</a>.</p>');
+  const before = textOf(d);
+  markRefs(d);
+  expect(textOf(d)).toBe(before);
+});
+
+it('Markdown marks refs only in the final render', () => {
+  const { container, rerender } = renderWith(<Markdown text="open `src/a.ts`" final={false} />);
+  expect(container.querySelector('.ref')).toBeNull();
+  rerender(<Markdown text="open `src/a.ts`" final />);
+  expect(container.querySelector('code.ref')).not.toBeNull();
+});
+
+it('splitMentions finds quoted and plain mentions and keeps the other text', () => {
+  expect(splitMentions('see @"a b.md" and @x/y')).toEqual([
+    { text: 'see ' },
+    { mention: 'a b.md' },
+    { text: ' and ' },
+    { mention: 'x/y' },
+  ]);
+  expect(splitMentions('mail me@x.io')).toEqual([{ text: 'mail me@x.io' }]);
+});
+
+function setup(ui: (store: ReturnType<typeof makeStore>) => React.ReactElement) {
+  const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+  render(<Provider store={store}>{ui(store)}</Provider>);
+  return store;
+}
+const Box = ({ store, html }: { store: ReturnType<typeof makeStore>; html: string }) => (
+  <div data-testid="box" onClick={(e) => refClick(e, store.dispatch)} dangerouslySetInnerHTML={{ __html: html }} />
+);
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+it('a click opens an existing file as a tab, and the HEAD result is cached', async () => {
+  const fetchMock = vi.fn(async () => ({ ok: true }));
+  vi.stubGlobal('fetch', fetchMock);
+  const store = setup((s) => <Box store={s} html='<code class="ref" data-path="src/a.ts">src/a.ts</code>' />);
+  const el = screen.getByText('src/a.ts');
+  fireEvent.click(el);
+  await tick();
+  fireEvent.click(el);
+  await tick();
+  expect(selectTabs(store.getState()).open.map((t) => t.id)).toContain('file:src/a.ts');
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+it('a click with a non-collapsed selection does nothing', async () => {
+  const fetchMock = vi.fn(async () => ({ ok: true }));
+  vi.stubGlobal('fetch', fetchMock);
+  const store = setup((s) => <Box store={s} html='<code class="ref" data-path="src/a.ts">src/a.ts</code>' />);
+  const el = screen.getByText('src/a.ts');
+  const r = document.createRange();
+  r.selectNodeContents(el);
+  window.getSelection()!.addRange(r);
+  fireEvent.click(el);
+  await tick();
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(selectTabs(store.getState()).open.length).toBe(1);
+});
+
+it('a ref tries data-path, then data-alt, in each source', async () => {
+  const asked: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (u: string) => {
+    asked.push(decodeURIComponent(new URL(u, 'http://x').searchParams.get('path')!));
+    return { ok: u.includes(encodeURIComponent('docs/src/a.ts')) };
+  }));
+  const store = setup((s) => <Box store={s} html='<code class="ref" data-path="src/a.ts" data-alt="docs/src/a.ts">src/a.ts</code>' />);
+  fireEvent.click(screen.getByText('src/a.ts'));
+  await tick();
+  await tick();
+  expect(asked).toEqual(['src/a.ts', 'docs/src/a.ts']);
+  expect(selectTabs(store.getState()).active).toBe('file:docs/src/a.ts');
+});
+
+it('a click on a /file image (chat reply or md file) opens that file, from its source', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
+  const store = setup((s) => (
+    <Box store={s} html='<div class="md"><img alt="p" src="/file?path=docs%2Fpic%201.png"><img alt="q" src="/file?path=x.png&amp;src=ref%3Afeature%2Fx"><img alt="r" src="/attach/abc.png"></div>' />
+  ));
+  fireEvent.click(screen.getByAltText('p'));
+  expect(selectTabs(store.getState()).active).toBe('file:docs/pic 1.png');
+  fireEvent.click(screen.getByAltText('q'));
+  expect(selectTabs(store.getState()).open.find((t) => t.id === selectTabs(store.getState()).active)).toMatchObject({ path: 'x.png', src: 'ref:feature/x' });
+  const n = selectTabs(store.getState()).open.length;
+  fireEvent.click(screen.getByAltText('r'));
+  expect(selectTabs(store.getState()).open.length).toBe(n);
+});
+
+it('a missing file gets .missing and a title', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false })));
+  setup((s) => <Box store={s} html='<code class="ref" data-path="gone.ts">gone.ts</code>' />);
+  const el = screen.getByText('gone.ts');
+  fireEvent.click(el);
+  await tick();
+  expect(el.classList.contains('missing')).toBe(true);
+  expect(el.title).toBe('no such file in the project');
+});
+
+it('relative links never navigate, but a modifier click keeps the browser default', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
+  setup((s) => <Box store={s} html='<a class="ref" data-path="docs/a.md" href="docs/a.md">d</a>' />);
+  const a = screen.getByText('d');
+  expect(fireEvent.click(a)).toBe(false); // default prevented
+  expect(fireEvent.click(a, { metaKey: true })).toBe(true);
+});
+
+it.each([['/', 'lib\\b.ts'], ['\\', 'lib/b.ts']] as const)('user @mentions are clickable and keep the message text identical (server separator %s)', async (sep, lib) => {
+  setServerSep(sep);
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
+  const text = 'look at @src/a.ts and @"my doc.md" or @lib\\b.ts please';
+  const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+  const root = render(
+    <Provider store={store}>
+      <div onClick={(e) => refClick(e, store.dispatch)}>
+        <UserMessage item={{ kind: 'user', id: 'u1', text, ts: 0 } as never} />
+      </div>
+    </Provider>,
+  ).container;
+  const msg = root.querySelector<HTMLElement>('[data-kind="user"]')!;
+  expect(textOf(msg)).toContain(text);
+  const ms = msg.querySelectorAll<HTMLElement>('.mention');
+  expect([...ms].map((m) => m.dataset.path)).toEqual(['src/a.ts', 'my doc.md', lib]); // a Windows server's separator becomes '/'
+  fireEvent.click(ms[1]);
+  await tick();
+  expect(selectTabs(store.getState()).open.map((t) => t.id)).toContain('file:my doc.md');
+});
+
+// B1e: an image of a temp folder is a ref like a project path, opened without a HEAD (the tab says when it is gone)
+it('a temp image path in code or a link is a ref once the server named its temp folders; other absolute paths stay plain', () => {
+  const html = '<code>/tmp/shot.png</code> <a href="/tmp/b.jpg">b</a> <code>/tmp/notes.txt</code> <code>/etc/c.png</code> <code>/tmp/../etc/d.png</code>';
+  const before = div(html);
+  markRefs(before);
+  expect(before.querySelectorAll('.ref').length).toBe(0); // temp folders not known yet
+  const d = div(html);
+  markRefs(d, undefined, tmpDirsOf(['/tmp', '/private/tmp']));
+  expect([...d.querySelectorAll<HTMLElement>('.ref')].map((e) => e.dataset.path)).toEqual(['/tmp/shot.png', '/tmp/b.jpg']);
+  expect(d.querySelector<HTMLElement>('.ref')!.dataset.tmp).toBe('1');
+});
+
+it('Windows: relative refs with backslashes become "/" paths; C:\\ and C:/ paths are never relative, they map to a source or a temp folder', () => {
+  setServerSep('\\');
+  setSources([{ id: 'here', kind: 'checkout', label: '', ref: '', dir: 'C:/Users/x/proj' }]);
+  try {
+    const d = div(
+      '<code>src\\a.ts</code> <code>.\\up\\b.md:3</code> <code>src/a.ts</code> <a href="docs%5Cc.md">l</a>' +
+        '<code>C:\\Users\\x\\proj\\src\\d.ts</code> <code>c:/users/x/proj/e.md</code> <a href="C:/Users/x/proj/f.md">f</a> <a href="C:%5CUsers%5Cx%5Cproj%5Cg.md">g</a>' +
+        '<code>C:\\Users\\x\\AppData\\Local\\Temp\\shot.png</code> <code>C:\\Other\\h.md</code> <code>\\\\host\\share\\i.md</code> <code>\\n</code>',
+    );
+    markRefs(d, undefined, tmpDirsOf(['C:/Users/x/AppData/Local/Temp']));
+    const refs = [...d.querySelectorAll<HTMLElement>('.ref')].map((e) => [e.dataset.path, e.dataset.src ?? '', e.dataset.tmp ?? '']);
+    expect(refs).toEqual([
+      ['src/a.ts', '', ''], ['up/b.md', '', ''], ['src/a.ts', '', ''], ['docs/c.md', '', ''],
+      ['src/d.ts', 'here', ''], ['e.md', 'here', ''], ['f.md', 'here', ''], ['g.md', 'here', ''],
+      ['C:/Users/x/AppData/Local/Temp/shot.png', '', '1'],
+    ]);
+  } finally {
+    resetSources();
+  }
+});
+
+it('a POSIX server: a backslash is a name character and C:/ a relative folder, as before Windows support', () => {
+  setSources([{ id: 'here', kind: 'checkout', label: '', ref: '', dir: '/home/x/proj' }]);
+  try {
+    const d = div('<code>src\\a.ts</code> <a href="docs%5Cc.md">l</a> <code>C:/x/e.md</code> <code>C:\\x\\f.md</code> <a href="C:/x/g.md">g</a>');
+    markRefs(d);
+    const refs = [...d.querySelectorAll<HTMLElement>('.ref')].map((e) => [e.dataset.path, e.dataset.src ?? '']);
+    expect(refs).toEqual([['src\\a.ts', ''], ['docs\\c.md', ''], ['C:/x/e.md', ''], ['C:\\x\\f.md', '']]);
+  } finally {
+    resetSources();
+  }
+});
+
+it('a project path under a temp folder (a project that lives in /tmp) stays a project path', () => {
+  setSources([{ id: 'here', kind: 'checkout', label: '', ref: '', dir: '/tmp/proj' }]);
+  try {
+    const d = div('<code>/tmp/proj/pic.png</code>');
+    markRefs(d, undefined, ['/tmp']);
+    const c = d.querySelector<HTMLElement>('code')!;
+    expect([c.dataset.path, c.dataset.src, c.dataset.tmp]).toEqual(['pic.png', 'here', undefined]);
+  } finally {
+    resetSources();
+  }
+});
+
+it('a click on a temp image ref opens the tab at once, with no request; a project ref still checks first', async () => {
+  const fetchMock = vi.fn(async () => ({ ok: true }));
+  vi.stubGlobal('fetch', fetchMock);
+  const store = setup((s) => <Box store={s} html='<code class="ref" data-path="/tmp/s.png" data-tmp="1">s</code><code class="ref" data-path="src/a.ts">a</code>' />);
+  fireEvent.click(screen.getByText('s'));
+  await tick();
+  expect(selectTabs(store.getState()).active).toBe('file:/tmp/s.png');
+  expect(fetchMock).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByText('a'));
+  await tick();
+  expect(fetchMock).toHaveBeenCalled();
+  expect(selectTabs(store.getState()).active).toBe('file:src/a.ts');
+});
+
+it('a reply and a user message: a temp image in code becomes a ref when the folders arrive', () => {
+  const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+  const wrapper = ({ children }: { children: ReactNode }) => <Provider store={store}>{children}</Provider>;
+  const { container } = render(<Markdown text="saved to `/tmp/shot.png`" final />, { wrapper });
+  expect(container.querySelector('code.ref')).toBeNull();
+  act(() => void store.dispatch(serverEvent({ kind: 'hello', protocol: 30, tmpDirs: ['/tmp'] } as ServerEvent)));
+  expect(container.querySelector<HTMLElement>('code.ref')?.dataset.path).toBe('/tmp/shot.png');
+  const u = render(<Markdown text={escapeMentions('see [it](/tmp/b.png)')} final breaks noHtml mentions />, { wrapper });
+  expect(u.container.querySelector<HTMLElement>('a.ref')?.dataset.path).toBe('/tmp/b.png');
+});

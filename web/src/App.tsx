@@ -1,20 +1,20 @@
 import { useEffect } from 'react';
 import { useStore } from 'react-redux';
-import { selectConn, useAppSelector, type AppStore } from './store/store.ts';
-import { TooltipProvider } from '@/components/ui/tooltip.tsx';
-import { Footer } from './shell/Footer.tsx';
-import { Panes } from './tabs/Panes.tsx';
-import { TabStrip } from './tabs/TabStrip.tsx';
-import { Header } from './shell/Header.tsx';
-import { LeftStrip, RightStrip } from './shell/ToolStrip.tsx';
-import { LoginRequired } from './shell/LoginRequired.tsx';
-import { Stopped } from './shell/Stopped.tsx';
-import { OneTab } from './shell/OneTab.tsx';
-import { Toasts } from './shell/Toasts.tsx';
-import { useFavicon } from './shell/Favicon.ts';
-import { useSounds } from './shell/sounds.ts';
-import { Slots, type Own } from './shell/Slots.tsx';
-import { installKeymap } from './shell/keymap.ts';
+import { selectConn, useAppSelector, type AppStore } from './core/store/store.ts';
+import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
+import { Footer } from './core/shell/Footer.tsx';
+import { Panes } from './core/tabs/Panes.tsx';
+import { TabStrip } from './core/tabs/TabStrip.tsx';
+import { Header } from './core/shell/Header.tsx';
+import { LeftStrip, RightStrip } from './core/shell/ToolStrip.tsx';
+import { LoginRequired } from './core/shell/LoginRequired.tsx';
+import { Stopped } from './core/shell/Stopped.tsx';
+import { OneTab } from './core/shell/OneTab.tsx';
+import { Toasts } from './core/shell/Toasts.tsx';
+import { useFavicon } from './core/shell/Favicon.ts';
+import { useSounds } from './core/shell/sounds.ts';
+import { Slots, type Own } from './core/shell/Slots.tsx';
+import { installKeymap } from './core/shell/keymap.ts';
 
 // the frame's own parts among the plugins' (issue 511): the strips by the panels, the toasts among the overlays
 const LEFT: readonly Own[] = [{ order: 20, render: LeftStrip }];

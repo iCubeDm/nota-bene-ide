@@ -1,4 +1,4 @@
-// The app's number and date formatters: ports of the desktop's (web/src/lib/format.ts, web/src/usage/UsageView.tsx),
+// The app's number and date formatters: ports of the desktop's (web/src/core/lib/format.ts, web/src/plugins/usage/UsageView.tsx),
 // pinned by test/fixtures/usage/format.json, which the web side writes. [lang] is an app language code.
 import 'dart:math' as math;
 
@@ -21,7 +21,7 @@ String fmtNum(num n, String lang) =>
 final _compact = <String, NumberFormat>{};
 
 /// A large count the short way, in the language's own units (`1.5K`, `2,5 млн`, `250万`), as the desktop's one
-/// formatter writes it (web/src/lib/format.ts, issue 469).
+/// formatter writes it (web/src/core/lib/format.ts, issue 469).
 /// German has no short unit for thousands: such a count keeps every digit, grouped (`45.678`), as ICU writes it.
 String fmtTokens(num n, String lang) {
   final s = (_compact[lang] ??= NumberFormat.compact(locale: lang)).format(n);

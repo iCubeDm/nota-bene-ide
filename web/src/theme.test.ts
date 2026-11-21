@@ -13,7 +13,7 @@ it('media fits the pane and the natural size lifts the limits', () => {
 });
 
 /** The theme files: the only places a colour value may be written. */
-const THEME_FILES = new Set(['theme.css', 'components/markdown/hljs.css', 'fonts.css']);
+const THEME_FILES = new Set(['theme.css', 'core/components/markdown/hljs.css', 'fonts.css']);
 
 const PALETTE = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
 const LITERAL = new RegExp(
@@ -29,13 +29,13 @@ const LITERAL = new RegExp(
  * preview frame (black where no picture is, as the export renders it).
  */
 const ALLOWED: Record<string, string[] | '*'> = {
-  'shell/Favicon.ts': '*',
-  'media/markup/badges.ts': ['#ffffff', '#111111'],
-  'media/markup/render.ts': ['#ffffff', '#000000'], // the frame's white under the source; mask.png's black and white (issue 447)
-  'media/markup/overlay.tsx': ['rgba('],
-  'media/markup/MarkupToolbar.tsx': ['border-black'],
-  'cut/Timeline.tsx': ['bg-black'],
-  'cut/Preview.tsx': ['bg-black'],
+  'core/shell/Favicon.ts': '*',
+  'plugins/media/markup/badges.ts': ['#ffffff', '#111111'],
+  'plugins/media/markup/render.ts': ['#ffffff', '#000000'], // the frame's white under the source; mask.png's black and white (issue 447)
+  'plugins/media/markup/overlay.tsx': ['rgba('],
+  'plugins/media/markup/MarkupToolbar.tsx': ['border-black'],
+  'plugins/cut/Timeline.tsx': ['bg-black'],
+  'plugins/cut/Preview.tsx': ['bg-black'],
 };
 
 function* sources(dir: string): Generator<string> {
@@ -180,7 +180,7 @@ it.each(THEMES.filter((id) => id !== 'plannotator'))('%s passes AA', (id) => {
 });
 
 it('the header logo paints only with tokens every theme defines', () => {
-  const logo = readFileSync(resolve(__dirname, 'shell/Logo.tsx'), 'utf8');
+  const logo = readFileSync(resolve(__dirname, 'core/shell/Logo.tsx'), 'utf8');
   const used = [...new Set([...logo.matchAll(/var\((--logo-[\w-]+)\)/g)].map((m) => m[1]!))];
   expect(used.length).toBeGreaterThan(5);
   for (const id of THEMES) expect(used.filter((v) => !themeVars(themeSelector(id)).has(v)), id).toEqual([]);
