@@ -19,6 +19,7 @@ export { editable } from '../lib/editable.ts';
 export { useFocusWithin } from '../shell/focusWithin.ts';
 export { makeAnchor } from '../anchors/resolve.ts';
 export { textOf, collapsedLength, rawIndexOf, offsetsOf, rangeForAnchor } from '../anchors/text.ts';
+export { anchorLine, batchQuote, describeShape, mediaTime, mediaLine, cutWhere, cutQuote, cutLine, pageQuote, pageLines } from '../anchors/quote.ts';
 
 // the connection
 export { has, type Feature } from '@nota-bene/shared';
@@ -60,11 +61,13 @@ export {
   selectSession,
   selectTurnSeq,
   useRegistry,
+  refusedWhy,
   type RootState,
   type AppThunk,
   type AppDispatch,
   type AppStore,
   type StartListening,
+  type VoiceSend,
 } from '../store/store.ts';
 
 export { seekAndPause, type MediaController, type PipApi } from '../store/mediaController.ts';

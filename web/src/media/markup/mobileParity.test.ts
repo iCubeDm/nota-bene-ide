@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { expect, it } from 'vitest';
 import type { MediaShape } from '@nota-bene/shared';
-import { describeShape, mediaTime, rectFrom, simplify } from './geometry.ts';
+import { rectFrom, simplify } from './geometry.ts';
+import { describeShape, mediaTime } from '@/anchors/quote.ts';
 
 const shapes: MediaShape[] = [
   { kind: 'rect', color: '#ff3b30', x: 0.42, y: 0.4, w: 0.16, h: 0.24 },

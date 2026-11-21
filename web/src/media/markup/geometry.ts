@@ -1,4 +1,4 @@
-import type { MediaAnchor, MediaShape } from '@nota-bene/shared';
+import type { MediaShape } from '@nota-bene/shared';
 
 export const round4 = (v: number): number => Math.round(v * 10000) / 10000;
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
@@ -44,36 +44,6 @@ export function rectFrom(a: { x: number; y: number }, b: { x: number; y: number 
     x: round4(Math.min(a.x, b.x)), y: round4(Math.min(a.y, b.y)),
     w: round4(Math.abs(a.x - b.x)), h: round4(Math.abs(a.y - b.y)),
   };
-}
-
-/** One line per shape for the batch, e.g. `rect x=0.42 y=0.4 w=0.16 h=0.24 (px 806,432 307×259)`. */
-export function describeShape(s: MediaShape, natW: number, natH: number): string {
-  const n = (v: number) => String(round4(v));
-  const px = (v: number, nat: number) => Math.round(v * nat);
-  switch (s.kind) {
-    case 'rect':
-      return `rect x=${n(s.x)} y=${n(s.y)} w=${n(s.w)} h=${n(s.h)} (px ${px(s.x, natW)},${px(s.y, natH)} ${px(s.w, natW)}×${px(s.h, natH)})`;
-    case 'ellipse': {
-      const cx = s.x + s.w / 2, cy = s.y + s.h / 2, rx = s.w / 2, ry = s.h / 2;
-      return `ellipse cx=${n(cx)} cy=${n(cy)} rx=${n(rx)} ry=${n(ry)} (px ${px(cx, natW)},${px(cy, natH)} r ${px(rx, natW)}×${px(ry, natH)})`;
-    }
-    case 'arrow':
-      return `arrow (${n(s.x1)},${n(s.y1)})→(${n(s.x2)},${n(s.y2)}) (px ${px(s.x1, natW)},${px(s.y1, natH)}→${px(s.x2, natW)},${px(s.y2, natH)})`;
-    case 'pen': {
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (let i = 0; i < s.points.length; i += 2) {
-        minX = Math.min(minX, s.points[i]); maxX = Math.max(maxX, s.points[i]);
-        minY = Math.min(minY, s.points[i + 1]); maxY = Math.max(maxY, s.points[i + 1]);
-      }
-      const w = maxX - minX, h = maxY - minY;
-      return `pen ${s.points.length / 2} pts, bbox x=${n(minX)} y=${n(minY)} w=${n(w)} h=${n(h)} (px ${px(minX, natW)},${px(minY, natH)} ${px(w, natW)}×${px(h, natH)})`;
-    }
-    case 'polygon': { // issue 447: every point, so the agent can rebuild the mask
-      const pts: string[] = [];
-      for (let i = 0; i + 1 < s.points.length; i += 2) pts.push(`${px(s.points[i], natW)},${px(s.points[i + 1], natH)}`);
-      return `polygon ${s.points.length / 2} pts (px ${pts.join(' ')})`;
-    }
-  }
 }
 
 const HEAD_ANGLE = (25 * Math.PI) / 180;
@@ -178,17 +148,4 @@ export function movePoints(points: number[], dx: number, dy: number): number[] {
   }
   const cx = Math.min(1 - maxX, Math.max(-minX, dx)), cy = Math.min(1 - maxY, Math.max(-minY, dy));
   return points.map((v, i) => round4(clamp01(v + (i % 2 ? cy : cx))));
-}
-
-/** A video time as `m:ss.mmm` (what `ffmpeg -ss` takes), e.g. 4.24 → `0:04.240`. */
-export function mediaTime(t: number): string {
-  const ms = Math.round(t * 1000);
-  const m = Math.floor(ms / 60000), rest = ms - m * 60000;
-  return `${m}:${String(Math.floor(rest / 1000)).padStart(2, '0')}.${String(rest % 1000).padStart(3, '0')}`;
-}
-
-/** A media comment's line: the file's name, the paused time and [count] of its shapes; none for a comment on the whole picture (issue 494). */
-export function mediaLine(a: MediaAnchor, count: (n: number) => string): string {
-  const name = a.source.path.slice(a.source.path.lastIndexOf('/') + 1);
-  return `${name}${a.time !== undefined ? ` @ ${mediaTime(a.time)}` : ''}${a.shapes.length ? ` · ${count(a.shapes.length)}` : ''}`;
 }

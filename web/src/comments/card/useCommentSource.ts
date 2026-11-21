@@ -6,8 +6,7 @@ import { jumpToFileComment, selectFileLoad, selectFileVersion } from '@/files/sl
 import { markAttachment, selectImages } from '@/composer/slice.ts';
 import { itemsOf, openSubagentTab, selectSubagent } from '@/subagent/slice.ts';
 import { revealToolOf } from '@/feed/uiSlice.ts';
-import { selectReplyLabel } from '@/store/store.ts';
-import { whereOfFile } from '../send.ts';
+import { selectReplyLabel, whereOfFile } from '../send.ts';
 import { resolvePage } from '@/page/anchor.ts';
 import { pageRoot, textRootOf, usePageGen } from '@/page/frame.ts';
 

@@ -1,15 +1,15 @@
 import { combineSlices, configureStore, createAction, createListenerMiddleware, createSlice, type Middleware, type Reducer, type ThunkAction, type ThunkDispatch, type TypedStartListening, type UnknownAction } from '@reduxjs/toolkit';
 import { useDispatch, useSelector, useStore, type TypedUseSelectorHook } from 'react-redux';
 import type { ImageRef, ServerEvent, Voice } from '@nota-bene/shared';
-import { dictationAsk } from '../voice/lang.ts';
+
+/** A recording a message carries, with what its dictation asks about the language (the voice plugin's `dictationAsk`). */
+export type VoiceSend = { voice: Voice; ask: { lang: string; detect?: true } };
 import { agentConnection, bindConnections, connectionManager, SELF, type AgentConnection, type AgentId, type Connect, type ConnectionManager, type ConnState } from '../sdk/connections.ts';
 import { t } from '../i18n/index.ts';
 import { activate, tabsSlice, type Tab, type TabsState } from '../tabs/slice.ts';
 import { AUDIO, VIDEO } from '@nota-bene/shared/cut';
 import { browserPip, MediaController, type PipApi } from './mediaController.ts';
-import { agentName, itemsOf } from '../subagent/slice.ts';
 import { toast } from '../shell/toast.ts';
-import { TOOL_SRC } from './feed.ts';
 import { adoptHello } from '../sdk/storage.ts';
 import type { Plugin, PluginState } from '../sdk/plugin.ts';
 import { buildRegistry, type Registry } from '../sdk/registry.ts';
@@ -198,7 +198,7 @@ export const selectTurnSeq = (s: RootState): number => s.feed.turnSeq;
 export const selectSession = (s: RootState) => s.feed.session;
 
 export const sendMessage =
-  (text: string, force: boolean, commentIds?: string[], images?: ImageRef[], id: string = crypto.randomUUID(), voice?: Voice): AppThunk<boolean> =>
+  (text: string, force: boolean, commentIds?: string[], images?: ImageRef[], id: string = crypto.randomUUID(), voice?: VoiceSend): AppThunk<boolean> =>
   (_d, getState, { connections }) => {
     const st = getState();
     if (selectConn(st) !== 'open') return false;
@@ -206,9 +206,13 @@ export const sendMessage =
       type: 'send', id, text, force: force && selectBusy(st),
       ...(commentIds?.length ? { commentIds } : {}),
       ...(images?.length ? { images } : {}),
-      ...(voice ? { voice: { id: voice.id, ms: voice.ms, wave: voice.wave }, ...dictationAsk(st) } : {}),
+      ...(voice ? { voice: { id: voice.voice.id, ms: voice.voice.ms, wave: voice.voice.wave }, ...voice.ask } : {}),
     });
   };
+
+/** Why the server refused a send (`send-refused`), in the UI language: told by whatever part of the send it gives back. */
+export const refusedWhy = (reason: Extract<ServerEvent, { kind: 'send-refused' }>['reason']): string =>
+  t(reason === 'busy' ? 'sendRefusedBusy' : reason === 'detached' ? 'sendRefusedDetached' : 'sendRefused');
 
 export const interrupt = (): AppThunk => (_d, getState, { connections }) => {
   if (selectBusy(getState())) connections.current().send({ type: 'interrupt' });
@@ -220,50 +224,3 @@ export const takeOver = (): AppThunk => (_d, _g, { connections }) => connections
 export const answerPermission = (id: string, allow: boolean, response?: import('@nota-bene/shared').InteractionAnswer): AppThunk => (_d, _g, { connections }) => {
   connections.current().send({ type: 'permission', id, allow, ...(response ? { response } : {}) });
 };
-
-const ARG_CUT = 60;
-
-/**
- * Where a comment's source sits: "reply #n" for a FINAL assistant item (n = 1-based among final
- * assistant items in feed order), "my message" for a user item, "<name> command (arg)" for an action, null otherwise; `plain` (the batch text) names a reply just "reply", no number. The feed keeps no time per assistant
- * item, so the " · time" part of `reply` is dropped rather than invented.
- */
-export const selectReplyLabel = (s: RootState, messageId: string, plain = false, agent?: string): string | null => {
-  if (agent) return agentLabel(s, messageId, agent);
-  if (messageId.startsWith(TOOL_SRC)) {
-    // an agent action's command or output (R-M7-20): "Bash command (npm test)", the arg cut to 60 characters
-    const id = messageId.slice(TOOL_SRC.length);
-    const it = s.feed.items.find((x) => x.kind === 'tool' && x.id === id);
-    if (it?.kind !== 'tool') return null;
-    return t('srcTool', it.name, it.arg.length > ARG_CUT ? `${it.arg.slice(0, ARG_CUT)}…` : it.arg);
-  }
-  if (messageId.startsWith('plan:')) return s.feed.items.some((it) => it.kind === 'permission' && `plan:${it.id}` === messageId) ? t('mode_plan') : null;
-  let n = 0;
-  for (const it of s.feed.items) {
-    if (it.kind === 'assistant' && it.final) n++;
-    if ((it.kind === 'assistant' || it.kind === 'user') && it.id === messageId) {
-      if (it.kind === 'user') return t('srcMine');
-      if (!it.final) return null;
-      return plain ? t('replyPlain') : t('reply', n, '').replace(/\s*·\s*$/, '');
-    }
-  }
-  return null;
-};
-
-/**
- * The label of a place inside a subagent's conversation (no numbers, like the plain `reply`; the quote is the locator):
- * "subagent reply «description»", and for an action "Bash command (npm test) · subagent «description»". An action the
- * conversation does not (yet) hold is unknown (null); a reply is named even before the conversation is loaded, so a
- * batch never calls it a chat message.
- */
-function agentLabel(s: RootState, messageId: string, agent: string): string | null {
-  const name = agentName(s, agent);
-  if (messageId.startsWith(TOOL_SRC)) {
-    const id = messageId.slice(TOOL_SRC.length);
-    // not loaded (a reload with the tab closed): the same call forwarded into the chat names it, if it is there
-    const it = (itemsOf(s, agent) ?? s.feed.items).find((x) => x.kind === 'tool' && x.id === id);
-    if (it?.kind !== 'tool') return null;
-    return t('srcAgentTool', t('srcTool', it.name, it.arg.length > ARG_CUT ? `${it.arg.slice(0, ARG_CUT)}…` : it.arg), name);
-  }
-  return t('srcAgentReply', name);
-}
