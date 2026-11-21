@@ -5,7 +5,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 class Poll {
-  /// Runs [read] at once and again after the delay it answers; null stops. A hidden app reads nothing, and reads at
+  /// Runs [read] at once and again after the delay it answers; null stops. [read] answers its own errors. A hidden app reads nothing, and reads at
   /// once when it is shown again.
   Poll(this.read) {
     _life = AppLifecycleListener(onShow: kick, onHide: _stop);
@@ -18,11 +18,14 @@ class Poll {
   var _run = 0;
   bool _over = false;
 
-  /// Whether the app is on screen now (no state yet, as in a test, is on screen).
-  static bool get _shown {
-    final s = WidgetsBinding.instance.lifecycleState;
-    return s == null || s == AppLifecycleState.resumed;
-  }
+  /// Whether the app is on screen now: also while inactive (a dialog of the system over it), and with no state yet, as
+  /// in a test.
+  static bool get _shown => switch (WidgetsBinding.instance.lifecycleState) {
+    AppLifecycleState.hidden ||
+    AppLifecycleState.paused ||
+    AppLifecycleState.detached => false,
+    _ => true,
+  };
 
   /// Reads now, whatever was waiting; the reads that follow are this one's.
   void kick() {

@@ -47,16 +47,27 @@ class _AgentScreenState extends State<AgentScreen> {
   @override
   void initState() {
     super.initState();
+    _live = _liveNow;
+    widget.tab.tasks.addListener(_tasks);
     _poll;
+  }
+
+  bool get _liveNow => widget.tab.tasks.state.values.any(
+    (x) => x.call == widget.tool && x.running,
+  );
+  late bool _live;
+
+  // a running task of this call appeared (a resume, SendMessage to a finished agent): read it again
+  void _tasks() {
+    final live = _liveNow;
+    if (live && !_live) _poll.kick();
+    _live = live;
   }
 
   /// Something says the subagent works: a live task of its call, or its call has no result in the chat yet.
   bool get _pollable {
     final tool = widget.tool;
-    final live = widget.tab.tasks.state.values.any(
-      (x) => x.call == tool && x.running,
-    );
-    return live ||
+    return _liveNow ||
         !widget.tab.windowState.feed.items.any(
           (i) => i is ToolItem && i.id == tool && i.result != null,
         );
@@ -99,11 +110,17 @@ class _AgentScreenState extends State<AgentScreen> {
             : (e.status == null ? '${e.cause ?? e}' : 'HTTP ${e.status}');
       });
       return gone || _pollable ? _backoff() : null;
+    } on Object catch (e) {
+      // an answer that is not a subagent's
+      if (!mounted) return null;
+      setState(() => _error = '$e');
+      return _pollable ? _backoff() : null;
     }
   }
 
   @override
   void dispose() {
+    widget.tab.tasks.removeListener(_tasks);
     _poll.dispose();
     super.dispose();
   }

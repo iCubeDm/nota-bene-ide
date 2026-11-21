@@ -38,13 +38,14 @@ class _ShellScreenState extends State<ShellScreen> {
   ({String output, num totalBytes, bool truncated, bool running})? _out;
   bool _gone = false, _final = false;
   String? _error;
-  late bool _ended = _endedNow;
+  late bool _ended;
 
   bool get _endedNow => !(widget.tab.tasks.state[widget.task]?.running ?? true);
 
   @override
   void initState() {
     super.initState();
+    _ended = _endedNow;
     widget.tab.tasks.addListener(_tasks);
     _poll;
   }
@@ -78,6 +79,11 @@ class _ShellScreenState extends State<ShellScreen> {
         () =>
             _error = e.status == null ? '${e.cause ?? e}' : 'HTTP ${e.status}',
       );
+      return _retry;
+    } on Object catch (e) {
+      // an answer that is not a task's output
+      if (!mounted) return null;
+      setState(() => _error = '$e');
       return _retry;
     }
   }

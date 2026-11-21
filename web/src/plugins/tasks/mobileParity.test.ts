@@ -40,6 +40,10 @@ const CASES: Record<string, () => ServerEvent[]> = {
     start('k', { call: 'toolu_1', parent: 'p0', group: 'g1', bg: true, model: 'sonnet' }),
     done('k'),
     start('k', { call: 'toolu_2', parent: 'p9', group: 'g2', desc: 'again' }),
+    // a resume that says an empty workflow or model drops the one it had
+    start('w', { type: 'local_workflow', workflow: 'audit', model: 'opus' }),
+    done('w'),
+    start('w', { type: 'local_workflow', workflow: '', model: '' }),
     { kind: 'agent', ts: 99, e: { t: 'message', id: 'm:0', text: 'not a task' } } as ServerEvent,
   ],
   nesting: () => [

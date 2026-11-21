@@ -191,9 +191,10 @@ TasksState reduceTasks(TasksState s, ServerEvent ev) {
           call: call,
           parent: cur?.parent ?? _s(e.parent),
           group: cur?.group ?? _s(e.group),
-          workflow: _s(e.workflow) ?? cur?.workflow,
+          // an empty one said again drops the old, as the web's spread does
+          workflow: e.workflow != null ? _s(e.workflow) : cur?.workflow,
           bg: e.bg ?? cur?.bg,
-          model: _s(e.model) ?? cur?.model,
+          model: e.model != null ? _s(e.model) : cur?.model,
           ambient: e.ambient == true,
           inner: e.inner == true || (cur?.inner ?? false),
           start: ev.ts,
@@ -389,15 +390,20 @@ List<TaskRow> taskRows(TasksState t) {
 /// "To background" is for a running task that blocks its tool call. The CLI says so ([Task.bg]); when it did not, the
 /// call having no result yet in the chat stands in, and a task of the main thread is never in the foreground once its
 /// turn is over. Nothing to send without the call's id.
-bool foreground(Task x, Feed feed) {
+/// [resulted]: [resultedCalls] of the feed, when the caller has it already.
+bool foreground(Task x, Feed feed, [Set<String>? resulted]) {
   final call = x.call;
   if (!x.running || call == null) return false;
   if (x.bg case final bg?) return !bg;
-  final resulted = feed.items.any(
-    (i) => i is ToolItem && i.id == call && i.result != null,
-  );
-  return !resulted && (x.parent != null || feed.busy);
+  return !(resulted ?? resultedCalls(feed)).contains(call) &&
+      (x.parent != null || feed.busy);
 }
+
+/// The ids of the tool calls of [feed] that have their result.
+Set<String> resultedCalls(Feed feed) => {
+  for (final i in feed.items)
+    if (i is ToolItem && i.result != null) i.id,
+};
 
 /// A window's tasks, rebuilt from its replay and kept from its live events.
 class Tasks extends ChangeNotifier {
@@ -410,6 +416,7 @@ class Tasks extends ChangeNotifier {
   DateTime Function() clock = DateTime.now;
 
   /// The phone's clock minus the window's, as its last live event said (the task times are the window's).
+  /// 0 until the first live event: until then the phone's clock stands in.
   int _skew = 0;
 
   /// The window's time now, in ms.

@@ -150,6 +150,7 @@ class TasksSheet extends StatefulWidget {
 
 class _TasksSheetState extends State<TasksSheet> {
   Timer? _tick;
+  Set<String> _resulted = const {};
 
   @override
   void dispose() {
@@ -179,6 +180,8 @@ class _TasksSheetState extends State<TasksSheet> {
         _ticking(runningCount(s) > 0);
         final rows = taskRows(s);
         final now = tab.tasks.now();
+        // once per build, not once per row: the sheet rebuilds with every chunk of a reply
+        _resulted = resultedCalls(tab.windowState.feed);
         return SafeArea(
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -372,7 +375,7 @@ class _TasksSheetState extends State<TasksSheet> {
       actions: [
         if (taskControls(tab) && x.running && !x.inner)
           StopButton(tab: tab, id: r.id, refusals: tab.tasks.refusals),
-        if (x.running) BackgroundButton(tab: tab, task: x),
+        if (x.running) BackgroundButton(tab: tab, task: x, resulted: _resulted),
       ],
     );
   }
@@ -465,14 +468,16 @@ class _StopButtonState extends State<StopButton> {
       setState(() => _sure = true);
       return _later(stopConfirm);
     }
+    var sent = true;
     for (final id in widget.members ?? [widget.id]) {
-      widget.tab.connection.send(ClientMessageTaskStop(id: id));
+      sent = widget.tab.connection.send(ClientMessageTaskStop(id: id)) && sent;
     }
+    // not gone (the socket is down): nothing to wait for, Stop stays to try again
     setState(() {
       _sure = false;
-      _pending = true;
+      _pending = sent;
     });
-    _later(stopWait);
+    if (sent) _later(stopWait);
   }
 
   @override
@@ -500,9 +505,17 @@ class _StopButtonState extends State<StopButton> {
 
 /// To background: only for a task in the foreground ([foreground]), and only on a window that has it.
 class BackgroundButton extends StatelessWidget {
-  const BackgroundButton({super.key, required this.tab, required this.task});
+  const BackgroundButton({
+    super.key,
+    required this.tab,
+    required this.task,
+    required this.resulted,
+  });
   final WindowTab tab;
   final Task task;
+
+  /// [resultedCalls] of the chat.
+  final Set<String> resulted;
 
   @override
   Widget build(BuildContext context) {
@@ -510,7 +523,7 @@ class BackgroundButton extends StatelessWidget {
     if (call == null ||
         !taskControls(tab) ||
         tab.windowState.capabilities?.taskBackground == false ||
-        !foreground(task, tab.windowState.feed)) {
+        !foreground(task, tab.windowState.feed, resulted)) {
       return const SizedBox.shrink();
     }
     return _TaskButton(

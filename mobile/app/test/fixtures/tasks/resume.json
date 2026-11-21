@@ -41,6 +41,41 @@
   },
   {
    "kind": "agent",
+   "ts": 4000,
+   "e": {
+    "t": "task",
+    "id": "w",
+    "phase": "started",
+    "desc": "do w",
+    "type": "local_workflow",
+    "workflow": "audit",
+    "model": "opus"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 5000,
+   "e": {
+    "t": "task",
+    "id": "w",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 6000,
+   "e": {
+    "t": "task",
+    "id": "w",
+    "phase": "started",
+    "desc": "do w",
+    "type": "local_workflow",
+    "workflow": "",
+    "model": ""
+   }
+  },
+  {
+   "kind": "agent",
    "ts": 99,
    "e": {
     "t": "message",
@@ -64,19 +99,34 @@
    "tokens": 0,
    "tool": "",
    "summary": ""
+  },
+  "w": {
+   "desc": "do w",
+   "type": "local_workflow",
+   "kind": "workflow",
+   "start": 6000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
   }
  },
  "ordered": [
-  "k"
+  "k",
+  "w"
  ],
  "rows": [
   {
    "id": "k",
    "depth": 0
+  },
+  {
+   "id": "w",
+   "depth": 0
   }
  ],
  "counts": {
-  "running": 1,
+  "running": 2,
   "finished": 0,
   "watchers": 0
  }

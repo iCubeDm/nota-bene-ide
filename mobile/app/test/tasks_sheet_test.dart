@@ -344,4 +344,93 @@ void main() {
     await t.pump(const Duration(seconds: 5));
     expect(r.ch.requests.length, 1);
   });
+
+  testWidgets('an open subagent that runs again (a resume) is read again', (
+    t,
+  ) async {
+    final r = Rig();
+    addTearDown(r.dispose);
+    await r.open(t, events: [session]);
+    var running = false;
+    r.ch.onHttp = (port, method, path) async => answer(
+      200,
+      jsonEncode({
+        'events': <Object>[],
+        'running': running,
+        'type': 'Explore',
+        'description': 'd',
+      }),
+    );
+    r.event(started('a', {'call': 'toolu_a'}));
+    r.event(done('a'));
+    await t.pumpAndSettle();
+    await openSheet(t);
+    await t.tap(row('a'));
+    await t.pumpAndSettle();
+    await t.pump(const Duration(seconds: 3));
+    expect(r.ch.requests.length, 1);
+    running = true;
+    r.event(started('a', {'call': 'toolu_resume'}));
+    await t.pumpAndSettle();
+    expect(r.ch.requests.length, 2);
+    await t.pump(const Duration(milliseconds: 1600));
+    expect(r.ch.requests.length, 3);
+    running = false;
+    await t.pump(const Duration(milliseconds: 1600));
+  });
+
+  testWidgets('an answer that cannot be read is said, not left loading', (
+    t,
+  ) async {
+    final r = Rig();
+    addTearDown(r.dispose);
+    await r.open(t, events: [session]);
+    r.ch.onHttp = (port, method, path) async =>
+        answer(200, jsonEncode({'events': 3, 'output': 1}));
+    r.event(started('a', {'call': 'toolu_a'}));
+    r.event(started('s', {'type': 'local_bash'}));
+    await t.pumpAndSettle();
+    await openSheet(t);
+    await t.tap(row('a'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('Could not load the subagent'), findsOneWidget);
+    await t.pageBack();
+    await t.pumpAndSettle();
+    await openSheet(t);
+    await t.tap(row('s'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('Could not read the output'), findsOneWidget);
+  });
+
+  testWidgets(
+    'a read waits out a brief inactive app and goes on when it returns',
+    (t) async {
+      final r = Rig();
+      addTearDown(r.dispose);
+      await r.open(t, events: [session]);
+      r.ch.onHttp = (port, method, path) async => answer(
+        200,
+        jsonEncode({
+          'output': 'x',
+          'totalBytes': 1,
+          'truncated': false,
+          'running': true,
+        }),
+      );
+      r.event(started('s', {'type': 'local_bash'}));
+      await t.pumpAndSettle();
+      await openSheet(t);
+      await t.tap(row('s'));
+      await t.pumpAndSettle();
+      final n = r.ch.requests.length;
+      t.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await t.pump(const Duration(milliseconds: 1100));
+      t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await t.pump(const Duration(milliseconds: 1100));
+      await t.pump(const Duration(milliseconds: 1100));
+      expect(r.ch.requests.length, greaterThanOrEqualTo(n + 2));
+      await t.pageBack();
+      await t.pumpAndSettle();
+    },
+  );
 }
