@@ -1,6 +1,6 @@
 import { useAutosize } from './autosize.ts';
 import { AgentAccount } from '@/controls/AgentAccount.tsx';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, keysLabel, modKey, withKey, chat } from '@/sdk';
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { selectSendable, sendBatch } from '@/comments/send.ts';
@@ -14,8 +14,10 @@ import { SlashPicker } from './SlashPicker.tsx';
 import { selectShellMode } from './shellMode.ts';
 import { PromptHistory } from './PromptHistory.tsx';
 import { MessageInput, MicButton, SendIcon } from './MessageInput.tsx';
-import { has, type PromptEntry } from '@nota-bene/shared';
-import { recallList, selectPromptItems, selectPromptSid } from './history.ts';
+import { has } from '@nota-bene/shared';
+import { selectPromptItems, selectPromptSid } from './history.ts';
+import { usePromptRecall } from './usePromptRecall.ts';
+import { useComposerKeys } from './useComposerKeys.ts';
 import { Meters } from '@/stats/Meters.tsx';
 import { CtxNudge } from '@/stats/CtxNudge.tsx';
 import { ComposerAttachments } from '@/attachments/ComposerAttachments.tsx';
@@ -68,32 +70,8 @@ export function Composer() {
   }, [busy]);
   const ref = useRef<HTMLTextAreaElement>(null);
   const fieldBox = useRef<HTMLDivElement>(null);
-  // ↑/↓ through the prompts sent before (newest first): `id` is the recalled one (null = not browsing), `stash` the draft it replaced
-  // (a list choice or a search makes one); `query` is the text a search walk started from (null = the whole list is walked)
-  const recall = useMemo(() => recallList(items), [items]);
-  const recallRef = useRef(recall);
-  recallRef.current = recall;
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
-  const browse = useRef<{ id: string | null; stash: string; query: string | null }>({ id: null, stash: '', query: null });
-  useEffect(() => void (browse.current = { id: null, stash: '', query: null }), [sid]);
-  // where the draft is in the list: the recalled entry (by id, so a list that grows under the walk keeps the place), else
-  // the entry with that text (a repeat collapsed away); -1 = not browsing, the draft is no recalled prompt any more
-  const walkList = (): PromptEntry[] => {
-    const query = browse.current.query;
-    if (query === null) return recallRef.current;
-    const q = query.toLowerCase();
-    // the typed text itself is no step: the first ↑ always changes the field
-    return recallList(itemsRef.current.filter((x) => x.text !== query && x.text.toLowerCase().includes(q)));
-  };
-  const placeOf = (value: string): number => {
-    const list = walkList();
-    const b = browse.current;
-    if (b.id === null) return -1;
-    const at = list.findIndex((x) => x.id === b.id);
-    if (at >= 0 && list[at]!.text === value) return at;
-    return list.findIndex((x) => x.text === value);
-  };
+  // ↑/↓ through the prompts sent before, and a prompt picked in the history list
+  const { stepHistory, pickHistory, placeOf, reset: endRecall } = usePromptRecall({ items, sid, text, ref });
   // voice messages: only a server that speaks protocol 14 has the mic; without Whisper it opens Settings → Dictation
   const voiceOk = useAppSelector((s) => has(s.controls.protocol, 'voice'));
   const whisper = caps.dictation === 'whisper';
@@ -248,111 +226,22 @@ export function Composer() {
       return;
     }
     setAskForce(false);
-    browse.current = { id: null, stash: '', query: null };
+    endRecall();
     const r = dispatch(sendBatch(force));
     if (r === 'empty' || r === 'detached' || r === 'blocked' || r === 'switching' || r === 'building' || r === 'changed') return;
     setFailed(r === 'offline');
     if (r === 'sent') ref.current?.focus();
   };
 
-  // true when the key was a history step. A walk starts from an empty field (the whole list) or from a single-line draft (the
-  // prompts containing it; ↓ past the newest brings the draft back); it goes on while the draft is still exactly the recalled
-  // prompt: any edit ends it. `always` (Alt+↑/↓) ignores the caret, a selection and a multi-line draft: a multi-line draft
-  // is stashed and the whole list walked
-  const stepHistory = (e: KeyboardEvent<HTMLTextAreaElement>, always: boolean): boolean => {
-    const el = e.currentTarget;
-    const b = browse.current;
-    const { selectionStart: from, selectionEnd: to, value } = el;
-    let list = walkList();
-    const at = placeOf(value);
-    if (at < 0) { b.id = null; b.query = null; list = recallRef.current; }
-    if (from !== to && !always) return false;
-    const show = (to: number, draft: string) => {
-      b.id = to >= 0 ? list[to]!.id : null;
-      if (to < 0) b.query = null;
-      dispatch(setDraft(draft));
-      // the controlled value lands on the next render; the caret goes after it, unless typing changed the value meanwhile
-      requestAnimationFrame(() => {
-        const el = ref.current;
-        if (el?.value === draft) el.setSelectionRange(draft.length, draft.length);
-      });
-    };
-    if (e.key === 'ArrowUp') {
-      if (!list.length) return false;
-      if (at < 0) {
-        if (value === '') {
-          b.stash = '';
-          show(0, list[0]!.text);
-          return true;
-        }
-        if (always) {
-          // Alt: the whole list, newest first, whatever the draft (no search, a draft with no match too)
-          b.query = null;
-          b.stash = value;
-          show(0, list[0]!.text);
-          return true;
-        }
-        if (value.includes('\n')) return false;
-        // typed text: the prompts that contain it; none = the field's own
-        b.query = value;
-        list = walkList();
-        if (!list.length) { b.query = null; return false; }
-        b.stash = value;
-        show(0, list[0]!.text);
-        return true;
-      }
-      if (!always && value.slice(0, from).includes('\n')) return false; // not on the first line: the field's own
-      if (at + 1 < list.length) show(at + 1, list[at + 1]!.text);
-      return true;
-    }
-    if (at < 0 || (!always && value.indexOf('\n', from) !== -1)) return false; // ↓ is the field's own unless on the last line of a recall
-    if (at > 0) show(at - 1, list[at - 1]!.text);
-    else show(-1, b.stash);
-    return true;
-  };
-
-  // a prompt chosen in the history list becomes the draft; the draft it replaced is the stash, so ↓ brings it back
-  const pickHistory = (picked: string) => {
-    const at = placeOf(text);
-    const entry = recallRef.current.find((x) => x.text === picked);
-    browse.current = { id: entry?.id ?? null, stash: at >= 0 ? browse.current.stash : text, query: null };
-    dispatch(setDraft(picked));
-    requestAnimationFrame(() => {
-      ref.current?.focus({ preventScroll: true });
-      ref.current?.setSelectionRange(picked.length, picked.length);
-    });
-  };
-
-  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // an open @ / : / picker takes Tab at window capture and stops it, so this is only reached with no picker to serve
-    if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !e.nativeEvent.isComposing && showSug) {
-      e.preventDefault();
-      dispatch(setDraft(suggestion));
-      // the controlled value lands on the next render; put the caret after it
-      requestAnimationFrame(() => ref.current?.setSelectionRange(suggestion.length, suggestion.length));
-      return;
-    }
-    if (e.key === 'Tab' && e.shiftKey && !e.nativeEvent.isComposing && mode && caps.modes.length > 1) {
-      e.preventDefault();
-      dispatch(pickMode(nextMode(mode, caps.modes)));
-      return;
-    }
-    if (e.key === 'Escape' && askForce) {
-      e.preventDefault(); // the document hotkeys skip it
-      setAskForce(false);
-      return;
-    }
-    // Alt+↑/↓ (Option on a Mac) always walk the history; an open / or @ list took the key at window capture before this
-    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.nativeEvent.isComposing && stepHistory(e, e.altKey)) {
-      e.preventDefault();
-      return;
-    }
-    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
-    const force = e.metaKey || e.ctrlKey;
-    if (e.shiftKey && !force) return;
-    e.preventDefault();
-    submit(force);
-  };
+  const onKeyDown = useComposerKeys({
+    ref,
+    suggestion: showSug ? suggestion : null,
+    pickNextMode: mode && caps.modes.length > 1 ? () => dispatch(pickMode(nextMode(mode, caps.modes))) : null,
+    askForce,
+    setAskForce,
+    stepHistory,
+    submit,
+  });
 
   // files dragged from the Files tree (issue 461): their paths at the caret
   const treeOver = (e: React.DragEvent) => {
