@@ -6,7 +6,8 @@ import { serverEvent } from '@/store/store.ts';
 import { makeStore } from '@/testing';
 import { activate, openFile, selectTabs } from '@/tabs/slice.ts';
 import { RecentFiles } from './RecentFiles.tsx';
-import { RECENT_DWELL_MS, RECENT_MAX, readRecent, recentModal } from './recent.ts';
+import { RECENT_DWELL_MS, RECENT_MAX, readRecent } from './recent.ts';
+import { setRecentOpen } from './slice.ts';
 
 let complete: string[];
 beforeEach(() => {
@@ -15,10 +16,11 @@ beforeEach(() => {
   complete = [];
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(complete), { status: 200 })));
 });
-afterEach(() => { cleanup(); act(() => recentModal.close()); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
+let current: ReturnType<typeof makeStore>;
 function setup() {
-  const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+  const store = (current = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) }));
   act(() => void store.dispatch(serverEvent({ kind: 'session', id: 's1', root: '/p', title: null, model: null })));
   render(<Provider store={store}><RecentFiles /></Provider>);
   return store;
@@ -27,7 +29,7 @@ function setup() {
 const dwell = () => act(() => new Promise<void>((r) => setTimeout(r, RECENT_DWELL_MS + 30)));
 const items = () => [...document.querySelectorAll<HTMLElement>('[data-recent]')].map((b) => b.dataset.recent);
 // Alt+E itself is the keymap's (shell/keymap.test.tsx); here the modal opens as the keymap opens it
-const ctrlE = () => act(() => recentModal.open());
+const ctrlE = () => act(() => void current.dispatch(setRecentOpen(true)));
 
 it('a file tab that stays active is recorded, newest first, once each, at most 50 (M6-13)', async () => {
   const store = setup();
@@ -76,7 +78,7 @@ it('a query filters the recent files and adds project hits from /complete (files
   act(() => void store.dispatch(openFile('README.md')));
   await dwell();
   complete = ['src/app.ts', 'src/', 'src/apple.ts', 'web/app.css'];
-  act(() => recentModal.open());
+  act(() => void current.dispatch(setRecentOpen(true)));
   const box = await screen.findByRole('combobox', { name: /searches the whole project/ });
   fireEvent.change(box, { target: { value: 'app' } });
   expect(items()).toEqual(['src/app.ts']); // the recent match at once
@@ -93,7 +95,7 @@ it('a file of another source reopens in that source (M6-13)', async () => {
   act(() => void store.dispatch(openFile({ path: 'x.ts', src: 'ref:feature', ref: 'feature' })));
   await dwell();
   act(() => void store.dispatch(activate('chat')));
-  act(() => recentModal.open());
+  act(() => void current.dispatch(setRecentOpen(true)));
   await screen.findByRole('listbox');
   expect(screen.getByText('@ feature', { exact: false })).toBeInTheDocument();
   fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Enter' });
@@ -110,7 +112,7 @@ it('after a switch to another folder the list is that folder\'s; the first folde
   await dwell();
   expect(readRecent('/q').map((f) => f.path)).toEqual(['q.ts']);
   expect(readRecent('/p').map((f) => f.path)).toEqual(['a.ts']);
-  act(() => recentModal.open());
+  act(() => void current.dispatch(setRecentOpen(true)));
   await screen.findByRole('listbox');
   expect(items()).toEqual(['q.ts']);
 });
@@ -119,7 +121,7 @@ it('with no recent files a query still finds any project file; it says "searchin
   setup();
   let answer!: (r: Response) => void;
   vi.mocked(fetch).mockImplementationOnce(() => new Promise<Response>((r) => (answer = r)));
-  act(() => recentModal.open());
+  act(() => void current.dispatch(setRecentOpen(true)));
   expect(await screen.findByText(/No recent files yet — type to find any file/)).toBeInTheDocument();
   fireEvent.change(screen.getByRole('combobox'), { target: { value: 'deep' } });
   expect(await screen.findByText('Searching the project…')).toBeInTheDocument();

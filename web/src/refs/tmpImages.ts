@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useStored } from '../sdk/storage.ts';
 import { isDrivePath, isServerDrivePath, underDir, wireAbs } from '../lib/paths.ts';
 import { connections } from '../sdk/connections.ts';
 import { routes } from '../sdk/routes.ts';
@@ -27,7 +27,7 @@ export function setTmpDirs(next: string[] | undefined): void {
   for (const fn of listeners) fn();
 }
 const getTmpDirs = (): string[] => dirs;
-export const useTmpDirs = (): string[] => useSyncExternalStore(subscribe, getTmpDirs);
+export const useTmpDirs = (): string[] => useStored({ subscribe, get: getTmpDirs });
 
 /** An absolute image path lexically under a temp folder (no `..`, no forbidden characters). The server decides for real.
  *  A drive path may use either separator: the one to open is `wireAbs(abs)`. */

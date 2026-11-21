@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useStored } from '../sdk/storage.ts';
 
 // A rendered HTML page lives in its own document (the page plugin's frame, page/HtmlBody.tsx). The comment machinery works in this window's
 // coordinates and DOM; these helpers carry what it reads across the frame's edge.
@@ -67,4 +67,4 @@ const subscribeGen = (fn: () => void): (() => void) => {
   return () => void genListeners.delete(fn);
 };
 /** A number that moves each time any page finishes rendering. */
-export const usePageGen = (): number => useSyncExternalStore(subscribeGen, () => gen);
+export const usePageGen = (): number => useStored({ subscribe: subscribeGen, get: () => gen });

@@ -2,8 +2,8 @@
 // per folder running in any window, in a fixed order by name so nothing moves under the pointer, with its state dot and
 // badge. A click moves this tab to that project the way the switcher does; + opens a folder. Settings can turn it off; a
 // narrow window has no room for it.
-import { useState, useSyncExternalStore } from 'react';
-import { useT, remotePage } from '@/sdk';
+import { useState } from 'react';
+import { useT, remotePage, useStored } from '@/sdk';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { enterProject, openStarter, PROVIDER_LABEL, useProjects, type RunningRow } from './api.ts';
 import { useRailPref } from './railPref.ts';
@@ -37,7 +37,7 @@ function siblingsOf(r: ProjectRow): { badge: Badge; target: RunningRow | undefin
 
 export function ProjectRail() {
   const on = useRailPref();
-  const wide = useSyncExternalStore(subscribeWide, isWide);
+  const wide = useStored({ subscribe: subscribeWide, get: isWide });
   // null: a new window that has not heard the server yet, so a rail turned off never flashes in
   return on === true && wide ? <Rail /> : null;
 }

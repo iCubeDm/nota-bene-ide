@@ -24,14 +24,3 @@ export function pushRecent(root: string, f: SavedFile): void {
   const next = [f, ...readRecent(root).filter((x) => !same(x, f))].slice(0, RECENT_MAX);
   saved(root).set(next);
 }
-
-// the modal's open state: opened by the keymap (Alt+E), read by RecentFiles
-let isOpen = false;
-const subs = new Set<() => void>();
-const emit = () => { for (const f of subs) f(); };
-export const recentModal = {
-  open: () => { isOpen = true; emit(); },
-  close: () => { isOpen = false; emit(); },
-  get: () => isOpen,
-  subscribe: (f: () => void) => { subs.add(f); return () => void subs.delete(f); },
-};

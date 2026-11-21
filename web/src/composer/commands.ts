@@ -1,5 +1,5 @@
 import { isMac, type Command } from '@/sdk';
-import { promptHistoryModal } from './historyModal.ts';
+import { selectHistoryOpen, setHistoryOpen } from './history.ts';
 
 /** what Alt+R dispatches on the document; the composer listens (the keymap has the store but not the composer's recorder). `detail.force`: Cmd/Ctrl was held too */
 export const VOICE_KEY = 'nb:voice-key';
@@ -9,8 +9,8 @@ const focusComposer = () => (document.getElementById('composer-input') as HTMLTe
 export const composerCommands: Command[] = [
   // Alt+H, in a field too (also on a Mac, where Option+H types ˙): the prompt history list of the composer. No clash: H
   // was free. Over its own modal list too, to close it
-  { id: 'hk_promptHistory', codes: ['KeyH'], mods: { alt: true }, inFields: true, inModal: () => promptHistoryModal.get(), order: 80,
-    run: () => (promptHistoryModal.get() ? promptHistoryModal.close() : promptHistoryModal.open()) },
+  { id: 'hk_promptHistory', codes: ['KeyH'], mods: { alt: true }, inFields: true, inModal: selectHistoryOpen, order: 80,
+    run: ({ store }) => void store.dispatch(setHistoryOpen(!selectHistoryOpen(store.getState()))) },
   // Alt+↑/↓ (Option on a Mac): older / newer prompt in the composer, whatever the draft. Only the composer's own key handler
   // walks; the keymap must not take the key elsewhere (native caret and scroll moves), so these are for the help list
   { id: 'hk_promptOlder', codes: ['ArrowUp'], mods: { alt: true }, inFields: true, helpOnly: true, order: 90, run: () => {} },

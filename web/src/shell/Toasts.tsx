@@ -1,11 +1,11 @@
-import { useSyncExternalStore } from 'react';
+import { useStored } from '../sdk/storage.ts';
 import { useT } from '@/i18n/index.ts';
 import { dismissToast, getToasts, pauseToast, resumeToast, subscribeToasts } from './toast.ts';
 
 /** Top-right under the header (prototype: top 56px, right 16px, 380px). The live region stays mounted so additions are announced. */
 export function Toasts() {
   const t = useT();
-  const list = useSyncExternalStore(subscribeToasts, getToasts);
+  const list = useStored({ subscribe: subscribeToasts, get: getToasts });
   return (
     <div role="status" aria-live="polite" className="pointer-events-none fixed top-14 right-4 z-[20] flex w-[380px] max-w-[calc(100vw-2rem)] flex-col gap-2">
       {list.map((x) => (

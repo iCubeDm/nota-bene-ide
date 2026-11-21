@@ -1,5 +1,4 @@
-import { useSyncExternalStore } from 'react';
-import { connections, routes } from '@/sdk';
+import { connections, routes, useStored } from '@/sdk';
 
 /** What a bubble shows of its recording: playing now, and the position in ms. */
 type PlayState = { playing: boolean; pos: number };
@@ -71,7 +70,7 @@ export function release(id: string): void {
 
 const subscribe = (fn: () => void) => (listeners.add(fn), () => void listeners.delete(fn));
 
-export const usePlay = (id: string): PlayState => useSyncExternalStore(subscribe, () => states.get(id) ?? IDLE);
+export const usePlay = (id: string): PlayState => useStored({ subscribe, get: () => states.get(id) ?? IDLE });
 
 /** For tests: forget everything. */
 export function resetPlayer(): void {

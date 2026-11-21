@@ -1,5 +1,5 @@
-import { useT } from '@/sdk';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useT, useStored } from '@/sdk';
+import { useEffect, useRef, useState } from 'react';
 import { shallowEqual } from 'react-redux';
 import { useAppDispatch, useAppSelector, useMedia, useRegistry } from '@/store/store.ts';
 import { tabLabel, tabView } from '@/sdk/registry.ts';
@@ -100,7 +100,7 @@ function TabItem({ tab, label, active, last, playing }: { tab: Tab; label: strin
 export function TabStrip() {
   const { open, active } = useAppSelector(selectTabs);
   const media = useMedia();
-  const playing = useSyncExternalStore(media.subscribe, () => media.playing());
+  const playing = useStored({ subscribe: media.subscribe, get: () => media.playing() });
   const strip = useRef<HTMLDivElement>(null);
   const names = useLabels(open);
   const labels = new Map(open.map((tab, i) => [tab.id, names[i]!]));

@@ -8,7 +8,6 @@ import type { RemoteState } from '@nota-bene/shared';
 import { setLang } from '@/i18n/index.ts';
 import { events, renderWith, stubRoutes } from '@/testing';
 import { openStarter } from '@/projects/api.ts';
-import { resetVcs } from '@/vcs/store.ts';
 import { App } from '@/App.tsx';
 import { Slots } from './Slots.tsx';
 
@@ -21,7 +20,6 @@ let restore = () => {};
 beforeEach(() => {
   setLang('en');
   localStorage.clear();
-  resetVcs();
   restore = stubRoutes({
     '/git-status': { branch: 'main', detached: false, dirty: false },
     '/vcs-branches': [],

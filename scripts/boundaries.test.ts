@@ -1,14 +1,12 @@
 // The import rule of issue 511 (docs/superpowers/specs/2026-11-20-core-plugins-design.md, "The import rule"):
-// plugins import only the SDK, core imports no plugin, `@/testing` is test-only, plus three text rules. Violations
-// that exist today live in boundaries.baseline.json, which may only shrink: a new violation fails, and so does a
-// baseline entry that is gone. UPDATE_BOUNDARIES=1 rewrites the baseline.
+// plugins import only the SDK, core imports no plugin, `@/testing` is test-only, plus three text rules. Issue 545 emptied
+// the baseline the rule started with (step 1 of issue 511), so the tree has no violation and none may come back.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { expect, it } from 'vitest';
 
 const REPO = path.resolve(import.meta.dirname, '..');
-const BASELINE = path.join(REPO, 'scripts/boundaries.baseline.json');
 
 // Every web/src folder by role (the spec's folder table). A folder not listed fails the scan until it is classified.
 const CORE = ['anchors', 'components', 'i18n', 'lib', 'net', 'refs', 'sdk', 'shell', 'store', 'tabs', 'theme'];
@@ -109,7 +107,7 @@ function scan(root: string): string[] {
   return [...out].sort();
 }
 
-// The rule an entry breaks, for the printed counts.
+// The rule an entry breaks, named in a failure.
 function classify(entry: string): string {
   const [from, to] = entry.split(' -> ');
   if (!to.startsWith(`${WEB}/`)) return to;
@@ -119,24 +117,10 @@ function classify(entry: string): string {
   return b.role === 'plugin' ? 'plugin→plugin' : 'plugin→core';
 }
 
-function compare(now: string[], base: string[]): { added: string[]; stale: string[] } {
-  const has = new Set(now), had = new Set(base);
-  return { added: now.filter((e) => !had.has(e)), stale: base.filter((e) => !has.has(e)) };
-}
-
 // --- the real tree
 
-it('the tree keeps to the baseline', () => {
-  const now = scan(REPO);
-  let base: string[] = JSON.parse(fs.readFileSync(BASELINE, 'utf8'));
-  const count = (list: string[]) => list.reduce<Record<string, number>>((n, e) => ((n[classify(e)] = (n[classify(e)] ?? 0) + 1), n), {});
-  const before = count(base), after = count(now);
-  const rules = [...new Set([...Object.keys(before), ...Object.keys(after)])].sort();
-  console.log(`boundaries:\n${rules.map((r) => `  ${r}: ${before[r] ?? 0} -> ${after[r] ?? 0}`).join('\n')}`);
-  if (process.env.UPDATE_BOUNDARIES) fs.writeFileSync(BASELINE, JSON.stringify((base = now), null, 2) + '\n');
-  const { added, stale } = compare(now, base);
-  expect(added, 'new violations').toEqual([]);
-  expect(stale, 'stale baseline entries: commit the shrink with UPDATE_BOUNDARIES=1').toEqual([]);
+it('the tree breaks no rule', () => {
+  expect(scan(REPO).map((e) => `${classify(e)}: ${e}`)).toEqual([]);
 });
 
 // The plugin modules the SDK barrels load, through the core modules they load (type-only imports aside): a plugin
@@ -162,12 +146,6 @@ function sdkReach(root: string): string[] {
 
 it('the SDK barrels load no plugin module', () => {
   expect(sdkReach(REPO)).toEqual([]);
-});
-
-it('fails a new violation and a stale baseline entry', () => {
-  expect(compare(['a', 'b'], ['a', 'b'])).toEqual({ added: [], stale: [] });
-  expect(compare(['a', 'b', 'c'], ['a', 'b'])).toEqual({ added: ['c'], stale: [] });
-  expect(compare(['a'], ['a', 'b'])).toEqual({ added: [], stale: ['b'] });
 });
 
 // --- the scanner on a fixture tree

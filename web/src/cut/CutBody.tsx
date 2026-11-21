@@ -1,9 +1,9 @@
-import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { has, isCutAnchor, type Comment, type CutAnchor } from '@nota-bene/shared';
 import { AUDIO, isPhotoSrc, validateCut, type Cut, type CutIssue } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
-import { useT, useAppDispatch, useAppSelector, mediaTime, clearJump, selectJump, projectFileUrl, type TextFileView, labelText, useComments, type PendingComment } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, mediaTime, clearJump, selectJump, projectFileUrl, type TextFileView, labelText, useComments, type PendingComment, useStored } from '@/sdk';
 import { srcLength } from './durations.ts';
 import { appendMedia } from './assemble.ts';
 import { mediaLen, PHOTO_LEN } from './mediaLen.ts';
@@ -96,7 +96,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   const committed = draft ? null : playable;
   useEffect(() => { if (committed) copies.want(reversedParts(committed), src); }, [copies, committed, src]);
   // a copy made: the player looks its clips up again, the timeline its marks
-  const made = useSyncExternalStore(copies.subscribe, copies.version);
+  const made = useStored({ subscribe: copies.subscribe, get: copies.version });
   useEffect(() => player.setCut(playable, draw.end), [player, playable, draw.end, made]);
 
   useEffect(() => player.setLive(active), [player, active]);

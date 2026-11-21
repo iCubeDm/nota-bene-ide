@@ -18,7 +18,7 @@ export function VcsToggles() {
   if (!ui.hasRepo) return null;
   return (
     <>
-      <ToolButton id="toggleChanges" label={t('vcsChanges')} pressed={ui.panel} focused={inChanges} side="left" onClick={() => { d(setTreeOpen(false)); setPanel(!ui.panel); if (!ui.panel) d(openChanges()); }}>
+      <ToolButton id="toggleChanges" label={t('vcsChanges')} pressed={ui.panel} focused={inChanges} side="left" onClick={() => { d(setTreeOpen(false)); d(setPanel(!ui.panel)); if (!ui.panel) d(openChanges()); }}>
         <Svg size={16}>{ICONS.changes}</Svg>
       </ToolButton>
       <ToolButton id="toggleLog" label={t('vcsLog')} pressed={active === 'log'} focused={inLog} side="left" onClick={() => d(openLog())}>

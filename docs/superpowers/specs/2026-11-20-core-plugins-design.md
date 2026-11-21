@@ -539,3 +539,10 @@ result.
     (`components/markdown/`); the diagram plugin registers its `codeBlocks` (`mermaid`, `svg`), the media plugin the
     player. The cut plugin contributes `treeActions` (its menu items and the timeline drag). The session list shares
     only `ago` and `ArchiveIcon`, so those moved to core, not a list component. The baseline went from 68 to 29 entries.
+50. **The last survivors** (issue 545): image prep (`lib/image.ts`) and the pure player keys (`store/playerKeys.ts`)
+    are core; the attachment markup is the media service's (`AttachmentMarkup`), a subagent's conversation the feed's
+    (`feedUi.Feed`), the card menu a `tasks` service's (`CallMenu`). The three dialogs' open flags and the git views' UI
+    are slices (`Command.inModal` takes the state). The other singletons stay outside the store by design and are read
+    with `useStored({ get, subscribe })`: players' clocks, toasts, the sources and temp folders (read without a store),
+    the open edits and targets (live objects), the day, a media query, the page frame's render count. The baseline is
+    gone: the check asserts that the tree breaks no rule.

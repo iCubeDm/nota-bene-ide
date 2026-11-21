@@ -7,7 +7,7 @@ import { getToasts } from '@/shell/toast.ts';
 import { TooltipProvider } from '@/components/ui/tooltip.tsx';
 import { page } from '@/net/local.ts';
 import type { ProjectsList } from './api.ts';
-import { nav, projectsMenu, setStarter } from './api.ts';
+import { nav, setStarter } from './api.ts';
 import { ProjectRail } from './ProjectRail.tsx';
 import { ProjectSwitcher } from './ProjectSwitcher.tsx';
 import { railPref } from './railPref.ts';
@@ -55,7 +55,7 @@ beforeEach(() => {
   vi.spyOn(document, 'hasFocus').mockReturnValue(true);
   vi.spyOn(nav, 'go').mockImplementation(() => {});
 });
-afterEach(() => { cleanup(); act(() => projectsMenu.close()); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); page.remote = null; });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); page.remote = null; });
 
 const store = () => makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
 const rail = () => screen.getByRole('navigation', { name: t('projRail') });

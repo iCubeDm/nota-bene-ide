@@ -65,7 +65,7 @@ export interface Command {
   /** also when focus is in a text field; 'notMac': only off a Mac (Option+key types a character there) */
   inFields: boolean | 'notMac';
   /** also while a modal dialog is open, when this says so (a key that toggles its own dialog) */
-  inModal?: () => boolean;
+  inModal?: (s: RootState) => boolean;
   /** also with Cmd (Mac) / Ctrl held, which `run` reads from the event: Alt+R and Ctrl+Alt+R are one binding */
   anyMod?: boolean;
   /** listed in the help only: the key is handled elsewhere (the composer), the keymap never matches or consumes it */
@@ -346,7 +346,7 @@ export interface FilesService {
 /** The git views as other plugins reach them (issue 545), provided by the vcs plugin. */
 export interface VcsService {
   /** the log shows this commit, with `path` picked (a comment on a commit asked for it) */
-  showCommit(sha: string, path: string): void;
+  showCommit(sha: string, path: string): UnknownAction;
 }
 
 /** The projects' windows as other plugins open them (issue 545), provided by the projects plugin. */

@@ -1,7 +1,8 @@
 // The project switcher's and the starter's client side: the server routes of server/src/projectRoutes.ts, their answer
 // types (mirrored: the web does not import from server/), the polled list, and the move of this tab to another window.
 import { useEffect, useRef, useState } from 'react';
-import { t, connections, defineResource, routes, toast, useResource, remotePage } from '@/sdk';
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import { t, connections, defineResource, routes, toast, useResource, remotePage, type RootState } from '@/sdk';
 
 export type Provider = 'claude' | 'codex' | 'omp';
 export type ProjectState = 'working' | 'waiting' | 'idle' | 'restarting' | 'silent';
@@ -32,17 +33,14 @@ export function onPageRestore(f: () => void): () => void {
   return () => window.removeEventListener('pageshow', h);
 }
 
-let isOpen = false;
-const subs = new Set<() => void>();
-const emit = () => { for (const f of subs) f(); };
 /** The switcher's menu, open or closed from anywhere (Alt+P). */
-export const projectsMenu = {
-  open: () => { isOpen = true; emit(); },
-  close: () => { isOpen = false; emit(); },
-  toggle: () => { isOpen = !isOpen; emit(); },
-  get: () => isOpen,
-  subscribe: (f: () => void) => { subs.add(f); return () => void subs.delete(f); },
-};
+export const projectsSlice = createSlice({
+  name: 'projects',
+  initialState: { menu: false },
+  reducers: { setProjectsMenu: (s, a: PayloadAction<boolean>) => void (s.menu = a.payload) },
+});
+export const { setProjectsMenu } = projectsSlice.actions;
+export const selectProjectsMenu = (s: RootState): boolean => s.projects.menu;
 
 const isList = (v: unknown): v is ProjectsList =>
   !!v && typeof v === 'object' && Array.isArray((v as ProjectsList).running) && Array.isArray((v as ProjectsList).recent);
