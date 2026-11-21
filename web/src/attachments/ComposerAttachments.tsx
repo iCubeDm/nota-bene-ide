@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import { has, isAttachmentAnchor } from '@nota-bene/shared';
-import { removeComment, selectComments } from '@/comments/slice.ts';
 import { markAttachment, removeImage, selectImages, selectMarking } from '@/composer/slice.ts';
-import { useT, useAppDispatch, useAppSelector } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, useComments } from '@/sdk';
 import { ConfirmDialog } from '@/sdk/ui';
 import { AttachmentMarkup } from './AttachmentMarkup.tsx';
 import { Attachments, type PendingThumb } from './Attachments.tsx';
@@ -13,6 +12,7 @@ import { Attachments, type PendingThumb } from './Attachments.tsx';
  * opens the markup overlay. Removing an image that has pending comments asks first and takes them along.
  */
 export function ComposerAttachments({ pending, onCancel }: { pending: PendingThumb[]; onCancel?: (key: string) => void }) {
+  const { removeComment, selectComments } = useComments();
   const t = useT();
   const dispatch = useAppDispatch();
   const images = useAppSelector(selectImages);

@@ -1,9 +1,8 @@
 import { EnterFullscreenIcon, ExitFullscreenIcon, PauseIcon, PencilIcon, PipIcon, PlayIcon, ReplayIcon } from '@/sdk/ui';
 import { has } from '@nota-bene/shared';
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import { selectMediaComments } from '@/comments/slice.ts';
 import { selectFileVersion } from '@/files/slice.ts';
-import { useT, useAppDispatch, useAppSelector, useMedia, SEEK_STEPS, seekStep, useSeekStep, type SeekStepValue } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, useMedia, SEEK_STEPS, seekStep, useSeekStep, type SeekStepValue, useComments } from '@/sdk';
 import { changedSince } from './markup/MediaMarks.tsx';
 import { BarButton, ChoiceMenu, SPEEDS, VolumeControl } from './PlayerControls.tsx';
 import { applyPlayerKey, startAnnotate, type Flash } from './playerKeys.ts';
@@ -93,6 +92,7 @@ export function PlayerBar({ media, box, tabId, path = '', refName, flash, onTick
   /** A tick's click goes here instead of seeking this element (the chat opens the file's tab at that time). */
   onTick?: (time: number) => void;
 }) {
+  const { selectMediaComments } = useComments();
   const t = useT();
   const dispatch = useAppDispatch();
   const ctl = useMedia();

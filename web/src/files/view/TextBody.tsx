@@ -1,7 +1,6 @@
 import type { Ref } from 'react';
 import { Markdown } from '@/feed/Markdown.tsx';
-import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
-import { refClick, useT, useAppDispatch, type FileKind } from '@/sdk';
+import { refClick, useT, useAppDispatch, type FileKind, useComments } from '@/sdk';
 import { CodeText } from './CodeText.tsx';
 import { useWrapLines } from '../wrap.ts';
 import type { Loaded } from './useFileLoad.ts';
@@ -11,6 +10,7 @@ export function TextBody({ data, kind, path, src, fileRef, tabId, active, url, p
   data: Loaded | null; kind: FileKind; path: string; src: string; fileRef: string | undefined; tabId: string; active: boolean; url: string;
   paneRef: Ref<HTMLDivElement>;
 }) {
+  const { HighlightLayer } = useComments();
   const t = useT();
   const dispatch = useAppDispatch();
   const wrap = useWrapLines();

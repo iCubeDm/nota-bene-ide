@@ -457,6 +457,7 @@ thunks through their `extra`, other code with `registry(store)`.
 | `sendParts` | `SendPart { id; order; count?(s); waiting?(s); take(s, d, { voice, registry }) }` | A part of a message: the draft (composer, 10), the comments (30). See below. |
 | `settings` | `SettingsSection { id; order; title?; in?; render?({ active }); aside? }` | A section of the Settings tab, or with `in` a row of another section; the tab is the host (`SettingsContext`: one `post()`, one status line, one confirm). |
 | `resources` | `Resource` | The server data a plugin reads, by id, so a test answers it by id (`stubResources`). |
+| `comments` | `CommentsService { HighlightLayer; CommentPopup; flashRange; flashRects; selectComments; selectPendingCountByPath; selectMediaComments; openCommentCard; moveCutComment; removeComment }` | The comments as other plugins' views use them, read with `useComments()`; one plugin (comments) provides it. A drawing's `PendingComment` carries its own `discard`. |
 
 **A send** (`chat.send(text, { force?, parts?, voice? })`, `store/send.ts`) is two-phase. At the click every part is
 taken in order (`take` marks its items, so a second click or a later change does not touch them); `take` may instead

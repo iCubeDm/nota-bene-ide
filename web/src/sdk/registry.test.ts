@@ -1,8 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createElement, type ReactNode } from 'react';
+import { Provider } from 'react-redux';
+import { renderHook } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { PLUGINS } from '@/plugins.ts';
-import { makeStore } from '@/store/store.ts';
+import { makeStore, useComments } from '@/store/store.ts';
 import type { TabKinds } from '@/tabs/slice.ts';
 import { buildRegistry } from './registry.ts';
 import { kindOf } from '../refs/kinds.ts';
@@ -159,4 +162,16 @@ it('a send\'s parts come in today\'s order; one id or one order twice fails the 
   const sp = (id: string, order: number): Plugin => ({ id, sendParts: [{ id: 'x', order, take: () => null }] });
   expect(() => buildRegistry([sp('a', 1), sp('b', 2)])).toThrow('the send part "x" is declared twice');
   expect(() => buildRegistry([{ ...sp('a', 1), sendParts: [{ id: 'y', order: 1, take: () => null }] }, sp('b', 1)])).toThrow('two send parts at order 1');
+});
+
+// other plugins' views reach the comments through the SDK, never the comments plugin's modules (issue 545)
+it('the comments\' service is provided by one plugin; a second fails the build; a view without one is told why', () => {
+  const service = buildRegistry(PLUGINS).comments!;
+  expect(Object.keys(service).sort()).toEqual(['CommentPopup', 'HighlightLayer', 'flashRange', 'flashRects', 'moveCutComment', 'openCommentCard',
+    'removeComment', 'selectComments', 'selectMediaComments', 'selectPendingCountByPath']);
+  const provides = (id: string): Plugin => ({ id, comments: service });
+  expect(() => buildRegistry([provides('a'), provides('b')])).toThrow('the comments are provided twice');
+  const bare = makeStore({ url: 'u', connect: () => ({ send: () => true, close() {} }), plugins: [] });
+  const wrapper = ({ children }: { children: ReactNode }) => createElement(Provider, { store: bare, children });
+  expect(() => renderHook(() => useComments(), { wrapper })).toThrow('no plugin provides the comments');
 });

@@ -7,7 +7,8 @@ import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/testing';
 import { resetPlayer } from '@/voice/player.ts';
 import { mic } from '@/voice/recorder.ts';
-import { CommentPopup, type PendingComment } from './CommentPopup.tsx';
+import { CommentPopup } from './CommentPopup.tsx';
+import type { PendingComment } from '@/sdk';
 import type { PendingSelection } from './SelectionButton.tsx';
 
 vi.mock('@/attachments/image.ts', async (orig) => ({

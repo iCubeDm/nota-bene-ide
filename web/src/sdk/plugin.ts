@@ -1,6 +1,6 @@
 import type { Middleware, Slice } from '@reduxjs/toolkit';
 import type { RootState, StartListening } from '../store/store.ts';
-import type { AnchorView, AnyFeedRenderer, AnyTabView, Command, FileView, SendPart, SettingsSection, Slot, ToolRenderer, UserPart } from './registry.ts';
+import type { AnchorView, AnyFeedRenderer, AnyTabView, Command, CommentsService, FileView, SendPart, SettingsSection, Slot, ToolRenderer, UserPart } from './registry.ts';
 import type { Resource } from './repository.ts';
 
 /**
@@ -50,6 +50,8 @@ export interface Plugin {
   settings?: SettingsSection[];
   /** the server data it reads, each with an id declared once */
   resources?: Resource<never, unknown>[];
+  /** the comments' service to other plugins' views; one plugin provides it */
+  comments?: CommentsService;
 }
 
 export const definePlugin = (p: Plugin): Plugin => p;

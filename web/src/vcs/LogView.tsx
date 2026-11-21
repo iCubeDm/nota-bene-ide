@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { VcsCommitDetail, VcsLog } from '@nota-bene/shared';
-import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
-import { useT, defineResource, routes, useResource, useAppDispatch, useAppSelector, type TabView, useSources } from '@/sdk';
+import { useT, defineResource, routes, useResource, useAppDispatch, useAppSelector, type TabView, useSources, useComments } from '@/sdk';
 import { PanelResizer, usePanelWidth } from '@/sdk/ui';
 import { pickSource, selectRefreshSeq, selectTree } from '@/files/treeSlice.ts';
 import { FileDiff, StatusMark } from './DiffBody.tsx';
@@ -29,6 +28,7 @@ function Lanes({ r, width }: { r: ReturnType<typeof layout>[number]; width: numb
 
 /** The commit graph on top, the picked commit's diff under it. */
 export function LogView({ active }: { active: boolean }) {
+  const { HighlightLayer } = useComments();
   const t = useT();
   const d = useAppDispatch();
   const { src } = useAppSelector(selectTree);

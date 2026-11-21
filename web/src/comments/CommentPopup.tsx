@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from 'react-redux';
 import { has, isAttachmentAnchor, isMediaAnchor, isTextAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
-import { getLang, useT, useAppDispatch, useAppSelector, anchorLine, type RootState, toast, clearPageSelections, selectCapabilities, selectSwitching, labelsFor, labelText, useAutosize, dictationAsk } from '@/sdk';
+import { getLang, useT, useAppDispatch, useAppSelector, anchorLine, type PendingComment, type RootState, toast, clearPageSelections, selectCapabilities, selectSwitching, labelsFor, labelText, useAutosize, dictationAsk } from '@/sdk';
 import { Button, Tooltip, TooltipTrigger } from '@/sdk/ui';
 import { ClipRow } from '@/voice/ClipRow.tsx';
 import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';
@@ -18,20 +18,8 @@ import { Attachments } from '@/attachments/Attachments.tsx';
 import { insertPaths } from '@/attachments/file.ts';
 import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import type { ImageEntry } from '@/composer/slice.ts';
-import { deleteMarks, type MediaAnchorPatch } from '@/media/markup/createMediaComment.ts';
 import { addComment, setPanelOpen } from './slice.ts';
 import { useDrag } from './useDrag.ts';
-
-/**
- * What the popup comments on. A text selection: anchor + rect (+ the letter typed to open it). A media drawing adds
- * `id` (the comment id, which names its mark folder) and `prepare` (renders and uploads the frame and the layer, and
- * returns their attachment ids plus what only it knows for sure: the exact time, the version, the scale; on failure it
- * has already removed the folder).
- */
-export type PendingComment = {
-  anchor: Anchor; rect: DOMRect; text?: string;
-  id?: string; prepare?: () => Promise<{ images: string[]; anchor?: MediaAnchorPatch }>;
-};
 
 /** A recording in the editor: its text once transcribed, or why there is none */
 type Clip = { voice: Voice; text?: string; error?: VoiceError };
@@ -155,7 +143,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
       }
       // a session switch began meanwhile: the comment set belongs to the session left, the comment never came to be
       if (selectSwitching(store.getState())) {
-        if (id) await deleteMarks(id); // done before Add is offered again, so a retry cannot race the delete
+        await pending.discard?.(); // done before Add is offered again, so a retry cannot race the delete
         setBusy(false);
         return;
       }

@@ -14,7 +14,7 @@ import { browserPip, MediaController, type PipApi } from './mediaController.ts';
 import { toast } from '../shell/toast.ts';
 import { adoptHello } from '../sdk/storage.ts';
 import type { Plugin, PluginState } from '../sdk/plugin.ts';
-import { buildRegistry, type Registry } from '../sdk/registry.ts';
+import { buildRegistry, type CommentsService, type Registry } from '../sdk/registry.ts';
 import { sendListener, type SentParts } from './send.ts';
 import { CORE_COMMANDS } from '../shell/keymap.ts';
 import { learnServerSep } from '../lib/paths.ts';
@@ -194,6 +194,12 @@ export const usePlugins = (): readonly Plugin[] => pluginsByStore.get(useStore()
 /** What the store's plugins contribute (see buildRegistry). */
 export const registry = (store: object): Registry => registryByStore.get(store)!;
 export const useRegistry = (): Registry => registry(useStore());
+/** The comments' service (issue 545): a view that shows comments needs the plugin that provides it. */
+export const useComments = (): CommentsService => {
+  const c = useRegistry().comments;
+  if (!c) throw new Error('useComments: no plugin provides the comments');
+  return c;
+};
 
 export const selectFeed = (s: RootState): FeedState => s.feed;
 export const selectBusy = (s: RootState): boolean => s.feed.busy;

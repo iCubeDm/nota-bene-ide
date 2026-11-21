@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { type MediaAnchor, type MediaShape } from '@nota-bene/shared';
-import type { PendingComment } from '@/comments/CommentPopup.tsx';
-import { useT, toast, useAppDispatch, useMedia, headVersion } from '@/sdk';
-import { prepareMediaComment } from './markup/createMediaComment.ts';
+import { useT, toast, useAppDispatch, useMedia, headVersion, type PendingComment } from '@/sdk';
+import { deleteMarks, prepareMediaComment } from './markup/createMediaComment.ts';
 import { dropShapes } from './markup/slice.ts';
 
 /**
@@ -49,7 +48,7 @@ export function useMediaMarkup({ tabId, path, ref, active, marking, mediaUrl, me
     };
     const id = crypto.randomUUID();
     const v = version.current;
-    setMarkPopup({ anchor, rect: at, id, prepare: () => prepareMediaComment(id, el, anchor, { version: v }) });
+    setMarkPopup({ anchor, rect: at, id, prepare: () => prepareMediaComment(id, el, anchor, { version: v }), discard: () => deleteMarks(id) });
   }, [markable, path, ref, t]);
 
   return { markable, player, mediaRef, imgRef, markPopup, onMarkAdd, closeMarkPopup, markAdded, saving, onPopupBusy };
