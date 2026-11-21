@@ -1,13 +1,16 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { Provider } from 'react-redux';
+import type { ServerEvent } from '@nota-bene/shared';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { textOf } from '@/anchors/text.ts';
 import { Markdown } from '@/components/markdown/Markdown.tsx';
 import { UserMessage } from '@/feed/UserMessage.tsx';
 import { setLang } from '@/i18n/index.ts';
-import { makeStore } from '@/testing';
+import { makeStore, renderWith } from '@/testing';
+import { serverEvent } from '@/store/store.ts';
 import { selectTabs } from '@/tabs/slice.ts';
-import { setTmpDirs } from '@/refs/tmpImages.ts';
+import { tmpDirsOf } from '@/refs/tmpImages.ts';
 import { resetSources, setSources } from '@/refs/sources.ts';
 import { setServerSep } from '@/lib/paths.ts';
 import { clearRefCache, escapeMentions, markRefs, refClick, splitMentions } from './refs.ts';
@@ -82,7 +85,7 @@ it('does not change the text that comment anchors read', () => {
 });
 
 it('Markdown marks refs only in the final render', () => {
-  const { container, rerender } = render(<Markdown text="open `src/a.ts`" final={false} />);
+  const { container, rerender } = renderWith(<Markdown text="open `src/a.ts`" final={false} />);
   expect(container.querySelector('.ref')).toBeNull();
   rerender(<Markdown text="open `src/a.ts`" final />);
   expect(container.querySelector('code.ref')).not.toBeNull();
@@ -208,28 +211,22 @@ it('a temp image path in code or a link is a ref once the server named its temp 
   const before = div(html);
   markRefs(before);
   expect(before.querySelectorAll('.ref').length).toBe(0); // temp folders not known yet
-  setTmpDirs(['/tmp', '/private/tmp']);
-  try {
-    const d = div(html);
-    markRefs(d);
-    expect([...d.querySelectorAll<HTMLElement>('.ref')].map((e) => e.dataset.path)).toEqual(['/tmp/shot.png', '/tmp/b.jpg']);
-    expect(d.querySelector<HTMLElement>('.ref')!.dataset.tmp).toBe('1');
-  } finally {
-    setTmpDirs([]);
-  }
+  const d = div(html);
+  markRefs(d, undefined, tmpDirsOf(['/tmp', '/private/tmp']));
+  expect([...d.querySelectorAll<HTMLElement>('.ref')].map((e) => e.dataset.path)).toEqual(['/tmp/shot.png', '/tmp/b.jpg']);
+  expect(d.querySelector<HTMLElement>('.ref')!.dataset.tmp).toBe('1');
 });
 
 it('Windows: relative refs with backslashes become "/" paths; C:\\ and C:/ paths are never relative, they map to a source or a temp folder', () => {
   setServerSep('\\');
   setSources([{ id: 'here', kind: 'checkout', label: '', ref: '', dir: 'C:/Users/x/proj' }]);
-  setTmpDirs(['C:/Users/x/AppData/Local/Temp']);
   try {
     const d = div(
       '<code>src\\a.ts</code> <code>.\\up\\b.md:3</code> <code>src/a.ts</code> <a href="docs%5Cc.md">l</a>' +
         '<code>C:\\Users\\x\\proj\\src\\d.ts</code> <code>c:/users/x/proj/e.md</code> <a href="C:/Users/x/proj/f.md">f</a> <a href="C:%5CUsers%5Cx%5Cproj%5Cg.md">g</a>' +
         '<code>C:\\Users\\x\\AppData\\Local\\Temp\\shot.png</code> <code>C:\\Other\\h.md</code> <code>\\\\host\\share\\i.md</code> <code>\\n</code>',
     );
-    markRefs(d);
+    markRefs(d, undefined, tmpDirsOf(['C:/Users/x/AppData/Local/Temp']));
     const refs = [...d.querySelectorAll<HTMLElement>('.ref')].map((e) => [e.dataset.path, e.dataset.src ?? '', e.dataset.tmp ?? '']);
     expect(refs).toEqual([
       ['src/a.ts', '', ''], ['up/b.md', '', ''], ['src/a.ts', '', ''], ['docs/c.md', '', ''],
@@ -237,7 +234,6 @@ it('Windows: relative refs with backslashes become "/" paths; C:\\ and C:/ paths
       ['C:/Users/x/AppData/Local/Temp/shot.png', '', '1'],
     ]);
   } finally {
-    setTmpDirs([]);
     resetSources();
   }
 });
@@ -256,14 +252,12 @@ it('a POSIX server: a backslash is a name character and C:/ a relative folder, a
 
 it('a project path under a temp folder (a project that lives in /tmp) stays a project path', () => {
   setSources([{ id: 'here', kind: 'checkout', label: '', ref: '', dir: '/tmp/proj' }]);
-  setTmpDirs(['/tmp']);
   try {
     const d = div('<code>/tmp/proj/pic.png</code>');
-    markRefs(d);
+    markRefs(d, undefined, ['/tmp']);
     const c = d.querySelector<HTMLElement>('code')!;
     expect([c.dataset.path, c.dataset.src, c.dataset.tmp]).toEqual(['pic.png', 'here', undefined]);
   } finally {
-    setTmpDirs([]);
     resetSources();
   }
 });
@@ -283,15 +277,12 @@ it('a click on a temp image ref opens the tab at once, with no request; a projec
 });
 
 it('a reply and a user message: a temp image in code becomes a ref when the folders arrive', () => {
-  const { container, rerender } = render(<Markdown text="saved to `/tmp/shot.png`" final />);
+  const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+  const wrapper = ({ children }: { children: ReactNode }) => <Provider store={store}>{children}</Provider>;
+  const { container } = render(<Markdown text="saved to `/tmp/shot.png`" final />, { wrapper });
   expect(container.querySelector('code.ref')).toBeNull();
-  act(() => setTmpDirs(['/tmp']));
-  try {
-    rerender(<Markdown text="saved to `/tmp/shot.png`" final />);
-    expect(container.querySelector<HTMLElement>('code.ref')?.dataset.path).toBe('/tmp/shot.png');
-    const u = render(<Markdown text={escapeMentions('see [it](/tmp/b.png)')} final breaks noHtml mentions />);
-    expect(u.container.querySelector<HTMLElement>('a.ref')?.dataset.path).toBe('/tmp/b.png');
-  } finally {
-    act(() => setTmpDirs([]));
-  }
+  act(() => void store.dispatch(serverEvent({ kind: 'hello', protocol: 30, tmpDirs: ['/tmp'] } as ServerEvent)));
+  expect(container.querySelector<HTMLElement>('code.ref')?.dataset.path).toBe('/tmp/shot.png');
+  const u = render(<Markdown text={escapeMentions('see [it](/tmp/b.png)')} final breaks noHtml mentions />, { wrapper });
+  expect(u.container.querySelector<HTMLElement>('a.ref')?.dataset.path).toBe('/tmp/b.png');
 });

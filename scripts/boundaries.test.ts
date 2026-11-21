@@ -16,6 +16,32 @@ const HARNESS = 'testing'; // test-only code, importable from tests only
 const SDK = ['sdk/index.ts', 'sdk/ui.ts'];
 // shared test setups outside the harness, held to the test files' rules
 const TEST_HELPERS = ['cut/testCut.tsx'];
+// The module singletons kept outside the store by design (issue 545, the spec's As built 50), each read with `useStored`.
+// Any other value with its own listeners outside the SDK is a module singleton the state rule puts in a slice,
+// `useResource` or `storage`: the check counts a `useStored({ … })` read and a module-level listener set.
+const SINGLETONS: Record<string, string> = {
+  // ticks with a media element: through Redux it would re-render the store's readers at frame rate
+  'cut/Meter.tsx': "the edit player's state",
+  'cut/Timeline.tsx': "the edit player's clock",
+  'cut/CutBody.tsx': "the edit's reversed copies, made as it plays",
+  'voice/player.ts': "the voice bubbles' playback position",
+  'tabs/TabStrip.tsx': "the media controller's playing tab",
+  // live objects of mounted views (callbacks, the open edits), not data a reducer can hold
+  'cut/live.ts': 'the edits open in a tab',
+  'cut/targets.ts': 'the open edits "Add to edit" can add to',
+  // called where no store is in reach (a fetch catch, a middleware), transient, never replayed
+  'shell/toast.ts': 'the toasts',
+  'shell/Toasts.tsx': 'the toasts',
+  // HTTP data, yet not a resource: it loads on demand (a root change, the tree opening, a refresh) with a 5 s
+  // time-to-live, and a forced load drops an answer still in flight; the repository has watches and polls, no TTL for a
+  // load, and pauses its reads while the page is hidden. Folding it needs that option in the repository first
+  'refs/sources.ts': 'the sources',
+  // browser values, not app state
+  'feed/time.ts': 'the local day, moved at midnight',
+  'feed/MsgTime.tsx': 'the local day',
+  'projects/ProjectRail.tsx': 'the width media query',
+  'anchors/frame.ts': "the page frames' render count",
+};
 const WEB = 'web/src';
 const PHONE = 'mobile/app/lib';
 
@@ -47,6 +73,9 @@ const IMPORTS = new RegExp(
 // A protocol gate: any relational comparison of `protocol` (also `(x.protocol ?? 0)`) or against a protocol constant
 // (`*_PROTOCOL`, Dart `*Protocol`). Issue 511 replaces them all with named features.
 const GATE = /\bprotocol\b\s*(?:\?\?\s*0\s*\)\s*)?[<>]=?(?![=>])|[<>]=?\s*\(?\s*\w*(?:_PROTOCOL|Protocol)\b/;
+
+// A value with its own listeners: read through `useStored({ … })`, or a listener set at module level.
+const singleton = (code: string): boolean => /\buseStored\(\s*\{/.test(code) || /^(?:const|let) [\w$]+ = new Set<\(\) => void>\(\)/m.test(code);
 
 function files(dir: string, ext: RegExp): string[] {
   if (!fs.existsSync(dir)) return [];
@@ -97,6 +126,7 @@ function scan(root: string): string[] {
     if (/\blocalStorage\b/.test(code) && me.folder !== 'sdk' && rel !== 'net/auth.ts') add('localStorage');
     if (GATE.test(code)) add('protocol gate');
     if (/\buseSyncExternalStore\b/.test(code) && me.folder !== 'sdk') add('useSyncExternalStore');
+    if (singleton(code) && me.folder !== 'sdk' && !SINGLETONS[rel]) add('module singleton');
     // the page's visibility pauses polls in the SDK's repository and is read nowhere else (pageVisible)
     if (/\bvisibilityState\b/.test(code) && me.folder !== 'sdk') add('visibilityState');
   }
@@ -121,6 +151,9 @@ function classify(entry: string): string {
 
 it('the tree breaks no rule', () => {
   expect(scan(REPO).map((e) => `${classify(e)}: ${e}`)).toEqual([]);
+  // the allowlist names only singletons that are still there
+  const gone = Object.keys(SINGLETONS).filter((f) => !singleton(mask(fs.readFileSync(path.join(REPO, WEB, f), { encoding: 'utf8', flag: 'r' })).code));
+  expect(gone, 'allowlisted singletons that are gone').toEqual([]);
 });
 
 // The plugin modules the SDK barrels load, through the core modules they load (type-only imports aside): a plugin
@@ -298,6 +331,22 @@ it('counts the text rules: localStorage, protocol gates, useSyncExternalStore, v
     `${W}/feed/Feed.tsx -> visibilityState`,
   ]);
   expect(classify('mobile/app/lib/chat/window_tab.dart -> protocol gate')).toBe('protocol gate');
+});
+
+it('counts a module singleton outside the SDK that the allowlist does not name', () => {
+  const root = tree({
+    ...base,
+    // a hand-rolled value: a listener set at module level, read through useStored
+    [`${W}/feed/flag.ts`]: "let on = false;\nconst subs = new Set<() => void>();\nexport const useOn = () => useStored({ subscribe: (f) => (subs.add(f), () => subs.delete(f)), get: () => on });",
+    // an object-literal read alone counts too
+    [`${W}/media/y.ts`]: "export const usePlaying = (p) => useStored({ subscribe: p.subscribe, get: p.state });",
+    // the allowlist's own, a stored item, a set inside a function, the SDK's
+    [`${W}/feed/MsgTime.tsx`]: "const useDay = () => useStored({ subscribe: subscribeDay, get: currentDay });",
+    [`${W}/feed/own.ts`]: "const v = useStored(savedSplit);\nfunction f() {\n  const subs = new Set<() => void>();\n}",
+    [`${W}/sdk/storage.ts`]: "const subs = new Set<() => void>();\nuseStored({ subscribe, get });",
+  });
+  expect(scan(root)).toEqual([`${W}/feed/flag.ts -> module singleton`, `${W}/media/y.ts -> module singleton`]);
+  expect(classify(`${W}/feed/flag.ts -> module singleton`)).toBe('module singleton');
 });
 
 it('refuses a web/src folder the rule does not know', () => {

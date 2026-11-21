@@ -1,4 +1,3 @@
-import { useStored } from '../sdk/storage.ts';
 import { isDrivePath, isServerDrivePath, underDir, wireAbs } from '../lib/paths.ts';
 import { connections } from '../sdk/connections.ts';
 import { routes } from '../sdk/routes.ts';
@@ -12,26 +11,17 @@ import { routes } from '../sdk/routes.ts';
  */
 const IMG = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i;
 
-let dirs: string[] = [];
-const listeners = new Set<() => void>();
-const subscribe = (fn: () => void) => (listeners.add(fn), () => void listeners.delete(fn));
-
-/** The temp folders the server named in its hello; none until then (nothing is linked on a guess). */
-export function setTmpDirs(next: string[] | undefined): void {
-  const v = (next ?? [])
+/** The temp folders a hello names, as the page matches them: absolute, in the wire form, without a trailing slash. */
+export function tmpDirsOf(next: string[] | undefined): string[] {
+  return (next ?? [])
     .filter((d) => typeof d === 'string' && ((d.startsWith('/') && !d.startsWith('//')) || isDrivePath(d)))
     .map((d) => wireAbs(d).replace(/\/+$/, ''))
     .filter((d) => d.length > 1);
-  if (v.join('\n') === dirs.join('\n')) return;
-  dirs = v;
-  for (const fn of listeners) fn();
 }
-const getTmpDirs = (): string[] => dirs;
-export const useTmpDirs = (): string[] => useStored({ subscribe, get: getTmpDirs });
 
 /** An absolute image path lexically under a temp folder (no `..`, no forbidden characters). The server decides for real.
  *  A drive path may use either separator: the one to open is `wireAbs(abs)`. */
-export function isTmpImagePath(abs: string, from: string[] = dirs): boolean {
+export function isTmpImagePath(abs: string, from: readonly string[]): boolean {
   if (!(abs.startsWith('/') || isServerDrivePath(abs)) || abs.startsWith('//') || /[\n\0`<>|*]/.test(abs) || !IMG.test(abs)) return false;
   const p = wireAbs(abs);
   if (p.split('/').some((s) => s === '..' || s === '.')) return false;
@@ -44,7 +34,7 @@ export const isTmpTabPath = (path: string): boolean => (path.startsWith('/') || 
 export const tmpImageUrl = (abs: string, bust = 0): string => routes.tmpImage(abs, bust);
 
 /** Temp image paths in a line of text (a Bash command, a Read's file_path), in order, without duplicates, in the wire form. */
-export function tmpImagePathsIn(text: string, from: string[] = dirs): string[] {
+export function tmpImagePathsIn(text: string, from: readonly string[]): string[] {
   const out: string[] = [];
   // drive paths only when the server has drive folders: `h:/tmp/a.png` on a POSIX server is still `/tmp/a.png`
   const re = from.some(isDrivePath) ? /(?:^|[\s"'=(:])((?:\/|[A-Za-z]:[\\/])[^\s"'`<>|*;()]+)/g : /(?:^|[\s"'=(:])(\/[^\s"'`<>|*;()]+)/g;

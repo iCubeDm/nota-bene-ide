@@ -505,11 +505,11 @@ feature flags (`nb.flag.<name>` over the typed, empty `FLAGS`). `track(name, pro
 | Anything that outlives the page (local or server prefs, saved UI state) | `storage.local` / `storage.pref`; a slice may mirror it through a listener, as `persist.ts` does. |
 | State of one component instance | `useState` / `useReducer`. |
 
-No `useSyncExternalStore` outside `sdk/`. A value kept outside the store on purpose is read with `useStored({ get,
-subscribe })`: what ticks with a media element (a player's clock, the edit player's state, the tab strip's playing
-dot), what non-React code must reach without a store (`toast()`, the sources and temp folders Markdown and the ref
-helpers read), the live objects of mounted views (the open edits, the edit targets), and browser values (the day, a
-media query, a page frame's render count). The dialogs' open flags and the git views' state are slices.
+No `useSyncExternalStore` outside `sdk/`, and no module singleton but the boundary check's named allowlist
+(`SINGLETONS`), each read with `useStored({ get, subscribe })`: what ticks with a media element (the edit and voice
+players, the playing tab), `toast()` (called without a store), the live objects of open views (the open edits, the edit
+targets), browser values (the day, a media query, a page frame's render count) and the sources (on-demand loads with a
+5 s TTL, which the repository lacks). The dialogs' open flags, the git views' state and the temp folders are slices.
 
 ## 5. End-to-end scenarios
 

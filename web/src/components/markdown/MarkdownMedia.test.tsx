@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { fireEvent, render } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { describe, expect, it } from 'vitest';
@@ -12,10 +13,12 @@ import { Markdown } from './Markdown';
 describe('the open-in-a-tab button on embedded media', () => {
   const store = () => makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
   const label = () => t('openInTab');
+  // one store per render, kept across its rerenders
+  const wrap = (st = store()) => ({ wrapper: ({ children }: { children: ReactNode }) => <Provider store={st}>{children}</Provider> });
 
   it('a project video, audio and image get a hover button; /attach and https media get none', () => {
     const text = '![v](media/a.mp4)\n\n![a](media/a.mp3)\n\n![i](media/a.png)\n\n![p](/attach/abc.png)\n\n![h](https://x.test/a.png)';
-    const { container } = render(<Markdown text={text} final />);
+    const { container } = render(<Markdown text={text} final />, wrap());
     const buttons = container.querySelectorAll('button.md-open-media');
     expect(buttons).toHaveLength(3);
     for (const b of buttons) {
@@ -27,7 +30,7 @@ describe('the open-in-a-tab button on embedded media', () => {
   });
 
   it('streaming text has no button; a re-render does not duplicate it', () => {
-    const { container, rerender } = render(<Markdown text="![v](a.mp4)" final={false} />);
+    const { container, rerender } = render(<Markdown text="![v](a.mp4)" final={false} />, wrap());
     expect(container.querySelector('button.md-open-media')).toBeNull();
     rerender(<Markdown text="![v](a.mp4)" final />);
     rerender(<Markdown text="![v](a.mp4)" final baseDir="docs" />);
@@ -62,8 +65,8 @@ describe('the open-in-a-tab button on embedded media', () => {
     expect(takeStartAt('file:a.mp4')).toEqual({ at: 3, play: true });
   });
 
-  it('works without a store (inert)', () => {
-    const { container } = render(<Markdown text="![v](a.mp4)" final />);
+  it('works with no plugin (inert)', () => {
+    const { container } = render(<Markdown text="![v](a.mp4)" final />, wrap(makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }), plugins: [] })));
     fireEvent.click(container.querySelector('button.md-open-media')!);
   });
 });

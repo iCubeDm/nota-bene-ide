@@ -2,19 +2,19 @@ import DOMPurify from 'dompurify';
 import hljs from 'highlight.js';
 import './hljs.css';
 import { marked } from 'marked';
-import { memo, type MouseEvent as ReactMouseEvent, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, type MouseEvent as ReactMouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ReactReduxContext } from 'react-redux';
+import { useStore } from 'react-redux';
 import { t } from '../../i18n/index.ts';
 import { toast } from '../../shell/toast.ts';
 import { theme } from '../../shell/theme.ts';
 import { AUDIO, VIDEO, fileUrl } from '../../refs/kinds.ts';
 import { useSources } from '../../refs/sources.ts';
-import { useTmpDirs } from '../../refs/tmpImages.ts';
 import { setStartAt } from '../../refs/startAt.ts';
 import { fileOfImage, markMentions, markRefs, openMediaFile } from '../../refs/refs.ts';
 import { fileTabId } from '../../tabs/slice.ts';
-import { registry, type AppDispatch, type AppStore } from '../../store/store.ts';
+import { registry, useAppSelector, type AppDispatch, type AppStore } from '../../store/store.ts';
+import { selectTmpDirs } from '../../store/controls.ts';
 import type { CodeBlock } from '../../sdk/registry.ts';
 import { addCopyButton, copyCode, numberLines } from './codeBlock.ts';
 import { HARDEN } from './harden.ts';
@@ -127,7 +127,7 @@ function wrapTables(root: HTMLElement) {
   });
 }
 
-/** `blocks`: the code blocks the plugins draw (none without a store), `d` the store's dispatch. */
+/** `blocks`: the code blocks the plugins draw (none when no plugin draws them), `d` the store's dispatch. */
 function postProcess(root: HTMLElement, final: boolean, blocks?: ReadonlyMap<string, CodeBlock>, d?: AppDispatch) {
   wrapTables(root);
   if (final) addMediaButtons(root);
@@ -159,13 +159,12 @@ export const Markdown = memo(
    */
   function Markdown({ text, final, baseDir, src, breaks, mentions, noHtml }: { text: string; final: boolean; baseDir?: string; src?: string; breaks?: boolean; mentions?: boolean; noHtml?: boolean }) {
     const ref = useRef<HTMLDivElement>(null);
-    // Markdown is also rendered without a store in tests: no plugin draws its code blocks or plays its media then
-    const store = useContext(ReactReduxContext)?.store as AppStore | undefined;
-    const reg = store ? registry(store) : undefined;
-    const Player = reg?.media?.ChatPlayer;
+    const store = useStore() as AppStore;
+    const reg = registry(store);
+    const Player = reg.media?.ChatPlayer;
     // absolute paths become refs only inside a known source's dir: re-mark when the list arrives or changes
     const sources = useSources();
-    const tmpDirs = useTmpDirs(); // likewise a temp folder's images
+    const tmpDirs = useAppSelector(selectTmpDirs); // likewise a temp folder's images
     const html = useMemo(
       () => {
         currentBase = baseDir;
@@ -187,19 +186,19 @@ export const Markdown = memo(
     );
     useLayoutEffect(() => {
       if (!ref.current || !final) return;
-      markRefs(ref.current, baseDir);
+      markRefs(ref.current, baseDir, tmpDirs);
       if (mentions) markMentions(ref.current);
     }, [html, final, baseDir, sources, tmpDirs, mentions]);
-    // the wrappers of the reply's video/audio, each hosting our player bar (not without a store: native controls stay)
+    // the wrappers of the reply's video/audio, each hosting our player bar (without the media plugin: native controls stay)
     const [players, setPlayers] = useState<{ media: HTMLMediaElement; box: HTMLElement }[]>([]);
     useLayoutEffect(() => {
       if (!ref.current) return;
-      postProcess(ref.current, final, reg?.codeBlocks, store?.dispatch);
+      postProcess(ref.current, final, reg.codeBlocks, store.dispatch);
       if (!final || !Player) return setPlayers((p) => (p.length ? [] : p));
       setPlayers(Array.from(ref.current.querySelectorAll<HTMLMediaElement>('.md-media > video, .md-media > audio'), (media) => ({ media, box: media.parentElement! })));
     }, [html, final, reg, store, Player]);
     useEffect(() => theme.subscribe(() => {
-      if (!ref.current || !reg || !store) return;
+      if (!ref.current) return;
       for (const b of reg.codeBlocks.values()) b.retheme?.(ref.current, store.dispatch);
     }), [reg, store]);
     const onClick = (e: ReactMouseEvent<HTMLDivElement>) => {
@@ -215,7 +214,7 @@ export const Markdown = memo(
         e.stopPropagation();
         const m = mb.parentElement?.querySelector('img, video, audio');
         const open = m && openMediaFile(m);
-        if (!open || !store) return;
+        if (!open) return;
         // a played video/audio opens at that time, a playing one plays on (consumed once by the file view, see refs/startAt.ts)
         if (m instanceof HTMLMediaElement && m.currentTime > 0) {
           const f = fileOfImage(m)!;

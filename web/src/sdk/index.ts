@@ -56,7 +56,7 @@ export { SettingsContext, useSettings, systemPrefs, type SettingsHost, type Syst
 // where the project's files are: their kinds and URLs, the sources they are read from, the temp images, a media tab's start
 export { AUDIO, IMAGE, VIDEO, HTML, kindOf, fileUrl, projectFileUrl, isPath, headVersion, type FileKind } from '../refs/kinds.ts';
 export { useSources, loadSources, sourcesKnown, refOf, srcIdOfRef, isCommitRef, isFixed, fileKey } from '../refs/sources.ts';
-export { setTmpDirs, useTmpDirs, isTmpTabPath, tmpImageUrl, tmpImagePathsIn, fetchTmpImage, type TmpLoad } from '../refs/tmpImages.ts';
+export { isTmpTabPath, tmpImageUrl, tmpImagePathsIn, fetchTmpImage, type TmpLoad } from '../refs/tmpImages.ts';
 export { setStartAt, takeStartAt, type StartAt } from '../refs/startAt.ts';
 // what Markdown lets through of untrusted text
 export { HARDEN } from '../components/markdown/harden.ts';
@@ -107,7 +107,7 @@ export {
   dictationSet, dictationLangSet, dictationAsk, planApproved, controlsListeners,
   selectMode, selectSuggestion, selectCapabilitiesKnown, selectCapabilities, selectSwitching, selectRestarting, selectRestartPending,
   selectCompactPending, selectHeld, selectOrderWaits, selectCanOrderCompact, selectModel, selectModels, selectCommands,
-  selectModelSwitchable, selectIdleCompact, pickMode, pickModel, toggleIdleCompact, nextMode, reportActivity, resetActivityThrottle,
+  selectModelSwitchable, selectIdleCompact, selectTmpDirs, pickMode, pickModel, toggleIdleCompact, nextMode, reportActivity, resetActivityThrottle,
   ACTIVITY_THROTTLE_MS, runCommand, switchSession, restartAgent, stopWindow, restartServer, restartInPause, cancelCompact, cancelRestart,
   SERVER_RESTART_TIMEOUT_MS, type SwitchResult,
 } from '../store/controls.ts';

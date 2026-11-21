@@ -1,5 +1,5 @@
 import type { WithSlice } from '@reduxjs/toolkit';
-import { bool, clearRefCache, definePlugin, enterRoot, json, serverEvent, storage, loadSources, setTmpDirs } from '@/sdk';
+import { bool, clearRefCache, definePlugin, enterRoot, json, storage, loadSources } from '@/sdk';
 import { filesSlice, jumpToFileComment, selectFileLoad, selectFileVersion } from './slice.ts';
 import { diskChanged, pickSource, readSavedDirs, selectRefreshSeq, setDirs, setTreeOpen, treeKey, treeSlice } from './treeSlice.ts';
 import { pushRecent, RECENT_DWELL_MS } from './recent.ts';
@@ -47,8 +47,6 @@ export const filesPlugin = definePlugin({
         if (root) storage.local(treeKey(root, src), json<string[]>(), []).set(dirs);
       },
     });
-    // where the server keeps the agent's temporary images: from its hello
-    start({ actionCreator: serverEvent, effect: ({ payload: ev }) => void (ev.kind === 'hello' && setTmpDirs(ev.tmpDirs)) });
     // source ids are stable (M3-16): every saved tab comes back at once, whatever /sources says; a tab whose source is
     // gone keeps its place and says so in its view. The load feeds the picker and absolute refs; another root has other
     // worktrees and branches, and its paths other HEAD answers, so both caches are dropped then.
