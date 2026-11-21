@@ -419,4 +419,30 @@ void main() {
       expect(tab.windowState.setMode(AgentMode.plan), isFalse);
     });
   });
+
+  test(
+    'a tab on its way out leaves the outbox of the tab that replaced it alone',
+    () async {
+      final old = ch.lastWsId;
+      ch.event(old, replay([]));
+      await settle();
+      final next = WindowTab(
+        link,
+        window(4791, '/p'),
+        stores: stores,
+        retry: (_) async {},
+      );
+      addTearDown(next.dispose);
+      await settle();
+      ch.event(ch.lastWsId, replay([]));
+      await settle();
+      expect(identical(next.voiceOutbox, tab.voiceOutbox), isTrue);
+      const v = Voice(id: 'v1', ms: 1000, wave: [1]);
+      expect(next.voiceOutbox.retryVoice(v, 'en'), isTrue);
+      // the old tab's socket still talks during the pop transition
+      ch.event(old, replay([]));
+      await settle();
+      expect(next.voiceOutbox.isRetrying('v1'), isTrue);
+    },
+  );
 }

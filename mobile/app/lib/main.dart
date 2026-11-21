@@ -22,6 +22,7 @@ import 'settings_screen.dart';
 import 'store/hosts.dart' show Identity;
 import 'store/lang_choice.dart';
 import 'store/sizes.dart';
+import 'store/storage.dart';
 import 'store/voice_lang.dart';
 import 'store/theme_choice.dart';
 import 'store/vault.dart';
@@ -92,7 +93,10 @@ class _AppRootState extends State<AppRoot> {
   late final Future<Sdk> _load = () async {
     final v = SecureVault();
     final id = await Identity.load(v);
-    final stores = await AppStores.load(v, sounds: VoicePlayer.shared);
+    final stores = await AppStores.load(
+      Storage(v, DiskFiles()),
+      sounds: VoicePlayer.shared,
+    );
     final AppStores(:hosts, :seen, :notified) = stores;
     final links = Links(hosts, connectChannel, id);
     seen.watch(hosts, links);

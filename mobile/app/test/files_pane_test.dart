@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/files/files_pane.dart';
-import 'package:nb_app/files/remote.dart';
+import 'package:nb_app/files/repository.dart';
 import 'package:nb_app/chat/code_screen.dart';
 import 'package:nb_channel/nb_channel.dart';
 import 'package:nb_protocol/nb_protocol.dart' show TreeEntry;

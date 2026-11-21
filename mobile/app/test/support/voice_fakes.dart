@@ -7,6 +7,7 @@ import 'package:nb_app/chat/audio_clip.dart';
 import 'package:nb_app/comments/queue.dart';
 import 'package:nb_app/media/fetch.dart';
 import 'package:nb_app/sdk.dart';
+import 'package:nb_app/store/storage.dart';
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_app/voice/outbox.dart';
 import 'package:nb_app/voice/player.dart';
@@ -128,48 +129,22 @@ class RecorderMock {
           );
 }
 
-/// The outbox's disk, in memory; a second [VoiceStore] over the same files is the next run of the app.
-class MemoryOutFiles implements OutFiles {
-  String? index;
-  final wavs = <String, Uint8List>{};
-
-  @override
-  Future<String?> readIndex() async => index;
-
-  @override
-  Future<void> writeIndex(String json) async => index = json;
-
-  @override
-  Future<void> writeWav(String name, Uint8List bytes) async =>
-      wavs[name] = bytes;
-
-  @override
-  Future<Uint8List?> readWav(String name) async => wavs[name];
-
-  @override
-  Future<void> deleteWav(String name) async => wavs.remove(name);
+/// What the stores keep in [MemoryFiles], by name: the voice outboxes' index and recordings, the comment queues.
+extension StoredFiles on MemoryFiles {
+  String? get index => values[VoiceStore.index] as String?;
+  Iterable<String> get wavs => values.keys.where((k) => k.endsWith('.wav'));
+  String? get json => values[CommentQueues.path] as String?;
+  set json(String? v) => v == null
+      ? values.remove(CommentQueues.path)
+      : values[CommentQueues.path] = v;
 }
 
-/// The comment queues' file, in memory.
-class MemoryQueueFile implements QueueFile {
-  String? json;
-
-  @override
-  Future<String?> read() async => json;
-
-  @override
-  Future<void> write(String json) async => this.json = json;
-}
-
-/// The app's stores in memory: an empty vault, outbox disk and queue file unless given (each call a fresh install),
-/// caching sent voices in the player of the moment.
-Future<AppStores> memoryStores({OutFiles? outFiles, QueueFile? queueFile}) =>
-    AppStores.load(
-      MemoryVault(),
-      sounds: VoicePlayer.shared,
-      outFiles: outFiles ?? MemoryOutFiles(),
-      queueFile: queueFile ?? MemoryQueueFile(),
-    );
+/// The app's stores in memory: an empty vault and no files unless given (each call a fresh install), caching sent
+/// voices in the player of the moment.
+Future<AppStores> memoryStores({MemoryFiles? files}) => AppStores.load(
+  Storage(MemoryVault(), files ?? MemoryFiles()),
+  sounds: VoicePlayer.shared,
+);
 
 /// The clips' files, in memory: name -> bytes. Reads as the disk does: a body past [max], short of its length or
 /// abandoned leaves nothing.
