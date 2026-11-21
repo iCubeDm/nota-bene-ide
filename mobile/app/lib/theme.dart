@@ -1,4 +1,4 @@
-// The six themes of web/src/core/theme.css (theme_test.dart checks every token against the file), as a ThemeExtension.
+// The six themes of web/src/theme.css (theme_test.dart checks every token against the file), as a ThemeExtension.
 // Plannotator's OKLCH colours are converted to sRGB and clipped per channel, as the browsers paint them.
 import 'package:flutter/material.dart';
 
