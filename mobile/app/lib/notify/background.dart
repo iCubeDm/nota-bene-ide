@@ -1,12 +1,13 @@
 // Keeps the relay links while agents work and tells the user what they did: a foreground service holds the process (and
-// the links) while some window is busy or waits for the user, and for [Background.linger] after; every window list
-// that arrives is turned into notifications (events.dart). Without the service a hidden app drops its links after
-// [Background.hiddenPause], as before; the periodic check then asks [Background.check].
+// the links, through [LinkLife]) while some window is busy or waits for the user, and for [Background.linger] after;
+// every window list that arrives is turned into notifications (events.dart). Without the service a hidden app drops
+// its links after [LinkLife.hiddenPause]; the periodic check then asks [Background.check], which holds them meanwhile.
 import 'dart:async';
 
 import 'package:nb_channel/nb_channel.dart';
 
 import '../hosts/host_link.dart';
+import '../hosts/link_life.dart';
 import '../l10n/app_localizations.dart';
 import '../store/notified.dart';
 import '../store/seen.dart';
@@ -40,6 +41,7 @@ Future<void> postEvent(
 class Background {
   Background({
     required this.links,
+    required this.life,
     required this.seen,
     required this.notified,
     required this.visible,
@@ -47,7 +49,6 @@ class Background {
     required this.strings,
     required this.explain,
     this.linger = const Duration(minutes: 5),
-    this.hiddenPause = const Duration(minutes: 10),
     bool enabled = true,
   }) : _enabled = enabled {
     links.addListener(_changed);
@@ -57,6 +58,9 @@ class Background {
   }
 
   final Links links;
+
+  /// What keeps the links: the service and a check hold them.
+  final LinkLife life;
   final Seen seen;
   final Notified notified;
   final AppVisible visible;
@@ -66,7 +70,7 @@ class Background {
   /// Says why notifications are wanted before Android asks; false: the user declined here.
   final Future<bool> Function() explain;
 
-  final Duration linger, hiddenPause;
+  final Duration linger;
 
   bool _enabled;
   bool _disposed = false;
@@ -80,8 +84,11 @@ class Background {
   bool _serviceOn = false;
   bool get serviceOn => _serviceOn;
   String? _serviceText;
-  Timer? _quiet, _pause;
+  Timer? _quiet;
   bool _wasVisible = true;
+
+  /// What a check holds the links by.
+  final _checking = Object();
 
   Future<void> _init() async {
     _wasVisible = visible.visible;
@@ -191,8 +198,7 @@ class Background {
       );
       _serviceOn = true;
       _serviceText = text;
-      _pause?.cancel();
-      _pause = null;
+      life.hold(this);
     } on Object {
       // Android refused the service (the app went to the background meanwhile): the links behave as without it
     } finally {
@@ -207,7 +213,7 @@ class Background {
     _serviceOn = false;
     _serviceText = null;
     await platform.stopService();
-    if (!visible.visible) links.pause();
+    life.release(this);
   }
 
   void _shown() {
@@ -216,17 +222,9 @@ class Background {
     if (now != _wasVisible) {
       _wasVisible = now;
       if (now) {
-        _pause?.cancel();
-        _pause = null;
-        links.resume();
         unawaited(seen.reload());
         unawaited(notified.reload());
         unawaited(_recheck());
-      } else if (!_serviceOn) {
-        _pause ??= Timer(hiddenPause, () {
-          _pause = null;
-          if (!_serviceOn && !visible.visible) links.pause();
-        });
       }
     }
     // the chat in front of the user: its notification has been read
@@ -247,12 +245,13 @@ class Background {
   /// notified as they arrive, and they pause again unless the app is on screen or the service runs.
   Future<void> check({Duration wait = const Duration(seconds: 20)}) async {
     if (_disposed || visible.visible || _serviceOn) return;
-    _pause?.cancel();
-    _pause = null;
-    links.resume();
-    await linksSettled(links, wait);
-    _changed();
-    if (!visible.visible && !_serviceOn) links.pause();
+    life.hold(_checking);
+    try {
+      await linksSettled(links, wait);
+      _changed();
+    } finally {
+      life.release(_checking);
+    }
   }
 
   void dispose() {
@@ -260,6 +259,5 @@ class Background {
     links.removeListener(_changed);
     visible.removeListener(_shown);
     _quiet?.cancel();
-    _pause?.cancel();
   }
 }

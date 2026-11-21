@@ -12,7 +12,6 @@ import 'package:nb_protocol/nb_protocol.dart';
 import 'package:nb_protocol/nb_protocol.dart' as nb show has;
 
 import '../hosts/host_link.dart';
-import '../media/media_comment.dart' show WindowHttp;
 
 enum TabState { connecting, open, occupied, taken, gone, offline }
 

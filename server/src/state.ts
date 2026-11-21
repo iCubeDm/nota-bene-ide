@@ -3,7 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { isInside } from '@nota-bene/shared/paths';
 import { parseProvider, providerStateDir } from './agent/provider.ts';
-import { realpathNative, renameRetry } from './platform.ts';
+import { updateJson } from './atomicFile.ts';
+import { realpathNative } from './platform.ts';
 
 /** A secret or the state folder is unusable (wrong owner, loose mode, ...): the user has to act. Never swallowed as "not ours". */
 export class SecretError extends Error {}
@@ -46,10 +47,12 @@ export function stateDir(): string {
   return dir;
 }
 
+const asMap = (data: unknown): Record<string, string> =>
+  data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, string>) : {};
+
 function read(file: string): Record<string, string> {
   try {
-    const data: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
-    return data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, string>) : {};
+    return asMap(JSON.parse(fs.readFileSync(file, 'utf8')));
   } catch {
     return {};
   }
@@ -60,24 +63,24 @@ export function lastSession(projectDir: string): string | undefined {
 }
 
 export function saveSession(projectDir: string, id: string | null): void {
-  const file = path.join(stateDir(), 'sessions.json');
-  const data = read(file);
-  if (id === null) delete data[projectDir];
-  else data[projectDir] = id;
-  const tmp = `${file}.tmp${process.pid}`;
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
-  renameRetry(tmp, file);
+  updateJson(path.join(stateDir(), 'sessions.json'), (d) => {
+    const data = asMap(d);
+    if (id === null) delete data[projectDir];
+    else data[projectDir] = id;
+    return data;
+  }, { space: 2 });
 }
 
 /** A deleted session: every project whose last session it was forgets it (one atomic write); returns how many did. */
 export function forgetSession(id: string): number {
-  const file = path.join(stateDir(), 'sessions.json');
-  const data = read(file);
-  const dirs = Object.keys(data).filter((k) => data[k] === id);
-  if (dirs.length === 0) return 0;
-  for (const k of dirs) delete data[k];
-  const tmp = `${file}.tmp${process.pid}`;
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
-  renameRetry(tmp, file);
-  return dirs.length;
+  let n = 0;
+  updateJson(path.join(stateDir(), 'sessions.json'), (d) => {
+    const data = asMap(d);
+    const dirs = Object.keys(data).filter((k) => data[k] === id);
+    n = dirs.length;
+    if (n === 0) return undefined;
+    for (const k of dirs) delete data[k];
+    return data;
+  }, { space: 2 });
+  return n;
 }

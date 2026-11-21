@@ -6,12 +6,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:nb_channel/nb_channel.dart' show WindowHttp;
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../chat/agent_connection.dart' show uuidV4;
 import '../chat/feed.dart' show UserItem;
 import '../chat/window_state.dart';
-import '../media/media_comment.dart';
 import '../store/storage.dart';
 import 'files.dart';
 import 'upload.dart';

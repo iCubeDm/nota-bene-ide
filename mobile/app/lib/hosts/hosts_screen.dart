@@ -4,6 +4,7 @@ import 'package:nb_channel/nb_channel.dart';
 
 import '../l10n/app_localizations.dart';
 import '../chat/chat_header.dart' show providerLetter;
+import '../store/project_icons.dart';
 import '../store/seen.dart';
 import '../theme.dart';
 import '../ui/time.dart';

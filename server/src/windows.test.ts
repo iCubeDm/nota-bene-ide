@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { LOCK } from './atomicFile.ts';
 import { stateDir } from './state.ts';
 import { liveWindows, moveWindow, pidAlive, readWindows, registerWindow, restartingWindows, rootHash, setBuilding, unregisterWindow, windowKey } from './windows.ts';
 
@@ -23,6 +24,23 @@ const file = (port: number) => path.join(stateDir(), 'windows', `${port}.json`);
 const deadPid = () => spawnSync('true').pid!;
 
 describe('windows registry', () => {
+  it('every writer of an entry takes its lock (issue 562): the launcher and its server both write it', () => {
+    registerWindow(4791, '/p', process.pid, 222);
+    const was = LOCK.waitMs;
+    LOCK.waitMs = 100;
+    fs.writeFileSync(`${file(4791)}.lock`, `${process.ppid} other`); // a live holder
+    try {
+      expect(() => setBuilding(4791, 222, true)).toThrow(/lock/);
+      expect(() => moveWindow(4791, '/q', process.pid, 222)).toThrow(/lock/);
+      expect(() => registerWindow(4791, '/r', 1)).toThrow(/lock/);
+      expect(() => unregisterWindow(4791, process.pid)).toThrow(/lock/);
+    } finally {
+      LOCK.waitMs = was;
+      fs.rmSync(`${file(4791)}.lock`);
+    }
+    expect(readWindows()['4791']).toMatchObject({ root: '/p' });
+  });
+
   it('registers an entry with the root, both pids and the start time', () => {
     registerWindow(4791, '/p', 111, 222);
     const w = readWindows()['4791']!;

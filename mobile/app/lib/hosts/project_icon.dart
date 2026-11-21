@@ -9,11 +9,12 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
+import 'package:nb_channel/nb_channel.dart' show WindowHttp;
 import 'package:nb_protocol/nb_protocol.dart'
     show AgentProvider, ProjectIconAnswer;
 
 import '../media/attach.dart' show Prepared, UnsupportedImage;
-import '../media/media_comment.dart' show WindowHttp;
+import '../store/project_icons.dart';
 import 'host_link.dart';
 
 /// The edge of the stored picture; the host takes up to [iconMaxBytes].
@@ -88,52 +89,6 @@ Future<void> deleteProjectIcon(WindowHttp http) async {
   final res = await http('DELETE', '/project-icon');
   if (res.status != 204 && res.status != 200) {
     throw IconError('/project-icon ${res.status}');
-  }
-}
-
-/// The pictures fetched so far, by version (a version is the hash of the bytes, so it is the same picture on any host).
-class ProjectIcons {
-  ProjectIcons({this.capacity = 48});
-
-  final int capacity;
-  final _bytes =
-      <String, Uint8List>{}; // insertion order: the oldest goes first
-  final _pending = <String, Future<Uint8List?>>{};
-
-  Uint8List? cached(String version) => _bytes[version];
-
-  /// The picture of [version] through [http] (null while the host is offline); null when the host has none by now.
-  Future<Uint8List?> load(String version, WindowHttp? http) {
-    final have = _bytes[version];
-    if (have != null) return Future.value(have);
-    if (http == null) return Future.value(null);
-    return _pending[version] ??= _fetch(version, http).whenComplete(() {
-      _pending.remove(
-        version,
-      ); // a block: a returned future would be awaited, and this one is its own
-    });
-  }
-
-  Future<Uint8List?> _fetch(String version, WindowHttp http) async {
-    try {
-      final res = await http('GET', '/project-icon');
-      if (res.status != 200 || res.body.isEmpty) return null;
-      // kept only when the host says these are the bytes of the version asked for: the picture may have changed
-      // between the list and the fetch, and the next list names the new version
-      final etag = res.headers.entries
-          .where((e) => e.key.toLowerCase() == 'etag')
-          .map((e) => e.value.replaceAll('"', ''))
-          .firstOrNull;
-      if (etag == version) {
-        _bytes[version] = res.body;
-        while (_bytes.length > capacity) {
-          _bytes.remove(_bytes.keys.first);
-        }
-      }
-      return res.body;
-    } on Object {
-      return null; // offline or a broken stream: the letter stays
-    }
   }
 }
 

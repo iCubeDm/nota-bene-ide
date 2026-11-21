@@ -93,6 +93,24 @@ void main() {
       expect(ch.requests, hasLength(3));
     });
 
+    test('a read after a write does not join one from before it', () async {
+      final before = Completer<HttpAnswer>();
+      ch.onHttp = (_, m, _) =>
+          m == 'GET' ? before.future : Future.value(json({}));
+      final a = repo.get('/usage?provider=claude&period=trip');
+      await repo.write('POST', '/usage/reset');
+      ch.onHttp = (_, _, _) async => json(2);
+      final b = repo.get('/usage?provider=claude&period=trip');
+      expect(ch.requests, [
+        'GET /usage?provider=claude&period=trip',
+        'POST /usage/reset',
+        'GET /usage?provider=claude&period=trip',
+      ]);
+      before.complete(json(1));
+      expect(utf8.decode((await a).body), '1');
+      expect(utf8.decode((await b).body), '2');
+    });
+
     test('the same route with other headers is another request', () async {
       final answer = Completer<HttpAnswer>();
       ch.onHttp = (_, _, _) => answer.future;

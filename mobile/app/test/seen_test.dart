@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_app/main.dart' show watchSeen;
 import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/seen.dart';
@@ -144,7 +145,7 @@ void main() {
         id,
         sleep: (_) => Completer<void>().future,
       );
-      seen.watch(hosts, links);
+      watchSeen(seen, hosts, links);
       final hid = b64u(List.filled(32, 1));
       final host = PairedHost(
         id: hid,

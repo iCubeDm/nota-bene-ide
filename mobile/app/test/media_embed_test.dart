@@ -12,6 +12,7 @@ import 'package:nb_app/chat/markdown.dart';
 import 'package:nb_app/files/file_screen.dart';
 import 'package:nb_app/files/image_screen.dart';
 import 'package:nb_app/files/video_screen.dart';
+import 'package:nb_app/media/fetch.dart' show imageMaxBytes, previewMaxBytes;
 import 'package:nb_channel/nb_channel.dart';
 
 import 'support/rig.dart';

@@ -9,7 +9,6 @@ import '../chat/attach_sheet.dart';
 import '../l10n/app_localizations.dart';
 import '../media/attach.dart' show Prepared;
 import '../media/gallery.dart' show gallerySource;
-import '../media/media_comment.dart' show WindowHttp;
 import '../media/picker.dart';
 import 'host_link.dart';
 import 'project_icon.dart';

@@ -8,7 +8,7 @@ import 'package:nb_protocol/nb_protocol.dart';
 
 import '../chat/window_tab.dart';
 import '../comments/strings.g.dart';
-import '../files/image_screen.dart';
+import '../files/repository.dart' show FilesError;
 import '../l10n/app_localizations.dart';
 import '../ui/insets.dart';
 import 'format.dart';
@@ -22,14 +22,14 @@ const _agentsShown = 12,
     _tanksShown = 8;
 
 const _periods = [
-  (UsagePeriod.trip, 'trip', UsageKey.usagePeriodTrip),
-  (UsagePeriod.v7d, '7d', UsageKey.usagePeriod7d),
-  (UsagePeriod.v30d, '30d', UsageKey.usagePeriod30d),
-  (UsagePeriod.all, 'all', UsageKey.usagePeriodAll),
+  (UsagePeriod.trip, UsageKey.usagePeriodTrip),
+  (UsagePeriod.v7d, UsageKey.usagePeriod7d),
+  (UsagePeriod.v30d, UsageKey.usagePeriod30d),
+  (UsagePeriod.all, UsageKey.usagePeriodAll),
 ];
 const _providers = [
-  (UsageProvider.claude, 'claude', 'Claude'),
-  (UsageProvider.codex, 'codex', 'Codex'),
+  (UsageProvider.claude, 'Claude'),
+  (UsageProvider.codex, 'Codex'),
 ];
 
 /// The desktop's `live()`: a report with calls, or one still being read.
@@ -69,24 +69,12 @@ class _UsageScreenState extends State<UsageScreen> {
     super.dispose();
   }
 
-  String _name<T>(List<(T, String, Object)> l, T v) =>
-      l.firstWhere((e) => e.$1 == v).$2;
-
   /// Asks for the current choice; an answer that is no longer the choice is dropped.
   Future<void> _load() async {
     _timer?.cancel();
     final gen = ++_gen;
-    final http = windowHttp(widget.tab);
     try {
-      if (http == null) throw 'offline';
-      final a = await http(
-        'GET',
-        '/usage?provider=${_name(_providers, _provider)}&period=${_name(_periods, _period)}',
-      );
-      if (a.status != 200) throw '${a.status}';
-      final data = UsageReport.fromJson(
-        (jsonDecode(utf8.decode(a.body)) as Map).cast<String, Object?>(),
-      );
+      final data = await widget.tab.repository.usage(_provider, _period);
       if (!mounted || gen != _gen) return;
       setState(() {
         _report = data;
@@ -96,7 +84,13 @@ class _UsageScreenState extends State<UsageScreen> {
         _timer = Timer(const Duration(milliseconds: _pollMs), _load);
       }
     } catch (e) {
-      if (mounted && gen == _gen) setState(() => _error = '$e');
+      final why = switch (e) {
+        FilesError(status: null, :final cause?) => '$cause',
+        FilesError(status: null) => 'offline',
+        FilesError(:final status) => '$status',
+        _ => '$e',
+      };
+      if (mounted && gen == _gen) setState(() => _error = why);
     }
   }
 
@@ -128,17 +122,13 @@ class _UsageScreenState extends State<UsageScreen> {
       ),
     );
     if (ok != true || !mounted) return;
-    final http = windowHttp(widget.tab);
     String? fail;
     try {
-      if (http == null) throw 'network';
-      final a = await http(
+      final a = await widget.tab.repository.write(
         'POST',
         '/usage/reset',
         headers: {'content-type': 'application/json'},
-        body: utf8.encode(
-          jsonEncode({'provider': _name(_providers, _provider)}),
-        ),
+        body: utf8.encode(jsonEncode({'provider': _provider.toJson()})),
       );
       if (a.status != 200) fail = '${a.status}';
     } catch (_) {
@@ -182,7 +172,7 @@ class _UsageScreenState extends State<UsageScreen> {
             spacing: 8,
             runSpacing: 4,
             children: [
-              for (final (p, _, label) in _providers)
+              for (final (p, label) in _providers)
                 ChoiceChip(
                   label: Text(label),
                   selected: _provider == p,
@@ -194,7 +184,7 @@ class _UsageScreenState extends State<UsageScreen> {
             spacing: 8,
             runSpacing: 4,
             children: [
-              for (final (p, _, key) in _periods)
+              for (final (p, key) in _periods)
                 ChoiceChip(
                   label: Text(usageString(key, lang)),
                   selected: _period == p,
