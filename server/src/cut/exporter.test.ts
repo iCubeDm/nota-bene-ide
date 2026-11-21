@@ -104,7 +104,8 @@ describe('CutExporter', () => {
 
   it('one running export per edit; cancel kills only its child, leaves no file and allows a new start', async () => {
     media('a.mp4', 'HANG');
-    const e = make();
+    // a slow removal: the job is cancelled only once the temp file is gone (issue 550)
+    const e = make({ rm: async (f) => { await new Promise((r) => setTimeout(r, 50)); fs.rmSync(f, { force: true }); } });
     const rel = edit('x.nbcut.json');
     await e.start(rel, 'mp4');
     expect(await refusal(e.start(rel, 'wav'))).toMatchObject({ status: 409, code: 'running' });
