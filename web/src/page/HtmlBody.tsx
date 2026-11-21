@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { isPageAnchor, isTextAnchor, type FileSource } from '@nota-bene/shared';
-import { scrollRangeIntoView, scrollRectIntoView, rangeForAnchor, useT, useAppDispatch, useAppSelector, openFile, clearJump, selectJump, editable, useFeature, type FileBar } from '@/sdk';
+import { scrollRangeIntoView, scrollRectIntoView, rangeForAnchor, useT, useAppDispatch, useAppSelector, openFile, clearJump, selectJump, editable, useFeature, type FileBar, outOf, pageRendered } from '@/sdk';
 import { CommentPopup, type PendingComment } from '@/comments/CommentPopup.tsx';
 import { flashRange, flashRects, HighlightLayer } from '@/comments/HighlightLayer.tsx';
 import { selectComments } from '@/comments/slice.ts';
 import { areaAnchor, areaRect, elementAnchor, nearOf, pickTarget, resolvePage, toUserBox } from './anchor.ts';
-import { outOf, pageRendered } from './frame.ts';
 import { preparePage } from './prep.ts';
 
 /** how often (ms) a shown page is measured: the frame takes the page's height, so the pane scrolls it */
@@ -35,7 +34,7 @@ function forward(frame: HTMLIFrameElement, e: MouseEvent | KeyboardEvent): boole
 /**
  * A rendered `.html` file: the page in a sandboxed frame (no script of it ever runs: the window holds the access key),
  * as tall as the page, inside the pane that scrolls it. Its text is commented on like a Markdown file's (the frame's
- * body is the text root, see page/frame.ts). Marking (N, or its button in the tab's header): a click comments on an
+ * body is the text root, see anchors/frame.ts). Marking (N, or its button in the tab's header): a click comments on an
  * element, a drag inside an SVG on an area.
  */
 export function HtmlBody({ text: html, path, src, fileRef, tabId, active, bar }: {

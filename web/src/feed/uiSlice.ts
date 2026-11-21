@@ -1,7 +1,6 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { anchorSource } from '@nota-bene/shared';
 import { isAgentTool, TOOL_SRC, type AppThunk, type RootState, type FeedItem } from '@/sdk';
-import { itemsOf } from '../subagent/slice.ts';
 
 /**
  * Which action groups and tool panels are open (R-M7-19). In the store, not in the components, so a jump from a comment
@@ -55,11 +54,14 @@ export function groupOf(items: FeedItem[], toolId: string): string | null {
   return end - first > 1 ? (items[first] as Extract<FeedItem, { kind: 'tool' }>).id : null;
 }
 
-/** Opens an action's panel and its group, read from the feed at call time (a jump from a comment card); an action not in the feed opens nothing. */
-export const revealToolOf = (toolId: string, agent?: string): AppThunk => (d, getState) => {
-  const items = itemsOf(getState(), agent) ?? [];
-  if (!items.some((it) => it.kind === 'tool' && it.id === toolId)) return;
-  const group = groupOf(items, toolId);
+/**
+ * Opens an action's panel and its group, read from its conversation's `items` at call time (a jump from a comment card);
+ * an action not in them opens nothing. `agent`: the subagent whose conversation it is in.
+ */
+export const revealToolOf = (toolId: string, items: (s: RootState) => FeedItem[] | null, agent?: string): AppThunk => (d, getState) => {
+  const all = items(getState()) ?? [];
+  if (!all.some((it) => it.kind === 'tool' && it.id === toolId)) return;
+  const group = groupOf(all, toolId);
   d(revealTool({ tool: scopedId(agent, toolId), group: group && scopedId(agent, group) }));
 };
 

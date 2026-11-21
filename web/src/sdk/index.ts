@@ -51,7 +51,8 @@ export { withKey, withKeys, keyLabel, keysLabel, modKey, isMac } from '../shell/
 // paths in agent text
 export { markRefs, markMentions, escapeMentions, refClick, fileOfImage, openMediaFile, clearRefCache } from '../refs/refs.ts';
 
-// core modules that still import plugins (later steps of issue 511 cut those edges)
+// a rendered page's frame, carried across for the anchors (its text root, rects and selection), and scrolling to an anchor
+export { outOf, rangeRects, rangeRect, pageRoot, textRootOf, pageSelection, clearPageSelections, pageRendered, usePageGen } from '../anchors/frame.ts';
 export { scrollRangeIntoView, scrollRectIntoView, revealRangeSideways } from '../anchors/scroll.ts';
 
 // the store, the feed model and chat
@@ -97,4 +98,4 @@ export const chat = {
 // tabs
 export { openFile, openAgent, activate, closeTab, selectTabs, enterRoot, fileTabId, type Tab, type TabKinds, type DiagramLang } from '../tabs/slice.ts';
 export { requestJump, clearJump, dropJump, selectJump, type Jump } from '../tabs/jump.ts';
-export { feedRenderer, type TabView, type Slot, type SlotName, type Command, type KeyId, type Mods, type FeedRenderer, type AnyFeedRenderer, type FeedKind, type Held, type ToolRenderer, type ToolItem, type UserPart, type FileView, type TextFileView, type MediaFileView, type MediaLoad, type FileBar } from './registry.ts';
+export { feedRenderer, anchorView, type AnchorView, type AnchorKind, type TabView, type Slot, type SlotName, type Command, type KeyId, type Mods, type FeedRenderer, type AnyFeedRenderer, type FeedKind, type Held, type ToolRenderer, type ToolItem, type UserPart, type FileView, type TextFileView, type MediaFileView, type MediaLoad, type FileBar } from './registry.ts';
