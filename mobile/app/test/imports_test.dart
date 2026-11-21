@@ -48,6 +48,9 @@ void main() {
             'comments/comments.dart',
             'comments/queue.dart',
             'voice/outbox.dart',
+            'tasks/tasks.dart',
+            'tasks/ansi.dart',
+            'tasks/poll.dart',
           }.contains(p);
       bool ui(String p) =>
           p.endsWith('_screen.dart') ||

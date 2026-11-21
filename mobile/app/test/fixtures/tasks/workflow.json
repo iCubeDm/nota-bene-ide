@@ -1,0 +1,152 @@
+{
+ "events": [
+  {
+   "kind": "agent",
+   "ts": 1000,
+   "e": {
+    "t": "task",
+    "id": "wf",
+    "phase": "started",
+    "desc": "audit run",
+    "type": "local_workflow",
+    "workflow": "audit"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 2000,
+   "e": {
+    "t": "task",
+    "id": "i1",
+    "phase": "started",
+    "desc": "do i1",
+    "type": "local_agent",
+    "parent": "wf",
+    "inner": true
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 3000,
+   "e": {
+    "t": "task",
+    "id": "i2",
+    "phase": "started",
+    "desc": "do i2",
+    "type": "local_agent",
+    "parent": "wf",
+    "inner": true
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 4000,
+   "e": {
+    "t": "task",
+    "id": "i1",
+    "phase": "updated",
+    "model": "claude-haiku-5"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 5000,
+   "e": {
+    "t": "task",
+    "id": "watch",
+    "phase": "started",
+    "desc": "do watch",
+    "type": "monitor_mcp",
+    "ambient": true
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 6000,
+   "e": {
+    "t": "task",
+    "id": "i1",
+    "phase": "done"
+   }
+  }
+ ],
+ "tasks": {
+  "wf": {
+   "desc": "audit run",
+   "type": "local_workflow",
+   "kind": "workflow",
+   "workflow": "audit",
+   "start": 1000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  },
+  "i1": {
+   "desc": "do i1",
+   "type": "local_agent",
+   "kind": "agent",
+   "parent": "wf",
+   "inner": true,
+   "start": 2000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "model": "claude-haiku-5",
+   "end": 6000
+  },
+  "i2": {
+   "desc": "do i2",
+   "type": "local_agent",
+   "kind": "agent",
+   "parent": "wf",
+   "inner": true,
+   "start": 3000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  },
+  "watch": {
+   "desc": "do watch",
+   "type": "monitor_mcp",
+   "kind": "shell",
+   "ambient": true,
+   "start": 5000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  }
+ },
+ "ordered": [
+  "wf",
+  "i2",
+  "watch",
+  "i1"
+ ],
+ "rows": [
+  {
+   "id": "wf",
+   "depth": 0
+  },
+  {
+   "id": "i2",
+   "depth": 1
+  },
+  {
+   "id": "i1",
+   "depth": 1
+  },
+  {
+   "id": "watch",
+   "depth": 0
+  }
+ ],
+ "counts": {
+  "running": 1,
+  "finished": 0,
+  "watchers": 1
+ }
+}

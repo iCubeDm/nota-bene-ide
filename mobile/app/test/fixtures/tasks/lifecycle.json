@@ -1,0 +1,299 @@
+{
+ "events": [
+  {
+   "kind": "agent",
+   "ts": 1000,
+   "e": {
+    "t": "task",
+    "id": "a",
+    "phase": "started",
+    "desc": "do a",
+    "type": "local_agent",
+    "call": "toolu_a",
+    "model": "claude-sonnet-5-5",
+    "bg": false
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 2000,
+   "e": {
+    "t": "task",
+    "id": "a",
+    "phase": "progress",
+    "tokens": 1200,
+    "tool": "Read",
+    "summary": "reading"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 3000,
+   "e": {
+    "t": "task",
+    "id": "a",
+    "phase": "updated",
+    "desc": "renamed",
+    "bg": true
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 4000,
+   "e": {
+    "t": "task",
+    "id": "nobody",
+    "phase": "progress",
+    "tokens": 5
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 5000,
+   "e": {
+    "t": "task",
+    "id": "s",
+    "phase": "started",
+    "desc": "npm test",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 6000,
+   "e": {
+    "t": "task",
+    "id": "m",
+    "phase": "started",
+    "type": "monitor_mcp"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 7000,
+   "e": {
+    "t": "task",
+    "id": "w",
+    "phase": "started",
+    "desc": "do w",
+    "type": "local_workflow",
+    "workflow": "review"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 8000,
+   "e": {
+    "t": "task",
+    "id": "r",
+    "phase": "started",
+    "desc": "do r",
+    "type": "remote_agent"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 9000,
+   "e": {
+    "t": "task",
+    "id": "o",
+    "phase": "started",
+    "desc": "do o",
+    "type": "something"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 10000,
+   "e": {
+    "t": "task",
+    "id": "n",
+    "phase": "started",
+    "desc": "do n",
+    "call": "toolu_n"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 11000,
+   "e": {
+    "t": "task",
+    "id": "a",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 12000,
+   "e": {
+    "t": "task",
+    "id": "a",
+    "phase": "progress",
+    "tokens": 9
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 13000,
+   "e": {
+    "t": "task",
+    "id": "a",
+    "phase": "done",
+    "status": "failed"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 14000,
+   "e": {
+    "t": "task",
+    "id": "s",
+    "phase": "done",
+    "status": "failed"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 15000,
+   "e": {
+    "t": "task",
+    "id": "o",
+    "phase": "done",
+    "status": "stopped"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 16000,
+   "e": {
+    "t": "task",
+    "id": "ghost",
+    "phase": "done"
+   }
+  }
+ ],
+ "tasks": {
+  "a": {
+   "desc": "renamed",
+   "type": "local_agent",
+   "kind": "agent",
+   "call": "toolu_a",
+   "bg": true,
+   "model": "claude-sonnet-5-5",
+   "start": 1000,
+   "status": "done",
+   "tokens": 1200,
+   "tool": "Read",
+   "summary": "reading",
+   "end": 11000
+  },
+  "s": {
+   "desc": "npm test",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 5000,
+   "status": "failed",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 14000
+  },
+  "m": {
+   "desc": "task",
+   "type": "monitor_mcp",
+   "kind": "shell",
+   "start": 6000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  },
+  "w": {
+   "desc": "do w",
+   "type": "local_workflow",
+   "kind": "workflow",
+   "workflow": "review",
+   "start": 7000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  },
+  "r": {
+   "desc": "do r",
+   "type": "remote_agent",
+   "kind": "agent",
+   "start": 8000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  },
+  "o": {
+   "desc": "do o",
+   "type": "something",
+   "kind": "other",
+   "start": 9000,
+   "status": "stopped",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 15000
+  },
+  "n": {
+   "desc": "do n",
+   "type": "",
+   "kind": "agent",
+   "call": "toolu_n",
+   "start": 10000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  }
+ },
+ "ordered": [
+  "m",
+  "w",
+  "r",
+  "n",
+  "o",
+  "s",
+  "a"
+ ],
+ "rows": [
+  {
+   "id": "m",
+   "depth": 0
+  },
+  {
+   "id": "w",
+   "depth": 0
+  },
+  {
+   "id": "r",
+   "depth": 0
+  },
+  {
+   "id": "n",
+   "depth": 0
+  },
+  {
+   "id": "o",
+   "depth": 0
+  },
+  {
+   "id": "s",
+   "depth": 0
+  },
+  {
+   "id": "a",
+   "depth": 0
+  }
+ ],
+ "counts": {
+  "running": 4,
+  "finished": 3,
+  "watchers": 0
+ }
+}

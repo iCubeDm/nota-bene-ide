@@ -1,0 +1,117 @@
+{
+ "events": [
+  {
+   "kind": "agent",
+   "ts": 1000,
+   "e": {
+    "t": "task",
+    "id": "watch",
+    "phase": "started",
+    "desc": "do watch",
+    "type": "monitor_mcp",
+    "ambient": true
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 2000,
+   "e": {
+    "t": "task",
+    "id": "done1",
+    "phase": "started",
+    "desc": "do done1",
+    "type": "local_bash"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 3000,
+   "e": {
+    "t": "task",
+    "id": "done1",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 4000,
+   "e": {
+    "t": "task",
+    "id": "watch2",
+    "phase": "started",
+    "desc": "do watch2",
+    "type": "monitor_mcp",
+    "ambient": true
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 5000,
+   "e": {
+    "t": "task",
+    "id": "watch2",
+    "phase": "done"
+   }
+  }
+ ],
+ "tasks": {
+  "watch": {
+   "desc": "do watch",
+   "type": "monitor_mcp",
+   "kind": "shell",
+   "ambient": true,
+   "start": 1000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  },
+  "done1": {
+   "desc": "do done1",
+   "type": "local_bash",
+   "kind": "shell",
+   "start": 2000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 3000
+  },
+  "watch2": {
+   "desc": "do watch2",
+   "type": "monitor_mcp",
+   "kind": "shell",
+   "ambient": true,
+   "start": 4000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 5000
+  }
+ },
+ "ordered": [
+  "watch",
+  "watch2",
+  "done1"
+ ],
+ "rows": [
+  {
+   "id": "watch",
+   "depth": 0
+  },
+  {
+   "id": "watch2",
+   "depth": 0
+  },
+  {
+   "id": "done1",
+   "depth": 0
+  }
+ ],
+ "counts": {
+  "running": 0,
+  "finished": 1,
+  "watchers": 1
+ }
+}

@@ -1,0 +1,355 @@
+{
+ "events": [
+  {
+   "kind": "agent",
+   "ts": 1000,
+   "e": {
+    "t": "task",
+    "id": "a1",
+    "phase": "started",
+    "desc": "do a1",
+    "type": "local_agent",
+    "group": "r1",
+    "call": "toolu_1"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 2000,
+   "e": {
+    "t": "task",
+    "id": "a2",
+    "phase": "started",
+    "desc": "do a2",
+    "type": "local_agent",
+    "group": "r1",
+    "call": "toolu_2"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 3000,
+   "e": {
+    "t": "task",
+    "id": "a3",
+    "phase": "started",
+    "desc": "do a3",
+    "type": "local_agent",
+    "group": "r1",
+    "call": "toolu_3"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 4000,
+   "e": {
+    "t": "task",
+    "id": "a1",
+    "phase": "progress",
+    "tokens": 100
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 5000,
+   "e": {
+    "t": "task",
+    "id": "a2",
+    "phase": "progress",
+    "tokens": 50
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 6000,
+   "e": {
+    "t": "task",
+    "id": "solo",
+    "phase": "started",
+    "desc": "do solo",
+    "type": "local_agent",
+    "group": "r2"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 7000,
+   "e": {
+    "t": "task",
+    "id": "sh",
+    "phase": "started",
+    "desc": "do sh",
+    "type": "local_bash",
+    "group": "r1"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 8000,
+   "e": {
+    "t": "task",
+    "id": "p",
+    "phase": "started",
+    "desc": "do p",
+    "type": "local_agent",
+    "call": "toolu_p"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 9000,
+   "e": {
+    "t": "task",
+    "id": "c1",
+    "phase": "started",
+    "desc": "do c1",
+    "type": "local_agent",
+    "parent": "p",
+    "group": "r3"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 10000,
+   "e": {
+    "t": "task",
+    "id": "c2",
+    "phase": "started",
+    "desc": "do c2",
+    "type": "local_agent",
+    "parent": "p",
+    "group": "r3"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 11000,
+   "e": {
+    "t": "task",
+    "id": "a1",
+    "phase": "done"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 12000,
+   "e": {
+    "t": "task",
+    "id": "a2",
+    "phase": "done",
+    "status": "failed"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 13000,
+   "e": {
+    "t": "task",
+    "id": "c1",
+    "phase": "done",
+    "status": "stopped"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 14000,
+   "e": {
+    "t": "task",
+    "id": "c2",
+    "phase": "done"
+   }
+  }
+ ],
+ "tasks": {
+  "a1": {
+   "desc": "do a1",
+   "type": "local_agent",
+   "kind": "agent",
+   "call": "toolu_1",
+   "group": "r1",
+   "start": 1000,
+   "status": "done",
+   "tokens": 100,
+   "tool": "",
+   "summary": "",
+   "end": 11000
+  },
+  "a2": {
+   "desc": "do a2",
+   "type": "local_agent",
+   "kind": "agent",
+   "call": "toolu_2",
+   "group": "r1",
+   "start": 2000,
+   "status": "failed",
+   "tokens": 50,
+   "tool": "",
+   "summary": "",
+   "end": 12000
+  },
+  "a3": {
+   "desc": "do a3",
+   "type": "local_agent",
+   "kind": "agent",
+   "call": "toolu_3",
+   "group": "r1",
+   "start": 3000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  },
+  "solo": {
+   "desc": "do solo",
+   "type": "local_agent",
+   "kind": "agent",
+   "group": "r2",
+   "start": 6000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  },
+  "sh": {
+   "desc": "do sh",
+   "type": "local_bash",
+   "kind": "shell",
+   "group": "r1",
+   "start": 7000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  },
+  "p": {
+   "desc": "do p",
+   "type": "local_agent",
+   "kind": "agent",
+   "call": "toolu_p",
+   "start": 8000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  },
+  "c1": {
+   "desc": "do c1",
+   "type": "local_agent",
+   "kind": "agent",
+   "parent": "p",
+   "group": "r3",
+   "start": 9000,
+   "status": "stopped",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 13000
+  },
+  "c2": {
+   "desc": "do c2",
+   "type": "local_agent",
+   "kind": "agent",
+   "parent": "p",
+   "group": "r3",
+   "start": 10000,
+   "status": "done",
+   "tokens": 0,
+   "tool": "",
+   "summary": "",
+   "end": 14000
+  }
+ },
+ "ordered": [
+  "a3",
+  "solo",
+  "sh",
+  "p",
+  "c2",
+  "c1",
+  "a2",
+  "a1"
+ ],
+ "rows": [
+  {
+   "id": "group::r1",
+   "depth": 0,
+   "group": {
+    "key": "r1",
+    "ids": [
+     "a3",
+     "a2",
+     "a1"
+    ],
+    "live": [
+     "a3"
+    ],
+    "running": 1,
+    "done": 1,
+    "failed": 1,
+    "stopped": 0,
+    "total": 3,
+    "status": "running",
+    "tokens": 150,
+    "start": 1000
+   }
+  },
+  {
+   "id": "a3",
+   "depth": 1
+  },
+  {
+   "id": "a2",
+   "depth": 1
+  },
+  {
+   "id": "a1",
+   "depth": 1
+  },
+  {
+   "id": "solo",
+   "depth": 0
+  },
+  {
+   "id": "sh",
+   "depth": 0
+  },
+  {
+   "id": "p",
+   "depth": 0
+  },
+  {
+   "id": "group:p:r3",
+   "depth": 1,
+   "group": {
+    "key": "r3",
+    "ids": [
+     "c2",
+     "c1"
+    ],
+    "live": [],
+    "running": 0,
+    "done": 1,
+    "failed": 0,
+    "stopped": 1,
+    "total": 2,
+    "status": "stopped",
+    "tokens": 0,
+    "start": 9000,
+    "end": 14000
+   }
+  },
+  {
+   "id": "c2",
+   "depth": 2
+  },
+  {
+   "id": "c1",
+   "depth": 2
+  }
+ ],
+ "counts": {
+  "running": 4,
+  "finished": 4,
+  "watchers": 0
+ }
+}

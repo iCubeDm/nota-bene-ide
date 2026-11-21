@@ -1,0 +1,126 @@
+{
+ "events": [
+  {
+   "kind": "agent",
+   "ts": 1000,
+   "e": {
+    "t": "task",
+    "id": "before",
+    "phase": "started",
+    "desc": "do before",
+    "type": "local_agent"
+   }
+  },
+  {
+   "kind": "replay",
+   "events": [
+    {
+     "kind": "agent",
+     "ts": 2000,
+     "e": {
+      "t": "task",
+      "id": "r1",
+      "phase": "started",
+      "desc": "do r1",
+      "type": "local_agent"
+     }
+    },
+    {
+     "kind": "agent",
+     "ts": 3000,
+     "e": {
+      "t": "task",
+      "id": "r2",
+      "phase": "started",
+      "desc": "do r2",
+      "type": "local_bash"
+     }
+    },
+    {
+     "kind": "agent",
+     "ts": 4000,
+     "e": {
+      "t": "task",
+      "id": "r2",
+      "phase": "done"
+     }
+    },
+    {
+     "kind": "agent",
+     "ts": 1,
+     "e": {
+      "t": "reset",
+      "prev": "x"
+     }
+    },
+    {
+     "kind": "agent",
+     "ts": 5000,
+     "e": {
+      "t": "task",
+      "id": "r3",
+      "phase": "started",
+      "desc": "do r3",
+      "type": "local_agent"
+     }
+    }
+   ]
+  },
+  {
+   "kind": "agent",
+   "ts": 6000,
+   "e": {
+    "t": "task",
+    "id": "after",
+    "phase": "started",
+    "desc": "do after",
+    "type": "local_agent"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 6500,
+   "e": {
+    "t": "reset",
+    "prev": "y"
+   }
+  },
+  {
+   "kind": "agent",
+   "ts": 7000,
+   "e": {
+    "t": "task",
+    "id": "fresh",
+    "phase": "started",
+    "desc": "do fresh",
+    "type": "local_agent"
+   }
+  }
+ ],
+ "tasks": {
+  "fresh": {
+   "desc": "do fresh",
+   "type": "local_agent",
+   "kind": "agent",
+   "start": 7000,
+   "status": "running",
+   "tokens": 0,
+   "tool": "",
+   "summary": ""
+  }
+ },
+ "ordered": [
+  "fresh"
+ ],
+ "rows": [
+  {
+   "id": "fresh",
+   "depth": 0
+  }
+ ],
+ "counts": {
+  "running": 1,
+  "finished": 0,
+  "watchers": 0
+ }
+}

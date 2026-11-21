@@ -1,5 +1,5 @@
 // The floating header of a phone chat: a back button, a pill with the session (avatar, name; under it what the session is
-// doing) and the context ring. It floats over the feed, which scrolls under it.
+// doing), the count of background tasks and the context ring. It floats over the feed, which scrolls under it.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -10,6 +10,7 @@ import '../l10n/app_localizations.dart';
 import '../theme.dart';
 import '../ui/nb_icon.dart';
 import '../hosts/project_icon.dart';
+import '../tasks/tasks_sheet.dart';
 import 'context_sheet.dart' show contextColor;
 import 'session_state.dart';
 import 'window_tab.dart';
@@ -203,6 +204,7 @@ class ChatHeader extends StatelessWidget {
                     : InkWell(onTap: onTapTitle, child: content),
               ),
             ),
+            TasksIndicator(tab: tab, fill: fill),
             if (tab.windowState.capabilities != null || ctx != null) ...[
               const SizedBox(width: 8),
               ContextRing(

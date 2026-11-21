@@ -1,0 +1,127 @@
+{
+ "plain": [
+  {
+   "raw": "\u001b[31mred\u001b[0m and \u001b[1;32;4mbold\u001b[m",
+   "truncated": false,
+   "text": "red and bold"
+  },
+  {
+   "raw": "a\u001b[2K\u001b[1Gb\u001b[?25l",
+   "truncated": false,
+   "text": "ab"
+  },
+  {
+   "raw": "\u001b]0;title\u0007text",
+   "truncated": false,
+   "text": "text"
+  },
+  {
+   "raw": "\u001b]8;;http://x\u001b\\link\u001b]8;;\u001b\\",
+   "truncated": false,
+   "text": "link"
+  },
+  {
+   "raw": "a\r\nb\r\n",
+   "truncated": false,
+   "text": "a\nb\n"
+  },
+  {
+   "raw": "10%\r50%\r100%\ndone",
+   "truncated": false,
+   "text": "100%\ndone"
+  },
+  {
+   "raw": "file\n  1%\r 50%\r100%\r",
+   "truncated": false,
+   "text": "file\n100%"
+  },
+  {
+   "raw": "a\r\r\nb",
+   "truncated": false,
+   "text": "a\nb"
+  },
+  {
+   "raw": "\u001b(B\u001b[mok",
+   "truncated": false,
+   "text": "ok"
+  },
+  {
+   "raw": "\u001b7saved\u001b8 \u001b=\u001b>x\u0007\u0000y",
+   "truncated": false,
+   "text": "saved xy"
+  },
+  {
+   "raw": "tab\there\nnext",
+   "truncated": false,
+   "text": "tab\there\nnext"
+  },
+  {
+   "raw": "-\b\\\b|\b/\bdone",
+   "truncated": false,
+   "text": "done"
+  },
+  {
+   "raw": "ab\bc",
+   "truncated": false,
+   "text": "ac"
+  },
+  {
+   "raw": "2;32mcompiling\n",
+   "truncated": true,
+   "text": "compiling\n"
+  },
+  {
+   "raw": "2;32mcompiling\n",
+   "truncated": false,
+   "text": "2;32mcompiling\n"
+  },
+  {
+   "raw": "plain text\n",
+   "truncated": true,
+   "text": "plain text\n"
+  },
+  {
+   "raw": "ünïcødé ✓ 漢字\u001b[0m",
+   "truncated": false,
+   "text": "ünïcødé ✓ 漢字"
+  }
+ ],
+ "elapsed": [
+  {
+   "ms": 0,
+   "text": "0s"
+  },
+  {
+   "ms": 400,
+   "text": "0s"
+  },
+  {
+   "ms": 500,
+   "text": "1s"
+  },
+  {
+   "ms": 59400,
+   "text": "59s"
+  },
+  {
+   "ms": 59600,
+   "text": "1:00"
+  },
+  {
+   "ms": 60000,
+   "text": "1:00"
+  },
+  {
+   "ms": 125000,
+   "text": "2:05"
+  },
+  {
+   "ms": 3725000,
+   "text": "62:05"
+  },
+  {
+   "ms": -5000,
+   "text": "0s"
+  }
+ ]
+}

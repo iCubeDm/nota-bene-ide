@@ -33,12 +33,16 @@ export const WEB_KEYS: readonly string[] = [
   'vcsFailed', 'binary',
   // a compaction ordered while the agent works (issue 499): the chip and the held messages
   'compactPending', 'compactPendingBody', 'compactCancel', 'youHeldRestart', 'youHeldCompact',
+  // the background tasks and their views (issue 573)
+  'tasksLabel', 'tasksNone', 'taskRunning', 'taskDone', 'taskFailed', 'taskStopped', 'taskOpen', 'taskStop',
+  'taskStopConfirm', 'taskStopping', 'taskStopAll', 'taskStopAllConfirm', 'taskBackground', 'shellLoading', 'shellEmpty',
+  'shellGone', 'shellGoneShort', 'agentLoading', 'agentGone', 'agentRunning',
 ];
 /**
  * Web strings that count (`nComments(n)`): kept as the forms of 1, 2 and 5 with the number as `{0}`, which
  * `webCount` picks from by the language's plural rule (Russian has three forms, the others two).
  */
-const COUNT_KEYS = ['nComments', 'markShapes'] as const;
+const COUNT_KEYS = ['nComments', 'markShapes', 'tasksRunning', 'tasksWatchers', 'taskGroup', 'taskGroupFailed', 'taskGroupStopped'] as const;
 const counted = (d: Record<string, unknown>, key: string): Record<string, string> => {
   const f = d[key];
   if (typeof f !== 'function') throw new Error(`web i18n: ${key} is not a function`);
@@ -63,6 +67,8 @@ const TEMPLATE_KEYS: Record<string, ('n' | 'list')[]> = {
   dictInstallQ: ['n', 'n', 'n'],
   // the git views: a large diff, the base line of the changes
   vcsBigDiff: ['n'], vcsAgainst: ['n'], vcsOnlyUncommitted: ['n'], vcsLogCut: ['n'],
+  // the background tasks (issue 573): a swarm's count, tokens, a workflow's name, a shell's and a subagent's reads
+  taskGroupDone: ['n', 'n'], taskTokens: ['n'], taskWorkflow: ['n'], shellEarlier: ['n'], shellFailed: ['n'], shellStale: ['n'], agentFailed: ['n'],
 };
 /**
  * The forms of the source names that drop a part when it is empty (a tool with no argument, a subagent with no name),
