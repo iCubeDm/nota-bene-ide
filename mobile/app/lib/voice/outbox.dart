@@ -5,7 +5,6 @@
 // open of the window shows what is left and goes on with it.
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
@@ -13,6 +12,7 @@ import '../chat/agent_connection.dart' show uuidV4;
 import '../chat/feed.dart' show UserItem;
 import '../chat/window_state.dart';
 import '../media/media_comment.dart';
+import '../store/storage.dart';
 import 'files.dart';
 import 'upload.dart';
 import 'wav.dart';
@@ -100,65 +100,17 @@ class PendingVoice {
   };
 }
 
-/// Where the outboxes keep their files; the app's files dir on the phone.
-abstract class OutFiles {
-  Future<String?> readIndex();
-  Future<void> writeIndex(String json);
-  Future<void> writeWav(String name, Uint8List bytes);
-  Future<Uint8List?> readWav(String name);
-  Future<void> deleteWav(String name);
-}
-
-/// `filesDir/voice-out` (`nb/play`'s `outDir`); where the platform has none (tests), nothing is kept.
-class DiskOutFiles implements OutFiles {
-  Future<Directory?> _dir() => outDir();
-
-  @override
-  Future<String?> readIndex() async {
-    final d = await _dir();
-    final f = d == null ? null : File('${d.path}/index.json');
-    return f != null && await f.exists() ? f.readAsString() : null;
-  }
-
-  @override
-  Future<void> writeIndex(String json) async {
-    final d = await _dir();
-    if (d == null) return;
-    final part = File('${d.path}/index.json.part');
-    await part.writeAsString(json, flush: true);
-    await part.rename('${d.path}/index.json');
-  }
-
-  @override
-  Future<void> writeWav(String name, Uint8List bytes) async {
-    final d = await _dir();
-    if (d != null) {
-      await File('${d.path}/$name.wav').writeAsBytes(bytes, flush: true);
-    }
-  }
-
-  @override
-  Future<Uint8List?> readWav(String name) async {
-    final d = await _dir();
-    final f = d == null ? null : File('${d.path}/$name.wav');
-    return f != null && await f.exists() ? f.readAsBytes() : null;
-  }
-
-  @override
-  Future<void> deleteWav(String name) async {
-    final d = await _dir();
-    final f = d == null ? null : File('${d.path}/$name.wav');
-    if (f != null && await f.exists()) await f.delete();
-  }
-}
-
 /// All the outboxes of the app, by window (host and session).
 class VoiceStore {
   VoiceStore(this.files, {required this.sounds}) {
     ready = _load();
   }
 
-  final OutFiles files;
+  /// The index of every outbox's entries, and each entry's recording as `voice-out/<entry key>.wav`.
+  static const index = 'voice-out/index.json';
+  static String wav(String key) => 'voice-out/$key.wav';
+
+  final Files files;
 
   /// The player: a sent recording is cached there, a finished one let go.
   final Sounds sounds;
@@ -170,7 +122,7 @@ class VoiceStore {
 
   Future<void> _load() async {
     try {
-      final s = await files.readIndex();
+      final s = await files.readText(index);
       if (s != null) {
         for (final e in (jsonDecode(s)['entries'] as List)) {
           final m = (e as Map).cast<String, Object?>();
@@ -204,7 +156,7 @@ class VoiceStore {
     ];
     final json = jsonEncode({'entries': all});
     _writes = _writes
-        .then((_) => files.writeIndex(json))
+        .then((_) => files.writeText(index, json))
         .catchError((Object _) {});
   }
 }
@@ -248,6 +200,9 @@ class VoiceOutbox extends ChangeNotifier {
     _http = http;
     _compose = compose;
   }
+
+  /// Whether [owner] is the chat attached now (a tab on its way out no longer is).
+  bool attachedTo(Object owner) => identical(_owner, owner);
 
   void detach(Object owner) {
     if (!identical(_owner, owner)) return;
@@ -299,7 +254,7 @@ class VoiceOutbox extends ChangeNotifier {
   Future<void> _start(PendingVoice e) async {
     // on disk before anything can go wrong; the upload does not wait for the disk to fail
     try {
-      await _store.files.writeWav(e.key, e.wav!);
+      await _store.files.writeBytes(VoiceStore.wav(e.key), e.wav!);
     } on Object {
       // kept in memory only
     }
@@ -307,7 +262,7 @@ class VoiceOutbox extends ChangeNotifier {
   }
 
   Future<Uint8List?> bytes(PendingVoice e) async =>
-      e.wav ?? await _store.files.readWav(e.key);
+      e.wav ?? await _store.files.readBytes(VoiceStore.wav(e.key));
 
   Future<void> _run(PendingVoice e) async {
     if (e._running || !entries.contains(e)) return;
@@ -400,7 +355,9 @@ class VoiceOutbox extends ChangeNotifier {
   /// The entry is over: its files go, and the player lets go of its bubble's voice.
   void _forget(PendingVoice e) {
     e._timer?.cancel();
-    unawaited(_store.files.deleteWav(e.key).catchError((Object _) {}));
+    unawaited(
+      _store.files.delete(VoiceStore.wav(e.key)).catchError((Object _) {}),
+    );
     unawaited(_store.sounds.drop(e.key));
   }
 

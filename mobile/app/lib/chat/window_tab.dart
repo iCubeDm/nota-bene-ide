@@ -1,11 +1,12 @@
 // One window on the phone (issue 511): its [AgentConnection] (the socket, the one-tab rule, reconnects), its
-// [WindowState] (what the window said) and the window's comments, voice outbox and media cache, wired together for
-// the window's lifetime. The screens read the parts themselves (issue 547).
+// [Repository] (the window's data over it), its [WindowState] (what the window said) and the window's comments, voice
+// outbox and media cache, wired together for the window's lifetime. The screens read the parts themselves (issue 547).
 
 import 'package:flutter/foundation.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../comments/comments.dart';
+import '../files/repository.dart';
 import '../hosts/host_link.dart';
 import '../media/fetch.dart';
 import '../sdk.dart';
@@ -72,6 +73,9 @@ class WindowTab extends ChangeNotifier {
   /// The window's socket: the one-tab rule, reconnects, sends.
   late final AgentConnection connection;
 
+  /// The window's data (files, git) over it.
+  late final repository = Repository(connection);
+
   /// What the window said over it.
   late final windowState = WindowState(
     send: connection.send,
@@ -118,7 +122,8 @@ class WindowTab extends ChangeNotifier {
     comments.flush();
   }
 
-  /// An event of the window: the comments take theirs, the state all, then the voice outbox what it answered.
+  /// An event of the window: the comments take theirs, the state all, then the voice outbox (while this tab is its
+  /// chat) what it answered.
   void _event(ServerEvent e) {
     switch (e) {
       case ServerEventHello(:final protocol):
@@ -132,11 +137,14 @@ class WindowTab extends ChangeNotifier {
       default:
     }
     windowState.apply(e);
-    voiceOutbox.event(
-      e,
-      windowState,
-      holdsUntold: connection.has(Feature.compactOrder),
-    );
+    // the outbox is the app's: a tab that was replaced and is still closing must not touch the new tab's sends
+    if (voiceOutbox.attachedTo(this)) {
+      voiceOutbox.event(
+        e,
+        windowState,
+        holdsUntold: connection.has(Feature.compactOrder),
+      );
+    }
   }
 
   @override

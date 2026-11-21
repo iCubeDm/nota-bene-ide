@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_app/chat/window_state.dart';
 import 'package:nb_app/voice/outbox.dart';
 import 'package:nb_app/voice/player.dart';
+import 'package:nb_app/store/storage.dart';
 import 'package:nb_channel/nb_channel.dart' show HttpAnswer;
 import 'package:nb_protocol/nb_protocol.dart';
 
@@ -12,7 +14,7 @@ import 'support/voice_fakes.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  late MemoryOutFiles disk;
+  late MemoryFiles disk;
   late VoiceStore store;
   late List<ClientMessage> sent;
   late Completer<HttpAnswer>? upload;
@@ -50,7 +52,7 @@ void main() {
   }
 
   setUp(() {
-    disk = MemoryOutFiles();
+    disk = MemoryFiles();
     VoicePlayer.shared = VoicePlayer(files: MemoryVoiceFiles());
     store = VoiceStore(disk, sounds: VoicePlayer.shared);
     sent = [];
@@ -278,6 +280,26 @@ void main() {
       await settle();
       final first = (sent.first as ClientMessageSend).id;
       box.reconcile({first});
+      expect(box.entries.single.stage, OutStage.failed);
+      box.detach(owner);
+    },
+  );
+
+  test(
+    'on protocol 27 a replay waits for compact-pending before it judges what was sent',
+    () async {
+      final box = attach();
+      box.submit(wavOf(1000), 'en');
+      await settle();
+      final state = WindowState(send: (_) => true, http: () => null);
+      addTearDown(state.dispose);
+      box.event(const ServerEventReplay(events: []), state, holdsUntold: true);
+      expect(box.entries.single.stage, OutStage.sent);
+      box.event(
+        const ServerEventCompactPending(pending: false, held: []),
+        state,
+        holdsUntold: true,
+      );
       expect(box.entries.single.stage, OutStage.failed);
       box.detach(owner);
     },
