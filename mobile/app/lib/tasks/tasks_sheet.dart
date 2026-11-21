@@ -59,8 +59,8 @@ String statusWord(TaskStatus s, String lang) => webString(switch (s) {
   TaskStatus.stopped => WebKey.taskStopped,
 }, lang);
 
-/// The header's count: `⚙ N tasks` while some run, `✓ N` when only finished ones are left, the watchers when only
-/// they run, nothing when there are none. A tap opens the sheet.
+/// The header's count: `⚙ N` while some run, `✓ N` when only finished ones are left, the watchers when only they
+/// run, nothing when there are none; a screen reader hears the phrase. A tap opens the sheet.
 class TasksIndicator extends StatelessWidget {
   const TasksIndicator({super.key, required this.tab, required this.fill});
   final WindowTab tab;
@@ -76,16 +76,27 @@ class TasksIndicator extends StatelessWidget {
       final running = runningCount(s), finished = finishedCount(s);
       final watchers = watcherCount(s);
       if (running + finished + watchers == 0) return const SizedBox.shrink();
-      final (mark, color, label) = running > 0
-          ? ('⚙', c.accent, webCount(CountKey.tasksRunning, lang, running))
+      final (mark, color, n, label) = running > 0
+          ? (
+              '⚙',
+              c.accent,
+              running,
+              webCount(CountKey.tasksRunning, lang, running),
+            )
           : finished > 0
-          ? ('✓', c.success, '$finished')
-          : ('⚙', c.mutedFg, webCount(CountKey.tasksWatchers, lang, watchers));
+          ? ('✓', c.success, finished, webString(WebKey.tasksLabel, lang))
+          : (
+              '⚙',
+              c.mutedFg,
+              watchers,
+              webCount(CountKey.tasksWatchers, lang, watchers),
+            );
       return Padding(
         padding: const EdgeInsets.only(left: 8),
         child: Semantics(
           button: true,
-          label: webString(WebKey.tasksLabel, lang),
+          label: label,
+          excludeSemantics: true,
           child: Material(
             key: const ValueKey('tasks-indicator'),
             color: fill,
@@ -103,7 +114,7 @@ class TasksIndicator extends StatelessWidget {
                     Text(mark, style: TextStyle(fontSize: 13, color: color)),
                     const SizedBox(width: 6),
                     Text(
-                      label,
+                      '$n',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
