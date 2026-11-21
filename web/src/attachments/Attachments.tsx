@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useT, connections, routes, type UserPart } from '@/sdk';
+import { useT, connections, routes, type PendingThumb, type UserPart } from '@/sdk';
 
 /** Full-size view. Esc / click closes; this Esc is consumed here (preventDefault + stop), so nothing else acts on it. */
 function Lightbox({ id, onClose }: { id: string; onClose: () => void }) {
@@ -28,9 +28,6 @@ function Lightbox({ id, onClose }: { id: string; onClose: () => void }) {
     document.body,
   );
 }
-
-/** an upload in flight: an image's object URL thumbnail, or a file's name (issue 461) */
-export type PendingThumb = { key: string; url?: string; name?: string };
 
 /**
  * A strip of thumbnails. `ids` are the uploaded images (lazy `/attach/<id>`), `pending` are uploads in flight (object URLs,

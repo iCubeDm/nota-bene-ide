@@ -5,7 +5,8 @@ import { Provider } from 'react-redux';
 import { renderHook } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { PLUGINS } from '@/plugins.ts';
-import { makeStore, useComments } from '@/store/store.ts';
+import { makeStore, useAttachments, useComments, useVoice } from '@/store/store.ts';
+import { useComposerField } from './composerField.ts';
 import type { TabKinds } from '@/tabs/slice.ts';
 import { buildRegistry } from './registry.ts';
 import { kindOf } from '../refs/kinds.ts';
@@ -51,6 +52,11 @@ it('each slot lists the plugins\' parts in the frame\'s order', () => {
     panes: ['10 TasksDrawer'],
     footer: ['10 TasksIndicator', '20 Composer'],
     overlay: ['10 SelectionComment', '20 CommentCardPopover', '40 RecentFiles', '50 Starter', '60 Activity', '70 Seen'],
+    // the composer's (issue 545); the pickers serve the comment popup's field as well
+    'composer.status': ['10 CtxNudge'],
+    'composer.tools': ['10 ModePill'],
+    'composer.end': ['10 AgentAccount', '20 Meters', '30 CompactClear'],
+    'composer.pickers': ['10 MentionPart', '20 ShortcodePart'],
   });
 });
 
@@ -170,8 +176,25 @@ it('the comments\' service is provided by one plugin; a second fails the build; 
   expect(Object.keys(service).sort()).toEqual(['CommentPopup', 'HighlightLayer', 'flashRange', 'flashRects', 'moveCutComment', 'openCommentCard',
     'removeComment', 'selectComments', 'selectMediaComments', 'selectPendingCountByPath']);
   const provides = (id: string): Plugin => ({ id, comments: service });
-  expect(() => buildRegistry([provides('a'), provides('b')])).toThrow('the comments are provided twice');
+  expect(() => buildRegistry([provides('a'), provides('b')])).toThrow('two plugins provide the comments');
   const bare = makeStore({ url: 'u', connect: () => ({ send: () => true, close() {} }), plugins: [] });
   const wrapper = ({ children }: { children: ReactNode }) => createElement(Provider, { store: bare, children });
   expect(() => renderHook(() => useComments(), { wrapper })).toThrow('no plugin provides the comments');
+});
+
+// the composer and the comment popup reach voice and attachments through the SDK (issue 545)
+it('the voice and the attachments are each one plugin\'s service; a second fails the build; a host without one is told why', () => {
+  const r = buildRegistry(PLUGINS);
+  expect(Object.keys(r.voice!).sort()).toEqual(['ClipRow', 'RecordBar', 'WhisperPrompt', 'onRefused', 'send', 'transcribe', 'useRecorder']);
+  expect(Object.keys(r.attachments!).sort()).toEqual(['Attachments', 'ComposerAttachments', 'useIntake']);
+  expect(() => buildRegistry([{ id: 'a', voice: r.voice }, { id: 'b', voice: r.voice }])).toThrow('two plugins provide the voice');
+  expect(() => buildRegistry([{ id: 'a', attachments: r.attachments }, { id: 'b', attachments: r.attachments }])).toThrow('two plugins provide the attachments');
+  const bare = makeStore({ url: 'u', connect: () => ({ send: () => true, close() {} }), plugins: [] });
+  const wrapper = ({ children }: { children: ReactNode }) => createElement(Provider, { store: bare, children });
+  expect(() => renderHook(() => useVoice(), { wrapper })).toThrow('no plugin provides the voice');
+  expect(() => renderHook(() => useAttachments(), { wrapper })).toThrow('no plugin provides the attachments');
+});
+
+it('a picker outside a message field is told why', () => {
+  expect(() => renderHook(() => useComposerField())).toThrow('outside a message field');
 });

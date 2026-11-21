@@ -1,11 +1,10 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import type { ImageType } from '@nota-bene/shared';
-import { connState, sendBuilding, serverEvent, type RootState } from '@/sdk';
+import { connState, sendBuilding, serverEvent, type ImageEntry, type RootState } from '@/sdk';
 
 /** What the last `! cmd` took out of the composer; kept until the server's `shell-start`, so a `shell-refused` can put the draft back. */
 export type ShellDraft = { id: string; draft: string };
 
-export type ImageEntry = { id: string; mediaType: ImageType };
+export type { ImageEntry };
 
 /**
  * The composer's draft and its uploaded images live in the store so the comments panel's send can include them.

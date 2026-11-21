@@ -258,7 +258,7 @@ describe('Markdown', () => {
 describe('a path the composer inserts (issue 461)', () => {
   it('a sound or video embed in a user message plays (spaces too); a file in code is a ref', async () => {
     const { escapeMentions } = await import('@/refs/refs.ts');
-    const { pathText } = await import('@/attachments/file.ts');
+    const { pathText } = await import('@/lib/insertText.ts');
     const text = [pathText('attachments/my take.mp3'), pathText('clips/a.mp4'), pathText('attachments/a b.zip')].join(' ');
     const { container } = render(<Markdown text={escapeMentions(text)} final breaks mentions noHtml />);
     expect(container.querySelector('audio')?.getAttribute('src')).toBe('/file?path=attachments%2Fmy%20take.mp3');

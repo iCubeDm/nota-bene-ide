@@ -7,6 +7,7 @@ import { flashRange, flashRects, HighlightLayer } from './HighlightLayer.tsx';
 import { CommentPopup } from './CommentPopup.tsx';
 import { CommentCardPopover, SentComments } from './CommentCard.tsx';
 import { commentsPart } from './send.ts';
+import { ShortcodePart } from './ShortcodePicker.tsx';
 
 declare module '@/sdk' {
   interface PluginState extends WithSlice<typeof commentsSlice> {}
@@ -21,6 +22,7 @@ export const commentsPlugin = definePlugin({
     { slot: 'chat', order: 20, render: HighlightLayer },
     { slot: 'overlay', order: 10, render: SelectionComment },
     { slot: 'overlay', order: 20, render: CommentCardPopover },
+    { slot: 'composer.pickers', order: 20, render: ShortcodePart },
   ],
   userParts: [{ id: 'comments', order: 40, render: SentComments }],
   sendParts: [commentsPart],

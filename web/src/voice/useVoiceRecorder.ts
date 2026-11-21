@@ -1,23 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Voice } from '@nota-bene/shared';
-import { useT } from '@/sdk';
+import { useT, type RecState, type VoiceRecorder } from '@/sdk';
 import { mic, type Recorder, type Recording } from './recorder.ts';
 import { uploadVoice } from './upload.ts';
 
 /** A press shorter than this is a click (a locked recording); a longer one records while held and sends on release. */
 const HOLD_MS = 300;
 const LEVELS = 48;
-
-export type RecState =
-  | { phase: 'idle' }
-  /** `held`: the button is still down (release sends); `ms`: the length so far; `levels`: the recent input levels, newest last */
-  | { phase: 'recording'; held: boolean; ms: number; levels: number[] }
-  /**
-   * stopped, to be listened to; `url`: the recording as a playable blob URL ('' where the browser has none);
-   * `voice`: it is already uploaded (the send could not go out), so Send does not upload it again
-   */
-  | { phase: 'preview'; recording: Recording; url: string; voice?: Voice }
-  | { phase: 'sending'; recording: Recording; url: string; voice?: Voice };
 
 /**
  * One voice recording at a time, as the composer and the comment popup use it. `onDone` gets the uploaded voice (and whether Send was a forcing one) and
@@ -26,7 +15,7 @@ export type RecState =
  * is never dropped silently. After an unmount nothing is handed over.
  * `preview`: Stop goes to a preview; without it Stop uploads at once (the comment popup).
  */
-export function useVoiceRecorder({ onDone, notify, preview }: { onDone: (v: Voice, force: boolean) => boolean | void; notify: (msg: string) => void; preview: boolean }) {
+export function useVoiceRecorder({ onDone, notify, preview }: { onDone: (v: Voice, force: boolean) => boolean | void; notify: (msg: string) => void; preview: boolean }): VoiceRecorder {
   const t = useT();
   const [st, setSt] = useState<RecState>({ phase: 'idle' });
   const stRef = useRef(st);

@@ -27,3 +27,5 @@ export { ICONS, Svg } from '../components/icons.tsx';
 export { focusTab } from '../tabs/focus.ts';
 export { FileIcon, iconOf } from '../components/FileIcon.tsx';
 export { PlayIcon, PauseIcon, ReplayIcon, VolumeOffIcon, VolumeLowIcon, VolumeHighIcon, PencilIcon, PipIcon, EnterFullscreenIcon, ExitFullscreenIcon, EdgeBackIcon, EdgeForwardIcon, FrameBackIcon, FrameForwardIcon } from '../components/playerIcons.tsx';
+export { MessageInput, MicButton, SendIcon, PlaneIcon } from '../components/MessageInput.tsx';
+export { Slots } from '../shell/Slots.tsx';

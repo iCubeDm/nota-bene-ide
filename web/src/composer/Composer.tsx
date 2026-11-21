@@ -1,36 +1,22 @@
-import { AgentAccount } from '@/controls/AgentAccount.tsx';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat, sendCount, sendWaiting, nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching, useAutosize, draggedPaths, useSeekStep } from '@/sdk';
-import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
-import { CompactClear } from '@/controls/CompactClear.tsx';
-import { ModePill } from '@/controls/ModePill.tsx';
-import { ShortcodePicker } from '@/comments/ShortcodePicker.tsx';
-import { MentionPicker } from './MentionPicker.tsx';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat, sendCount, sendWaiting, nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching, useAutosize, draggedPaths, useSeekStep, useVoice, useAttachments, insertPaths, hasFiles, ComposerFieldContext } from '@/sdk';
+import { Button, MessageInput, MicButton, SendIcon, Slots, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { SlashPicker } from './SlashPicker.tsx';
 import { selectShellMode } from './shellMode.ts';
 import { PromptHistory } from './PromptHistory.tsx';
-import { MessageInput, MicButton, SendIcon } from './MessageInput.tsx';
 import { has } from '@nota-bene/shared';
 import { selectPromptItems, selectPromptSid } from './history.ts';
 import { usePromptRecall } from './usePromptRecall.ts';
 import { useComposerKeys } from './useComposerKeys.ts';
-import { Meters } from '@/stats/Meters.tsx';
-import { CtxNudge } from '@/stats/CtxNudge.tsx';
-import { ComposerAttachments } from '@/attachments/ComposerAttachments.tsx';
-import { insertPaths } from '@/attachments/file.ts';
-import { hasFiles, useImageIntake } from '@/attachments/useImageIntake.ts';
 import { addImage, selectDraft, selectBuilding, selectImages, selectUploading, setDraft, uploadFinished, uploadStarted } from './slice.ts';
 import { VOICE_KEY } from './commands.ts';
-import { WhisperPrompt } from '@/voice/WhisperPrompt.tsx';
-import { RecordBar } from '@/voice/RecordBar.tsx';
-import { onVoiceRefused } from '@/voice/inflight.ts';
-import { sendVoice } from '@/voice/send.ts';
-import { useVoiceRecorder } from '@/voice/useVoiceRecorder.ts';
 import { PLAYER_HELP } from '@/media/playerKeys.ts';
 
 export function Composer() {
   const t = useT();
   const registry = useRegistry();
+  const { useRecorder, RecordBar, WhisperPrompt, send: sendVoice, onRefused: onVoiceRefused } = useVoice();
+  const { useIntake, ComposerAttachments } = useAttachments();
   const { commands } = registry;
   const seekStep = useSeekStep();
   const dispatch = useAppDispatch();
@@ -51,8 +37,6 @@ export function Composer() {
   const switching = useAppSelector(selectSwitching);
   const suggestion = useAppSelector(selectSuggestion);
   const shellMode = useAppSelector(selectShellMode); // a one-line draft that starts with `!` is a shell command: Enter runs it
-  const shellModeRef = useRef(shellMode);
-  shellModeRef.current = shellMode;
   const showSug = !!suggestion && !text && !busy && !switching;
   const [failed, setFailed] = useState(false);
   const [note, setNote] = useState('');
@@ -66,6 +50,7 @@ export function Composer() {
   }, [busy]);
   const ref = useRef<HTMLTextAreaElement>(null);
   const fieldBox = useRef<HTMLDivElement>(null);
+  const host = useMemo(() => ({ kind: 'chat' as const, field: ref }), []);
   // ↑/↓ through the prompts sent before, and a prompt picked in the history list
   const { stepHistory, pickHistory, placeOf, reset: endRecall } = usePromptRecall({ items, sid, text, ref });
   // voice messages: only a server that speaks protocol 14 has the mic; without Whisper it opens Settings → Dictation
@@ -84,7 +69,7 @@ export function Composer() {
     noteTimer.current = setTimeout(() => setNote(''), 3000);
   };
   useEffect(() => () => clearTimeout(noteTimer.current), []);
-  const rec = useVoiceRecorder({
+  const rec = useRecorder({
     preview: true,
     notify: flash,
     // sent at once, apart from the draft and the images (they stay where they are); the pending comments ride along
@@ -150,7 +135,7 @@ export function Composer() {
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
   };
-  const intake = useImageIntake({
+  const intake = useIntake({
     onUploaded: (im) => void dispatch(addImage(im)),
     // any other file (issue 461): its path in the project's attachments/, at the caret
     onFilePath: (p) => { if (ref.current) insertPaths(ref.current, [p]); },
@@ -268,7 +253,7 @@ export function Composer() {
         )}
         {failed && conn !== 'open' && <span className="text-warn">{t('offline')}</span>}
         {note && <span className="text-warn">{note}</span>}
-        <CtxNudge />
+        <Slots at="composer.status" />
       </div>
       {askForce && (
         <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-foreground">
@@ -349,9 +334,8 @@ export function Composer() {
             </Button>
           }
         >
-          <MentionPicker target={ref} shell={() => shellModeRef.current} />
+          <ComposerFieldContext.Provider value={host}><Slots at="composer.pickers" /></ComposerFieldContext.Provider>
           <SlashPicker target={ref} suppress={() => placeOf(ref.current?.value ?? '') >= 0} />
-          <ShortcodePicker target={ref} />
         </MessageInput>
         {voiceOk && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={hasText ? ref : micBox} />}
       </div>
@@ -379,15 +363,14 @@ export function Composer() {
           </TooltipTrigger>
           <TooltipContent className="whitespace-pre-line">{`${t('keysTip', modKey())}\n\n${t('hkTitle')}\n${commands.map((b) => `${keysLabel(b)} — ${t(b.id)}`).join('\n')}\n\n${t('pkTitle')}\n${PLAYER_HELP.map(([k, id]) => `${k} — ${t(id, seekStep)}`).join('\n')}`}</TooltipContent>
         </Tooltip>
-        <ModePill />
+        <Slots at="composer.tools" />
         <Button type="button" variant="ghost" size="icon-sm" aria-label={t('attach', modKey())} onClick={() => fileIn.current?.click()}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" />
           </svg>
         </Button>
         <span className="grow" />
-        <AgentAccount /><Meters />
-        <CompactClear />
+        <Slots at="composer.end" />
       </div>
     </div>
   );

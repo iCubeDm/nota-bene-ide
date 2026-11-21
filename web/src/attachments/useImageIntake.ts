@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent } from 'react';
-import type { ImageEntry } from '@/composer/slice.ts';
-import { t, isLocalPage } from '@/sdk';
+import { t, isLocalPage, type ImageEntry, type PendingThumb } from '@/sdk';
 import { uploadFile, UploadError } from './file.ts';
 import { prepareImage, uploadImage } from './image.ts';
-import type { PendingThumb } from './Attachments.tsx';
 
 const isImage = (f: File) => f.type.startsWith('image/');
 /** the relay (remote/device.ts) holds a request body whole, up to 32 MiB: a page on another computer cannot send more */
@@ -15,8 +13,6 @@ function fileFailure(f: File, e: unknown): string {
   if (e instanceof UploadError && e.status === 413) return isLocalPage() ? t('fileTooLarge', f.name) : t('fileTooLargeRelay', f.name);
   return t('fileFail', f.name);
 }
-
-export const hasFiles = (e: { dataTransfer: DataTransfer | null }): boolean => [...(e.dataTransfer?.types ?? [])].includes('Files');
 
 /**
  * Paste / drop / pick → prepare → upload at once. Pending uploads are local (object URL thumbnails, a name chip for a

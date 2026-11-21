@@ -21,11 +21,12 @@ export { num, compact, compactParts, percent, money, byteSize } from '../lib/for
 export { serverSep, isDrivePath, isServerDrivePath, wireAbs, underDir, folderName, shortWinHome, shortHome } from '../lib/paths.ts';
 export { keysInScope } from '../lib/keyScope.ts';
 export { editable } from '../lib/editable.ts';
-export { setValueAndCaret } from '../lib/insertText.ts';
+export { setValueAndCaret, insertPaths, AT_RE } from '../lib/insertText.ts';
+export { ComposerFieldContext, useComposerField, type ComposerField } from './composerField.ts';
 export { autosize, useAutosize } from '../lib/autosize.ts';
 export { placeList, placeListFor, scrollTopFor, revealSelected } from '../lib/placeList.ts';
 export { useNote, REFUSED } from '../lib/useNote.ts';
-export { PATHS_MIME, draggedPaths, downloadUrl } from '../lib/drag.ts';
+export { PATHS_MIME, draggedPaths, hasFiles, downloadUrl } from '../lib/drag.ts';
 export { useFocusWithin } from '../shell/focusWithin.ts';
 export { makeAnchor } from '../anchors/resolve.ts';
 export { textOf, collapsedLength, rawIndexOf, offsetsOf, rangeForAnchor } from '../anchors/text.ts';
@@ -86,6 +87,8 @@ export {
   selectTurnSeq,
   useRegistry,
   useComments,
+  useVoice,
+  useAttachments,
   refusedWhy,
   type RootState,
   type AppThunk,
@@ -131,4 +134,4 @@ export {
   setAgentTitle, selectTabs, selectActiveTab, enterRoot, fileTabId, type Tab, type TabKinds, type AgentTab, type SavedFile, type DiagramLang,
 } from '../tabs/slice.ts';
 export { requestJump, clearJump, dropJump, selectJump, type Jump } from '../tabs/jump.ts';
-export { feedRenderer, anchorView, type AnchorView, type AnchorKind, type TabView, type Slot, type SlotName, type Command, type KeyId, type Mods, type FeedRenderer, type AnyFeedRenderer, type FeedKind, type Held, type ToolRenderer, type ToolItem, type UserPart, type FileView, type SettingsSection, type SendPart, type Taken, type SendResult, type TextFileView, type MediaFileView, type MediaLoad, type FileBar, type CommentsService, type PendingComment, type MediaComment, type MediaAnchorPatch } from './registry.ts';
+export { feedRenderer, anchorView, type AnchorView, type AnchorKind, type TabView, type Slot, type SlotName, type Command, type KeyId, type Mods, type FeedRenderer, type AnyFeedRenderer, type FeedKind, type Held, type ToolRenderer, type ToolItem, type UserPart, type FileView, type SettingsSection, type SendPart, type Taken, type SendResult, type TextFileView, type MediaFileView, type MediaLoad, type FileBar, type CommentsService, type PendingComment, type VoiceService, type VoiceRecorder, type RecState, type AttachmentsService, type ImageEntry, type PendingThumb, type MediaComment, type MediaAnchorPatch } from './registry.ts';

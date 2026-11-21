@@ -503,7 +503,7 @@ result.
     import another. `fileViews` moved to step 10c.
 40. **Slots** (step 9b): the names are the frame's real places: `header.title`, `header.center`, `header.end`,
     `header.menu`, `header.badge`, `strip.left`, `strip.right`, `panel.left`, `panel.right`, `chat`, `panes`,
-    `footer`, `overlay`. No `composer.*` slot exists yet (issue 545).
+    `footer`, `overlay`, and the composer's (issue 545, item 48).
 41. **Commands** (steps 9c, 11): `Command` has an `order`, because the help interleaves core and plugin keys. It has
     no `label`, `when` or `connection`. The core's keys are `CORE_COMMANDS`.
 42. **Feed** (step 10b): `FeedRenderer` covers every kind but `tool`, and `ToolRenderer` gets the head's props. There
@@ -528,3 +528,7 @@ result.
 47. **Comments service** (issue 545): other plugins' views reach the comments through `Plugin.comments`, a
     `CommentsService` one plugin provides, read with `useComments()` (it throws without one); a drawing's
     `PendingComment` carries `discard`. The baseline went from 119 to 97 entries.
+48. **Composer slots** (issue 545): `composer.status`, `composer.tools`, `composer.end` take the pills and meters, and
+    `composer.pickers` the mention and shortcode pickers of both message fields (`useComposerField()`). Voice and
+    attachments are services (`useVoice()`, `useAttachments()`), not slots: each host drives them with its own state.
+    `MessageInput` is core UI. The baseline went from 97 to 68 entries.
