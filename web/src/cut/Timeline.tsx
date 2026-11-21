@@ -1,8 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type DragEvent, type PointerEvent, type ReactNode, type RefObject } from 'react';
 import { clipLength, type Cut } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
-import { projectFileUrl } from '@/files/kinds.ts';
-import { useT, isMac, withKeys } from '@/sdk';
+import { useT, isMac, withKeys, projectFileUrl } from '@/sdk';
 import { EdgeBackIcon, EdgeForwardIcon, FrameBackIcon, FrameForwardIcon, PauseIcon, PlayIcon } from '@/media/playerIcons.tsx';
 import { PATH_MIME } from './drag.ts';
 import { flashStyle, type CutFlash } from './changes.ts';

@@ -5,8 +5,7 @@
 // rate, so a long one could take the tab down. A longer one has no waveform. Kept per file version (its ETag): a file
 // written again, or one read while it was still being written, is read again.
 import { CUT_PEAKS_RATE } from '@nota-bene/shared/cut';
-import { projectFileUrl } from '@/files/kinds.ts';
-import { connections, routes } from '@/sdk';
+import { connections, routes, projectFileUrl } from '@/sdk';
 import { srcLength } from './durations.ts';
 
 /** The largest file the page decodes, and the longest sound (seconds): about 250 MB of samples at 48 kHz stereo. */

@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { VcsCommitDetail, VcsLog } from '@nota-bene/shared';
 import { HighlightLayer } from '@/comments/HighlightLayer.tsx';
-import { useT, defineResource, routes, useResource, useAppDispatch, useAppSelector, type TabView } from '@/sdk';
+import { useT, defineResource, routes, useResource, useAppDispatch, useAppSelector, type TabView, useSources } from '@/sdk';
 import { PanelResizer, usePanelWidth } from '@/sdk/ui';
 import { pickSource, selectRefreshSeq, selectTree } from '@/files/treeSlice.ts';
-import { useSources } from '@/files/sources.ts';
 import { FileDiff, StatusMark } from './DiffBody.tsx';
 import { SplitToggle, viewOf } from './ChangesView.tsx';
 import { layout, COLORS, STEP, ROW } from './graph.ts';

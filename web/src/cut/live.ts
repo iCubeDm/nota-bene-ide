@@ -3,8 +3,8 @@
 import { useSyncExternalStore } from 'react';
 import type { CutAnchor } from '@nota-bene/shared';
 import type { Cut } from '@nota-bene/shared/cut';
-import { fileKey } from '@/files/sources.ts';
 import { cutState } from './pin.ts';
+import { fileKey } from '@/sdk';
 
 const cuts = new Map<string, Cut>();
 const subs = new Set<() => void>();

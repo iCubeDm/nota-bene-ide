@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Source, TreeEntry } from '@nota-bene/shared';
 import { setDirs } from '../treeSlice.ts';
-import { useAppDispatch, type RootState, connections, routes } from '@/sdk';
+import { useAppDispatch, type RootState, connections, routes, isFixed } from '@/sdk';
 import { useStore } from 'react-redux';
-import { isFixed } from '../sources.ts';
 
 type Loaded = TreeEntry[] | 'gone' | 'error';
 

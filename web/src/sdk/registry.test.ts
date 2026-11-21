@@ -5,6 +5,7 @@ import { PLUGINS } from '@/plugins.ts';
 import { makeStore } from '@/store/store.ts';
 import type { TabKinds } from '@/tabs/slice.ts';
 import { buildRegistry } from './registry.ts';
+import { kindOf } from '../refs/kinds.ts';
 import { CORE_COMMANDS, keyLabel, withKey } from '../shell/keymap.ts';
 import type { Plugin } from './plugin.ts';
 import type { FeedKind, KeyId, ToolItem } from './registry.ts';
@@ -104,4 +105,16 @@ it('a user message\'s parts come in today\'s order', () => {
   expect(buildRegistry(PLUGINS).userParts.map((u) => `${u.order} ${u.id}`)).toEqual(['10 voice', '20 text', '30 images', '40 comments']);
   const part = (id: string): Plugin => ({ id, userParts: [{ id, order: 10, render: () => null }] });
   expect(() => buildRegistry([part('a'), part('b')])).toThrow('two user message parts at order 10');
+});
+
+it('a file view id two plugins declare fails the build', () => {
+  const fv = (id: string): Plugin => ({ id, fileViews: [{ id: 'x', order: 10, media: true, match: () => true, render: () => null }] });
+  expect(() => buildRegistry([fv('a'), fv('b')])).toThrow('the file view "x" is declared twice');
+});
+
+it('a file is shown by the first view that matches it: an edit, a page, a media file; any other as text', () => {
+  const r = buildRegistry(PLUGINS);
+  expect(r.fileViews.map((v) => `${v.order} ${v.id}`)).toEqual(['10 cut', '20 page', '30 media']);
+  const of = (p: string) => r.fileViews.find((v) => v.match(p, kindOf(p)))?.id;
+  expect(['e.nbcut.json', 'a.html', 'b.HTM', 'p.png', 'v.mp4', 's.mp3', 'n.md', 'x.ts'].map(of)).toEqual(['cut', 'page', 'page', 'media', 'media', 'media', undefined, undefined]);
 });

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { isCutPath } from '@nota-bene/shared/cut';
-import { AUDIO, IMAGE, VIDEO } from './kinds.ts';
+import { AUDIO, IMAGE, VIDEO } from '@/sdk';
 
 /**
  * File-type icons (M6-11), after IntelliJ's new UI: a coloured letter mark for source and config files, a coloured

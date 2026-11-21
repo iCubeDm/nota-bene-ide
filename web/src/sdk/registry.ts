@@ -1,8 +1,10 @@
-import type { FC, Ref } from 'react';
+import type { FC, MutableRefObject, Ref, SyntheticEvent } from 'react';
+import type { Comment } from '@nota-bene/shared';
 import type { I18nKey, t } from '../i18n/index.ts';
 import type { ru } from '../i18n/ru.ts';
 import type { AppStore, RootState } from '../store/store.ts';
 import type { FeedItem } from '../store/feed.ts';
+import type { FileKind } from '../refs/kinds.ts';
 import type { Tab, TabKinds } from '../tabs/slice.ts';
 import type { Plugin } from './plugin.ts';
 
@@ -104,6 +106,60 @@ export interface UserPart {
   render: FC<{ item: ItemOf<'user'> }>;
 }
 
+/**
+ * How a file tab shows a file of some kind (issue 511): the file tab (`files/FileView.tsx`) keeps the header, the load
+ * and the text, which is every file no view matches and the ‹Source› of a text view. The first match by ascending order
+ * shows the file. A view takes its own "jump to source" (`selectJump`, then `clearJump`) once the comment is on screen.
+ */
+interface FileViewBase {
+  id: string;
+  order: number;
+  match(path: string, kind: FileKind): boolean;
+}
+
+/** Where a text view puts its own controls in the tab's header: before and after the ‹View | Source› switch. */
+export type FileBar = { before: HTMLElement | null; after: HTMLElement | null };
+
+/** A rendering of a text file (a page, an edit's timeline): the tab loads the text and offers ‹Source› beside it. */
+export interface TextFileView extends FileViewBase {
+  media?: false;
+  /** the switch's labels: this view's button and the group's name */
+  label: I18nKey;
+  tip: I18nKey;
+  /** it saves the file as it edits: back to ‹Source›, the text is read again */
+  writes?: boolean;
+  /** this comment is the view's to show: the tab shows the view for it, and the text for any other */
+  jump?(c: Comment): boolean;
+  render: FC<{ path: string; src: string; fileRef: string | undefined; tabId: string; active: boolean; text: string; bar: FileBar }>;
+}
+
+/** The media a file tab loaded for its view: no text is fetched. */
+export interface MediaLoad {
+  /** what the element shows; `head`: where its version is asked (a temp image shows a blob of it) */
+  url: string;
+  head: string;
+  failed: boolean;
+  /** the source (a worktree, a branch) is gone */
+  srcGone: boolean;
+  note?: string;
+  onError(): void;
+  onMeta(e: SyntheticEvent<HTMLMediaElement>): void;
+  /** the playing element, which a reload reads its time from */
+  el: MutableRefObject<HTMLMediaElement | null>;
+  /** where a reload resumes; a jump to a time clears it */
+  resumeAt: MutableRefObject<number>;
+}
+
+/** A file that is not text (an image, a video, a sound). */
+export interface MediaFileView extends FileViewBase {
+  media: true;
+  /** while true for the tab, a reload waits (a drawing belongs to the frame on screen) */
+  holds?(s: RootState, tabId: string): boolean;
+  render: FC<{ kind: FileKind; path: string; src: string; fileRef: string | undefined; tabId: string; active: boolean; media: MediaLoad }>;
+}
+
+export type FileView = TextFileView | MediaFileView;
+
 /** What the plugins contribute, built once per store from its plugins and frozen. */
 export interface Registry {
   tabs: ReadonlyMap<string, AnyTabView>;
@@ -115,6 +171,8 @@ export interface Registry {
   tools: readonly ToolRenderer[];
   /** by ascending order */
   userParts: readonly UserPart[];
+  /** by ascending order */
+  fileViews: readonly FileView[];
 }
 
 /**
@@ -151,9 +209,15 @@ export function buildRegistry(plugins: readonly Plugin[], core: readonly Command
     if (userParts.some((x) => x.order === u.order)) throw new Error(`registry: two user message parts at order ${u.order}`);
     userParts.push(u);
   }
+  const fileViews: FileView[] = [];
+  for (const v of plugins.flatMap((p) => p.fileViews ?? [])) {
+    if (fileViews.some((x) => x.id === v.id)) throw new Error(`registry: the file view "${v.id}" is declared twice`);
+    fileViews.push(v);
+  }
   return Object.freeze({
     tabs, slots, commands: Object.freeze(commands.sort((a, b) => a.order - b.order)),
     feed, tools: Object.freeze(plugins.flatMap((p) => p.tools ?? [])), userParts: Object.freeze(userParts.sort((a, b) => a.order - b.order)),
+    fileViews: Object.freeze(fileViews.sort((a, b) => a.order - b.order)),
   });
 }
 

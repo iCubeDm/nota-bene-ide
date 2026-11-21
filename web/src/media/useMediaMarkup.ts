@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { type MediaAnchor, type MediaShape } from '@nota-bene/shared';
 import type { PendingComment } from '@/comments/CommentPopup.tsx';
-import { useT, toast, useAppDispatch, useMedia } from '@/sdk';
-import { prepareMediaComment } from '@/media/markup/createMediaComment.ts';
-import { dropShapes } from '@/media/markup/slice.ts';
-import { headVersion } from './useFileLoad.ts';
+import { useT, toast, useAppDispatch, useMedia, headVersion } from '@/sdk';
+import { prepareMediaComment } from './markup/createMediaComment.ts';
+import { dropShapes } from './markup/slice.ts';
 
 /**
  * The media pane's markup side: which element the markup layer draws over, the media controller registration, and the

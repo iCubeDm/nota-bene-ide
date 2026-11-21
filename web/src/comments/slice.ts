@@ -1,8 +1,7 @@
 import { createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { has, anchorSource, isCutAnchor, isMediaAnchor, type Comment, type CommentOp, type CutAnchor, type MediaAnchor } from '@nota-bene/shared';
-import { fileKey } from '../files/sources.ts';
 // every use of serverEvent below is lazy (inside callbacks): this file may load inside the store's import cycle.
-import { bool, connState, serverEvent, storage, type AppThunk, type RootState } from '@/sdk';
+import { bool, connState, serverEvent, storage, type AppThunk, type RootState, fileKey } from '@/sdk';
 
 export type CommentCard = { id: string; x: number; y: number };
 /** a local change on its way to the server (protocol 19): it shows at once and is sent until the server acks or refuses it */

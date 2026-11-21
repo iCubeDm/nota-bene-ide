@@ -1,24 +1,44 @@
-import { useRef, type MutableRefObject, type SyntheticEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { isMediaAnchor } from '@nota-bene/shared';
 import { CommentPopup } from '@/comments/CommentPopup.tsx';
-import { useT } from '@/sdk';
-import { applyPlayerKey, usePlayerKeys } from '@/media/playerKeys.ts';
-import { PlayerBar } from '@/media/PlayerBar.tsx';
-import { PlayerFlash } from '@/media/PlayerFlash.tsx';
-import { MarkupLayer } from '@/media/markup/MarkupLayer.tsx';
-import { MediaMarks } from '@/media/markup/MediaMarks.tsx';
-import type { FileKind } from '../kinds.ts';
-import type { MediaMarkup } from './useMediaMarkup.ts';
+import { selectComments } from '@/comments/slice.ts';
+import { useT, useAppDispatch, useAppSelector, clearJump, selectJump, seekAndPause, type MediaFileView } from '@/sdk';
+import { applyPlayerKey, usePlayerKeys } from './playerKeys.ts';
+import { PlayerBar } from './PlayerBar.tsx';
+import { PlayerFlash } from './PlayerFlash.tsx';
+import { MarkupLayer } from './markup/MarkupLayer.tsx';
+import { MediaMarks } from './markup/MediaMarks.tsx';
+import { selectDraft } from './markup/slice.ts';
+import { useMediaMarkup } from './useMediaMarkup.ts';
 
 /** The pane of an image, video or audio file (or its "gone" note), with the markup layers over an image or video. */
-export function MediaBody({ kind, path, fileRef, tabId, active, marking, natural, onToggleNatural, mediaUrl, failed, srcGone, note, onError, onMediaMeta, markup, mediaEl }: {
-  kind: FileKind; path: string; fileRef: string | undefined; tabId: string; active: boolean; marking: boolean; natural: boolean;
-  onToggleNatural: () => void; mediaUrl: string; failed: boolean; srcGone: boolean; note?: string; onError: () => void;
-  onMediaMeta: (e: SyntheticEvent<HTMLMediaElement>) => void; markup: MediaMarkup; mediaEl: MutableRefObject<HTMLMediaElement | null>;
-}) {
+export const MediaBody: MediaFileView['render'] = ({ kind, path, src, fileRef, tabId, active, media: load }) => {
   const t = useT();
+  const dispatch = useAppDispatch();
+  const { url: mediaUrl, failed, srcGone, note, onError, onMeta: onMediaMeta, el: mediaEl, resumeAt } = load;
+  const [natural, setNatural] = useState(false);
+  const onToggleNatural = () => setNatural((v) => !v);
+  const marking = useAppSelector((s) => selectDraft(s, tabId).on);
+  const markingRef = useRef(marking);
+  markingRef.current = marking;
+  const markup = useMediaMarkup({ tabId, path, ref: fileRef, active, marking, mediaUrl: load.head, mediaEl });
   const { markable, player, mediaRef, imgRef, markPopup } = markup;
+
+  // "jump to source": the tab is open and active; a video also seeks to the comment's time and pauses (not while
+  // marking: the drawing belongs to the frame on screen)
+  const jump = useAppSelector(selectJump);
+  const comments = useAppSelector(selectComments);
+  const markableKind = kind === 'image' || kind === 'video';
+  useEffect(() => {
+    if (!markableKind || jump?.path !== path || jump.src !== src || !active || !markable) return;
+    dispatch(clearJump());
+    const c = comments.find((x) => x.id === jump.id);
+    if (!c || !isMediaAnchor(c.anchor) || c.anchor.time === undefined || !(markable instanceof HTMLVideoElement) || markingRef.current) return;
+    resumeAt.current = 0; // the jump's time wins over a reload's resume point
+    seekAndPause(markable, c.anchor.time);
+  }, [markableKind, jump, active, markable, path, src, comments, dispatch, resumeAt]);
+
   // the player container: what F fullscreens, so the marks and the bar come along
   const box = useRef<HTMLDivElement>(null);
   const flash = usePlayerKeys({ tabId, active, marking, media: mediaEl, image: kind === 'image' ? markable as HTMLImageElement | null : null, box });
@@ -95,4 +115,4 @@ export function MediaBody({ kind, path, fileRef, tabId, active, marking, natural
       )}
     </div>
   );
-}
+};

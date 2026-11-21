@@ -141,8 +141,8 @@ it('the tree keeps to the baseline', () => {
 
 // The plugin modules the SDK barrels load, through the core modules they load (type-only imports aside): a plugin
 // module evaluated inside the SDK's own evaluation sees `@/sdk` half-built, a load-order (TDZ) hazard. Issue 511 cut
-// the keymap's edges (step 9c), the store's chat and comment helpers and the media controller (step 10b); these are
-// left and may only go: refs' file helpers and the page frame's rects (step 10c).
+// the keymap's edges (step 9c), the store's chat and comment helpers and the media controller (step 10b), refs' file
+// helpers (step 10c, which moved them into the core); this one is left and may only go: the page frame's rects.
 function sdkReach(root: string): string[] {
   const src = path.join(root, WEB);
   const out = new Set<string>(), seen = new Set<string>(SDK), queue = [...SDK];
@@ -163,9 +163,6 @@ function sdkReach(root: string): string[] {
 it('the SDK barrels load no plugin module but the listed ones', () => {
   expect(sdkReach(REPO)).toEqual([
     'anchors/scroll.ts -> page/frame.ts',
-    'refs/refs.ts -> files/kinds.ts',
-    'refs/refs.ts -> files/sources.ts',
-    'refs/refs.ts -> files/tmpImages.ts',
   ]);
 });
 

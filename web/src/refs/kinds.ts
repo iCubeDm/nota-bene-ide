@@ -1,5 +1,7 @@
 import { AUDIO, IMAGE, VIDEO } from '@nota-bene/shared/cut';
-import { serverSep, connections, routes } from '@/sdk';
+import { serverSep } from '../lib/paths.ts';
+import { connections } from '../sdk/connections.ts';
+import { routes } from '../sdk/routes.ts';
 
 export { AUDIO, IMAGE, VIDEO }; // shared: an edit's sources are these files
 export const MD = /\.(md|markdown)$/i;
@@ -52,3 +54,8 @@ export const projectFileUrl = (path: string, src?: string): string => connection
 export const isPath = (p: string): boolean =>
   !(serverSep() === '\\' ? /^(https?:|~|\/|\\\\|[A-Za-z]:[\\/])/ : /^(https?:|~|\/)/).test(p) &&!/[\n`<>|*]/.test(p) && (/\//.test(p) || /\.[a-z0-9]{1,5}$/i.test(p));
 
+/** The media's ETag (its version for media comments); undefined without one (a branch source) or on any failure. */
+export const headVersion = (url: string, signal: AbortSignal): Promise<string | undefined> => (url.startsWith('/tmpimage') ? connections.current().fetch(url, { method: 'HEAD', signal }) : fetch(url, { method: 'HEAD', signal })).then(
+  (r) => (r.ok ? r.headers.get('etag') ?? undefined : undefined),
+  () => undefined, // no version: the mark simply cannot tell "the file changed"
+);

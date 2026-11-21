@@ -1,6 +1,5 @@
-import { AUDIO, IMAGE, VIDEO, isPath } from '@/files/kinds.ts';
 import { setValueAndCaret } from '@/comments/insertText.ts';
-import { connections, routes } from '@/sdk';
+import { connections, routes, AUDIO, IMAGE, VIDEO, isPath } from '@/sdk';
 
 /** A refused upload: the HTTP status and the server's error code (`attachments-not-folder`, ...). */
 export class UploadError extends Error {

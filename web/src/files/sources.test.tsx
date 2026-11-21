@@ -12,7 +12,7 @@ import { activate, fileTabId, openFile, selectActiveTab, selectTabs } from '@/ta
 import { setPanelOpen } from '@/comments/slice.ts';
 import { sendBatch, whereOf } from '@/comments/send.ts';
 import { FileView } from './FileView.tsx';
-import { getSources, loadSources, resetSources, setSources, sourceForAbs, useSources } from './sources.ts';
+import { getSources, loadSources, resetSources, setSources, sourceForAbs, useSources } from '@/refs/sources.ts';
 
 function Probe({ onRender }: { onRender: () => void }) {
   useSources();

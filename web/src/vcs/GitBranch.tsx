@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { openFolder, reasonText } from '@/projects/api.ts';
 import type { GitSwitchAnswer, Source, VcsBranch } from '@nota-bene/shared';
-import { useT, selectSession, selectTurnSeq, useAppDispatch, useAppSelector, routes, defineResource, useResource } from '@/sdk';
+import { useT, selectSession, selectTurnSeq, useAppDispatch, useAppSelector, routes, defineResource, useResource, loadSources, useSources } from '@/sdk';
 import { Popover, PopoverContent, PopoverTrigger } from '@/sdk/ui';
 import { apiFetch } from '@/net/auth.ts';
-import { loadSources, useSources } from '@/files/sources.ts';
 import { ICONS, Svg } from '@/tabs/TabStrip.tsx';
 import { diskChanged, pickSource, selectTree } from '@/files/treeSlice.ts';
 import { setHasRepo } from './store.ts';

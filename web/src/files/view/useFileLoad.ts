@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { connections, useAppDispatch, useAppSelector } from '@/sdk';
+import { dropJump, headVersion, useAppDispatch, useAppSelector, type FileKind, takeStartAt, type StartAt } from '@/sdk';
 import { selectMediaComments } from '@/comments/slice.ts';
 import { selectRefreshSeq } from '../treeSlice.ts';
-import type { FileKind } from '../kinds.ts';
 import { fileTabId } from '@/tabs/slice.ts';
-import { takeStartAt, type StartAt } from '../startAt.ts';
-import { dropFileLoad, dropJump, setFileLoad, setFileVersion } from '../slice.ts';
+import { dropFileLoad, setFileLoad, setFileVersion } from '../slice.ts';
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const PROBE = 8192;
@@ -42,12 +40,6 @@ async function load(url: string, signal: AbortSignal, other: boolean): Promise<L
   if (!res.ok) return { s: 'error', message: `${res.status} ${res.statusText}`.trim() };
   return { s: 'text', text: await res.text() };
 }
-
-/** The media's ETag (its version for media comments); undefined without one (a branch source) or on any failure. */
-export const headVersion = (url: string, signal: AbortSignal): Promise<string | undefined> => (url.startsWith('/tmpimage') ? connections.current().fetch(url, { method: 'HEAD', signal }) : fetch(url, { method: 'HEAD', signal })).then(
-  (r) => (r.ok ? r.headers.get('etag') ?? undefined : undefined),
-  () => undefined, // no version: the mark simply cannot tell "the file changed"
-);
 
 /**
  * The file's content and its reloads: the text load (HEAD → Range probe → GET) with its comment-facing load state, the

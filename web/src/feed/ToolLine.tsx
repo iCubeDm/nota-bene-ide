@@ -1,6 +1,5 @@
 import { memo, useContext, useId, useMemo, useState, type ComponentProps } from 'react';
-import { useT, selectBusy, useAppDispatch, useAppSelector, useRegistry, type FeedItem, collapsedLength, rawIndexOf, openFile, ARG_KEYS, toolSrcId, type ToolRenderer } from '@/sdk';
-import { tmpImagePathsIn, useTmpDirs } from '@/files/tmpImages.ts';
+import { useT, selectBusy, useAppDispatch, useAppSelector, useRegistry, type FeedItem, collapsedLength, rawIndexOf, openFile, ARG_KEYS, toolSrcId, type ToolRenderer, tmpImagePathsIn, useTmpDirs } from '@/sdk';
 import { FeedScope } from './scope.ts';
 import { scopedId, selectToolAnchorEnds, selectToolCommentCounts, selectToolOpen, toggleTool } from './uiSlice.ts';
 

@@ -5,7 +5,7 @@ import { makeStore } from '@/testing';
 import { selectActiveTab } from '@/tabs/slice.ts';
 import { textOf } from '@/anchors/text.ts';
 import { t } from '@/i18n/index.ts';
-import { takeStartAt } from '@/files/startAt.ts';
+import { takeStartAt } from '@/refs/startAt.ts';
 import { Markdown } from './Markdown';
 
 // its own file: Markdown.test.tsx resets modules in one test, which leaves later renders with a stale marked instance

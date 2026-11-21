@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { projectFileUrl } from '@/files/kinds.ts';
-import { useAppSelector } from '@/sdk';
+import { useAppSelector, projectFileUrl } from '@/sdk';
 import { selectRefreshSeq } from '@/files/treeSlice.ts';
 
 /**

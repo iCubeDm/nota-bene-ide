@@ -5,16 +5,12 @@ import { marked } from 'marked';
 import { memo, type MouseEvent as ReactMouseEvent, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ReactReduxContext } from 'react-redux';
-import { t, fileOfImage, markMentions, markRefs, openMediaFile, toast, type DiagramLang } from '@/sdk';
-import { AUDIO, VIDEO, fileUrl } from '@/files/kinds.ts';
-import { useSources } from '@/files/sources.ts';
-import { useTmpDirs } from '@/files/tmpImages.ts';
+import { t, fileOfImage, markMentions, markRefs, openMediaFile, toast, type DiagramLang, AUDIO, VIDEO, fileUrl, useSources, useTmpDirs, setStartAt } from '@/sdk';
 import { openDiagram } from '@/tabs/slice.ts';
 import { HARDEN, renderMermaid, sanitizeSvg } from '@/diagram/render.ts';
 import { fileTabId } from '@/tabs/slice.ts';
 import { theme } from '@/shell/theme.ts';
 import { ChatPlayer } from '@/media/ChatPlayer.tsx';
-import { setStartAt } from '@/files/startAt.ts';
 import { addCopyButton, copyCode, numberLines } from './codeBlock.ts';
 import './markdown.css';
 
@@ -250,7 +246,7 @@ export const Markdown = memo(
         const m = mb.parentElement?.querySelector('img, video, audio');
         const open = m && openMediaFile(m);
         if (!open || !redux) return;
-        // a played video/audio opens at that time, a playing one plays on (consumed once by the file view, see files/startAt.ts)
+        // a played video/audio opens at that time, a playing one plays on (consumed once by the file view, see refs/startAt.ts)
         if (m instanceof HTMLMediaElement && m.currentTime > 0) {
           const f = fileOfImage(m)!;
           setStartAt(fileTabId(f.path, f.src), m.currentTime, !m.paused && !m.ended);

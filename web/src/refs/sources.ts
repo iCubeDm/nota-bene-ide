@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react';
 import type { Source } from '@nota-bene/shared';
-import { connections, routes, underDir, wireAbs } from '@/sdk';
+import { underDir, wireAbs } from '../lib/paths.ts';
+import { connections } from '../sdk/connections.ts';
+import { routes } from '../sdk/routes.ts';
 
 /**
  * Where files are read from (M3-16): this checkout ('here'), other worktrees and branches, all read-only. The list

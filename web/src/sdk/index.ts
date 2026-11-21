@@ -39,12 +39,20 @@ export {
 export { routes } from './routes.ts';
 export { defineResource, useResource, repository, pageVisible, type Resource, type Snapshot } from './repository.ts';
 
+// where the project's files are: their kinds and URLs, the sources they are read from, the temp images, a media tab's start
+export { AUDIO, IMAGE, VIDEO, HTML, kindOf, fileUrl, projectFileUrl, isPath, headVersion, type FileKind } from '../refs/kinds.ts';
+export { useSources, loadSources, sourcesKnown, refOf, srcIdOfRef, isCommitRef, isFixed, fileKey } from '../refs/sources.ts';
+export { setTmpDirs, useTmpDirs, isTmpTabPath, tmpImageUrl, tmpImagePathsIn, fetchTmpImage, type TmpLoad } from '../refs/tmpImages.ts';
+export { setStartAt, takeStartAt, type StartAt } from '../refs/startAt.ts';
+
 // keys
 export { withKey, withKeys, keyLabel, keysLabel, modKey, isMac } from '../shell/keymap.ts';
 
+// paths in agent text
+export { markRefs, markMentions, escapeMentions, refClick, fileOfImage, openMediaFile, clearRefCache } from '../refs/refs.ts';
+
 // core modules that still import plugins (later steps of issue 511 cut those edges)
 export { scrollRangeIntoView, scrollRectIntoView, revealRangeSideways } from '../anchors/scroll.ts';
-export { markRefs, markMentions, escapeMentions, refClick, fileOfImage, openMediaFile, clearRefCache } from '../refs/refs.ts';
 
 // the store, the feed model and chat
 export { definePlugin, type Plugin, type PluginState } from './plugin.ts';
@@ -87,5 +95,6 @@ export const chat = {
 };
 
 // tabs
-export { openFile, openAgent, activate, closeTab, selectTabs, enterRoot, type Tab, type TabKinds, type DiagramLang } from '../tabs/slice.ts';
-export { feedRenderer, type TabView, type Slot, type SlotName, type Command, type KeyId, type Mods, type FeedRenderer, type AnyFeedRenderer, type FeedKind, type Held, type ToolRenderer, type ToolItem, type UserPart } from './registry.ts';
+export { openFile, openAgent, activate, closeTab, selectTabs, enterRoot, fileTabId, type Tab, type TabKinds, type DiagramLang } from '../tabs/slice.ts';
+export { requestJump, clearJump, dropJump, selectJump, type Jump } from '../tabs/jump.ts';
+export { feedRenderer, type TabView, type Slot, type SlotName, type Command, type KeyId, type Mods, type FeedRenderer, type AnyFeedRenderer, type FeedKind, type Held, type ToolRenderer, type ToolItem, type UserPart, type FileView, type TextFileView, type MediaFileView, type MediaLoad, type FileBar } from './registry.ts';

@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react';
-import { connections, routes, isDrivePath, isServerDrivePath, underDir, wireAbs } from '@/sdk';
+import { isDrivePath, isServerDrivePath, underDir, wireAbs } from '../lib/paths.ts';
+import { connections } from '../sdk/connections.ts';
+import { routes } from '../sdk/routes.ts';
 
 /**
  * Images of the server's temp folders (a screenshot the agent left in /tmp). The tab is a plain file tab whose path is

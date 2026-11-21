@@ -7,8 +7,8 @@ import { UserMessage } from '@/feed/UserMessage.tsx';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/testing';
 import { selectTabs } from '@/tabs/slice.ts';
-import { setTmpDirs } from '@/files/tmpImages.ts';
-import { resetSources, setSources } from '@/files/sources.ts';
+import { setTmpDirs } from '@/refs/tmpImages.ts';
+import { resetSources, setSources } from '@/refs/sources.ts';
 import { setServerSep } from '@/lib/paths.ts';
 import { clearRefCache, escapeMentions, markRefs, refClick, splitMentions } from './refs.ts';
 

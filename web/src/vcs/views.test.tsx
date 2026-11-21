@@ -3,7 +3,7 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ServerEvent, VcsDiff } from '@nota-bene/shared';
 import { selectComments } from '@/comments/slice.ts';
-import { setSources, resetSources } from '@/files/sources.ts';
+import { setSources, resetSources } from '@/refs/sources.ts';
 import { jumpToFileComment } from '@/files/slice.ts';
 import { setLang } from '@/i18n/index.ts';
 import { serverEvent } from '@/store/store.ts';
