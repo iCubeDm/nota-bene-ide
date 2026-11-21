@@ -10,7 +10,7 @@
 import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import type net from 'node:net';
-import type { HostWindow } from '@nota-bene/shared';
+import { PROTOCOL, type HostWindow } from '@nota-bene/shared';
 import { DeviceChannel } from './device.ts';
 import { Windows } from './discover.ts';
 import { closeControl, running, serveControl, write, type Msg } from './control.ts';
@@ -385,7 +385,7 @@ export class Connector extends EventEmitter {
         return write(sock, {
           online: this.online, relay: this.#relayUrl ?? null, hostFingerprint: this.hostFingerprint,
           windows: this.windows.list().length, devices: readDevices().map((d) => this.#view(d)), hosts: readHosts().map((h) => this.#hostView(h)),
-          ...(this.#version ? { version: this.#version } : {}), managed: this.#managed,
+          ...(this.#version ? { version: this.#version } : {}), protocol: PROTOCOL, managed: this.#managed,
           pairing: this.#pairing && !this.#pairing.used ? { expiresAt: this.#pairing.expiresAt } : null,
         });
       case 'reconnect':

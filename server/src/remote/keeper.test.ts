@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { PROTOCOL } from '@nota-bene/shared';
 import { Connector } from './connector.ts';
 import { closeControl, controlClient, serveControl, write } from './control.ts';
 import { Windows } from './discover.ts';
@@ -60,7 +61,7 @@ async function connector(o: { managed?: boolean; version?: string; relay?: strin
   return c;
 }
 
-function keeper(o: { version?: string; spawn?: () => void; now?: () => number } = {}) {
+function keeper(o: { version?: string; protocol?: number; spawn?: () => void; now?: () => number } = {}) {
   const spawns: number[] = [];
   const k = new RemoteKeeper({
     version: '9.9.9', spawnWaitMs: 1500, pollMs: 3_600_000,
@@ -72,6 +73,7 @@ function keeper(o: { version?: string; spawn?: () => void; now?: () => number } 
     },
     ...(o.now ? { now: o.now } : {}),
     ...(o.version ? { version: o.version } : {}),
+    ...(o.protocol ? { protocol: o.protocol } : {}),
   });
   keepers.push(k);
   return { k, spawns };
@@ -180,6 +182,28 @@ describe('remote keeper', () => {
     expect(await k.refresh()).toMatchObject({ running: true });
     expect(exits).toEqual(['stop']);
     expect(spawns).toHaveLength(1);
+  });
+
+  it('a managed connector of the same version but an older protocol is replaced (a checkout updated, issue 581)', async () => {
+    writeConfig({ relay: relay.url });
+    const old = await connector({ managed: true, version: '9.9.9' });
+    const exits: string[] = [];
+    old.on('exit', (w: string) => exits.push(w));
+    const { k, spawns } = keeper({ protocol: PROTOCOL + 1 });
+    expect(await k.refresh()).toMatchObject({ running: true });
+    expect(exits).toEqual(['stop']);
+    expect(spawns).toHaveLength(1);
+  });
+
+  it('a window of an older protocol keeps a newer managed connector (issue 581)', async () => {
+    writeConfig({ relay: relay.url });
+    const newer = await connector({ managed: true, version: '9.9.9' });
+    const exits: string[] = [];
+    newer.on('exit', (w: string) => exits.push(w));
+    const { k, spawns } = keeper({ protocol: PROTOCOL - 1 });
+    expect(await k.refresh()).toMatchObject({ running: true });
+    expect(exits).toEqual([]);
+    expect(spawns).toEqual([]);
   });
 
   it('a relay refusal is shown, and the next start waits; a change in the tab starts at once', async () => {
