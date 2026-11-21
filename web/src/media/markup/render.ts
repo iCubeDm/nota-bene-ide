@@ -1,5 +1,5 @@
 import { MARK_MAX_BYTES, type MediaShape } from '@nota-bene/shared';
-import { encode } from '../../attachments/image';
+import { encodeImage } from '@/sdk';
 
 export { MARK_MAX_BYTES };
 
@@ -145,7 +145,7 @@ export async function renderMarks(
       binarize(m.ctx, pw, ph);
     }
     const [frame, layer, mask] = await Promise.all([
-      encode(f.c, 'image/jpeg', 0.9), encode(l.c, 'image/png'), m ? encode(m.c, 'image/png') : Promise.resolve(undefined),
+      encodeImage(f.c, 'image/jpeg', 0.9), encodeImage(l.c, 'image/png'), m ? encodeImage(m.c, 'image/png') : Promise.resolve(undefined),
     ]);
     const fits = frame.size <= MARK_MAX_BYTES && layer.size <= MARK_MAX_BYTES && (!mask || mask.size <= MARK_MAX_BYTES);
     if (fits || (pw === 1 && ph === 1)) return mask ? { frame, layer, mask, scale } : { frame, layer, scale };

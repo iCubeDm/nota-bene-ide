@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useStore } from 'react-redux';
-import { useT, useAppDispatch, useAppSelector, type AppStore, type TabView, setAgentTitle, type AgentTab, useComments, selectLiveCalls, selectSubagent } from '@/sdk';
-import { Feed } from '@/feed/Feed.tsx';
+import { useT, useAppDispatch, useAppSelector, type AppStore, type TabView, setAgentTitle, type AgentTab, useComments, selectLiveCalls, selectSubagent, useService } from '@/sdk';
 import { OLD_SERVER, fetchSubagent, knownOld, selectToolResulted } from './slice.ts';
 
 /** How often a running subagent is read again while its tab is the visible one. */
@@ -16,6 +15,7 @@ export const POLL_MS = 1500;
  */
 export function AgentView({ tab, active }: { tab: AgentTab; active: boolean }) {
   const { HighlightLayer } = useComments();
+  const { Feed } = useService('feedUi');
   const t = useT();
   const dispatch = useAppDispatch();
   const store = useStore() as AppStore;

@@ -334,10 +334,8 @@ protocol with a number or a protocol constant in `web/src` or `mobile/app/lib`. 
 
 **The check.** `scripts/boundaries.test.ts` (in the `node` Vitest project, no dependency) scans every file with a
 newline-tolerant pattern after stripping comments and strings, and resolves `@/` and relative specifiers. A folder it
-does not classify fails it. What breaks a rule today is listed in `scripts/boundaries.baseline.json` (`"<file> -> <module>"`,
-or `-> localStorage`, `-> protocol gate`, ...). The baseline only shrinks: a new violation fails, and so does an entry that
-is gone (`UPDATE_BOUNDARIES=1` rewrites it). The test prints the count per rule. The remaining entries (plugin to plugin
-imports and module singletons) each need a contract, not a move, and are tracked in issue 545. A second test,
+does not classify fails it. The tree breaks no rule (issue 545 emptied the baseline it started with), so any violation
+fails, named by its rule (`plugin→plugin: <file> -> <module>`, `<file> -> localStorage`, ...). A second test,
 `sdkReach`, follows the SDK barrels' runtime imports through the core and fails on any plugin module it reaches: a plugin
 evaluated inside the SDK's own evaluation would see `@/sdk` half-built.
 
@@ -349,7 +347,7 @@ once, before the store exists, under their own names (a name taken twice throws)
 in `sdk/plugin.ts` that each plugin's `plugin.ts` extends by declaration merging (`declare module '@/sdk' { interface
 PluginState extends WithSlice<typeof slice> {} }`), so `RootState` is fully typed without the store importing a
 plugin. `TabKinds` is augmentable the same way. The plugin slices by owner: `comments`; `composer`, `promptHistory`
-(composer); `tree`, `files` (files); `remote`; `tasksUi` (tasks); `markup` (media); `feedUi` (feed).
+(composer); `tree`, `files` (files); `remote`; `tasksUi` (tasks); `markup` (media); `feedUi` (feed); `vcs`; `projects`.
 
 ```mermaid
 flowchart TB
@@ -418,7 +416,7 @@ App
 | `comments/slice.ts` (`flushComments`, add/edit/remove) | WS `comment-op`, `comments`, `comment-ack`, `comment-refused` | Comment sync by ops: a change is queued and shown at once (the server's set with the queue folded on top), sent in order once the socket is open and again after a reconnect, and leaves the queue on its ack. `gone` / `sent` refusals drop it with a toast; `failed` keeps it for the next open. Only the owner tab writes. The phone queues ops the same way and keeps the queue on disk. |
 | `store/send.ts` (`chat.send`) over the `sendParts` of `composer/send.ts` and `comments/send.ts` | WS `send{commentIds, images}` | The batch: the draft plus all pending comments as one message. |
 | `composer/shellMode.ts` | WS `shell-run{id, cmd}`, `shell-stop{id}` | A `! cmd` run; the block in the feed is driven by `shell-start` / `shell-out` / `shell-end`. |
-| `attachments/image.ts` | `POST /attach`, `GET /attach/<id>` | Image upload; only ids travel over the socket. |
+| `lib/image.ts` | `POST /attach`, `GET /attach/<id>` | Image upload; only ids travel over the socket. |
 | `voice/` | `POST /voice`, `GET /voice/<id>`, `POST /voice/<id>/text` | The recorder (16 kHz mono WAV, 10-minute cap), upload, player, the composer's record bar and comment clips. No recording without Whisper. |
 | `media/markup/createMediaComment.ts` | `POST/DELETE /marks/<id>/<name>` | The frame and layer of media markup. |
 | `files/FileTree.tsx` | `/tree?path&src` | Lazy loading of the tree, up to 8 requests in parallel. |
@@ -458,7 +456,7 @@ thunks through their `extra`, other code with `registry(store)`.
 | `resources` | `Resource` | The server data a plugin reads, by id, so a test answers it by id (`stubResources`). |
 | `comments` | `CommentsService { HighlightLayer; CommentPopup; flashRange; flashRects; selectComments; selectPendingCountByPath; selectMediaComments; openCommentCard; moveCutComment; removeComment }` | The comments as other plugins' views use them, read with `useComments()`; one plugin (comments) provides it. A drawing's `PendingComment` carries its own `discard`. |
 | `voice`, `attachments` | `VoiceService { useRecorder; RecordBar; WhisperPrompt; ClipRow; transcribe; send; onRefused }`, `AttachmentsService { useIntake; Attachments; ComposerAttachments }` | What the composer and the comment popup, two hosts of one `MessageInput` (`@/sdk/ui`), drive with their own state; read with `useVoice()`, `useAttachments()`. |
-| `files`, `vcs`, `projects`, `feedUi`, `cut`, `media` | `FilesService` (the tree's source, the refresh sequences, `pickSource`, `diskChanged`, `setTreeOpen`, each open file view's load and version, `jumpToFileComment`), `VcsService { showCommit }`, `ProjectsService { openFolder }`, `FeedUiService { revealTool }`, `CutService { liveCutState }`, `MediaService { ChatPlayer }` | Another plugin's state and parts, with only what the others read; read with `useService(name)` in a view, `registry.<name>` in a thunk. Each of these `Services` is provided by one plugin. |
+| `files`, `vcs`, `projects`, `feedUi`, `tasks`, `cut`, `media` | `FilesService` (the tree's source, the refresh sequences, `pickSource`, `diskChanged`, `setTreeOpen`, each open file view's load and version, `jumpToFileComment`), `VcsService { showCommit }`, `ProjectsService { openFolder }`, `FeedUiService { revealTool, Feed }` (a subagent's conversation drawn as the chat's), `TasksService { CallMenu }`, `CutService { liveCutState }`, `MediaService { ChatPlayer, AttachmentMarkup }` | Another plugin's state and parts, with only what the others read; read with `useService(name)` in a view, `registry.<name>` in a thunk. Each of these `Services` is provided by one plugin. |
 | `codeBlocks` | `CodeBlock { lang; className; draw(out, code, d); retheme?(root, d) }` | A fenced block Markdown hands to a plugin once final (diagram: `mermaid`, `svg`); a language is drawn by one plugin. |
 | `treeActions` | `TreeAction { id; order; Menu?({ row, picked, src, busy, setBusy }); drag?(path, src, dt) }` | Another plugin's part of a Files tree row: its menu items above the row's own, what its drag carries (cut: Add to edit, New edit, the timeline drag). |
 
@@ -507,8 +505,11 @@ feature flags (`nb.flag.<name>` over the typed, empty `FLAGS`). `track(name, pro
 | Anything that outlives the page (local or server prefs, saved UI state) | `storage.local` / `storage.pref`; a slice may mirror it through a listener, as `persist.ts` does. |
 | State of one component instance | `useState` / `useReducer`. |
 
-No new `useSyncExternalStore` module singletons outside `sdk/`: the boundary check counts the existing ones, which fold
-into a slice, `storage` or `repository` when a change touches them.
+No `useSyncExternalStore` outside `sdk/`, and no module singleton but the boundary check's named allowlist
+(`SINGLETONS`), each read with `useStored({ get, subscribe })`: what ticks with a media element (the edit and voice
+players, the playing tab), `toast()` (called without a store), the live objects of open views (the open edits, the edit
+targets), browser values (the day, a media query, a page frame's render count) and the sources (on-demand loads with a
+5 s TTL, which the repository lacks). The dialogs' open flags, the git views' state and the temp folders are slices.
 
 ## 5. End-to-end scenarios
 
@@ -584,7 +585,7 @@ that prove a listener before they send, and a state folder that is never served.
 ## 7. Testing
 
 - **Unit (vitest).** Worker environments explicitly reset the invoking NB provider and supervision/launcher flags; provider-specific tests select their provider. The server is tested through `startServer` on port 0 with a fake backend; the auth tests run with auth on. The web is tested through `makeStore` with `connect` and `pip` replaced, by the harness in `web/src/testing/` (test files only): `testStore({ hello?, events?, state? })` gives `{ store, conn }` on a `FakeConnection` (`sent`, `emit`, `setState`) with every plugin; `renderWith(ui, o)` renders inside its `Provider`; `stubRoutes` answers fetch by path (an unmatched one is a recorded 404), `stubResources` by a registered resource's id; `events.*` build typed server events. `cut/testCut.tsx` is built on it.
-- **The import rule** is a unit test, `scripts/boundaries.test.ts`, with its shrinking baseline ([4.1](#41-core-sdk-and-plugins)).
+- **The import rule** is a unit test, `scripts/boundaries.test.ts`: the tree breaks no rule ([4.1](#41-core-sdk-and-plugins)).
 - **Parity fixtures** pin what the phone mirrors to the web: `web/src/store/feedParity.test.ts` drives `reduce()` with fixed event sequences and writes each case as `mobile/app/test/fixtures/feed/<case>.json` (`{ events, items }`, a projection both models hold, with the phone's tool `phase`), which `mobile/app/test/feed_test.dart` replays through the phone's feed; the anchor and media parity fixtures work the same way. `UPDATE_FIXTURES=1` rewrites them.
 - **E2E (Playwright, ports 4791 to 4795)** on `--fake` scripts, with the media fixtures generated by ffmpeg. The e2e servers are seeded with a known token and nonce.
 - **Codex integration.** RPC fixtures exercise transport, mapping, history, cancellation, policy and child cleanup. `npm run e2e:codex` runs the native-adapter browser fixture separately; `native.test.ts` drives the installed app-server against a local Responses mock without paid model calls. Marketplace smoke tests use isolated `CODEX_HOME`, NB state and a temporary project; npm runtime checks use the published package. Serialize browser suites that share ports.

@@ -84,7 +84,7 @@ export function installKeymap(store: AppStore): () => void {
     if (conn === 'occupied' || conn === 'taken' || conn === 'stopped') return;
     const b = registry(store).commands.find((x) => matches(x, e));
     if (!b || (!inField(b) && editable(e.target))) return;
-    if (!b.inModal?.() && modalOpen()) return;
+    if (!b.inModal?.(store.getState()) && modalOpen()) return;
     // Esc is not consumed here: a widget under it may still close on it
     if (e.code !== 'Escape') e.preventDefault();
     b.run({ store, e });

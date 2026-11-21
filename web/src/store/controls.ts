@@ -6,6 +6,7 @@ import { has, CLAUDE_CAPABILITIES, MODES, type Capabilities, type AgentEffort as
 import { getLang, t } from '../i18n/index.ts';
 import { toast } from '../shell/toast.ts';
 import { routes } from '../sdk/routes.ts';
+import { tmpDirsOf } from '../refs/tmpImages.ts';
 import { connState, serverEvent, type AppThunk, type RootState, type StartListening } from './store.ts';
 
 /**
@@ -50,10 +51,12 @@ export type ControlsState = { mode: Mode | null; modeBeforePlan: Mode | null; re
   /** protocol 27 (issue 499): a compaction waits for the next pause, and the sends held behind it and a pending restart (`compact-pending`) */
   compactPending: boolean;
   held: HeldSend[];
+  /** the temp folders the server named in its hello, whose images it serves; none until then (nothing is linked on a guess) */
+  tmpDirs: string[];
 };
 
 /** The mode as the UI shows it: null until the server has told us (or the user picked one). */
-const initial: ControlsState = { mode: null, modeBeforePlan: null, restoreAfterPlan: null, switching: null, modeInFlight: [], restarting: false, suggestion: '', seen: null, model: null, models: [], commands: [], idleCompact: null, protocol: 0, capabilities: null, restartPending: false, restartAsked: false, compactPending: false, held: [] };
+const initial: ControlsState = { mode: null, modeBeforePlan: null, restoreAfterPlan: null, switching: null, modeInFlight: [], restarting: false, suggestion: '', seen: null, model: null, models: [], commands: [], idleCompact: null, protocol: 0, capabilities: null, restartPending: false, restartAsked: false, compactPending: false, held: [], tmpDirs: [] };
 
 /** Entering `plan` from X remembers X (prototype setModeUI). */
 function setMode(s: ControlsState, m: Mode): void {
@@ -101,6 +104,8 @@ export const controlsSlice = createSlice({
         s.protocol = ev.protocol;
         s.capabilities = ev.capabilities ?? CLAUDE_CAPABILITIES;
         s.dictationLang = ev.dictationLang;
+        const dirs = tmpDirsOf(ev.tmpDirs);
+        if (dirs.join('\n') !== s.tmpDirs.join('\n')) s.tmpDirs = dirs;
       }
       if (ev.kind === 'mode') {
         // Two quick Shift+Tabs: the echo of the first lands after the second was shown, and applying it would put the
@@ -199,6 +204,7 @@ export const dictationAsk = (s: RootState): { lang: string; detect?: true } => {
 export const selectModel = (s: RootState): ControlsState['model'] => s.controls.model;
 export const selectModels = (s: RootState): ModelOption[] => s.controls.models;
 export const selectCommands = (s: RootState): SlashCommand[] => s.controls.commands;
+export const selectTmpDirs = (s: RootState): string[] => s.controls.tmpDirs;
 /** the model switch is usable: a server that has it (protocol 6, `capabilities.models`) */
 export const selectModelSwitchable = (s: RootState): boolean =>
   has(s.controls.protocol, 'models') && (s.controls.capabilities ?? CLAUDE_CAPABILITIES).models === true && s.controls.models.length > 0;

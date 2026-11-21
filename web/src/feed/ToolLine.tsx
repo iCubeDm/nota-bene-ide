@@ -1,5 +1,5 @@
 import { memo, useContext, useId, useMemo, useState, type ComponentProps } from 'react';
-import { useT, selectBusy, useAppDispatch, useAppSelector, useRegistry, type FeedItem, collapsedLength, rawIndexOf, openFile, ARG_KEYS, toolSrcId, type ToolRenderer, tmpImagePathsIn, useTmpDirs } from '@/sdk';
+import { useT, selectBusy, useAppDispatch, useAppSelector, useRegistry, type FeedItem, collapsedLength, rawIndexOf, openFile, ARG_KEYS, toolSrcId, type ToolRenderer, tmpImagePathsIn, selectTmpDirs } from '@/sdk';
 import { FeedScope } from './scope.ts';
 import { scopedId, selectToolAnchorEnds, selectToolCommentCounts, selectToolOpen, toggleTool } from './uiSlice.ts';
 
@@ -92,7 +92,7 @@ const TMP_LINKS_MAX = 3;
 function TmpImages({ input }: { input: Record<string, unknown> }) {
   const t = useT();
   const dispatch = useAppDispatch();
-  const dirs = useTmpDirs();
+  const dirs = useAppSelector(selectTmpDirs);
   const paths = useMemo(() => {
     const out: string[] = [];
     for (const k of TMP_ARGS) {

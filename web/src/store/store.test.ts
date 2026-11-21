@@ -19,6 +19,8 @@ import { tasksUiSlice } from '../tasks/slice.ts';
 import { tabsSlice } from '../tabs/slice.ts';
 import { jumpSlice } from '../tabs/jump.ts';
 import { treeSlice } from '../files/treeSlice.ts';
+import { vcsSlice } from '../vcs/store.ts';
+import { projectsSlice } from '../projects/api.ts';
 import { refusedMiddleware } from '../composer/refused.ts';
 import { historyMiddleware } from '../composer/history.ts';
 import { compactTimingMiddleware } from '../feed/compactTiming.ts';
@@ -42,9 +44,9 @@ afterEach(() => { vi.unstubAllEnvs(); });
 
 it('the plugins inject every slice under its name of before issue 511, with the same initial state', () => {
   // the store as it was assembled before plugins (one reducer map naming every slice): persisted state and selectors rely on it;
-  // `jump` was `files.jump` (step 10c: each file view takes its own); `message` was the composer's images (issue 545)
+  // `jump` was `files.jump` (step 10c: each file view takes its own); `message` was the composer's images, `vcs` and `projects` were module singletons (issue 545)
   const before = configureStore({
-    reducer: { feed: feedSlice.reducer, conn: connSlice.reducer, comments: commentsSlice.reducer, composer: composerSlice.reducer, message: messageSlice.reducer, tabs: tabsSlice.reducer, tree: treeSlice.reducer, files: filesSlice.reducer, controls: controlsSlice.reducer, stats: statsSlice.reducer, remote: remoteSlice.reducer, tasks: tasksSlice.reducer, tasksUi: tasksUiSlice.reducer, markup: markupSlice.reducer, feedUi: feedUiSlice.reducer, subagents: subagentsSlice.reducer, promptHistory: historySlice.reducer, jump: jumpSlice.reducer },
+    reducer: { feed: feedSlice.reducer, conn: connSlice.reducer, comments: commentsSlice.reducer, composer: composerSlice.reducer, message: messageSlice.reducer, tabs: tabsSlice.reducer, tree: treeSlice.reducer, files: filesSlice.reducer, controls: controlsSlice.reducer, stats: statsSlice.reducer, remote: remoteSlice.reducer, tasks: tasksSlice.reducer, tasksUi: tasksUiSlice.reducer, markup: markupSlice.reducer, feedUi: feedUiSlice.reducer, subagents: subagentsSlice.reducer, promptHistory: historySlice.reducer, jump: jumpSlice.reducer, vcs: vcsSlice.reducer, projects: projectsSlice.reducer },
   });
   const store = coreStore({ url: 'u', connect: fake().connect, plugins: PLUGINS });
   expect(Object.keys(store.getState()).sort()).toEqual(Object.keys(before.getState()).sort());

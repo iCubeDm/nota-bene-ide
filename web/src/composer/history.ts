@@ -8,12 +8,13 @@ import type { SentDraft, ShellDraft } from './slice.ts';
  * `local` are the ids sent from here that the server's list has not shown yet: they outlive a change of the session id
  * (a fork or an id-less /clear names its new id only after the first prompt went out under the old one).
  */
-type State = { sid: string | null; items: PromptEntry[]; local: string[] };
+type State = { sid: string | null; items: PromptEntry[]; local: string[]; /** the list is open: Alt+H and its button toggle it */ open: boolean };
 
 export const historySlice = createSlice({
   name: 'promptHistory',
-  initialState: { sid: null, items: [], local: [] } as State,
+  initialState: { sid: null, items: [], local: [], open: false } as State,
   reducers: {
+    setHistoryOpen: (s, a: PayloadAction<boolean>) => void (s.open = a.payload),
     // a new session's history is another one; the first id of a session with none yet keeps what was sent before it
     sessionChanged: (s, a: PayloadAction<string | null>) => {
       if (a.payload === s.sid) return;
@@ -40,6 +41,8 @@ export const historySlice = createSlice({
 
 export const selectPromptItems = (s: RootState): PromptEntry[] => s.promptHistory.items;
 export const selectPromptSid = (s: RootState): string | null => s.promptHistory.sid;
+export const { setHistoryOpen } = historySlice.actions;
+export const selectHistoryOpen = (s: RootState): boolean => s.promptHistory.open;
 
 /** Newest first, a prompt repeated right after itself once: what ↑ walks through. */
 export function recallList(items: PromptEntry[]): PromptEntry[] {

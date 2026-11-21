@@ -13,7 +13,7 @@ import { pickSource } from '@/files/treeSlice.ts';
 import { ChangesPanel } from './ChangesPanel.tsx';
 import { ChangesView } from './ChangesView.tsx';
 import { LogView } from './LogView.tsx';
-import { baseOf, resetVcs, setPanel } from './store.ts';
+import { baseOf, setPanel } from './store.ts';
 
 const repo = (over: Partial<Extract<VcsDiff, { repo: true }>> = {}): VcsDiff => ({
   repo: true, branch: 'agent/one', live: true, base: null, detected: 'main', how: 'none', uncommitted: true, unrelated: false, mergeBase: null,
@@ -28,7 +28,6 @@ let urls: string[];
 beforeEach(() => {
   localStorage.clear();
   setLang('en');
-  resetVcs();
   resetSources();
   diff = repo();
   status = 200;
@@ -67,7 +66,6 @@ it('says there are no changes only when git said so; a failure keeps the last li
   setup(<ChangesView active />);
   await screen.findByText('No changes');
   cleanup();
-  resetVcs();
   status = 503;
   setup(<ChangesView active />);
   await screen.findByRole('alert');
@@ -107,7 +105,7 @@ it('says when a base shares no history', async () => {
 
 it('the selector defaults to uncommitted, offers the whole branch, and remembers per project and source', async () => {
   const store = setup(<ChangesPanel />);
-  act(() => setPanel(true));
+  act(() => void store.dispatch(setPanel(true)));
   const sel = await screen.findByRole('combobox', { name: 'What to compare' }) as HTMLSelectElement;
   expect([...sel.options].map((o) => o.text)).toEqual(['Uncommitted', 'Whole branch from main', 'Whole branch from main', 'Whole branch from feature/parent']);
   expect(sel.value).toBe('');
@@ -120,8 +118,8 @@ it('the selector defaults to uncommitted, offers the whole branch, and remembers
 
 it('a branch without a folder starts from the whole branch', async () => {
   diff = repo({ live: false, uncommitted: false, base: 'main' });
-  setup(<ChangesPanel />);
-  act(() => setPanel(true));
+  const store = setup(<ChangesPanel />);
+  act(() => void store.dispatch(setPanel(true)));
   const sel = await screen.findByRole('combobox', { name: 'What to compare' }) as HTMLSelectElement;
   expect(sel.options[0]!.text).toBe('Whole branch from main');
 });
@@ -160,8 +158,8 @@ it('a ref that is a branch stays a branch, whatever it looks like', () => {
 it('the Tree checkbox shows the files as folders, folds a folder, filters, and is remembered', async () => {
   const f = (path: string) => ({ path, status: 'M' as const, add: 1, del: 0, binary: false });
   diff = repo({ files: [f('README.md'), f('server/src/agent/codex/map.ts'), f('server/src/main.ts'), f('web/src/i18n/ru.ts')] });
-  setup(<ChangesPanel />);
-  act(() => setPanel(true));
+  const store = setup(<ChangesPanel />);
+  act(() => void store.dispatch(setPanel(true)));
   const box = await screen.findByRole('checkbox', { name: 'Tree' });
   expect(box).not.toBeChecked();
   expect(screen.getByRole('button', { name: /map\.ts/ })).toHaveTextContent('server/src/agent/codex'); // flat: the folder after the name
@@ -174,8 +172,8 @@ it('the Tree checkbox shows the files as folders, folds a folder, filters, and i
   fireEvent.change(screen.getByRole('searchbox', { name: 'Filter files' }), { target: { value: 'ru' } });
   expect(rows()).toEqual(['▾web/src/i18n', 'Mru.ts']);
   cleanup();
-  setup(<ChangesPanel />);
-  act(() => setPanel(true));
+  const again = setup(<ChangesPanel />);
+  act(() => void again.dispatch(setPanel(true)));
   expect(await screen.findByRole('checkbox', { name: 'Tree' })).toBeChecked();
 });
 
@@ -186,7 +184,7 @@ it('the tool window and the tab showing one diff share one poll (issue 471)', as
   vi.spyOn(globalThis, 'setInterval').mockImplementation(((fn: () => void, ms?: number) => { const id = set(fn, ms); if (ms === 4_000) live.add(id); return id; }) as typeof setInterval);
   vi.spyOn(globalThis, 'clearInterval').mockImplementation(((id: ReturnType<typeof setInterval>) => { live.delete(id); clear(id); }) as typeof clearInterval);
   const store = setup(<ChangesPanel />);
-  act(() => setPanel(true));
+  act(() => void store.dispatch(setPanel(true)));
   render(<Provider store={store}><ChangesView active /></Provider>);
   await screen.findByText('hello');
   expect(live.size).toBe(2); // one for the diff however many views show it, one for the file

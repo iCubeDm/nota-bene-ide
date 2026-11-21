@@ -1,6 +1,5 @@
 import type { AttachmentAnchor, Comment, MediaAnchor } from '@nota-bene/shared';
-import { prepareImage, uploadImage } from '@/attachments/image.ts';
-import { t, connections, routes, type MediaAnchorPatch } from '@/sdk';
+import { prepareImage, uploadImage, t, connections, routes, type MediaAnchorPatch } from '@/sdk';
 import { drawShapes, renderMarks, strokeWidth } from './render.ts';
 import { drawBadges } from './badges.ts';
 

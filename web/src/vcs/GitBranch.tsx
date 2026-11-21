@@ -118,7 +118,7 @@ export function GitBranch() {
     void loadSources(true);
     if (viewing) branches.refresh();
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => setHasRepo(!!st), [st]);
+  useEffect(() => void d(setHasRepo(!!st)), [d, st]);
   if (!st) return null;
   const here = st.detached ? t('gitDetached') : st.branch;
   const cur = sources.find((s) => s.id === src);

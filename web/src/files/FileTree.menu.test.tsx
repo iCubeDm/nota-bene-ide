@@ -103,7 +103,10 @@ it('a right-click outside the picked files picks that file alone; a file that is
   fireEvent.click(row('b.png'), { metaKey: true });
   menu('long.wav');
   expect(selected()).toEqual(['media/long.wav']);
-  expect(screen.getByRole('menuitem', { name: 'Add to e.nbcut.json' })).toBeInTheDocument();
+  // the cut plugin's items come above the row's own
+  const names = screen.getAllByRole('menuitem').map((m) => m.textContent);
+  expect(names.indexOf('Add to e.nbcut.json')).toBeGreaterThanOrEqual(0);
+  expect(names.indexOf('Add to e.nbcut.json')).toBeLessThan(names.indexOf('Copy path'));
   fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
   menu('readme.txt');
   expect(screen.queryByRole('menuitem', { name: /edit/i })).toBeNull();

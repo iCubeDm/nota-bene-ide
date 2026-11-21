@@ -4,10 +4,10 @@
 // Another project's windows are stopped from its row (⏻, after a confirm); this one's from the header's Stop Nota Bene.
 // Recent folders come from the launcher's list and from this window's session history; one opens in a window of its agent,
 // ✕ removes one from both (the server keeps it out until it is launched again).
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import { useT, shortHome, folderName, connections, routes, toast, withKey, selectSession, useAppSelector, remotePage, useRegistry, ago } from '@/sdk';
+import { useEffect, useState } from 'react';
+import { useT, shortHome, folderName, connections, routes, toast, withKey, selectSession, useAppDispatch, useAppSelector, remotePage, useRegistry, ago } from '@/sdk';
 import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog, ICONS, Svg } from '@/sdk/ui';
-import { enterProject, forgetRecent, onPageRestore, openFolder, reasonText, openStarter, PROVIDER_LABEL, projectsMenu, stopProject, useProjects, type Provider } from './api.ts';
+import { enterProject, forgetRecent, onPageRestore, openFolder, reasonText, openStarter, PROVIDER_LABEL, selectProjectsMenu, setProjectsMenu, stopProject, useProjects, type Provider } from './api.ts';
 import { ProjectSessions, type LocalSession } from './ProjectSessions.tsx';
 import { badgeOf, foldRows, rowKey, rowTitle, titlePrefix, type ProjectRow } from './rows.ts';
 import { BadgeView, folderOf, LIVE, rowBadge, STATE_KEY, Tile } from './Tile.tsx';
@@ -30,7 +30,9 @@ type RecentItem = { root: string; provider: Provider; at: number };
 export function ProjectSwitcher({ project, windowTitle }: { project: string; windowTitle: string }) {
   const t = useT();
   const { commands } = useRegistry();
-  const open = useSyncExternalStore(projectsMenu.subscribe, projectsMenu.get);
+  const d = useAppDispatch();
+  const open = useAppSelector(selectProjectsMenu);
+  const close = () => void d(setProjectsMenu(false));
   const { data, reload } = useProjects(open);
   const session = useAppSelector(selectSession);
   const [q, setQ] = useState('');
@@ -44,7 +46,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
   const badge = badgeOf(running);
   useEffect(() => { document.title = titlePrefix(badge) + windowTitle; }, [badge, windowTitle]);
   // issue 449: a page brought back by Back after a move from the menu (Recent) comes with it still open
-  useEffect(() => onPageRestore(() => { projectsMenu.close(); setQ(''); }), []);
+  useEffect(() => onPageRestore(() => { d(setProjectsMenu(false)); setQ(''); }), [d]);
   const own = running.find((r) => r.current);
   const myProvider: Provider = own?.provider ?? 'claude';
   // another computer's page (issue 297): that computer's projects and this one's, to move to; nothing to open, start or stop
@@ -72,7 +74,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
     if (!runningRoots.has(s.cwd) && !hidden.has(s.cwd) && !recentAll.has(s.cwd)) recentAll.set(s.cwd, { root: s.cwd, provider: myProvider, at: s.at });
   }
   const recent = here ? [] : [...recentAll.values()].filter((e) => hit(e.root, ...local.filter((s) => s.cwd === e.root).map((s) => s.title))).slice(0, RECENT_SHOWN);
-  const onOpenChange = (o: boolean) => { if (o) projectsMenu.open(); else { projectsMenu.close(); setQ(''); } };
+  const onOpenChange = (o: boolean) => { if (o) d(setProjectsMenu(true)); else { close(); setQ(''); } };
   const toggle = (root: string) => setExpanded((s) => { const n = new Set(s); if (n.has(root)) n.delete(root); else n.add(root); return n; });
   const openRecent = async (e: RecentItem, sessionId?: string) => {
     setBusy(true);
@@ -92,7 +94,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
     if (r.current) return toggle(r.key);
     const w = r.windows.find((x) => LIVE.has(x.state));
     if (!w) return;
-    projectsMenu.close();
+    close();
     void enterProject(w);
   };
   const stopRow = async (r: ProjectRow) => {
@@ -103,7 +105,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
     }
     reload();
   };
-  const starter = (mode: 'open' | 'new') => { projectsMenu.close(); openStarter(mode); };
+  const starter = (mode: 'open' | 'new') => { close(); openStarter(mode); };
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -162,7 +164,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
                       )}
                       {sessions && <Chevron open={isOpen} label={t('projExpand', folder)} onClick={() => toggle(r.key)} />}
                     </div>
-                    {isOpen && sessions && <ProjectSessions root={r.root} windows={r.windows} local={local} setLocal={setLocal} onDone={() => projectsMenu.close()} />}
+                    {isOpen && sessions && <ProjectSessions root={r.root} windows={r.windows} local={local} setLocal={setLocal} onDone={close} />}
                   </div>
                 );
               })}

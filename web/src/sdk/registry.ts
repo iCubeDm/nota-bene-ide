@@ -4,7 +4,7 @@ import type { AgentProvider, Anchor, Comment, CutAnchor, ImageRef, ImageType, Me
 import type { I18nKey, Lang, t } from '../i18n/index.ts';
 import type { ru } from '../i18n/ru.ts';
 import type { AppDispatch, AppStore, AppThunk, RootState } from '../store/store.ts';
-import type { FeedItem } from '../store/feed.ts';
+import type { FeedItem, FeedState } from '../store/feed.ts';
 import type { FileKind } from '../refs/kinds.ts';
 import type { Tab, TabKinds } from '../tabs/slice.ts';
 import type { Plugin } from './plugin.ts';
@@ -65,7 +65,7 @@ export interface Command {
   /** also when focus is in a text field; 'notMac': only off a Mac (Option+key types a character there) */
   inFields: boolean | 'notMac';
   /** also while a modal dialog is open, when this says so (a key that toggles its own dialog) */
-  inModal?: () => boolean;
+  inModal?: (s: RootState) => boolean;
   /** also with Cmd (Mac) / Ctrl held, which `run` reads from the event: Alt+R and Ctrl+Alt+R are one binding */
   anyMod?: boolean;
   /** listed in the help only: the key is handled elsewhere (the composer), the keymap never matches or consumes it */
@@ -346,7 +346,7 @@ export interface FilesService {
 /** The git views as other plugins reach them (issue 545), provided by the vcs plugin. */
 export interface VcsService {
   /** the log shows this commit, with `path` picked (a comment on a commit asked for it) */
-  showCommit(sha: string, path: string): void;
+  showCommit(sha: string, path: string): UnknownAction;
 }
 
 /** The projects' windows as other plugins open them (issue 545), provided by the projects plugin. */
@@ -359,6 +359,14 @@ export interface ProjectsService {
 export interface FeedUiService {
   /** opens an action's panel and its group, read from its conversation's `items` (`agent`: a subagent's) at call time */
   revealTool(toolId: string, items: (s: RootState) => FeedItem[] | null, agent?: string): AppThunk;
+  /** a conversation drawn as the chat's: `agent`, a subagent's (its panels and comments are keyed by it) */
+  Feed: FC<{ feed: FeedState; agent: string; running?: boolean }>;
+}
+
+/** The background tasks as other plugins' views control them (issue 545), provided by the tasks plugin. */
+export interface TasksService {
+  /** Stop and To background for the task of the call `call`, while one runs (nothing otherwise) */
+  CallMenu: FC<{ call: string }>;
 }
 
 /** The edits as other plugins read them (issue 545), provided by the cut plugin. */
@@ -371,6 +379,8 @@ export interface CutService {
 export interface MediaService {
   /** the player bar over a reply's video or audio element, inside its wrapper `box` */
   ChatPlayer: FC<{ media: HTMLMediaElement; box: HTMLElement }>;
+  /** the full-window markup of the message's attached image `id`, over the composer */
+  AttachmentMarkup: FC<{ id: string; onClose: () => void }>;
 }
 
 /**
@@ -411,11 +421,12 @@ export interface Services {
   vcs: VcsService;
   projects: ProjectsService;
   feedUi: FeedUiService;
+  tasks: TasksService;
   cut: CutService;
   media: MediaService;
 }
 const SERVICES: Record<keyof Services, true> = {
-  comments: true, voice: true, attachments: true, files: true, vcs: true, projects: true, feedUi: true, cut: true, media: true,
+  comments: true, voice: true, attachments: true, files: true, vcs: true, projects: true, feedUi: true, tasks: true, cut: true, media: true,
 };
 
 /**

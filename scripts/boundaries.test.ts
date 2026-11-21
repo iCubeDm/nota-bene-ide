@@ -1,14 +1,12 @@
 // The import rule of issue 511 (docs/superpowers/specs/2026-11-20-core-plugins-design.md, "The import rule"):
-// plugins import only the SDK, core imports no plugin, `@/testing` is test-only, plus three text rules. Violations
-// that exist today live in boundaries.baseline.json, which may only shrink: a new violation fails, and so does a
-// baseline entry that is gone. UPDATE_BOUNDARIES=1 rewrites the baseline.
+// plugins import only the SDK, core imports no plugin, `@/testing` is test-only, plus three text rules. Issue 545 emptied
+// the baseline the rule started with (step 1 of issue 511), so the tree has no violation and none may come back.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { expect, it } from 'vitest';
 
 const REPO = path.resolve(import.meta.dirname, '..');
-const BASELINE = path.join(REPO, 'scripts/boundaries.baseline.json');
 
 // Every web/src folder by role (the spec's folder table). A folder not listed fails the scan until it is classified.
 const CORE = ['anchors', 'components', 'i18n', 'lib', 'net', 'refs', 'sdk', 'shell', 'store', 'tabs', 'theme'];
@@ -18,6 +16,32 @@ const HARNESS = 'testing'; // test-only code, importable from tests only
 const SDK = ['sdk/index.ts', 'sdk/ui.ts'];
 // shared test setups outside the harness, held to the test files' rules
 const TEST_HELPERS = ['cut/testCut.tsx'];
+// The module singletons kept outside the store by design (issue 545, the spec's As built 50), each read with `useStored`.
+// Any other value with its own listeners outside the SDK is a module singleton the state rule puts in a slice,
+// `useResource` or `storage`: the check counts a `useStored({ … })` read and a module-level listener set.
+const SINGLETONS: Record<string, string> = {
+  // ticks with a media element: through Redux it would re-render the store's readers at frame rate
+  'cut/Meter.tsx': "the edit player's state",
+  'cut/Timeline.tsx': "the edit player's clock",
+  'cut/CutBody.tsx': "the edit's reversed copies, made as it plays",
+  'voice/player.ts': "the voice bubbles' playback position",
+  'tabs/TabStrip.tsx': "the media controller's playing tab",
+  // live objects of mounted views (callbacks, the open edits), not data a reducer can hold
+  'cut/live.ts': 'the edits open in a tab',
+  'cut/targets.ts': 'the open edits "Add to edit" can add to',
+  // called where no store is in reach (a fetch catch, a middleware), transient, never replayed
+  'shell/toast.ts': 'the toasts',
+  'shell/Toasts.tsx': 'the toasts',
+  // HTTP data, yet not a resource: it loads on demand (a root change, the tree opening, a refresh) with a 5 s
+  // time-to-live, and a forced load drops an answer still in flight; the repository has watches and polls, no TTL for a
+  // load, and pauses its reads while the page is hidden. Folding it needs that option in the repository first
+  'refs/sources.ts': 'the sources',
+  // browser values, not app state
+  'feed/time.ts': 'the local day, moved at midnight',
+  'feed/MsgTime.tsx': 'the local day',
+  'projects/ProjectRail.tsx': 'the width media query',
+  'anchors/frame.ts': "the page frames' render count",
+};
 const WEB = 'web/src';
 const PHONE = 'mobile/app/lib';
 
@@ -49,6 +73,9 @@ const IMPORTS = new RegExp(
 // A protocol gate: any relational comparison of `protocol` (also `(x.protocol ?? 0)`) or against a protocol constant
 // (`*_PROTOCOL`, Dart `*Protocol`). Issue 511 replaces them all with named features.
 const GATE = /\bprotocol\b\s*(?:\?\?\s*0\s*\)\s*)?[<>]=?(?![=>])|[<>]=?\s*\(?\s*\w*(?:_PROTOCOL|Protocol)\b/;
+
+// A value with its own listeners: read through `useStored({ … })`, or a listener set at module level.
+const singleton = (code: string): boolean => /\buseStored\(\s*\{/.test(code) || /^(?:const|let) [\w$]+ = new Set<\(\) => void>\(\)/m.test(code);
 
 function files(dir: string, ext: RegExp): string[] {
   if (!fs.existsSync(dir)) return [];
@@ -99,6 +126,7 @@ function scan(root: string): string[] {
     if (/\blocalStorage\b/.test(code) && me.folder !== 'sdk' && rel !== 'net/auth.ts') add('localStorage');
     if (GATE.test(code)) add('protocol gate');
     if (/\buseSyncExternalStore\b/.test(code) && me.folder !== 'sdk') add('useSyncExternalStore');
+    if (singleton(code) && me.folder !== 'sdk' && !SINGLETONS[rel]) add('module singleton');
     // the page's visibility pauses polls in the SDK's repository and is read nowhere else (pageVisible)
     if (/\bvisibilityState\b/.test(code) && me.folder !== 'sdk') add('visibilityState');
   }
@@ -109,7 +137,7 @@ function scan(root: string): string[] {
   return [...out].sort();
 }
 
-// The rule an entry breaks, for the printed counts.
+// The rule an entry breaks, named in a failure.
 function classify(entry: string): string {
   const [from, to] = entry.split(' -> ');
   if (!to.startsWith(`${WEB}/`)) return to;
@@ -119,24 +147,13 @@ function classify(entry: string): string {
   return b.role === 'plugin' ? 'plugin→plugin' : 'plugin→core';
 }
 
-function compare(now: string[], base: string[]): { added: string[]; stale: string[] } {
-  const has = new Set(now), had = new Set(base);
-  return { added: now.filter((e) => !had.has(e)), stale: base.filter((e) => !has.has(e)) };
-}
-
 // --- the real tree
 
-it('the tree keeps to the baseline', () => {
-  const now = scan(REPO);
-  let base: string[] = JSON.parse(fs.readFileSync(BASELINE, 'utf8'));
-  const count = (list: string[]) => list.reduce<Record<string, number>>((n, e) => ((n[classify(e)] = (n[classify(e)] ?? 0) + 1), n), {});
-  const before = count(base), after = count(now);
-  const rules = [...new Set([...Object.keys(before), ...Object.keys(after)])].sort();
-  console.log(`boundaries:\n${rules.map((r) => `  ${r}: ${before[r] ?? 0} -> ${after[r] ?? 0}`).join('\n')}`);
-  if (process.env.UPDATE_BOUNDARIES) fs.writeFileSync(BASELINE, JSON.stringify((base = now), null, 2) + '\n');
-  const { added, stale } = compare(now, base);
-  expect(added, 'new violations').toEqual([]);
-  expect(stale, 'stale baseline entries: commit the shrink with UPDATE_BOUNDARIES=1').toEqual([]);
+it('the tree breaks no rule', () => {
+  expect(scan(REPO).map((e) => `${classify(e)}: ${e}`)).toEqual([]);
+  // the allowlist names only singletons that are still there
+  const gone = Object.keys(SINGLETONS).filter((f) => !singleton(mask(fs.readFileSync(path.join(REPO, WEB, f), { encoding: 'utf8', flag: 'r' })).code));
+  expect(gone, 'allowlisted singletons that are gone').toEqual([]);
 });
 
 // The plugin modules the SDK barrels load, through the core modules they load (type-only imports aside): a plugin
@@ -162,12 +179,6 @@ function sdkReach(root: string): string[] {
 
 it('the SDK barrels load no plugin module', () => {
   expect(sdkReach(REPO)).toEqual([]);
-});
-
-it('fails a new violation and a stale baseline entry', () => {
-  expect(compare(['a', 'b'], ['a', 'b'])).toEqual({ added: [], stale: [] });
-  expect(compare(['a', 'b', 'c'], ['a', 'b'])).toEqual({ added: ['c'], stale: [] });
-  expect(compare(['a'], ['a', 'b'])).toEqual({ added: [], stale: ['b'] });
 });
 
 // --- the scanner on a fixture tree
@@ -320,6 +331,22 @@ it('counts the text rules: localStorage, protocol gates, useSyncExternalStore, v
     `${W}/feed/Feed.tsx -> visibilityState`,
   ]);
   expect(classify('mobile/app/lib/chat/window_tab.dart -> protocol gate')).toBe('protocol gate');
+});
+
+it('counts a module singleton outside the SDK that the allowlist does not name', () => {
+  const root = tree({
+    ...base,
+    // a hand-rolled value: a listener set at module level, read through useStored
+    [`${W}/feed/flag.ts`]: "let on = false;\nconst subs = new Set<() => void>();\nexport const useOn = () => useStored({ subscribe: (f) => (subs.add(f), () => subs.delete(f)), get: () => on });",
+    // an object-literal read alone counts too
+    [`${W}/media/y.ts`]: "export const usePlaying = (p) => useStored({ subscribe: p.subscribe, get: p.state });",
+    // the allowlist's own, a stored item, a set inside a function, the SDK's
+    [`${W}/feed/MsgTime.tsx`]: "const useDay = () => useStored({ subscribe: subscribeDay, get: currentDay });",
+    [`${W}/feed/own.ts`]: "const v = useStored(savedSplit);\nfunction f() {\n  const subs = new Set<() => void>();\n}",
+    [`${W}/sdk/storage.ts`]: "const subs = new Set<() => void>();\nuseStored({ subscribe, get });",
+  });
+  expect(scan(root)).toEqual([`${W}/feed/flag.ts -> module singleton`, `${W}/media/y.ts -> module singleton`]);
+  expect(classify(`${W}/feed/flag.ts -> module singleton`)).toBe('module singleton');
 });
 
 it('refuses a web/src folder the rule does not know', () => {

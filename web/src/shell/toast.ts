@@ -1,7 +1,7 @@
 /**
  * Toasts live outside Redux: `toast()` must be callable from anywhere (a fetch catch, a thunk, a middleware) without
  * a dispatch or a store in reach, and a toast is transient UI that is never persisted or replayed. A module singleton
- * with `subscribe` (read by <Toasts> through useSyncExternalStore) is the smallest thing that does that.
+ * with `subscribe` (read by <Toasts> through useStored) is the smallest thing that does that.
  */
 type ToastItem = { id: number; title: string; msg: string; count: number };
 

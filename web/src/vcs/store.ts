@@ -1,8 +1,9 @@
-import { useMemo, useSyncExternalStore } from 'react';
+import { useMemo } from 'react';
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { VcsDiff, VcsFile, VcsPatch } from '@nota-bene/shared';
-import { bool, defineResource, json, routes, storage, useResource, type Route } from '@/sdk';
+import { bool, defineResource, json, routes, storage, useAppSelector, useResource, type Route, type StartListening } from '@/sdk';
 
-/** The git views' shared state, outside Redux as `refs/sources.ts` is: the tool window and the tab share one fetch. */
+/** The git views' shared state (the tool window and the tab share one fetch through the diff resource). */
 export type RepoDiff = Extract<VcsDiff, { repo: true }>;
 type Ui = {
   panel: boolean;
@@ -15,33 +16,44 @@ type Ui = {
   hasRepo: boolean;
 };
 
-// the diff layout and the base per project and source outlive the page (storage); the rest is this page's
+// the diff layout and the base per project and source outlive the page (storage, saved by `vcsListeners`); the rest is this page's
 const savedSplit = storage.local('vcs:split', bool, false);
 const savedBases = storage.local('vcs:bases', json<Record<string, string>>(), {});
-const initial = (): Ui => ({ panel: false, focus: null, split: savedSplit.get(), bases: savedBases.get(), commit: null, hasRepo: false });
-let ui = initial();
-const listeners = new Set<() => void>();
-const fire = () => { for (const fn of listeners) fn(); };
-const subscribe = (fn: () => void) => { listeners.add(fn); return () => void listeners.delete(fn); };
-const change = (next: Partial<Ui>) => { ui = { ...ui, ...next }; fire(); };
 
 const baseKey = (root: string, src: string) => `${root}\0${src}`;
 
-export const useVcsUi = () => useSyncExternalStore(subscribe, () => ui);
-export const setPanel = (panel: boolean) => change({ panel });
-export const focusFile = (path: string) => change({ focus: { path, at: Date.now() } });
-export const showCommit = (sha: string, path: string) => change({ commit: { sha, path, at: Date.now() } });
-export const setHasRepo = (hasRepo: boolean) => { if (hasRepo !== ui.hasRepo) change({ hasRepo }); };
-export const setSplit = (split: boolean) => { savedSplit.set(split); change({ split }); };
+export const vcsSlice = createSlice({
+  name: 'vcs',
+  initialState: (): Ui => ({ panel: false, focus: null, split: savedSplit.get(), bases: savedBases.get(), commit: null, hasRepo: false }),
+  reducers: {
+    setPanel: (s, a: PayloadAction<boolean>) => void (s.panel = a.payload),
+    focusFile: { reducer: (s, a: PayloadAction<Ui['focus']>) => void (s.focus = a.payload), prepare: (path: string) => ({ payload: { path, at: Date.now() } }) },
+    showCommit: {
+      reducer: (s, a: PayloadAction<Ui['commit']>) => void (s.commit = a.payload),
+      prepare: (sha: string, path: string) => ({ payload: { sha, path, at: Date.now() } }),
+    },
+    setHasRepo: (s, a: PayloadAction<boolean>) => void (s.hasRepo = a.payload),
+    setSplit: (s, a: PayloadAction<boolean>) => void (s.split = a.payload),
+    pickBase: {
+      reducer: (s, a: PayloadAction<{ key: string; base: string | null }>) => {
+        if (a.payload.base) s.bases[a.payload.key] = a.payload.base;
+        else delete s.bases[a.payload.key];
+      },
+      prepare: (root: string, src: string, base: string | null) => ({ payload: { key: baseKey(root, src), base } }),
+    },
+  },
+});
+export const { setPanel, focusFile, showCommit, setHasRepo, setSplit, pickBase } = vcsSlice.actions;
+
+export const useVcsUi = (): Ui => useAppSelector((s) => s.vcs);
 export const baseOf = (bases: Ui['bases'], root: string, src: string): string | undefined => bases[baseKey(root, src)];
-export function pickBase(root: string, src: string, base: string | null) {
-  const bases = { ...ui.bases };
-  if (base) bases[baseKey(root, src)] = base; else delete bases[baseKey(root, src)];
-  savedBases.set(bases);
-  change({ bases });
+
+/** Saves the layout and the bases when they change; Files and Changes share the left side, so the tree opening closes the panel. */
+export function vcsListeners(start: StartListening): void {
+  start({ predicate: (_a, st, was) => st.vcs.split !== was.vcs.split, effect: (_a, api) => savedSplit.set(api.getState().vcs.split) });
+  start({ predicate: (_a, st, was) => st.vcs.bases !== was.vcs.bases, effect: (_a, api) => savedBases.set(api.getState().vcs.bases) });
+  start({ predicate: (_a, st, was) => st.tree.open && !was.tree.open, effect: (_a, api) => void api.dispatch(setPanel(false)) });
 }
-/** Test hook. */
-export function resetVcs() { ui = initial(); fire(); }
 
 /** One project, source and base's diff: one poll every 4 s however many views watch it (the tool window and the tab, issue 471). */
 export const diffResource = defineResource<{ root: string; src: string; base: string | undefined }, VcsDiff>({

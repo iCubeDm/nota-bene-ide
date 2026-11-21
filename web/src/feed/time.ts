@@ -65,7 +65,7 @@ function armMidnight(): void {
   }, next - n.getTime() + 50); // just past it, so the new day is surely here
 }
 
-/** For useSyncExternalStore: called again at each local midnight while anything listens. */
+/** For useStored: called again at each local midnight while anything listens. */
 export function subscribeDay(fn: () => void): () => void {
   if (daySubs.size === 0) {
     today = dayOf(Date.now()); // nobody listened for a while: the day may have changed meanwhile

@@ -1,10 +1,9 @@
 // The edits open in a tab now (issue 430), by file: what tells a comment's card and the batch that its clip is no longer
 // in the edit, or that a trim cut its moment out. Known only while the edit's tab shows it: a closed tab makes no claim.
-import { useSyncExternalStore } from 'react';
 import type { CutAnchor } from '@nota-bene/shared';
 import type { Cut } from '@nota-bene/shared/cut';
 import { cutState } from './pin.ts';
-import { fileKey } from '@/sdk';
+import { fileKey, useStored } from '@/sdk';
 
 const cuts = new Map<string, Cut>();
 const subs = new Set<() => void>();
@@ -28,4 +27,4 @@ export function liveCutState(a: CutAnchor): 'ok' | 'trimmed' | 'gone' | undefine
 const subscribe = (f: () => void) => (subs.add(f), () => void subs.delete(f));
 /** liveCutState, re-rendered when that edit changes; undefined for no anchor. */
 export const useCutState = (a: CutAnchor | null | undefined): 'ok' | 'trimmed' | 'gone' | undefined =>
-  useSyncExternalStore(subscribe, () => (a ? liveCutState(a) : undefined));
+  useStored({ subscribe, get: () => (a ? liveCutState(a) : undefined) });

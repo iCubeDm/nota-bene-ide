@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useStored } from '../sdk/storage.ts';
 import type { Source } from '@nota-bene/shared';
 import { underDir, wireAbs } from '../lib/paths.ts';
 import { connections } from '../sdk/connections.ts';
@@ -44,7 +44,7 @@ const subscribe = (fn: () => void) => {
   listeners.add(fn);
   return () => void listeners.delete(fn);
 };
-export const useSources = (): Source[] => useSyncExternalStore(subscribe, getSources);
+export const useSources = (): Source[] => useStored({ subscribe, get: getSources });
 
 const isSource = (v: unknown): v is Source => {
   const s = v as Source;

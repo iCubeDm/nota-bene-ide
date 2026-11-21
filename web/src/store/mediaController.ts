@@ -113,7 +113,7 @@ export class MediaController {
     return null;
   }
 
-  /** Called on play, pause, ended and (un)registration; for useSyncExternalStore. */
+  /** Called on play, pause, ended and (un)registration; for useStored. */
   subscribe = (fn: () => void): (() => void) => {
     this.subs.add(fn);
     return () => this.subs.delete(fn);

@@ -1,25 +1,22 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { setTmpDirs } from '@/refs/tmpImages.ts';
+import type { ServerEvent } from '@nota-bene/shared';
+import { serverEvent } from '@/store/store.ts';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/testing';
 import { selectTabs } from '@/tabs/slice.ts';
 import { ToolLine } from './ToolLine.tsx';
 
 // B1e: a tool line names a temp image (Read's file_path, a screenshot command): a button beside the line opens its tab
-beforeEach(() => {
-  setLang('en');
-  setTmpDirs(['/tmp', '/private/tmp']);
-});
-afterEach(() => {
-  cleanup();
-  setTmpDirs([]);
-});
+beforeEach(() => setLang('en'));
+afterEach(() => cleanup());
 
 const item = (name: string, input: Record<string, unknown>) => ({ kind: 'tool', id: 't1', name, arg: String(Object.values(input)[0]), sub: false, input }) as never;
-const mount = (it: ReturnType<typeof item>) => {
+/** `tmpDirs`: the temp folders the server's hello names */
+const mount = (it: ReturnType<typeof item>, tmpDirs = ['/tmp', '/private/tmp']) => {
   const store = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) });
+  store.dispatch(serverEvent({ kind: 'hello', protocol: 30, tmpDirs } as ServerEvent));
   render(<Provider store={store}><ToolLine item={it} /></Provider>);
   return store;
 };
@@ -42,7 +39,6 @@ it('a command that writes one names it once; a project path, a text file and a p
 });
 
 it('without the server naming its temp folders there is no button', () => {
-  setTmpDirs([]);
-  mount(item('Read', { file_path: '/tmp/shot.png' }));
+  mount(item('Read', { file_path: '/tmp/shot.png' }), []);
   expect(document.querySelectorAll('[data-tmp-image]').length).toBe(0);
 });

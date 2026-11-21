@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { isAttachmentAnchor, type AttachmentAnchor, type MediaShape } from '@nota-bene/shared';
-import { useMarkPopup } from '@/media/useMediaMarkup.ts';
+import { useMarkPopup } from '../useMediaMarkup.ts';
 import { useT, toast, useAppDispatch, useAppSelector, connections, routes, useComments } from '@/sdk';
-import { prepareAttachmentComment } from '@/media/markup/createMediaComment.ts';
-import { MarkupLayer } from '@/media/markup/MarkupLayer.tsx';
-import { shapeEls, useOverlayPlacement } from '@/media/markup/overlay.tsx';
-import { clear, selectDraft, setMode } from '@/media/markup/slice.ts';
+import { prepareAttachmentComment } from './createMediaComment.ts';
+import { MarkupLayer } from './MarkupLayer.tsx';
+import { shapeEls, useOverlayPlacement } from './overlay.tsx';
+import { clear, selectDraft, setMode } from './slice.ts';
 
 /** The markup tab id of an attached image (the drawing's draft lives in the markup slice under it). */
 const attachTabId = (imageId: string): string => `attach:${imageId}`;

@@ -120,8 +120,8 @@ Names are final unless a step finds a collision; shapes are interfaces, not bodi
 | anything that outlives the page (local or server prefs, saved UI state) | `storage.local` / `storage.pref` (a slice may mirror it through a listener, as `persist.ts` does) |
 | state of one component instance | `useState` / `useReducer` |
 
-No new `useSyncExternalStore` module singletons: the 28 existing ones fold into `storage`, `repository` or a slice when
-a step touches them (the boundary check counts them outside `web/src/sdk/`).
+No new module singletons: outside `web/src/sdk/` the boundary check fails `useSyncExternalStore` and any value with its
+own listeners that its allowlist does not name; the allowlist holds the few kept by design (As built 50).
 
 **Capabilities**: `has(protocol, feature)` and `type Feature` re-exported from `@nota-bene/shared` (below);
 `conn.has(f)` / `useFeature(f)` bind it to the connection's `hello.protocol`.
@@ -539,3 +539,14 @@ result.
     (`components/markdown/`); the diagram plugin registers its `codeBlocks` (`mermaid`, `svg`), the media plugin the
     player. The cut plugin contributes `treeActions` (its menu items and the timeline drag). The session list shares
     only `ago` and `ArchiveIcon`, so those moved to core, not a list component. The baseline went from 68 to 29 entries.
+50. **The last survivors** (issue 545): image prep (`lib/image.ts`) and the pure player keys (`store/playerKeys.ts`)
+    are core; the attachment markup is the media service's (`AttachmentMarkup`), a subagent's conversation the feed's
+    (`feedUi.Feed`), the card menu a `tasks` service's (`CallMenu`). The three dialogs' open flags and the git views' UI
+    are slices (`Command.inModal` takes the state); the temp folders a `hello` names are the `controls` slice's
+    (`selectTmpDirs`), so Markdown always has a store and `markRefs` takes them. The singletons left are the boundary
+    check's named allowlist (`SINGLETONS`), each read with `useStored({ get, subscribe })`: what ticks with a media
+    element (the edit and voice players, the playing tab), the live objects of open views (the open edits and targets),
+    the toasts (called without a store), browser values (the day, a media query, the page frames' renders) and the
+    sources. The sources are HTTP data but load on demand with a 5 s time-to-live, and a forced load drops an answer in
+    flight; the repository has no TTL for a load and pauses while the page is hidden, so they stay until it has that
+    option. The baseline is gone: the check fails any violation, an unlisted singleton, and a listed one that is gone.

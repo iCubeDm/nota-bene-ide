@@ -1,6 +1,5 @@
 import type { ComponentProps } from 'react';
-import { useT, useAppDispatch, useAppSelector, openAgent, isAgentTool, type ToolRenderer, selectCallEnd, selectLiveCalls, selectSubagent } from '@/sdk';
-import { CardMenu } from '@/tasks/CardMenu.tsx';
+import { useT, useAppDispatch, useAppSelector, openAgent, isAgentTool, type ToolRenderer, selectCallEnd, selectLiveCalls, selectSubagent, useService } from '@/sdk';
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
@@ -11,6 +10,7 @@ const str = (v: unknown): string => (typeof v === 'string' ? v : '');
  */
 export function AgentCard({ item, open, panelId, comments, busy, onToggle }: ComponentProps<ToolRenderer['render']>) {
   const t = useT();
+  const { CallMenu } = useService('tasks');
   const dispatch = useAppDispatch();
   const sub = useAppSelector((s) => selectSubagent(s, item.id));
   // a task of this call is still live: a background agent answers at once ("launched") and goes on
@@ -40,7 +40,7 @@ export function AgentCard({ item, open, panelId, comments, busy, onToggle }: Com
         {!open && comments > 0 && <span className="text-nb-accent"> · {t('nComments', comments)}</span>}
       </button>
       <span data-anchor-skip data-agent-status className={color}>{t(status === 'running' ? 'agentRunning' : status === 'error' ? 'agentError' : status === 'stopped' ? 'agentStopped' : 'agentDone')}</span>
-      <CardMenu call={item.id} />
+      <CallMenu call={item.id} />
       <button
         type="button"
         data-anchor-skip

@@ -12,14 +12,15 @@ type FileRef = { path: string; ref?: string };
  * with a version; absent for a branch source): a media comment compares it with its anchor's for "the file has changed
  * since". No entry = unknown (tab closed): no claim either way.
  */
-type FilesState = { load: Record<string, FileLoad>; version: Record<string, string> };
+type FilesState = { load: Record<string, FileLoad>; version: Record<string, string>; /** the recent files dialog is open (Alt+E) */ recentOpen: boolean };
 
 const keyOf = (f: string | FileRef) => (typeof f === 'string' ? f : fileKey(f.path, f.ref));
 
 export const filesSlice = createSlice({
   name: 'files',
-  initialState: (): FilesState => ({ load: {}, version: {} }),
+  initialState: (): FilesState => ({ load: {}, version: {}, recentOpen: false }),
   reducers: {
+    setRecentOpen: (s, a: PayloadAction<boolean>) => void (s.recentOpen = a.payload),
     setFileLoad: (s, a: PayloadAction<FileRef & { s: FileLoad['s'] }>) => {
       const k = keyOf(a.payload);
       s.load[k] = { s: a.payload.s, v: (s.load[k]?.v ?? 0) + 1 };
@@ -43,7 +44,8 @@ export const filesSlice = createSlice({
     }),
 });
 
-export const { setFileLoad, dropFileLoad, setFileVersion } = filesSlice.actions;
+export const { setFileLoad, dropFileLoad, setFileVersion, setRecentOpen } = filesSlice.actions;
+export const selectRecentOpen = (s: RootState): boolean => s.files.recentOpen;
 
 /**
  * Opens (or activates) the file tab and asks its view to scroll to the comment's fragment once loaded. A comment with
@@ -53,7 +55,7 @@ export const { setFileLoad, dropFileLoad, setFileVersion } = filesSlice.actions;
 export const jumpToFileComment = (path: string, id: string, ref?: string): AppThunk => (d, _get, { registry }) => {
   if (isCommitRef(ref)) {
     d(openLog());
-    registry.vcs?.showCommit(ref, path);
+    if (registry.vcs) d(registry.vcs.showCommit(ref, path));
     return;
   }
   const go = (src: string) => {

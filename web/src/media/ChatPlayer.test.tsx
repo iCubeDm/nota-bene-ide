@@ -6,7 +6,7 @@ import { Markdown } from '@/components/markdown/Markdown.tsx';
 import { takeStartAt } from '@/refs/startAt.ts';
 import { setLang } from '@/i18n/index.ts';
 import { serverEvent } from '@/store/store.ts';
-import { makeStore } from '@/testing';
+import { makeStore, renderWith } from '@/testing';
 import { selectActiveTab } from '@/tabs/slice.ts';
 
 const rect = (w: number) => ({ x: 0, y: 0, width: w, height: 20, left: 0, top: 0, right: w, bottom: 20, toJSON() { return this; } }) as DOMRect;
@@ -76,7 +76,7 @@ it('a chat video gets our bar and loses its native controls; audio and non-proje
 });
 
 it('streaming text keeps native controls (no bar until the reply is final)', () => {
-  const { container } = render(<Markdown text="![v](v.mp4)" final={false} />);
+  const { container } = renderWith(<Markdown text="![v](v.mp4)" final={false} />);
   expect(container.querySelector('video')!.hasAttribute('controls')).toBe(true);
   expect(container.querySelector('[data-player-bar]')).toBeNull();
 });

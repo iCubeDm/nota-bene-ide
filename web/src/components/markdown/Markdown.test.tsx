@@ -257,8 +257,9 @@ describe('Markdown', () => {
       expect(selectActiveTab(st.getState())).toMatchObject({ kind: 'diagram', lang: 'mermaid', source: 'graph TD; A-->B' });
     });
 
-    it('without a store no plugin draws: the block stays highlighted code, nothing throws', () => {
-      const { container } = bare(<Markdown text={SVG} final />);
+    it('with no plugin nothing draws: the block stays highlighted code, nothing throws', () => {
+      const st = makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }), plugins: [] });
+      const { container } = bare(<Provider store={st}><Markdown text={SVG} final /></Provider>);
       expect(container.querySelector('.svg-out')).toBeNull();
       expect(container.querySelector('pre code')).not.toBeNull();
     });

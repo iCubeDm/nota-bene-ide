@@ -105,7 +105,11 @@ function local<T>(key: string, codec: Codec<T>, fallback: T): Stored<T> {
   };
 }
 
-/** A stored value (or a pref) in a component: re-renders when it changes. */
+/**
+ * A stored value (or a pref) in a component: re-renders when it changes. Also the one reader of a value kept outside the
+ * store on purpose (issue 545): what ticks with a media element (a player's clock), what non-React code must reach without
+ * a store (toasts, the sources), the live objects of mounted views. `get` returns the same object while nothing changed.
+ */
 export function useStored<T>(item: { get(): T; subscribe(fn: () => void): () => void }): T {
   return useSyncExternalStore(item.subscribe, item.get);
 }

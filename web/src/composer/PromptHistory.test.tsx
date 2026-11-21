@@ -10,20 +10,24 @@ import { serverEvent } from '@/store/store.ts';
 import { makeStore } from '@/testing';
 import { Composer } from './Composer.tsx';
 import { historySlice, searchPrompts } from './history.ts';
-import { promptHistoryModal } from './historyModal.ts';
 
 beforeEach(() => { setLang('en'); vi.stubGlobal('fetch', vi.fn(async () => new Response('{"prompts":[]}'))); });
-afterEach(() => { cleanup(); promptHistoryModal.close(); vi.unstubAllGlobals(); });
+// every test's keymap goes: one left over would take the next test's keys for its own store
+const offs: (() => void)[] = [];
+afterEach(() => { cleanup(); for (const off of offs.splice(0)) off(); vi.unstubAllGlobals(); });
 
 const p = (id: string, text: string, extra: Partial<PromptEntry> = {}): PromptEntry => ({ id, ts: Date.now(), text, src: 'typed', ...extra });
 
-function setup(items: PromptEntry[]) {
+/** `open`: the list was left open before the composer mounted */
+function setup(items: PromptEntry[], open = false) {
   const store = makeStore({ url: 'ws://x', connect: ((_u: unknown, _e: unknown, onState: (s: 'open') => void) => (onState('open'), { send: (_m: ClientMessage) => true, close() {} })) as never });
   act(() => {
     store.dispatch(serverEvent({ kind: 'session', id: 's1', root: '/p', title: null, model: null }));
     store.dispatch(historySlice.actions.loaded(items));
+    if (open) store.dispatch(historySlice.actions.setHistoryOpen(true));
   });
   const off = installKeymap(store);
+  offs.push(off);
   render(<Provider store={store}><TooltipProvider><Composer /></TooltipProvider></Provider>);
   return { store, off, box: screen.getByRole('textbox') as HTMLTextAreaElement };
 }
@@ -104,10 +108,9 @@ it('Alt+H toggles the list, also from the composer', async () => {
 });
 
 it('a list left open while the button was gone (a recording) does not pop up when it comes back', () => {
-  promptHistoryModal.open();
-  setup([p('a', 'alpha')]);
+  const { store } = setup([p('a', 'alpha')], true);
   expect(screen.queryByRole('combobox')).toBeNull();
-  expect(promptHistoryModal.get()).toBe(false);
+  expect(store.getState().promptHistory.open).toBe(false);
 });
 
 it('the list opens above the field and runs right from the button, which sits left of the field', async () => {
