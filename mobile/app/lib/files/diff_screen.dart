@@ -20,7 +20,7 @@ import '../theme.dart';
 import '../ui/nb_icon.dart';
 import '../ui/pinch_scale.dart';
 import 'git.dart';
-import 'remote.dart';
+import 'repository.dart';
 import 'text_file_screen.dart' show ErrorRetry;
 
 /// A diff of more rows than this waits for "Show anyway" (the desktop's limit).

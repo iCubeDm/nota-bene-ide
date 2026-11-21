@@ -7,9 +7,9 @@ import '../l10n/app_localizations.dart';
 import 'window_tab.dart';
 
 bool modelSwitchable(WindowTab tab) =>
-    hasFeature(tab.protocol, Feature.models) &&
-    (tab.capabilities?.models ?? false) &&
-    tab.models.isNotEmpty;
+    has(tab.connection.protocol, Feature.models) &&
+    (tab.windowState.capabilities?.models ?? false) &&
+    tab.windowState.models.isNotEmpty;
 
 /// Asks to restart the agent; sends `restart` on a yes. True when it was sent.
 Future<bool> askRestart(BuildContext context, WindowTab tab) async {
@@ -32,7 +32,7 @@ Future<bool> askRestart(BuildContext context, WindowTab tab) async {
     ),
   );
   if (ok != true) return false;
-  tab.send(const ClientMessageRestart());
+  tab.connection.send(const ClientMessageRestart());
   return true;
 }
 
@@ -63,11 +63,11 @@ class ModelSheet extends StatefulWidget {
 }
 
 class _ModelSheetState extends State<ModelSheet> {
-  late String? _model = widget.tab.model;
-  late AgentEffort? _effort = widget.tab.effort;
+  late String? _model = widget.tab.windowState.model;
+  late AgentEffort? _effort = widget.tab.windowState.effort;
 
   ModelOption? get _option =>
-      widget.tab.models.where((m) => m.value == _model).firstOrNull;
+      widget.tab.windowState.models.where((m) => m.value == _model).firstOrNull;
 
   @override
   Widget build(BuildContext context) {
@@ -80,7 +80,7 @@ class _ModelSheetState extends State<ModelSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final m in widget.tab.models)
+            for (final m in widget.tab.windowState.models)
               ListTile(
                 title: Text(m.name),
                 subtitle: Text(
@@ -118,7 +118,7 @@ class _ModelSheetState extends State<ModelSheet> {
                 onPressed: _model == null
                     ? null
                     : () {
-                        widget.tab.send(
+                        widget.tab.connection.send(
                           ClientMessageModel(
                             model: _model!,
                             effort: efforts.isEmpty ? null : _effort,

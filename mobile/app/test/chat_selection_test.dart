@@ -65,7 +65,7 @@ void main() {
         agent({'t': 'message', 'id': 'a1', 'text': 'Agent answer'}),
       ],
     );
-    final item = r.tab!.feed.items.first;
+    final item = r.tab!.windowState.feed.items.first;
     done = 0;
     Widget message(Offset? from) => NbApp(
       home: Scaffold(
@@ -129,7 +129,7 @@ void main() {
     await sendNote(t);
     await t.pumpAndSettle();
     final an = r.tab!.comments.all.single.anchor as TextAnchor;
-    final text = chatText(r.tab!.feed.items.first).text;
+    final text = chatText(r.tab!.windowState.feed.items.first).text;
     expect(an.quote, 'cache');
     expect(an.start, text.lastIndexOf('cache'));
     expect(an.start, isNot(text.indexOf('cache')));
@@ -144,7 +144,7 @@ void main() {
     await sendNote(t);
     await t.pumpAndSettle();
     final an = r.tab!.comments.all.single.anchor as TextAnchor;
-    expect(an.quote, chatText(r.tab!.feed.items.first).text);
+    expect(an.quote, chatText(r.tab!.windowState.feed.items.first).text);
   });
 
   testWidgets('a tap outside the message leaves selection mode', (t) async {
@@ -177,7 +177,7 @@ void main() {
     await sendNote(t);
     await t.pumpAndSettle();
     final an = r.tab!.comments.all.single.anchor as TextAnchor;
-    final text = chatText(r.tab!.feed.items.last).text;
+    final text = chatText(r.tab!.windowState.feed.items.last).text;
     expect((an.source as AnchorSourceMessage).id, 'a1');
     expect(an.quote, 'beta');
     expect(an.start, text.indexOf('beta', text.indexOf('alpha')));
@@ -215,7 +215,7 @@ void main() {
           '```\nalpha = 1\nbeta = 2\n```',
     );
     final an = await commentCode(t, 'beta', nth: 1);
-    final text = chatText(r.tab!.feed.items.last).text;
+    final text = chatText(r.tab!.windowState.feed.items.last).text;
     expect(an.quote, 'beta');
     expect(an.start, text.lastIndexOf('beta'));
   });
@@ -224,7 +224,7 @@ void main() {
       'code', (t) async {
     await open(t, text: 'alpha = 1 beta = 2\n\n```\nalpha = 1\nbeta = 2\n```');
     final an = await commentCode(t, 'beta', nth: 0);
-    final text = chatText(r.tab!.feed.items.last).text;
+    final text = chatText(r.tab!.windowState.feed.items.last).text;
     expect(an.quote, 'beta');
     expect(an.start, text.lastIndexOf('beta'));
   });
@@ -238,7 +238,7 @@ void main() {
           '```\nalpha = 1\nbeta = 2\n```\n\n```\nalpha = 1\nbeta = 2\n```',
     );
     final an = await commentCode(t, 'beta', nth: 1);
-    final text = chatText(r.tab!.feed.items.last).text;
+    final text = chatText(r.tab!.windowState.feed.items.last).text;
     expect(an.start, text.lastIndexOf('beta'));
   });
 
@@ -246,7 +246,7 @@ void main() {
     t,
   ) async {
     await open(t);
-    final item = r.tab!.feed.items.last;
+    final item = r.tab!.windowState.feed.items.last;
     await t.pumpWidget(
       NbApp(
         home: Scaffold(

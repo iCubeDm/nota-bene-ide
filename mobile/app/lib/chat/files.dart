@@ -67,9 +67,11 @@ String? toolPath(ToolItem it) => switch (it.input['file_path'] ??
 List<String> sessionFiles(WindowTab tab) {
   final seen = <String>{};
   return [
-    for (final it in tab.feed.items.reversed.whereType<ToolItem>())
+    for (final it in tab.windowState.feed.items.reversed.whereType<ToolItem>())
       if (toolPath(it) case final p?)
-        if (projectPath(tab.root, p) case final rel? when seen.add(rel)) rel,
+        if (projectPath(tab.connection.root, p) case final rel?
+            when seen.add(rel))
+          rel,
   ];
 }
 

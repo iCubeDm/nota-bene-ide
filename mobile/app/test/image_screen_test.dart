@@ -203,7 +203,7 @@ void main() {
         'h': 0.5,
       },
     ]);
-    expect(r.tab!.fileVersions['img/shot.png'], 'W/"v1"');
+    expect(r.tab!.windowState.fileVersions['img/shot.png'], 'W/"v1"');
     expect(find.byTooltip('Mark up'), findsOneWidget, reason: 'marking ends');
     r.dispose();
   });

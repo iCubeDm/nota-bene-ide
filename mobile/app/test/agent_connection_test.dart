@@ -2,7 +2,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nb_app/chat/window_connection.dart';
+import 'package:nb_app/chat/agent_connection.dart';
 import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/vault.dart';
@@ -21,7 +21,7 @@ void main() {
   late FakeFactory f;
   late HostLink link;
   late FakeChannel ch;
-  late WindowConnection c;
+  late AgentConnection c;
   late List<String> calls;
 
   setUp(() async {
@@ -41,8 +41,8 @@ void main() {
     )..start();
     await settle();
     calls = [];
-    late WindowConnection self;
-    self = c = WindowConnection(
+    late AgentConnection self;
+    self = c = AgentConnection(
       link,
       window(4791, '/p'),
       onEvent: (e) => calls.add('${e.runtimeType}:${self.state.name}'),

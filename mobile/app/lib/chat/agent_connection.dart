@@ -1,7 +1,7 @@
 // The phone as an ordinary tab of one window (/ws?tab=<id>), over a host link. The one-tab rule is the server's:
 // occupied → Work here sends takeover; a 4001 means another tab took the window, and Work here takes it back. A
 // window that went away (4904) is reopened when the host lists it again; a link that went down keeps the feed
-// readable until the next replay replaces it. What the window says goes to [WindowConnection.onEvent] (issue 511).
+// readable until the next replay replaces it. What the window says goes to [AgentConnection.onEvent] (issue 511).
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -9,6 +9,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:nb_channel/nb_channel.dart';
 import 'package:nb_protocol/nb_protocol.dart';
+import 'package:nb_protocol/nb_protocol.dart' as nb show has;
 
 import '../hosts/host_link.dart';
 import '../media/media_comment.dart' show WindowHttp;
@@ -26,8 +27,8 @@ String uuidV4() {
   return '${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20)}';
 }
 
-class WindowConnection extends ChangeNotifier {
-  WindowConnection(
+class AgentConnection extends ChangeNotifier {
+  AgentConnection(
     this.link,
     HostWindow w, {
     required this.onEvent,
@@ -86,7 +87,7 @@ class WindowConnection extends ChangeNotifier {
   num? protocol;
 
   /// Whether the window speaks [f].
-  bool has(Feature f) => hasFeature(protocol, f);
+  bool has(Feature f) => nb.has(protocol, f);
 
   /// The window's own requests through its channel; null while the host is offline.
   WindowHttp? get http {
