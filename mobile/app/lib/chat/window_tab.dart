@@ -99,6 +99,7 @@ class WindowTab extends ChangeNotifier {
   late final comments = Comments(
     connection.send,
     () => windowState.feed.sessionId,
+    has: connection.has,
     queue: stores.comments.of(_box),
   );
 
@@ -193,8 +194,8 @@ class WindowTab extends ChangeNotifier {
   /// chat) what it answered.
   void _event(ServerEvent e) {
     switch (e) {
-      case ServerEventHello(:final protocol):
-        comments.hello(protocol);
+      case ServerEventHello():
+        comments.hello();
       case ServerEventComments(:final items, :final ack):
         comments.apply(items, ack: ack);
       case ServerEventCommentAck(:final opId):

@@ -2,8 +2,8 @@
 // routes the screens read, `GET /tree?path=<dir>` (a list of `TreeEntry`), `/complete?q=` (`CompleteAnswer`: up to 30
 // project-relative paths, folders ending in `/`), `/file?path=` (raw bytes, Range supported) and git's read-only views
 // as the desktop's panel reads them (server/src/vcs.ts, shared/src/vcs.ts): `/git-status` (null outside a repository),
-// `/vcs-diff`, `/vcs-file`, `/vcs-log`, `/vcs-commit` and `/vcs-commit-file`, their answers the generated protocol
-// classes. Requests for the same route in flight share one answer, and none goes while the host is offline. Nothing
+// `/vcs-diff`, `/vcs-file`, `/vcs-log`, `/vcs-commit` and `/vcs-commit-file`, the host's `/usage` and the window's
+// `/dictation`, their answers the generated protocol classes where there are any. Requests for the same route in flight share one answer, and none goes while the host is offline. Nothing
 // is kept once answered (the web keeps the last answer for its watchers; the phone has none, its screens hold what
 // they show).
 import 'dart:convert';
@@ -131,6 +131,28 @@ class Repository {
     final bad = '\uFFFD'.allMatches(text).length;
     if (bad > 8 && bad * 100 > text.length) return FileBinary(size);
     return FileText(text);
+  }
+
+  /// The host's usage report, as the desktop's Usage tab reads it.
+  Future<UsageReport> usage(
+    UsageProvider provider,
+    UsagePeriod period,
+  ) async => UsageReport.fromJson(
+    (await _json(
+              '/usage?provider=${provider.toJson()}&period=${period.toJson()}',
+            )
+            as Map)
+        .cast<String, Object?>(),
+  );
+
+  /// The window's Whisper as Settings → Dictation shows it (`on`, `phase`, the sizes); null when it did not answer.
+  Future<Map<Object?, Object?>?> dictation() async {
+    try {
+      final j = await _json('/dictation');
+      return j is Map ? j : const {};
+    } on FilesError {
+      return null;
+    }
   }
 
   /// Whether the window's project is in a git repository; null when the host did not say (offline, git timed out).

@@ -91,9 +91,9 @@ class _WhisperSheetState extends State<WhisperSheet> {
   }
 
   Future<void> _ask() async {
-    final r = await _call('GET', '/dictation');
+    final b = await widget.tab.repository.dictation();
     if (!mounted) return;
-    if (r == null || r.status != 200) {
+    if (b == null) {
       // one lost answer does not end a multi-minute install: ask again
       if (_step == _Step.installing) {
         _timer = Timer(_poll, _ask);
@@ -101,7 +101,6 @@ class _WhisperSheetState extends State<WhisperSheet> {
       }
       return _show(_Step.noAnswer);
     }
-    final b = r.body;
     _dl = (b['downloadMb'] as num?)?.round() ?? 0;
     _disk = (b['diskMb'] as num?)?.round() ?? 0;
     _dir = b['dir'] is String ? b['dir'] as String : '';
