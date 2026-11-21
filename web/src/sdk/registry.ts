@@ -1,6 +1,7 @@
 import type { FC, Ref } from 'react';
 import type { I18nKey, t } from '../i18n/index.ts';
-import type { RootState } from '../store/store.ts';
+import type { ru } from '../i18n/ru.ts';
+import type { AppStore, RootState } from '../store/store.ts';
 import type { Tab, TabKinds } from '../tabs/slice.ts';
 import type { Plugin } from './plugin.ts';
 
@@ -43,18 +44,44 @@ export interface Slot {
   render: FC;
 }
 
+/** A command's id: the i18n key of its line in the ? help. */
+export type KeyId = keyof typeof ru & `hk_${string}`;
+export type Mods = { mod?: boolean; alt?: boolean; shift?: boolean };
+
+/** A global hotkey (issue 511): the keymap (`shell/keymap.ts`) matches the registered ones under its rules. */
+export interface Command {
+  id: KeyId;
+  /** `code`s that trigger it (`Digit1`…). */
+  codes: string[];
+  mods: Mods;
+  /** also when focus is in a text field; 'notMac': only off a Mac (Option+key types a character there) */
+  inFields: boolean | 'notMac';
+  /** also while a modal dialog is open, when this says so (a key that toggles its own dialog) */
+  inModal?: () => boolean;
+  /** also with Cmd (Mac) / Ctrl held, which `run` reads from the event: Alt+R and Ctrl+Alt+R are one binding */
+  anyMod?: boolean;
+  /** listed in the help only: the key is handled elsewhere (the composer), the keymap never matches or consumes it */
+  helpOnly?: boolean;
+  /** its place in the ? help, which is also the order keys are matched in */
+  order: number;
+  run: (c: { store: AppStore; e: KeyboardEvent }) => void;
+}
+
 /** What the plugins contribute, built once per store from its plugins and frozen. */
 export interface Registry {
   tabs: ReadonlyMap<string, AnyTabView>;
   /** each slot's contributions by ascending order */
   slots: ReadonlyMap<SlotName, readonly Slot[]>;
+  /** the core's and the plugins' hotkeys by ascending order */
+  commands: readonly Command[];
 }
 
 /**
  * Each kind once: a kind two plugins claim is a build error, as a slice name taken twice is. So is one order taken
- * twice in a slot: the frame's order is never left to the order of `PLUGINS`.
+ * twice in a slot: the frame's order is never left to the order of `PLUGINS`. Commands alike: one id, one order each,
+ * the core's own (`core`: the store passes the keymap's `CORE_COMMANDS`) among them.
  */
-export function buildRegistry(plugins: readonly Plugin[]): Registry {
+export function buildRegistry(plugins: readonly Plugin[], core: readonly Command[] = []): Registry {
   const tabs = new Map<string, AnyTabView>();
   for (const v of plugins.flatMap((p) => p.tabs ?? [])) {
     if (tabs.has(v.kind)) throw new Error(`registry: the tab kind "${v.kind}" is declared twice`);
@@ -67,7 +94,13 @@ export function buildRegistry(plugins: readonly Plugin[]): Registry {
     slots.set(s.slot, [...list, s].sort((a, b) => a.order - b.order));
   }
   for (const list of slots.values()) Object.freeze(list);
-  return Object.freeze({ tabs, slots });
+  const commands: Command[] = [];
+  for (const c of [...core, ...plugins.flatMap((p) => p.commands ?? [])]) {
+    if (commands.some((x) => x.id === c.id)) throw new Error(`registry: the command "${c.id}" is declared twice`);
+    if (commands.some((x) => x.order === c.order)) throw new Error(`registry: two commands at order ${c.order}`);
+    commands.push(c);
+  }
+  return Object.freeze({ tabs, slots, commands: Object.freeze(commands.sort((a, b) => a.order - b.order)) });
 }
 
 /** The view of this tab's kind (the one place its type is narrowed to the tab's). */

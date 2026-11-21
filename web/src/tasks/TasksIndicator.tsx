@@ -1,9 +1,6 @@
-import { useT, useAppDispatch, useAppSelector, keysLabel } from '@/sdk';
-import { BINDINGS } from '@/shell/keymap.ts';
+import { useT, useAppDispatch, useAppSelector, withKey } from '@/sdk';
 import { DRAWER_ID, INDICATOR_ID } from './TasksDrawer.tsx';
 import { selectDrawerOpen, selectFinishedCount, selectRunningCount, selectWatcherCount, toggleDrawer } from './slice.ts';
-
-const hotkey = (() => { const b = BINDINGS.find((x) => x.id === 'hk_tasks'); return b ? keysLabel(b) : ''; })();
 
 /**
  * Under the composer: `⚙ N tasks` with N = the running ones, pulsing while N > 0; when only finished tasks are left,
@@ -27,7 +24,7 @@ export function TasksIndicator() {
         aria-expanded={open}
         aria-controls={open ? DRAWER_ID : undefined}
         aria-label={t('tasksLabel')}
-        title={`${t('tasksLabel')} (${hotkey})`}
+        title={withKey(t('tasksLabel'), 'hk_tasks')}
         onClick={() => d(toggleDrawer())}
         className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-muted/50 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
       >

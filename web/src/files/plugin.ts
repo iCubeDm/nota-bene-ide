@@ -9,6 +9,7 @@ import { fileTab } from './FileView.tsx';
 import { Tree } from './FileTree.tsx';
 import { FilesToggle } from './FilesToggle.tsx';
 import { RecentFiles } from './RecentFiles.tsx';
+import { filesCommands } from './commands.ts';
 
 declare module '@/sdk' {
   interface PluginState extends WithSlice<typeof treeSlice>, WithSlice<typeof filesSlice> {}
@@ -23,6 +24,7 @@ export const filesPlugin = definePlugin({
     { slot: 'panel.left', order: 30, render: Tree },
     { slot: 'overlay', order: 40, render: RecentFiles },
   ],
+  commands: filesCommands,
   listeners: (start) => {
     // a root's saved folders: merged on the first root (folders expanded before it was known stay), replacing after
     start({
