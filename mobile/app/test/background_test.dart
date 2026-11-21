@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_app/main.dart' show watchSeen;
 import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/hosts/link_life.dart';
 import 'package:nb_app/l10n/app_localizations.dart';
@@ -78,7 +79,7 @@ class Kit {
       sleep: (_) => Completer<void>().future,
     );
     seen = await Seen.load(v);
-    seen.watch(hosts, links);
+    watchSeen(seen, hosts, links);
     notified = await Notified.load(v);
     visible = AppVisible.test();
     platform = FakeBackground(answer: answer, allow: allow);

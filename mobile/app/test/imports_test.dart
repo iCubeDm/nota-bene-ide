@@ -63,8 +63,8 @@ void main() {
     },
   );
 
-  test('the stores import only stores, the theme ids and the host links', () {
-    const above = {'../theme.dart', '../hosts/host_link.dart'};
+  test('the stores import only stores and the theme ids', () {
+    const above = {'../theme.dart'};
     final bad = [
       for (final f in _lib((p) => p.startsWith('store/')))
         for (final i in _imports(f))

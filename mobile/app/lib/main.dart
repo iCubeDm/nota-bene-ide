@@ -20,8 +20,9 @@ import 'pairing/pair_flow.dart';
 import 'pairing/scan_screen.dart';
 import 'sdk.dart';
 import 'settings_screen.dart';
-import 'store/hosts.dart' show Identity;
+import 'store/hosts.dart' show Hosts, Identity;
 import 'store/lang_choice.dart';
+import 'store/seen.dart';
 import 'store/sizes.dart';
 import 'store/storage.dart';
 import 'store/voice_lang.dart';
@@ -65,6 +66,22 @@ Future<void> main() async {
   );
 }
 
+/// [seen] follows the host stream: a session met for the first time counts as seen up to its replies (recorded when the
+/// window list arrives, never while a row is built), and the entries of an unpaired host are dropped.
+void watchSeen(Seen seen, Hosts hosts, Links links) {
+  void pruned() => seen.prune({for (final h in hosts.all) h.id});
+  void observed() {
+    for (final l in links.all) {
+      seen.observe(l.host.id, l.windows);
+    }
+  }
+
+  hosts.addListener(pruned);
+  links.addListener(observed);
+  pruned();
+  observed();
+}
+
 /// Loads the phone key and the pairings, then the start screen.
 class AppRoot extends StatefulWidget {
   const AppRoot({
@@ -100,7 +117,7 @@ class _AppRootState extends State<AppRoot> {
     );
     final AppStores(:hosts, :seen, :notified) = stores;
     final links = Links(hosts, connectChannel, id);
-    seen.watch(hosts, links);
+    watchSeen(seen, hosts, links);
     hosts.addListener(() => notified.prune({for (final h in hosts.all) h.id}));
     final life = LinkLife(links, _visible);
     final background = Background(
