@@ -1,10 +1,8 @@
 import type { WithSlice } from '@reduxjs/toolkit';
-import { bool, clearRefCache, definePlugin, enterRoot, json, serverEvent, storage } from '@/sdk';
+import { bool, clearRefCache, definePlugin, enterRoot, json, serverEvent, storage, loadSources, setTmpDirs } from '@/sdk';
 import { filesSlice } from './slice.ts';
 import { readSavedDirs, setDirs, treeKey, treeSlice } from './treeSlice.ts';
-import { loadSources } from './sources.ts';
 import { pushRecent, RECENT_DWELL_MS } from './recent.ts';
-import { setTmpDirs } from './tmpImages.ts';
 import { fileTab } from './FileView.tsx';
 import { Tree } from './FileTree.tsx';
 import { FilesToggle } from './FilesToggle.tsx';

@@ -4,8 +4,7 @@
 // made again, under a new URL only when its source changed), and polls a part every second while it is made, only as
 // long as the edit still wants it. The preview plays the copy, the timeline marks a clip whose copy is not there.
 import { isPhotoSrc, type Cut } from '@nota-bene/shared/cut';
-import { projectFileUrl } from '@/files/kinds.ts';
-import { connections, routes } from '@/sdk';
+import { connections, routes, projectFileUrl } from '@/sdk';
 
 /** The copy's URL; still being made; refused (no ffmpeg, a failed copy); too long to hold in memory; or an edit of another branch or worktree, whose copies the server does not make. */
 export type Reversed = { url: string } | 'making' | 'failed' | 'too-long' | 'elsewhere';

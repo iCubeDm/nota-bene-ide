@@ -2,7 +2,7 @@ import { useMemo, useSyncExternalStore } from 'react';
 import type { VcsDiff, VcsFile, VcsPatch } from '@nota-bene/shared';
 import { bool, defineResource, json, routes, storage, useResource, type Route } from '@/sdk';
 
-/** The git views' shared state, outside Redux as `files/sources.ts` is: the tool window and the tab share one fetch. */
+/** The git views' shared state, outside Redux as `refs/sources.ts` is: the tool window and the tab share one fetch. */
 export type RepoDiff = Extract<VcsDiff, { repo: true }>;
 type Ui = {
   panel: boolean;

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { isAttachmentAnchor, type AttachmentAnchor, type MediaShape } from '@nota-bene/shared';
 import { CommentPopup } from '@/comments/CommentPopup.tsx';
 import { selectComments } from '@/comments/slice.ts';
-import { useMarkPopup } from '@/files/view/useMediaMarkup.ts';
+import { useMarkPopup } from '@/media/useMediaMarkup.ts';
 import { useT, toast, useAppDispatch, useAppSelector, connections, routes } from '@/sdk';
 import { prepareAttachmentComment } from '@/media/markup/createMediaComment.ts';
 import { MarkupLayer } from '@/media/markup/MarkupLayer.tsx';

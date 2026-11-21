@@ -3,7 +3,8 @@ import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
 import { makeStore, stubRoutes } from '@/testing';
 import { clearRefCache, openRef } from '../refs/refs.ts';
 import { MediaController } from '../store/mediaController.ts';
-import { filesSlice, setFileLoad } from '../files/slice.ts';
+import { setFileLoad } from '../files/slice.ts';
+import { requestJump } from './jump.ts';
 import { setSource, toggleDir } from '../files/treeSlice.ts';
 import { activate, CLOSED_MAX, closeAll, closeOthers, closeRight, closeTab, diagramTabId, fileTabId, openChanges, openDiagram, openFile, openLog, openRemote, openSettings, openUsage, reopenClosed, selectActiveTab, selectTabs } from './slice.ts';
 
@@ -15,7 +16,6 @@ function mk() {
   });
   return { store, ev: (e: ServerEvent) => onEvent(e), session: (root: string) => onEvent({ kind: 'session', id: null, root, title: null, model: null }) };
 }
-const requestJumpForTest = filesSlice.actions.requestJump;
 const ids = (s: ReturnType<typeof mk>['store']) => selectTabs(s.getState()).open.map((t) => t.id);
 
 beforeEach(() => localStorage.clear());
@@ -165,13 +165,13 @@ it('a re-root resets the tree to the new root\'s saved folders in this folder\'s
   m.store.dispatch(setSource({ id: 'ref:x', dirs: ['lib'] }));
   m.store.dispatch(setFileLoad({ path: 'a.md', s: 'loaded' }));
   m.store.dispatch(openFile('a.md'));
-  m.store.dispatch(requestJumpForTest({ path: 'a.md', src: 'here', id: 'c1' }));
+  m.store.dispatch(requestJump({ path: 'a.md', src: 'here', id: 'c1' }));
   m.session('/r2');
   const st = m.store.getState();
   expect(st.tree.src).toBe('here');
   expect(st.tree.dirs).toEqual(['docs']);
   expect(st.files.load).toEqual({});
-  expect(st.files.jump).toBeNull();
+  expect(st.jump).toBeNull();
   expect(JSON.parse(localStorage.getItem('tree:/r1')!)).toEqual(['src']);
   m.session('/r1');
   expect(m.store.getState().tree.dirs).toEqual(['src']);

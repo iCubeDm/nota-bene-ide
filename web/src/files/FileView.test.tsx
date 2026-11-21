@@ -10,7 +10,7 @@ import { addShape, selectDraft, setTool } from '@/media/markup/slice.ts';
 import { dismissToast, getToasts } from '@/shell/toast.ts';
 import { FileView } from './FileView.tsx';
 import { jumpToFileComment, selectFileVersion } from './slice.ts';
-import { setStartAt } from './startAt.ts';
+import { setStartAt } from '@/refs/startAt.ts';
 import { wrapLines } from './wrap.ts';
 
 // like the real one: awaits the version request it was handed and returns it in the anchor patch
@@ -486,7 +486,7 @@ it('jump seeks and pauses the video, once its metadata is loaded', () => {
   const pause = vi.spyOn(v, 'pause').mockImplementation(() => {});
   act(() => { store.dispatch(jumpToFileComment('v.mp4', 'm1')); });
   expect(pause).toHaveBeenCalled();
-  expect(store.getState().files.jump).toBeNull(); // consumed
+  expect(store.getState().jump).toBeNull(); // consumed
   expect(v.currentTime).toBe(0); // no metadata yet: a seek now would be lost
   ready = 1;
   fireEvent(v, new Event('loadedmetadata'));
@@ -505,7 +505,7 @@ it('jump on a video with metadata seeks at once; on an image it only opens the t
   const img = setup('p.png');
   act(() => { img.store.dispatch(serverEvent({ kind: 'comments', items: [mediaOn('p.png')] })); });
   act(() => { img.store.dispatch(jumpToFileComment('p.png', 'm1')); });
-  expect(img.store.getState().files.jump).toBeNull();
+  expect(img.store.getState().jump).toBeNull();
   expect(img.store.getState().tabs.active).toBe('file:p.png');
 });
 

@@ -1,4 +1,4 @@
-import { fileUrl } from '@/files/kinds.ts';
+import { fileUrl } from '@/sdk';
 
 /**
  * What the page frame gets: the file's HTML with nothing that runs (the frame's sandbox already stops scripts; a

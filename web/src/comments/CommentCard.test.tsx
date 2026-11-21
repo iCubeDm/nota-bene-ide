@@ -298,7 +298,7 @@ it('clicking the thumbnail jumps to the media tab', () => {
   const { store, view } = setup(mediaComment(), false, false);
   fireEvent.click(view.container.querySelector('[data-media-thumb]')!);
   expect(store.getState().tabs.active).toBe('file:media/clip.mp4');
-  expect(store.getState().files.jump).toMatchObject({ path: 'media/clip.mp4', id: 'c1' });
+  expect(store.getState().jump).toMatchObject({ path: 'media/clip.mp4', id: 'c1' });
 });
 
 const cutEdit = (clips: Cut['clips']): Cut => ({ version: 1, width: 64, height: 64, fps: 25, tracks: [{ id: 'a1', kind: 'audio' }], clips });
@@ -315,7 +315,7 @@ it('issue 430: a cut card shows the clip and the time, jumps to the edit, and sa
   act(() => setLiveCut(path, undefined, cutEdit([{ id: 'c4', track: 'a1', src: 'media/voice.wav', at: 3, out: 9 }])));
   expect(screen.queryByText('clip no longer in the edit')).toBeNull();
   fireEvent.click(quote);
-  expect(store.getState().files.jump).toMatchObject({ path, id: 'c1' });
+  expect(store.getState().jump).toMatchObject({ path, id: 'c1' });
   act(() => setLiveCut(path, undefined, null));
 });
 

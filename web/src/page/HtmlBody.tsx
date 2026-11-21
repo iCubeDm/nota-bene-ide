@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type Ref } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { isPageAnchor, isTextAnchor, type FileSource } from '@nota-bene/shared';
-import { scrollRangeIntoView, scrollRectIntoView, rangeForAnchor, useT, useAppDispatch, useAppSelector, openFile } from '@/sdk';
+import { scrollRangeIntoView, scrollRectIntoView, rangeForAnchor, useT, useAppDispatch, useAppSelector, openFile, clearJump, selectJump, editable, useFeature, type FileBar } from '@/sdk';
 import { CommentPopup, type PendingComment } from '@/comments/CommentPopup.tsx';
 import { flashRange, flashRects, HighlightLayer } from '@/comments/HighlightLayer.tsx';
 import { selectComments } from '@/comments/slice.ts';
-import { areaAnchor, areaRect, elementAnchor, nearOf, pickTarget, resolvePage, toUserBox } from '@/page/anchor.ts';
-import { outOf, pageRendered } from '@/page/frame.ts';
-import { preparePage } from '@/page/prep.ts';
-import { clearJump, selectJump } from '../slice.ts';
+import { areaAnchor, areaRect, elementAnchor, nearOf, pickTarget, resolvePage, toUserBox } from './anchor.ts';
+import { outOf, pageRendered } from './frame.ts';
+import { preparePage } from './prep.ts';
 
 /** how often (ms) a shown page is measured: the frame takes the page's height, so the pane scrolls it */
 const MEASURE_MS = 400;
@@ -36,17 +35,38 @@ function forward(frame: HTMLIFrameElement, e: MouseEvent | KeyboardEvent): boole
 /**
  * A rendered `.html` file: the page in a sandboxed frame (no script of it ever runs: the window holds the access key),
  * as tall as the page, inside the pane that scrolls it. Its text is commented on like a Markdown file's (the frame's
- * body is the text root, see page/frame.ts). `marking`: a click comments on an element, a drag inside an SVG on an area.
+ * body is the text root, see page/frame.ts). Marking (N, or its button in the tab's header): a click comments on an
+ * element, a drag inside an SVG on an area.
  */
-export function HtmlBody({ html, path, src, fileRef, tabId, active, paneRef, marking, onScripts }: {
-  html: string; path: string; src: string; fileRef: string | undefined; tabId: string; active: boolean;
-  paneRef: Ref<HTMLDivElement>; marking: boolean; onScripts: (has: boolean) => void;
+export function HtmlBody({ text: html, path, src, fileRef, tabId, active, bar }: {
+  text: string; path: string; src: string; fileRef: string | undefined; tabId: string; active: boolean; bar: FileBar;
 }) {
   const t = useT();
   const dispatch = useAppDispatch();
   const baseDir = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : undefined;
   const page = useMemo(() => preparePage(html, baseDir, src), [html, baseDir, src]);
-  useEffect(() => onScripts(page.scripts), [page.scripts, onScripts]);
+  const [pageMarking, setPageMarking] = useState(false);
+  // an older server would refuse a comment on an element (`pageAnchors`): marking is offered from it on
+  const canMark = useFeature('pageAnchors');
+  const marking = canMark && pageMarking;
+  const pageMarkingNow = useRef(pageMarking);
+  pageMarkingNow.current = pageMarking;
+  // N marks, Esc leaves (an open comment popup takes its own Esc first)
+  useEffect(() => {
+    if (!active || !canMark) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || editable(e.target)) return;
+      if (e.code === 'KeyN' && !e.shiftKey) {
+        e.preventDefault();
+        setPageMarking((v) => !v);
+      } else if (e.key === 'Escape' && pageMarkingNow.current) {
+        e.preventDefault();
+        setPageMarking(false);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [active, canMark]);
   const frame = useRef<HTMLIFrameElement>(null);
   const pane = useRef<HTMLDivElement | null>(null);
   const hover = useRef<HTMLDivElement>(null);
@@ -58,12 +78,6 @@ export function HtmlBody({ html, path, src, fileRef, tabId, active, paneRef, mar
   const source: FileSource = useMemo(() => (fileRef ? { kind: 'file', path, ref: fileRef } : { kind: 'file', path }), [path, fileRef]);
   const now = useRef({ marking, popup, source, src, baseDir, active });
   now.current = { marking, popup, source, src, baseDir, active };
-
-  const setPane = (el: HTMLDivElement | null) => {
-    pane.current = el;
-    if (typeof paneRef === 'function') paneRef(el);
-    else if (paneRef) (paneRef as { current: HTMLDivElement | null }).current = el;
-  };
 
   // the page's height, measured while it is shown; a page that grows with its frame is stopped after a few steps
   useEffect(() => {
@@ -241,7 +255,7 @@ export function HtmlBody({ html, path, src, fileRef, tabId, active, paneRef, mar
 
   return (
     <div
-      ref={setPane} data-pane={tabId} data-file-path={path} data-file-ref={fileRef} data-page-pane hidden={!active}
+      ref={pane} data-pane={tabId} data-file-path={path} data-file-ref={fileRef} data-page-pane hidden={!active}
       className="grid-pane relative min-h-0 flex-1 overflow-auto"
     >
       <iframe
@@ -261,6 +275,12 @@ export function HtmlBody({ html, path, src, fileRef, tabId, active, paneRef, mar
           <CommentPopup key={popup.rect.x + ':' + popup.rect.y} pending={popup} onClose={() => setPopup(null)} hidden={!active} />
         </div>,
         document.body,
+      )}
+      {page.scripts && bar.before && createPortal(<span title={t('pageScriptsOffTip')}>{t('pageScriptsOff')}</span>, bar.before)}
+      {canMark && bar.after && createPortal(
+        <button type="button" aria-pressed={pageMarking} title={t('pageMarkTip')} onClick={() => setPageMarking((v) => !v)}
+          className={`rounded px-1.5 hover:bg-muted hover:text-foreground ${pageMarking ? 'bg-muted text-foreground' : ''}`}>{t('pageMark')}</button>,
+        bar.after,
       )}
     </div>
   );

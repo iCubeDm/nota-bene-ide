@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { setTmpDirs } from '@/files/tmpImages.ts';
+import { setTmpDirs } from '@/refs/tmpImages.ts';
 import { setLang } from '@/i18n/index.ts';
 import { makeStore } from '@/testing';
 import { selectTabs } from '@/tabs/slice.ts';

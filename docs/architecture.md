@@ -307,9 +307,9 @@ The directories of `web/src` are cut by feature, not by layer. Each holds its ow
 | `composer/` | The input field, `@` mentions (`/complete`), the `/` menu (`SlashPicker`, `slashRank.ts`), the `!` shell mode (`shellMode.ts`), rollback of a refused send (`refused.ts`), the prompt history (`history.ts`: the `promptHistory` slice and the middleware that records a prompt on the server's echo, `PromptHistory.tsx`: the Alt+H list; ↑/↓ recall lives in `Composer.tsx`). |
 | `comments/` | Selection to popup to card, the panel, `HighlightLayer`, batch assembly (`compose.ts`, `send.ts`), labels, emoji. |
 | `anchors/` | Anchors as text offsets plus `quote/prefix/suffix` of 32 characters each, and re-anchoring when the text changes (`resolve.ts`). |
-| `page/` | Rendered HTML pages (`files/view/HtmlBody.tsx`). `prep.ts` strips what could run and points relative resources at `/file`; the page goes into an `<iframe sandbox="allow-same-origin" srcdoc>` (no scripts) as tall as the page. `frame.ts` carries the comment machinery across the frame (selection, rects, mouse and key events). `anchor.ts`: `PageAnchor` from an element or an SVG area, and `resolvePage`. |
-| `files/`, `tree/`, `tabs/` | The tree, file viewing and editing, icons, recent files, sources (branches and worktrees), tabs and the ▾ menu. Subfolders: `files/tree`, `files/view` (`TextBody`, `MediaBody`, `HtmlBody`, `FileEditor`, `useFileLoad`). |
-| `cut/` | The video editor. An edit is a `*.nbcut.json` file; its types and `validateCut` are in `shared/src/cut.ts` and `cutCheck.ts`. `FileView` shows it through `CutBody` (Timeline / Source); `layout.ts` places what it can of the parsed JSON, valid or not; `cut/export/` is the export. |
+| `page/` | Rendered HTML pages (`HtmlBody.tsx`, a file view). `prep.ts` strips what could run and points relative resources at `/file`; the page goes into an `<iframe sandbox="allow-same-origin" srcdoc>` (no scripts) as tall as the page. `frame.ts` carries the comment machinery across the frame (selection, rects, mouse and key events). `anchor.ts`: `PageAnchor` from an element or an SVG area, and `resolvePage`. |
+| `files/`, `tree/`, `tabs/` | The tree, file viewing and editing, icons, recent files, sources (branches and worktrees), tabs and the ▾ menu. Subfolders: `files/tree`, `files/view` (`TextBody`, `FileEditor`, `useFileLoad`). A file tab shows a file through the first matching `fileViews` entry (`cut`, `page`, `media`), else as text. Where files are (kinds and URLs, sources, temp images) is core: `refs/`. |
+| `cut/` | The video editor. An edit is a `*.nbcut.json` file; its types and `validateCut` are in `shared/src/cut.ts` and `cutCheck.ts`. `FileView` shows it through `CutBody`, its file view (Timeline / Source); `layout.ts` places what it can of the parsed JSON, valid or not; `cut/export/` is the export. |
 | `media/` | `MediaController` (pause and PiP between tabs), the player and its keys, and `markup/` (geometry in 0..1, rendering to `frame.jpg` + `layer.png`, and `mask.png` for polygons). |
 | `controls/` | Mode, session switcher, compact/clear, restart, idle compaction, model and effort. |
 | `settings/`, `shell/`, `stats/` | The Settings tab; header, footer, strips, keymap, toasts, favicon, `OneTab` (the overlay "the window is already open" / "open in another tab"), `LoginRequired` (the overlay "This window is not logged in"); meters. |
@@ -354,7 +354,7 @@ App
 └── overlays: SelectionButton, CommentPopup, CommentCardPopover, Toasts, RecentFiles, OneTab, LoginRequired
 ```
 
-- **Large components are split into compositions:** `FileTree` = `TreeHeader` + `TreeRow` + the hooks `useTreeEntries` / `useExpandAll`; `FileView` = `TextBody` / `MediaBody` + `useFileLoad` / `useMediaMarkup`; `CommentCard` = `CardActions` + `useCommentSource`.
+- **Large components are split into compositions:** `FileTree` = `TreeHeader` + `TreeRow` + the hooks `useTreeEntries` / `useExpandAll`; `FileView` = a file view (`MediaBody`, `HtmlBody`, `CutBody`) or `TextBody` + `useFileLoad`; `CommentCard` = `CardActions` + `useCommentSource`.
 - **Panels are docked**: an open panel narrows the middle column instead of covering it.
 - **All tab panes stay mounted**; inactive ones are just `hidden`. Anchors, `HighlightLayer` and autoscroll depend on the stable DOM of the chat.
 - **Highlights** are drawn as `Range.getClientRects()` rectangles in a layer over the content; the text DOM is not touched.
@@ -378,7 +378,7 @@ App
 | `files/view/useTmpImage.ts` | `GET /tmpimage?path` | A temp image through `apiFetch` into a blob URL. |
 | `files/FileView.tsx` | `/file` (HEAD, Range probe, GET) | Viewing; the ETag serves as the version for media anchors. |
 | `composer/MentionPicker.tsx`, `files/RecentFiles.tsx` | `/complete?q` | The CLI's search (`file_suggestions`) and our own file index in parallel; the results are merged. |
-| `files/sources.ts`, `vcs/GitBranch.tsx` | `/sources`, `/git-status`, `/vcs-branches` | Branches and worktrees, the branch picker. |
+| `refs/sources.ts`, `vcs/GitBranch.tsx` | `/sources`, `/git-status`, `/vcs-branches` | Branches and worktrees, the branch picker. |
 | `vcs/` | `/vcs-*` | Changes (panel and tab, one file at a time) and the Git log. |
 | `controls/AgentAccount.tsx` | `GET/POST /agent-account` | Codex account status and native sign-in URL; retry restarts the session. |
 | `controls/SessionPicker.tsx` | `/sessions` | Sessions of the window's provider with their cwd; native Codex list or Claude SDK list. |

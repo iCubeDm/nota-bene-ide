@@ -4,8 +4,8 @@ import { PATH_MIME } from '@/cut/drag.ts';
 import { downloadUrl, PATHS_MIME } from '@/files/drag.ts';
 import { Svg } from '@/tabs/TabStrip.tsx';
 import { FileIcon } from '../FileIcon.tsx';
-import { fileKey } from '../sources.ts';
 import { join } from './useExpandAll.ts';
+import { fileKey } from '@/sdk';
 
 /** What the rows read: the listings, the open folders, the filter, the badges, the active file and the source. */
 export type RowsCtx = {

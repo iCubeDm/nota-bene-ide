@@ -139,7 +139,7 @@ export function useCommentSource(c: Comment | undefined): CommentSource {
     if (c && isAttachmentAnchor(c.anchor)) return void (attached && dispatch(markAttachment(c.anchor.image))); // the markup of its image, while the image is in the composer
     const src = anchorSrc;
     if (!c || !src) return;
-    // a file: open (or activate) its tab; the view scrolls once its text is loaded (files.jump)
+    // a file: open (or activate) its tab; the view scrolls once its text is loaded (the jump)
     if (src.kind === 'file') return void dispatch(jumpToFileComment(src.path, c.id, src.ref));
     // an action's panel exists only while it and its group are open (R-M7-19): open both, and render, before looking
     const tool = src.id.startsWith(TOOL_SRC);

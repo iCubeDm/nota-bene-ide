@@ -3,7 +3,7 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Comment, ServerEvent } from '@nota-bene/shared';
 import { Markdown } from '@/feed/Markdown.tsx';
-import { takeStartAt } from '@/files/startAt.ts';
+import { takeStartAt } from '@/refs/startAt.ts';
 import { setLang } from '@/i18n/index.ts';
 import { serverEvent } from '@/store/store.ts';
 import { makeStore } from '@/testing';

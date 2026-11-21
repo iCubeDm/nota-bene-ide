@@ -1,8 +1,8 @@
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { t } from '@/i18n/index.ts';
-import { fileUrl, isPath } from '@/files/kinds.ts';
-import { isTmpImagePath } from '@/files/tmpImages.ts';
-import { getSources, loadSources, refOf, sourceForAbs } from '@/files/sources.ts';
+import { fileUrl, isPath } from './kinds.ts';
+import { isTmpImagePath } from './tmpImages.ts';
+import { getSources, loadSources, refOf, sourceForAbs } from './sources.ts';
 import { isServerDrivePath, serverSep, slashRel, wireAbs } from '@/lib/paths.ts';
 import type { AppThunk } from '@/store/store.ts';
 import { openFile } from '@/tabs/slice.ts';

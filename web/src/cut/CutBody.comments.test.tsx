@@ -139,7 +139,7 @@ it('the card\'s jump seeks the timeline and selects the clip', async () => {
   act(() => void store.dispatch(jumpToFileComment('e.nbcut.json', 'k1')));
   await waitFor(() => expect(time()).toMatch(/^0:02\.5/));
   expect(clip('c1')).toHaveAttribute('data-selected');
-  expect(store.getState().files.jump).toBeNull();
+  expect(store.getState().jump).toBeNull();
 });
 
 it('a blade cut takes a comment on the right part along to it, as S does (issue 432)', async () => {

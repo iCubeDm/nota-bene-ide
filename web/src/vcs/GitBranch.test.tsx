@@ -6,7 +6,7 @@ import type { ServerEvent, Source } from '@nota-bene/shared';
 import { setLang } from '@/i18n/index.ts';
 import { serverEvent } from '@/store/store.ts';
 import { makeStore } from '@/testing';
-import { resetSources, setSources } from '@/files/sources.ts';
+import { resetSources, setSources } from '@/refs/sources.ts';
 import { selectTree } from '@/files/treeSlice.ts';
 import { Header } from '@/shell/Header.tsx';
 
