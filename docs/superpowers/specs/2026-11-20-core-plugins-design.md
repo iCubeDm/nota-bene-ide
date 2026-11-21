@@ -323,8 +323,8 @@ inventing one.
 | `AgentConnection` | `WindowConnection` (`chat/window_connection.dart`): the mux stream, open/close, reconnect, passive and takeover, `send`, `has(Feature)`; split out of `WindowTab` |
 | window state | `WindowState` (`chat/window_state.dart`, `ChangeNotifier`): feed, models/mode/effort, held sends, compaction and restart pending, stats; `apply(ServerEvent)` |
 | `WindowTab` | stays as the per-window composition (screens use it): owns one `WindowConnection`, one `WindowState` and the window's feature controllers (`Comments`, voice outbox, `MediaCache`), no logic of its own |
-| `repository` | `Repository` classes over `WindowHttp` with generated types: `FilesRepository` (`files/remote.dart`: `/tree`, `/complete`, `/file`), `GitRepository` (`files/git.dart`), `IconRepository` (`hosts/project_icon.dart`). No shared poll object: the host stream pushes the window list, and the one data poll left (`/dictation` in `dictation/whisper_sheet.dart`) does not pay for one |
-| `storage` | `AppStores`: the record of vault-backed stores built in `main.dart` `_load` (hosts, seen, notified, notify choice, voice lang, voice outboxes, comment queues, project icons), replacing `CommentQueues.instance`, `VoiceStore.instance`, `ProjectIcons.instance` and the resets in `test/support/rig.dart:58-60` |
+| `repository` | Not built (call 30, issue 547): free functions with generated types take a `WindowTab` (`files/remote.dart`: `/tree`, `/complete`, `/file`; `files/git.dart`), and `putProjectIcon`/`deleteProjectIcon` take a `WindowHttp` (`hosts/project_icon.dart`). The design was `Repository` classes over `WindowHttp` (`FilesRepository`, `GitRepository`, `IconRepository`). No shared poll object: the host stream pushes the window list, and the one data poll left (`/dictation` in `dictation/whisper_sheet.dart`) does not pay for one |
+| `storage` | `AppStores`: the record of stores built in `main.dart` `_load` (hosts, seen, notified, notify choice, voice outboxes, comment queues, project icons), replacing `CommentQueues.instance`, `VoiceStore.instance`, `ProjectIcons.instance` and the resets in `test/support/rig.dart:58-60`. The voice language is not in it (call 31). There is no storage interface: the members are the stores themselves (call 30, issue 547) |
 | `Sdk` | `Sdk` (`lib/sdk.dart`): `{ AppStores stores; Links links; Identity id; Background background }`, passed down where `_load`'s record is today |
 | capabilities | generated `Feature` / `hasFeature`; `WindowConnection.has(f)` |
 | registries | none. Events and anchors are generated sealed classes and the feed items hand-written sealed classes (`chat/feed.dart`); an exhaustive `switch` is the registry and the compiler checks completeness. Screens are pushed routes. A Dart registry would add indirection and lose that check |
@@ -455,9 +455,19 @@ result.
     of the folder does not move it.
 29. **Answers** (step 4b): the union variants got names (`VcsNoRepo`, `VcsRepoDiff`, `GitSwitched`, `GitSwitchRefusal`).
     The hand-parsed icon answer was `PUT /project-icon` `{ icon }`, not `/info.icon`. Parsing is strict.
-30. **No phone `Repository` classes** (step 4b): the generated types are parsed in the existing helpers over
-    `WindowTab` (`files/remote.dart`, `files/git.dart`, `hosts/project_icon.dart`). This replaces call 16's
-    `Repository` and the mirror table's `repository` row.
+30. **The phone does not mirror the web's names** (steps 4b, 12, 13). This departs from the owner's decision that both
+    apps share one architecture and its names (Connection, Repository, Storage, Capabilities, Registry, Sdk). It awaits
+    the owner's sign-off, and issue 547 tracks closing the gap. What exists, by the web's name:
+    - Connection: `WindowConnection` (`chat/window_connection.dart`), not `AgentConnection`.
+    - Repository: none. The data helpers are free functions over a `WindowTab` (`files/remote.dart`,
+      `files/git.dart`), or over a `WindowHttp` (`putProjectIcon`, `deleteProjectIcon` in `hosts/project_icon.dart`),
+      not over the `WindowConnection` (see call 32).
+    - Storage: none. The stores are `AppStores` members.
+    - Capabilities: the generated `Feature` / `hasFeature` and `WindowConnection.has`, not `FEATURES` / `has`.
+    - Registry: none (call 16).
+    - Sdk: `Sdk` and `AppStores` (`lib/sdk.dart`), as designed.
+
+    This replaces call 16's `Repository` and the mirror table's `repository` row.
 31. **`AppStores`** (step 12) leaves out the voice language and the other choices loaded before the first frame, which
     keep one owner in `main()`. `VoicePlayer.shared` and `ClipFiles.shared` stay: they are platform players, not
     stores.
@@ -465,7 +475,8 @@ result.
     `windowState`, so the screens and their tests read it unchanged. The voice retry, the comment composition and
     the outbox reconcile after a replay stay in it. A later mechanical follow-up has the screens read
     `tab.connection.*` / `tab.windowState.*`, drops the forwarders and moves that glue into the voice outbox and
-    comments.
+    comments. The data helpers of call 30 still take the `WindowTab` (or a `WindowHttp`), not the `WindowConnection`;
+    issue 547 covers moving them too.
 33. **Connection** (step 5a): the socket opens at an internal `open()` once the connection is registered. `useFeature`
     reads the `controls` slice's protocol, not a copy in `conn`. A repeated identical state is not mirrored. The
     thunk extra is `{ connections, registry, sent }`: the registry came with step 9a, the taken send parts with step
