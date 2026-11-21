@@ -80,7 +80,7 @@ export type FeedKind = Exclude<FeedItem['kind'], 'tool'>;
 /** A send the server holds (issue 499), behind a pending restart or a compaction. */
 export type Held = 'restart' | 'compact';
 
-/** How the feed (`feed/Feed.tsx`) draws its items of one kind (issue 511); a kind is drawn by one plugin only. */
+/** How the feed (`plugins/feed/Feed.tsx`) draws its items of one kind (issue 511); a kind is drawn by one plugin only. */
 export interface FeedRenderer<K extends FeedKind = FeedKind> {
   kind: K;
   /** `held`: a user message the server holds, drawn after the feed */
@@ -111,7 +111,7 @@ export interface UserPart {
 }
 
 /**
- * How a file tab shows a file of some kind (issue 511): the file tab (`files/FileView.tsx`) keeps the header, the load
+ * How a file tab shows a file of some kind (issue 511): the file tab (`plugins/files/FileView.tsx`) keeps the header, the load
  * and the text, which is every file no view matches and the ‹Source› of a text view. The first match by ascending order
  * shows the file. A view takes its own "jump to source" (`selectJump`, then `clearJump`) once the comment is on screen.
  */

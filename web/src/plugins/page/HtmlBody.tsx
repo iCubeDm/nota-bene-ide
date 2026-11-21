@@ -31,7 +31,7 @@ function forward(frame: HTMLIFrameElement, e: MouseEvent | KeyboardEvent): boole
 /**
  * A rendered `.html` file: the page in a sandboxed frame (no script of it ever runs: the window holds the access key),
  * as tall as the page, inside the pane that scrolls it. Its text is commented on like a Markdown file's (the frame's
- * body is the text root, see anchors/frame.ts). Marking (N, or its button in the tab's header): a click comments on an
+ * body is the text root, see core/anchors/frame.ts). Marking (N, or its button in the tab's header): a click comments on an
  * element, a drag inside an SVG on an area.
  */
 export function HtmlBody({ text: html, path, src, fileRef, tabId, active, bar }: {
