@@ -6,10 +6,10 @@ import type { AddressInfo } from 'node:net';
 import type { Duplex } from 'node:stream';
 import { EventEmitter } from 'node:events';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { isAttachmentAnchor, parseClientMessage, PROTOCOL, TAKEN_OVER_CODE } from '@nota-bene/shared';
+import { isAttachmentAnchor, isSessionId, parseClientMessage, PROTOCOL, TAKEN_OVER_CODE } from '@nota-bene/shared';
 import type { ClientMessage, Comment, RemoteState, ServerEvent, Stats } from '@nota-bene/shared';
 import type { ProviderBackend as AgentBackend } from './agent/types.ts';
-import type { AgentProvider } from './agent/provider.ts';
+import { parseProvider, type AgentProvider } from './agent/provider.ts';
 import { guard, reportError } from './errors.ts';
 import { HistoryArchive, historyRoutes } from './archive.ts';
 import { subagentRoutes } from './subagent.ts';
@@ -27,14 +27,14 @@ import { readPrefs } from './prefs.ts';
 import { agentPrefix, httpHandler, isAllowedHost, pathOf } from './http.ts';
 import { SwitchError, createSessionManager, trackedCommand } from './session.ts';
 import type { IdleConfig } from './idle.ts';
-import { archiveRoute, deleteRoute, listSessionsView, renameRoute, seenRoute } from './sessions.ts';
+import { archiveRoute, deleteRoute, launchTarget, listSessionsView, renameRoute, seenRoute } from './sessions.ts';
 import { readArchived, setArchived } from './archivedSessions.ts';
 import { markSeen, readSeen } from './seen.ts';
 import { codeChecker } from './codeStamp.ts';
 import { agentContext, envAgentContext, forgetSession, launchAgentId, newAgentId, stateBaseDir, type AgentContext } from './state.ts';
 import { AuditLog } from './audit.ts';
 import { moveWindow } from './windows.ts';
-import { pidAlive } from './platform.ts';
+import { pidAlive, samePath } from './platform.ts';
 import { controlToken, describeVersion, listWindows, readJson, systemRoutes } from './system.ts';
 import { RESTART, restartGate } from './restartGate.ts';
 import { compactOrder } from './compactOrder.ts';
@@ -121,6 +121,8 @@ export type ServerOptions = {
   remote?: RemoteKeeper;
   /** which agent this is and where its data lives (main.ts); default: the one NOTA_BENE_AGENT chose */
   agent?: AgentContext;
+  /** a backend for another agent of `provider` (main.ts; tests pass fakes); absent = no agent beyond the first */
+  backends?: (provider: AgentProvider) => AgentBackend;
 };
 
 /** One agent of a server (epic 383): a provider's session line in a folder, today's window minus the process. */
@@ -156,6 +158,8 @@ type Shared = {
   requestRestart: () => boolean;
   exiting: () => boolean;
   exitWith: (code: number) => void;
+  /** POST /control/open, set once the server is up */
+  controlOpen: (body: unknown) => Promise<{ status: number; body: unknown }>;
 };
 
 type Agent = {
@@ -184,6 +188,8 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
   const hub = new EventHub();
   hubs.add(hub);
   audit && hub.tap((ev) => audit.server(ev));
+  // what a start that fails part-way has already made, undone in reverse (a second agent's failure leaves the server up)
+  const undo: (() => void)[] = [];
   try {
     const attachments = new AttachmentStore({ dir: path.join(agent.stateDir, 'attachments') });
     const archive = new HistoryArchive({ dir: path.join(agent.stateDir, 'history'), report: (e) => reportError(hub, 'archive', e) });
@@ -212,6 +218,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       // a voice message whose transcript failed never reaches the agent: the comments it carried are pending again
       onDropped: (id) => { store.markPending(manager.info().id, id); broadcastComments(); },
     });
+    undo.push(() => { manager.close(); void a.backend.close?.().catch(() => {}); });
     const store = new CommentStore({ dir: path.join(agent.stateDir, 'comments') });
     // comments are live state, not history: never stored in the replay, a new socket gets the set directly
     const currentComments = () => store.get(manager.info().id);
@@ -263,6 +270,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       report: (e) => reportError(hub, 'compact', e),
       everyMs: o.restartEveryMs,
     });
+    undo.push(() => order.stop());
     order.enter(manager.archiveId()); // the start: what this session's last run left pending goes on
     manager.onSessionId(() => order.moved());
     manager.onSwitch((_id, { restart: same }) => { if (!same) order.enter(manager.archiveId()); });
@@ -273,6 +281,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     // the waveforms need any ffmpeg that decodes, not one new enough for the export
     const cutPeaks = new CutPeaks({ root, ffmpeg: o.ffmpeg ?? (() => findFfmpeg()) });
     const cutReverse = new CutReverse({ root, ffmpeg: o.ffmpeg ?? (() => findFfmpeg()), stateDir: () => agent.stateDir });
+    undo.push(() => { cutExporter.dispose(); cutPeaks.dispose(); cutReverse.dispose(); });
     // a deleted session: Nota Bene's own data of it goes too, each part on its own (a failure is reported, the rest still goes)
     const forgetDeleted = (id: string) => {
       const parts: [string, () => void][] = [
@@ -430,6 +439,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
             restartServerNow: () => exitWith(RESTART),
             cancelRestart: () => void restart.cancel(),
             stop: () => exitWith(0), // the launcher treats 0 as "stop" and unregisters the window
+            open: (b) => s.controlOpen(b),
           },
         }),
       },
@@ -474,6 +484,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       }, o.heartbeatMs ?? HEARTBEAT_MS)
       : null;
     heartbeat?.unref();
+    undo.push(() => { if (heartbeat) clearInterval(heartbeat); });
 
     // the hello every socket gets, owner or not
     const sendHello = (ws: WebSocket) => {
@@ -874,6 +885,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       close,
     };
   } catch (e) {
+    for (const f of undo.reverse()) { try { f(); } catch { /* the start's own error is the one to report */ } }
     hubs.delete(hub);
     throw e;
   }
@@ -887,7 +899,10 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
   installProcessHandlers();
   const agents = new Map<string, Agent>();
   const sum = (f: (a: Agent) => number) => [...agents.values()].reduce((n, a) => n + f(a), 0);
-  const report = (where: string, e: unknown) => { for (const a of agents.values()) reportError(a.hub, where, e); };
+  const report = (where: string, e: unknown) => {
+    if (agents.size === 0) console.error(`[${where}]`, e); // before the first agent is up
+    for (const a of agents.values()) reportError(a.hub, where, e);
+  };
   hostClient.reportTo(report); // the Whisper host's trouble is every agent's to show
   const audit = o.audit ? new AuditLog({ port: o.port, ...o.audit }) : null;
   audit?.prune();
@@ -913,6 +928,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     const allowedHosts: string[] = []; // filled after listen, once the port is known
     const allowedOrigins: string[] = [...(o.allowedOrigins ?? [])];
     let ownPort = 0; // set after listen
+    let close: (() => Promise<void>) | undefined; // set once the server listens; an exit before that only waits out its timer
     // the exit after a reply (restart-server 75, stop 0): close what can be closed, but never hang on it
     let exiting = false;
     const exitWith = (code: number) => {
@@ -920,7 +936,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       exiting = true;
       for (const a of agents.values()) a.freeze(); // a turn this exit cuts stays marked: the close below ends it
       audit?.write('server-exit', { code });
-      void Promise.race([close(), new Promise<void>((r) => setTimeout(r, 2000))]).then(() => {
+      void Promise.race([close?.() ?? Promise.resolve(), new Promise<void>((r) => setTimeout(r, 2000))]).then(() => {
         setTimeout(() => (o.exit ?? process.exit)(code), 100);
       });
     };
@@ -928,6 +944,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     const repoDir = o.repoDir ?? path.resolve(import.meta.dirname, '..', '..');
     const newer = updateCheck();
     const real = (p: string) => { try { return fs.realpathSync(p); } catch { return p; } };
+    const realpathOr = (p: string) => { try { return fs.realpathSync.native(p); } catch { return p; } };
     // not a pause: any agent's turn, question, switch, `! cmd` run or task. The update's hand-over (77) and a pending
     // restart (75) wait for the same pause
     const notPaused = () => [...agents.values()].some((a) => a.notPaused());
@@ -970,6 +987,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     const s: Shared = {
       o, audit, ...(authorize ? { authorize } : {}), allowedHosts, allowedOrigins, open: { '/auth': authRoute, '/hello': helloRoute }, control,
       port: () => ownPort, projectIcons, supervised, codeChanged, repoDir, newer, win, restart, requestRestart, exiting: () => exiting, exitWith,
+      controlOpen: async () => ({ status: 503, body: 'starting' }),
     };
     // the first agent: the window's, addressed as /a/<id>/ and at the top (the phone and older pages)
     const primary = await startAgent(s, {
@@ -1013,7 +1031,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
         });
       });
     } catch (e) {
-      await primary.close();
+      void primary.close(); // not awaited: the launcher waits for this exit (98), not for the backend's close
       throw e; // syscall 'listen': main exits with 98, the launcher's "port taken" code
     }
 
@@ -1050,7 +1068,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     }
 
     let closing: Promise<void> | null = null;
-    const close = () => (closing ??= (async () => {
+    close = () => (closing ??= (async () => {
       audit?.write('server-stop');
       audit?.close();
       win.stop();
@@ -1062,21 +1080,47 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
         keeper.off('pair', remotePair);
         keeper.off('warn', remoteWarn);
       }
-      await Promise.all([...agents.values()].map((a) => a.close()));
-      await new Promise<void>((resolve) => {
+      // the port closes at once, as the agents stop: a backend that is slow to close must not leave it answering
+      await Promise.all([...[...agents.values()].map((a) => a.close()), new Promise<void>((resolve) => {
         server.close(() => resolve());
         server.closeAllConnections();
-      });
+      })]);
     })());
     /** another agent (epic 383): its own id, minted, under `/a/<id>/` only */
     const openAgent = async (x: { provider: AgentProvider; cwd: string; backend: AgentBackend; resume?: string; fork?: boolean }): Promise<string> => {
+      if (closing || exiting) throw new Error('the server is stopping');
       let id: string;
       do id = newAgentId(x.provider); while (agents.has(id));
       const added = await startAgent(s, { agent: agentContext(x.provider), id, cwd: x.cwd, backend: x.backend, ...(x.resume ? { resume: x.resume } : {}), ...(x.fork ? { fork: true } : {}) });
+      if (closing || exiting) {
+        await added.close(); // the close has already gone through the map: this one would outlive it
+        throw new Error('the server is stopping');
+      }
       agents.set(id, added);
       return id;
     };
-    return { url: `http://127.0.0.1:${port}`, close, open: openAgent };
+    // POST /control/open {root, provider?, mode?: 'resume' | 'new', session?, fork?}: the agent of that folder and provider,
+    // the one open unless a new or a named session is asked for. The launcher's way into a running server
+    s.controlOpen = async (body) => {
+      const b = (body ?? {}) as { root?: unknown; provider?: unknown; mode?: unknown; session?: unknown; fork?: unknown };
+      let provider: AgentProvider;
+      try { provider = parseProvider(b.provider === undefined ? undefined : String(b.provider)); } catch { return { status: 400, body: 'bad provider' }; }
+      if (typeof b.root !== 'string' || !path.isAbsolute(b.root)) return { status: 400, body: 'root must be an absolute path' };
+      let root: string;
+      try { root = fs.realpathSync.native(b.root); } catch { return { status: 400, body: 'no such folder' }; }
+      if (!fs.statSync(root).isDirectory()) return { status: 400, body: 'not a folder' };
+      if (b.mode !== undefined && b.mode !== 'resume' && b.mode !== 'new') return { status: 400, body: 'bad mode' };
+      if (b.session !== undefined && !isSessionId(b.session)) return { status: 400, body: 'bad session' };
+      if (b.session === undefined && b.mode !== 'new') {
+        const have = [...agents.values()].find((a) => a.provider === provider && samePath(realpathOr(a.root()), root));
+        if (have) return { status: 200, body: { agent: have.id, opened: false } };
+      }
+      if (!o.backends) return { status: 501, body: 'this server opens no other agents' };
+      const target = launchTarget({ dir: root, resume: b.session as string | undefined, fork: b.fork === true, new: b.mode === 'new', native: provider !== 'claude' }, agentContext(provider).stateDir);
+      const id = await openAgent({ provider, cwd: root, backend: o.backends(provider), ...target });
+      return { status: 200, body: { agent: id, opened: true } };
+    };
+    return { url: `http://127.0.0.1:${port}`, close: () => close!(), open: openAgent };
   } catch (e) {
     audit?.close();
     throw e;

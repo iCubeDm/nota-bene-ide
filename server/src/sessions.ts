@@ -8,6 +8,7 @@ import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
 import { wirePath } from './wirePath.ts';
 import { readJson } from './system.ts';
+import { lastSession } from './state.ts';
 
 type Titled = { customTitle?: string; summary?: string; firstPrompt?: string };
 
@@ -200,4 +201,17 @@ export function deleteRoute(o: {
     o.forget(id);
     return gone ? [404, 'no such session'] : [200, 'ok'];
   });
+}
+
+/** The session a launch opens in `args.dir`: the one named, a new one, or the folder's last one (`native`: Codex, omp). */
+export function launchTarget(
+  args: { dir: string; resume?: string; fork?: boolean; new?: boolean; native?: boolean },
+  stateDir: string,
+  projectsDir?: string,
+): { resume?: string; fork?: boolean } {
+  if (args.resume !== undefined) return { resume: args.resume, ...(args.fork ? { fork: true } : {}) };
+  if (args.new) return {};
+  const last = lastSession(stateDir, args.dir);
+  // Claude's transcript may be gone (deleted in the CLI); a native provider's history is its own to resume
+  return last && (args.native || transcriptExists(last, projectsDir)) ? { resume: last } : {};
 }

@@ -6,6 +6,7 @@ import WebSocket from 'ws';
 import type { ServerEvent } from '@nota-bene/shared';
 import { fakeBackend } from './agent/fake.ts';
 import { startServer } from './server.ts';
+import { CONTROL_HEADER, controlToken } from './system.ts';
 
 // Several agents in one server (epic 383, step 2c): each its own folder, session, socket and one-tab rule; the top is the
 // first one's, as a window's is today.
@@ -72,6 +73,10 @@ it('a second agent has its own folder, socket, session and tab; the top stays th
   await until(() => sb.events.some((e) => e.kind === 'user' && e.id === 'u1'));
   expect(one.prompts).not.toContain('to b');
   expect(sa.events.some((e) => e.kind === 'user')).toBe(false);
+  sa.ws.send(JSON.stringify({ type: 'send', id: 'u2', text: 'to a' }));
+  await until(() => one.prompts.includes('to a'));
+  expect(two.prompts).not.toContain('to a');
+  expect(sb.events.some((e) => e.kind === 'user' && e.id === 'u2')).toBe(false);
 
   // the agent keeps its data in its provider's folder, as a window of that provider does
   const post = await fetch(`${s.url}/a/${b}/sessions/archive`, { method: 'POST', headers: { origin: s.url, 'content-type': 'application/json' }, body: JSON.stringify({ id: '44444444-4444-4444-8444-444444444444', archived: true }) });
@@ -80,4 +85,39 @@ it('a second agent has its own folder, socket, session and tab; the top stays th
   expect(fs.existsSync(path.join(tmp, 'home', 'archived-sessions.json'))).toBe(false);
   await s.close();
   expect(closedTwo).toBe(true);
+  // an agent opened as the server stops would outlive the close: refused
+  await expect(s.open({ provider: 'claude', cwd: path.join(tmp, 'b'), backend: fakeBackend([]) })).rejects.toThrow(/stopping/);
+});
+
+it('/control/open: an agent for a folder and provider, the one already open, or a new session as another', async () => {
+  const made: string[] = [];
+  const a = path.join(tmp, 'a');
+  const b = path.join(tmp, 'b');
+  const s = await startServer({
+    insecureNoAuth: true, cwd: a, port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'),
+    backends: (p) => { made.push(p); return fakeBackend([]); },
+  });
+  closers.push(s.close);
+  const open = async (body: unknown) => {
+    const r = await fetch(`${s.url}/control/open`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() }, body: JSON.stringify(body) });
+    return { status: r.status, body: r.status === 200 ? (await r.json()) as { agent: string; opened: boolean } : await r.text() };
+  };
+  const first = await open({ root: b, provider: 'codex' });
+  expect(first).toMatchObject({ status: 200, body: { opened: true } });
+  const id = (first.body as { agent: string }).agent;
+  expect(id).toMatch(/^codex-[a-z2-7]{6}$/);
+  expect(await json(`${s.url}/a/${id}/info`)).toMatchObject({ root: b });
+  expect((await open({ root: b, provider: 'codex' })).body).toEqual({ agent: id, opened: false });
+  // the window's own agent is one of them (provider: claude when none is named)
+  const top = await json(`${s.url}/info`);
+  expect((await open({ root: a })).body).toEqual({ agent: top.agent, opened: false });
+  const again = await open({ root: b, provider: 'codex', mode: 'new' });
+  expect(again).toMatchObject({ status: 200, body: { opened: true } });
+  expect((again.body as { agent: string }).agent).not.toBe(id);
+  expect(made).toEqual(['codex', 'codex']);
+  for (const bad of [{}, { root: 'rel' }, { root: path.join(tmp, 'missing') }, { root: path.join(tmp, 'dist', 'index.html') }, { root: b, provider: 'gpt' }, { root: b, mode: 'x' }, { root: b, session: 'not-an-id' }]) {
+    expect((await open(bad)).status, JSON.stringify(bad)).toBe(400);
+  }
+  // only with the control token, never from a page
+  expect((await fetch(`${s.url}/control/open`, { method: 'POST', headers: { origin: s.url }, body: JSON.stringify({ root: b }) })).status).toBe(403);
 });

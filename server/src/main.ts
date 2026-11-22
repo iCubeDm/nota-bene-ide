@@ -11,8 +11,8 @@ import { startServer } from './server.ts';
 import { HANDOVER } from './updater.ts';
 import { hitRecorder, limitRecorder } from './usage/routes.ts';
 import { UsageStore } from './usage/store.ts';
-import { transcriptExists } from './sessions.ts';
-import { agentContext, lastSession, serverStateDir } from './state.ts';
+import { launchTarget } from './sessions.ts';
+import { agentContext, serverStateDir } from './state.ts';
 import { parseProvider, type AgentProvider } from './agent/provider.ts';
 import { pidAlive, realpathNative, samePath } from './platform.ts';
 import { packageVersion } from './version.ts';
@@ -67,16 +67,7 @@ export function parseArgs(
  * What to resume. An explicit --resume wins (with --fork it branches); --new starts fresh; otherwise (also with
  * --continue, which is the same thing) the project's last session, but only while its transcript still exists.
  */
-export function launchTarget(
-  args: Pick<ReturnType<typeof parseArgs>, 'dir' | 'resume' | 'fork' | 'new'>,
-  stateDir: string,
-  projectsDir?: string,
-): { resume?: string; fork?: boolean } {
-  if (args.resume !== undefined) return { resume: args.resume, ...(args.fork ? { fork: true } : {}) };
-  if (args.new) return {};
-  const last = lastSession(stateDir, args.dir);
-  return last && transcriptExists(last, projectsDir) ? { resume: last } : {};
-}
+export { launchTarget };
 
 // `npm start -- ../proj` runs with cwd = package root; INIT_CWD is where npm was invoked.
 export function invocationCwd(env: NodeJS.ProcessEnv, cwd: string): string {
@@ -133,9 +124,9 @@ async function main(): Promise<void> {
   }
   process.env.NOTA_BENE_AGENT = args.agent ?? 'claude'; // child launches still read it
   const agent = agentContext(parseProvider(args.agent));
-  const backend = args.fake
-    ? fakeFromScript(JSON.parse(fs.readFileSync(args.fake, 'utf8')), args.dir)
-    : args.agent === 'codex' ? codexBackend({ stateDir: agent.stateDir }) : args.agent === 'omp' ? ompBackend() : sdkBackend();
+  // a backend per agent, as a window had its own (the ACP one keeps a session slot per instance)
+  const backendFor = (p: AgentProvider) => (p === 'codex' ? codexBackend({ stateDir: agentContext(p).stateDir }) : p === 'omp' ? ompBackend() : sdkBackend());
+  const backend = args.fake ? fakeFromScript(JSON.parse(fs.readFileSync(args.fake, 'utf8')), args.dir) : backendFor(agent.provider);
   const native = args.agent === 'codex' || args.agent === 'omp';
   // the launcher's launch nonce (public, but it stays out of the agent's and the `!` commands' environment all the same)
   const nonce = isNonce(process.env.NOTA_BENE_NONCE) ? process.env.NOTA_BENE_NONCE : undefined;
@@ -148,8 +139,9 @@ async function main(): Promise<void> {
       cwd: args.dir,
       port: args.port,
       backend,
-      ...(native ? (args.resume ? { resume: args.resume, ...(args.fork ? { fork: true } : {}) } : !args.new && lastSession(agent.stateDir, args.dir) ? { resume: lastSession(agent.stateDir, args.dir)! } : {}) : launchTarget(args, agent.stateDir)),
+      ...launchTarget({ ...args, native }, agent.stateDir),
       agent,
+      ...(args.fake ? {} : { backends: backendFor }),
       webDist,
       allowedOrigins: args.allowOrigins,
       ...(!native && !args.fake ? { onStats: limitRecorder(new UsageStore('claude')), onLimit: hitRecorder(new UsageStore('claude')) } : {}),
