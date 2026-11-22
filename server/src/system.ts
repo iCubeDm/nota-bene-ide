@@ -295,7 +295,11 @@ export function systemRoutes(o: {
   /** the CHANGELOG sections between two versions, or null (tests stub it) */
   changes?: (current: string, latest: string) => Promise<string | null>;
   /** run after the reply is out; `supervised` says whether restart-server can be caught by a launcher */
-  control: { supervised(): boolean; exiting(): boolean; restartAgent(): void; restartServer(): void; restartServerNow?(): void; cancelRestart?(): void; stop(): void };
+  control: {
+    supervised(): boolean; exiting(): boolean; restartAgent(): void; restartServer(): void; restartServerNow?(): void; cancelRestart?(): void; stop(): void;
+    /** POST /control/open (epic 383): the server's agent for a folder, opened if needed; the answer's status and body */
+    open?(body: unknown): Promise<{ status: number; body: unknown }>;
+  };
   probe?: (port: number) => Promise<WindowInfo | null>;
   relay?: (port: number, action: ControlAction, token: string) => Promise<number>;
 }): Record<string, RequestListener> {
@@ -471,8 +475,15 @@ export function systemRoutes(o: {
     '/control/': (req, res) => {
       if (!only('POST', req, res)) return;
       const action = (req.url ?? '').split('?')[0]!.slice('/control/'.length) as ControlAction;
-      if (!CONTROL_ACTIONS.includes(action)) return text(res, 404, 'not found');
+      const open = action === ('open' as string) ? o.control.open : undefined;
+      if (!CONTROL_ACTIONS.includes(action) && !open) return text(res, 404, 'not found');
       if (o.control.exiting()) return text(res, 409, 'exiting'); // a stop or restart is already under way
+      if (open) {
+        return void readJson(req).then(open).then(
+          (r) => (typeof r.body === 'string' ? text(res, r.status, r.body) : json(res, r.status, r.body)),
+          (e: unknown) => (e instanceof SyntaxError || (e instanceof Error && e.message === 'body too large') ? text(res, 400, 'bad request') : fail(res, '/control/open', e)),
+        );
+      }
       if ((action === 'restart-server' || action === 'restart-server-now') && !o.control.supervised()) return text(res, 409, 'not supervised');
       // answer first: a restart or stop must not cut the reply
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });

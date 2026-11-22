@@ -80,6 +80,12 @@ describe('launch options', () => {
       expect(launchTarget(args(), serverStateDir(), projects)).toEqual({});
     });
 
+    it('a native provider (Codex, omp) resumes its saved session with no Claude transcript to check', () => {
+      saveSession(serverStateDir(), cwd, 'gone-id');
+      expect(launchTarget({ ...args(), native: true }, serverStateDir(), projects)).toEqual({ resume: 'gone-id' });
+      expect(launchTarget({ ...args(['--new']), native: true }, serverStateDir(), projects)).toEqual({});
+    });
+
     it('--new ignores the saved session', () => {
       saveSession(serverStateDir(), cwd, 'saved-id');
       expect(launchTarget(args(['--new']), serverStateDir(), projects)).toEqual({});
