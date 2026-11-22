@@ -1,7 +1,6 @@
 // Spawns the real launcher (bin/nota-bene.mjs) with the fake agent, a temp NOTA_BENE_HOME and ports 4791-4795.
 // Every launcher runs in its own process group; afterEach SIGKILLs the groups, so no server outlives a test.
 import { type ChildProcess, execFile, execFileSync, spawn, spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
@@ -261,7 +260,7 @@ const alive = (pid: number) => {
     return false;
   }
 };
-const launchLock = () => path.join(home, 'locks', createHash('sha1').update(project).digest('hex').slice(0, 16));
+const launchLock = () => path.join(home, 'locks', 'server'); // one for the server (epic 383): two cold launches end with one
 const deadPid = () => Number(execFileSync(process.execPath, ['-e', 'console.log(process.pid)'], { encoding: 'utf8' }));
 const bin = (args: string[], extra: Record<string, string> = {}) =>
   spawnSync(process.execPath, [BIN, ...args], { env: env(extra), encoding: 'utf8', timeout: 10000 });
@@ -581,6 +580,27 @@ describe('nota-bene launcher', () => {
     }
   }, 40000);
 
+  it('a second folder opens as an agent of the running server (epic 383), not as a window of its own', async () => {
+    const a = launch(['--detach']);
+    expect(await a.exited, a.err()).toBe(0);
+    const port = Number(Object.keys(windows())[0]);
+    const other = path.join(tmp, 'project-b');
+    fs.mkdirSync(other);
+    const b = launch(['--detach'], {}, FAKE, other);
+    expect(await b.exited, b.err()).toBe(0);
+    const m = new RegExp(`^opened http://127\\.0\\.0\\.1:${port}/a/(claude-[a-z2-7]{6})/${loginRe}\\n$`).exec(b.out());
+    expect(m, b.out()).not.toBeNull();
+    expect(Object.keys(windows())).toEqual([String(port)]);
+    // again: the same agent, and a plain launch says where it is without the login
+    const c = launch(['--detach'], {}, FAKE, other);
+    expect(await c.exited, c.err()).toBe(0);
+    expect(c.out()).toMatch(new RegExp(`^already-open http://127\\.0\\.0\\.1:${port}/a/${m![1]}/${loginRe}\\n$`));
+    const d = launch([], {}, FAKE, other);
+    expect(await d.exited, d.err()).toBe(0);
+    expect(d.out()).toBe(`nota-bene: already open at http://127.0.0.1:${port}/a/${m![1]}/\n`);
+    expect(fs.existsSync(launchLock())).toBe(false);
+  }, 40000);
+
   it('two parallel --detach launches on one folder end with ONE window: one says opened, the other already-open', async () => {
     const [a, b] = [launch(['--detach']), launch(['--detach'])];
     expect(await a.exited, a.err()).toBe(0);
@@ -624,7 +644,7 @@ describe('nota-bene launcher', () => {
     process.env.NOTA_BENE_HOME = home;
     try {
       const t0 = Date.now();
-      const release = await acquireLaunchLock(project, 300);
+      const release = await acquireLaunchLock(300);
       expect(Date.now() - t0).toBeGreaterThanOrEqual(300); // waited, then went on unguarded
       release();
       expect(fs.readFileSync(path.join(launchLock(), 'pid'), 'utf8')).toBe(content); // not ours: untouched

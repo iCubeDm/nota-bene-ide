@@ -47,13 +47,14 @@ import { launcherOf, patchUpdateState, readCurrent, runtimeDir, writeCurrent } f
 import { transcriptExists } from '../server/src/sessions.ts';
 import { envAgentContext, lastSession, serverStateDir, stateBaseDir } from '../server/src/state.ts';
 import { defaultChoice, detectAgents, lastAgent, menu, parseChoice, rememberAgent } from '../server/src/agent/choice.ts';
+import { attachAgent } from '../server/src/attach.ts';
 import { recordRecent } from '../server/src/recent.ts';
 import { parentPluginVersion, pluginInstallVersion } from '../server/src/pluginOrigin.ts';
 import { parseProvider } from '../server/src/agent/provider.ts';
 import { RELEASE, isNewer } from '../server/src/update.ts';
 import { packageVersion as ownVersion } from '../server/src/version.ts';
 import {
-  liveWindows, pidAlive, probeInfo, readWindows, registerWindow, restartingWindows, rootHash, setBuilding, unregisterWindow,
+  liveWindows, pidAlive, probeInfo, readWindows, registerWindow, restartingWindows, setBuilding, unregisterWindow,
 } from '../server/src/windows.ts';
 
 const REPO = fileURLToPath(new URL('..', import.meta.url));
@@ -452,15 +453,15 @@ export function ensureBuildAsync(repo, env = process.env, stdio = 'inherit', loc
 // --- one window per folder ------------------------------------------------------------------------------------
 
 /**
- * The folder's launch lock: an mkdir of <stateDir>/locks/<rootHash(root)> (the hash in the window id) holding a pid
- * file. Held from before the port pick until the window answers /info and is registered, so a second launch on the
- * folder waits, then finds that window instead of starting another (two launchers' bind tests can overlap, so the port
- * alone is no arbiter).
+ * The launch lock: an mkdir of <base state dir>/locks/server holding a pid file, one for every folder and provider (epic
+ * 383: one server). Held from before the port pick until the window answers /info and is registered, so a second launch
+ * waits, then finds that server (its folder's window, or one to open the folder in) instead of starting another (two
+ * launchers' bind tests can overlap, so the port alone is no arbiter).
  * A lock whose owner is dead, or older than LOCK_STALE_MS, is broken; after LOCK_WAIT_MS we go on unguarded.
  * Returns the release function (idempotent; removes the lock only while it is still ours).
  */
-export async function acquireLaunchLock(root, waitMs = LOCK_WAIT_MS) {
-  const lock = path.join(serverStateDir(), 'locks', rootHash(root));
+export async function acquireLaunchLock(waitMs = LOCK_WAIT_MS) {
+  const lock = path.join(stateBaseDir(), 'locks', 'server');
   const pidFile = path.join(lock, 'pid');
   const owner = () => {
     try {
@@ -508,7 +509,7 @@ export async function acquireLaunchLock(root, waitMs = LOCK_WAIT_MS) {
       continue;
     }
     if (Date.now() >= end) {
-      say(`another launch on this folder holds the lock for over ${waitMs / 1000}s, going on without it`);
+      say(`another launch holds the lock for over ${waitMs / 1000}s, going on without it`);
       return () => {};
     }
     await sleep(100);
@@ -661,6 +662,11 @@ async function openBrowser(base) {
     if (e instanceof SecretError) throw e;
     say(`cannot write the page that logs the browser in (${e.message}); opening the window without it`);
   }
+  return openPage(target);
+}
+
+/** Hands `target` (a page file or a plain URL) to the opener; resolves as `openBrowser` does. */
+function openPage(target) {
   const p = opener(target);
   // true: the opener took it (exit 0, or it did not answer within the bound); false: it failed to start or exited non-zero
   return new Promise((resolve) => {
@@ -1138,7 +1144,7 @@ export async function main(argv) {
   // one window per folder: wait for any launch in progress on it, then give way to a window already serving it
   // a detached child (the parent holds the lock and checked) or an inner launcher (its outer part did)
   const locked = process.env.NOTA_BENE_LOCKED === '1' || INNER;
-  const release = locked ? () => {} : await acquireLaunchLock(o.dir);
+  const release = locked ? () => {} : await acquireLaunchLock();
   try {
     if (!locked) {
       const port = await servingWindow(o.dir);
@@ -1148,11 +1154,33 @@ export async function main(argv) {
         process.stdout.write(o.detach ? `already-open ${(await loginTarget(url)) ?? url}\n` : `nota-bene: already open at ${url}\n`);
         return 0;
       }
+      // a running server opens the folder as one of its agents; an explicit --port asks for a server of its own there
+      if (o.port === undefined) {
+        let hit;
+        try {
+          hit = await attachAgent({ root: o.dir, provider: o.agent ?? 'claude', mode: o.new ? 'new' : 'resume', ...(o.resume ? { session: o.resume, fork: o.fork } : {}) });
+        } catch (e) {
+          say(`the running server refused the folder: ${e.message}`);
+          return 1;
+        }
+        if (hit) return await attached(o, hit);
+      }
     }
     return await launch(o, argv, buildOutput, release);
   } finally {
     release();
   }
+}
+
+/** The folder is an agent of a running server (attachAgent): its URL with the login for --detach, else the browser opened on it. */
+async function attached(o, hit) {
+  if (o.detach) {
+    process.stdout.write(`${hit.opened ? 'opened' : 'already-open'} ${hit.url}\n`);
+    return 0;
+  }
+  if (o.open && !(await openPage(writeOpenPage(hit.url)))) say('the browser could not be opened');
+  process.stdout.write(`nota-bene: ${hit.opened ? 'opened' : 'already open'} at ${hit.url.slice(0, hit.url.indexOf('#'))}\n`);
+  return 0;
 }
 
 /**

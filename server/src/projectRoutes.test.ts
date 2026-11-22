@@ -86,6 +86,12 @@ it('open with already-open returns that window\'s URL', async () => {
   expect(await (await s.post('/system/projects/open', { dir: tree, provider: 'claude' })).json()).toEqual({ url: URL_OK });
 });
 
+it('open with an agent of the running server (epic 383) returns its URL under /a/<id>/', async () => {
+  const url = `http://127.0.0.1:4793/a/codex-k3f7qz/#t=${'a'.repeat(64)}`;
+  const s = await serve(async () => ({ code: 0, firstLine: `opened ${url}` }));
+  expect(await (await s.post('/system/projects/open', { dir: tree, provider: 'codex' })).json()).toEqual({ url });
+});
+
 it('open refuses a relative folder and an unknown agent', async () => {
   const s = await serve();
   expect((await s.post('/system/projects/open', { dir: 'x', provider: 'claude' })).status).toBe(400);
