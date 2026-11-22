@@ -12,6 +12,7 @@ import { EventHub } from './hub.ts';
 import type { Updater, UpdateStatus } from './updater.ts';
 import { CLEAN_MIN_AGE_MS, CONTROL_HEADER, cleanAttachments, cleanCandidates, cleanStaleArchives, controlToken, describeVersion, dirSize, staleArchives, systemRoutes } from './system.ts';
 import { registerWindow } from './windows.ts';
+import { stateDir } from './state.ts';
 
 let home: string;
 let dist: string;
@@ -96,11 +97,11 @@ describe('trash is reversible', () => {
     const f = path.join(home, 'attachments', `${idA}.png`);
     const old = (Date.now() - CLEAN_MIN_AGE_MS - 60_000) / 1000;
     fs.utimesSync(f, old, old);
-    expect(cleanCandidates().files).toEqual([`${idA}.png`]);
+    expect(cleanCandidates(stateDir()).files).toEqual([`${idA}.png`]);
     store.put(bytes, 'image/png'); // re-pasted: fresh again
-    expect(cleanCandidates().files).toEqual([]);
+    expect(cleanCandidates(stateDir()).files).toEqual([]);
     fs.utimesSync(f, old, old);
-    expect(cleanAttachments()).toMatchObject({ moved: 1, errors: [] });
+    expect(cleanAttachments(stateDir())).toMatchObject({ moved: 1, errors: [] });
     expect(fs.existsSync(f)).toBe(false);
     // a draft still holding the id: the read restores it
     expect(store.get(idA)?.bytes.equals(bytes)).toBe(true);
@@ -126,8 +127,8 @@ describe('storage', () => {
     attachment('notes.txt', 5, old); // not an attachment name: never touched
     fs.mkdirSync(path.join(home, 'comments'), { recursive: true });
     fs.writeFileSync(path.join(home, 'comments', 's1.json'), JSON.stringify([{ id: 'c1', images: [id('a')] }]));
-    expect(cleanCandidates()).toEqual({ files: [`${id('b')}.png`], bytes: 20 });
-    const r = cleanAttachments();
+    expect(cleanCandidates(stateDir())).toEqual({ files: [`${id('b')}.png`], bytes: 20 });
+    const r = cleanAttachments(stateDir());
     expect(r).toMatchObject({ moved: 1, bytes: 20 });
     expect(r.trash.startsWith(path.join(home, 'trash', 'attachments'))).toBe(true);
     expect(fs.existsSync(path.join(r.trash, `${id('b')}.png`))).toBe(true);
@@ -148,10 +149,10 @@ describe('storage', () => {
       // gone, but written within the day (another CLAUDE_CONFIG_DIR's live session, say): kept
       fs.writeFileSync(path.join(home, 'history', 'gone-2.jsonl'), 'dd');
       fs.writeFileSync(path.join(home, 'history', 'notes.txt'), 'c'); // not an archive name: never touched
-      expect(staleArchives(projects)).toEqual({ files: ['gone-1.jsonl'], bytes: 6 });
+      expect(staleArchives(stateDir(), projects)).toEqual({ files: ['gone-1.jsonl'], bytes: 6 });
       // an unreadable or missing projects dir proves nothing: every archive is kept
-      expect(staleArchives(path.join(projects, 'missing'))).toEqual({ files: [], bytes: 0 });
-      const r = cleanStaleArchives(projects);
+      expect(staleArchives(stateDir(), path.join(projects, 'missing'))).toEqual({ files: [], bytes: 0 });
+      const r = cleanStaleArchives(stateDir(), projects);
       expect(r).toMatchObject({ moved: 1, bytes: 6, errors: [] });
       expect(r.trash.startsWith(path.join(home, 'trash', 'history'))).toBe(true);
       expect(fs.existsSync(path.join(r.trash, 'gone-1.jsonl'))).toBe(true);
@@ -445,7 +446,7 @@ describe('update routes', () => {
       setAuto: (on) => void calls.push(`auto ${on}`),
       stop: () => undefined,
     };
-    const routes = systemRoutes({ hub: new EventHub(), root: () => proj, port: () => 0, repoDir: proj, updater, newer: async () => null, ...(changes ? { changes } : {}), control: { supervised: () => false, exiting: () => false, restartAgent() {}, restartServer() {}, stop() {} } });
+    const routes = systemRoutes({ hub: new EventHub(), root: () => proj, stateDir: stateDir(), port: () => 0, repoDir: proj, updater, newer: async () => null, ...(changes ? { changes } : {}), control: { supervised: () => false, exiting: () => false, restartAgent() {}, restartServer() {}, stop() {} } });
     const srv = http.createServer((req, res) => routes[new URL(req.url!, 'http://x').pathname]!(req, res));
     await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
     closers.push(() => new Promise<void>((r) => srv.close(() => r())));

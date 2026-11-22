@@ -7,11 +7,12 @@ import { CodexRpc } from './rpc.ts';
 import { CodexSession } from './session.ts';
 import { HistoryArchive } from '../../archive.ts';
 import { samePath } from '../../platform.ts';
-import { stateDir } from '../../state.ts';
+import { envAgentContext } from '../../state.ts';
 import { loadCodexHistory, restoreCodexReplay } from './history.ts';
 import { array, itemId, record, string } from './map.ts';
 const real = (p: string) => { try { return fs.realpathSync.native(p); } catch { return path.resolve(p); } };
-export function codexBackend(options: { connect?: (cwd?: string) => CodexConnection } = {}): AgentBackend {
+export function codexBackend(options: { connect?: (cwd?: string) => CodexConnection; /** the agent's state folder, for the replay history; default: the env-chosen one (tests) */ stateDir?: string } = {}): AgentBackend {
+  const stateDir = () => options.stateDir ?? envAgentContext().stateDir;
   const connect = options.connect ?? ((cwd?: string) => new CodexRpc({ cwd }));
   let metadata: CodexConnection | undefined;
   const sessions = new Set<CodexSession>();

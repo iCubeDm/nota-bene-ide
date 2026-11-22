@@ -7,6 +7,8 @@ import type { IdleConfig } from '../idle.ts';
 
 /** createSessionManager's options. */
 export type SessionOptions = {
+  /** the agent's state folder (AgentContext); default: the one NOTA_BENE_AGENT chose (tests) */
+  stateDir?: string;
   /** every stats update, after the clients got it */
   onStats?: (s: Stats) => void;
   /** The SDK's rate_limit_info of every `rate-limit` event. */

@@ -21,7 +21,6 @@ import { winShells } from './session/shell.ts';
 import { auditDir } from './audit.ts';
 import { defaultProjectsDir } from './sessions.ts';
 import { HIDDEN, renameRetry } from './platform.ts';
-import { stateDir } from './state.ts';
 import { changelog, isNewer, RELEASE, updateCheck, updateCheckForcedOff } from './update.ts';
 import type { Updater } from './updater.ts';
 import { readVersion } from './version.ts';
@@ -99,9 +98,9 @@ function referencedIds(commentsDir: string): Set<string> {
  * Attachments no comment references and older than CLEAN_MIN_AGE_MS. Session transcripts are not scanned: a replay
  * re-creates any image of its transcript under the same content id, so trashing one loses nothing.
  */
-export function cleanCandidates(now = Date.now()): { files: string[]; bytes: number } {
-  const dir = path.join(stateDir(), 'attachments');
-  const refs = referencedIds(path.join(stateDir(), 'comments'));
+export function cleanCandidates(stateDir: string, now = Date.now()): { files: string[]; bytes: number } {
+  const dir = path.join(stateDir, 'attachments');
+  const refs = referencedIds(path.join(stateDir, 'comments'));
   const files: string[] = [];
   let bytes = 0;
   let names: string[];
@@ -127,8 +126,8 @@ export function cleanCandidates(now = Date.now()): { files: string[]; bytes: num
  * Moves the candidates to `<stateDir>/trash/attachments/<stamp>/` (never deletes; AttachmentStore.get brings one back
  * when it is read again). A file gone meanwhile is skipped; any other failure is reported, not swallowed.
  */
-export function cleanAttachments(now = Date.now()): { moved: number; bytes: number; trash: string; errors: string[] } {
-  return moveToTrash('attachments', cleanCandidates(now).files, now);
+export function cleanAttachments(stateDir: string, now = Date.now()): { moved: number; bytes: number; trash: string; errors: string[] } {
+  return moveToTrash(stateDir, 'attachments', cleanCandidates(stateDir, now).files, now);
 }
 
 const ARCHIVE_RE = /^([0-9a-zA-Z-]{1,100})\.jsonl$/;
@@ -139,8 +138,8 @@ const ARCHIVE_RE = /^([0-9a-zA-Z-]{1,100})\.jsonl$/;
  * (a disk not mounted): then no archive is stale. An archive written within CLEAN_MIN_AGE_MS is never stale either
  * (a window with another CLAUDE_CONFIG_DIR may be writing it). The trash is the safety net for the rest.
  */
-export function staleArchives(projectsDir = defaultProjectsDir(), now = Date.now()): { files: string[]; bytes: number } {
-  const dir = path.join(stateDir(), 'history');
+export function staleArchives(stateDir: string, projectsDir = defaultProjectsDir(), now = Date.now()): { files: string[]; bytes: number } {
+  const dir = path.join(stateDir, 'history');
   const files: string[] = [];
   let bytes = 0;
   let projects: string[];
@@ -165,13 +164,13 @@ export function staleArchives(projectsDir = defaultProjectsDir(), now = Date.now
 }
 
 /** Moves the stale archives to `<stateDir>/trash/history/<stamp>/` (never deletes), as cleanAttachments does. */
-export function cleanStaleArchives(projectsDir = defaultProjectsDir(), now = Date.now()): { moved: number; bytes: number; trash: string; errors: string[] } {
-  return moveToTrash('history', staleArchives(projectsDir, now).files, now);
+export function cleanStaleArchives(stateDir: string, projectsDir = defaultProjectsDir(), now = Date.now()): { moved: number; bytes: number; trash: string; errors: string[] } {
+  return moveToTrash(stateDir, 'history', staleArchives(stateDir, projectsDir, now).files, now);
 }
 
-function moveToTrash(kind: 'attachments' | 'history', files: string[], now: number): { moved: number; bytes: number; trash: string; errors: string[] } {
-  const src = path.join(stateDir(), kind);
-  const trash = path.join(stateDir(), 'trash', kind, new Date(now).toISOString().replace(/[:.]/g, '-'));
+function moveToTrash(stateDir: string, kind: 'attachments' | 'history', files: string[], now: number): { moved: number; bytes: number; trash: string; errors: string[] } {
+  const src = path.join(stateDir, kind);
+  const trash = path.join(stateDir, 'trash', kind, new Date(now).toISOString().replace(/[:.]/g, '-'));
   let moved = 0;
   let bytes = 0;
   const errors: string[] = [];
@@ -283,6 +282,8 @@ export function systemRoutes(o: {
   modes?: readonly Mode[];
   /** the current project root (a switch changes it) */
   root: () => string;
+  /** the agent's state folder (AgentContext): storage, clean, and About's state folder */
+  stateDir: string;
   /** this server's port (known after listen) */
   port: () => number;
   /** the checkout the server runs from, for the version */
@@ -365,7 +366,7 @@ export function systemRoutes(o: {
       const port = o.port();
       const log = path.join(os.tmpdir(), `nota-bene-${port}.log`);
       void gitDescribe(o.repoDir).then((version) => json(res, 200, {
-        version, stateDir: stateDir(), logs: fs.existsSync(log) ? [log] : [], node: process.version, pid: process.pid,
+        version, stateDir: o.stateDir, logs: fs.existsSync(log) ? [log] : [], node: process.version, pid: process.pid,
       }), (e) => fail(res, '/system/about', e));
     },
 
@@ -414,9 +415,9 @@ export function systemRoutes(o: {
     '/system/storage': (req, res) => {
       if (!only('GET', req, res)) return;
       try {
-        const sd = stateDir();
-        const c = cleanCandidates();
-        const h = staleArchives();
+        const sd = o.stateDir;
+        const c = cleanCandidates(sd);
+        const h = staleArchives(sd);
         json(res, 200, {
           attachments: dirSize(path.join(sd, 'attachments')),
           comments: dirSize(path.join(sd, 'comments')),
@@ -434,9 +435,9 @@ export function systemRoutes(o: {
     '/system/storage/clean': (req, res) => {
       if (!only('POST', req, res)) return;
       try {
-        const a = cleanAttachments();
-        const h = cleanStaleArchives();
-        const trash = a.moved && h.moved ? path.join(stateDir(), 'trash') : h.moved ? h.trash : a.trash;
+        const a = cleanAttachments(o.stateDir);
+        const h = cleanStaleArchives(o.stateDir);
+        const trash = a.moved && h.moved ? path.join(o.stateDir, 'trash') : h.moved ? h.trash : a.trash;
         json(res, 200, { moved: a.moved + h.moved, bytes: a.bytes + h.bytes, trash, errors: [...a.errors, ...h.errors] });
       } catch (e) {
         fail(res, '/system/storage/clean', e);

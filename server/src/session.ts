@@ -25,7 +25,7 @@ import { checkTarget } from './session/target.ts';
 import { TitleTracker } from './session/title.ts';
 import { TurnLedger, activity } from './session/turns.ts';
 import type { SessionManager } from './session/types.ts';
-import { stateDir } from './state.ts';
+import { envAgentContext } from './state.ts';
 import { StatsService } from './stats.ts';
 import { whisperOn } from './dictation/routes.ts';
 import { VoiceIndex } from './voice/index.ts';
@@ -64,8 +64,9 @@ export function trackedCommand(text: string, list: readonly SlashCommand[]): 'co
 export async function createSessionManager(o: SessionOptions): Promise<SessionManager> {
   const { hub, backend } = o;
   const report = (where: string, e: unknown) => reportError(hub, where, e);
-  const attachments = o.attachments ?? new AttachmentStore({ dir: path.join(stateDir(), 'attachments') });
-  const voices = o.voices ?? new VoiceIndex({ file: path.join(stateDir(), 'voice.jsonl') });
+  const stateDir = o.stateDir ?? envAgentContext().stateDir;
+  const attachments = o.attachments ?? new AttachmentStore({ dir: path.join(stateDir, 'attachments') });
+  const voices = o.voices ?? new VoiceIndex({ file: path.join(stateDir, 'voice.jsonl') });
   const speech = o.speech ?? (async (id: string, lang: string, alive: () => boolean, detect: boolean) => {
     if (!whisperOn()) throw new VoiceFailure('off');
     return transcribeVoice(attachments, id, lang, undefined, alive, detect);
@@ -76,7 +77,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
     onChange: () => who.announce(),
   });
   // root changes only in a switch
-  const who = new SessionIdentity({ root: o.cwd, resume: o.resume, fork: o.fork, title: () => titles.title, emit: (ev) => hub.emit(ev), report });
+  const who = new SessionIdentity({ root: o.cwd, stateDir, resume: o.resume, fork: o.fork, title: () => titles.title, emit: (ev) => hub.emit(ev), report });
   const modes = new ModeKeeper({ modes: backend.capabilities.modes, dir: who.root, emit: (ev) => hub.emit(ev, { store: false }), report });
   const models = new ModelKeeper({ dir: who.root, emit: (ev) => hub.emit(ev, { store: false }), report });
   const cmds = new CommandKeeper((ev) => hub.emit(ev, { store: false }));
@@ -85,7 +86,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
   const phase = new Phase();
   const turns = new TurnLedger();
   const archive = archiveCut({
-    hub, archive: o.archive ?? new HistoryArchive({ dir: path.join(stateDir(), 'history'), report: (e) => report('archive', e) }),
+    hub, archive: o.archive ?? new HistoryArchive({ dir: path.join(stateDir, 'history'), report: (e) => report('archive', e) }),
     id: () => who.ownId, inFlight: (id) => turns.inFlight(id), report,
   });
   const permissions = new PermissionBroker({ emit: (ev) => hub.emit(ev) });

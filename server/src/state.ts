@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { isInside } from '@nota-bene/shared/paths';
-import { parseProvider, providerStateDir } from './agent/provider.ts';
+import { parseProvider, providerStateDir, type AgentProvider } from './agent/provider.ts';
 import { updateJson } from './atomicFile.ts';
 import { realpathNative } from './platform.ts';
 
@@ -28,8 +28,25 @@ export function sharedHomeRefusal(real: string, profile: string, env: Record<str
     + 'Unset NOTA_BENE_HOME or point it at a folder inside your profile, or, if only you can read that folder, set NOTA_BENE_ALLOW_SHARED_HOME=1';
 }
 
+/** Which agent a set of per-agent stores belongs to, and the folder they keep their data in (epic 383, step 2a). */
+export type AgentContext = { provider: AgentProvider; stateDir: string };
+
+/** `provider`'s context under `base`: its folder created and checked as every state folder is. */
+export function agentContext(provider: AgentProvider, base: string = stateBaseDir()): AgentContext {
+  return { provider, stateDir: ensureStateDir(providerStateDir(base, provider)) };
+}
+
+/** The context the launcher chose for this process through NOTA_BENE_AGENT; the only reader of that variable here. */
+export function envAgentContext(): AgentContext {
+  return agentContext(parseProvider(process.env.NOTA_BENE_AGENT));
+}
+
 export function stateDir(): string {
-  const dir = providerStateDir(stateBaseDir(), parseProvider(process.env.NOTA_BENE_AGENT));
+  return envAgentContext().stateDir;
+}
+
+/** Created 700 and checked once per process: ours (owner), and on Windows inside the user profile. */
+function ensureStateDir(dir: string): string {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   if (!tightened.has(dir)) {
     if (process.platform === 'win32') {
@@ -58,12 +75,12 @@ function read(file: string): Record<string, string> {
   }
 }
 
-export function lastSession(projectDir: string): string | undefined {
-  return read(path.join(stateDir(), 'sessions.json'))[projectDir];
+export function lastSession(dir: string, projectDir: string): string | undefined {
+  return read(path.join(dir, 'sessions.json'))[projectDir];
 }
 
-export function saveSession(projectDir: string, id: string | null): void {
-  updateJson(path.join(stateDir(), 'sessions.json'), (d) => {
+export function saveSession(dir: string, projectDir: string, id: string | null): void {
+  updateJson(path.join(dir, 'sessions.json'), (d) => {
     const data = asMap(d);
     if (id === null) delete data[projectDir];
     else data[projectDir] = id;
@@ -72,9 +89,9 @@ export function saveSession(projectDir: string, id: string | null): void {
 }
 
 /** A deleted session: every project whose last session it was forgets it (one atomic write); returns how many did. */
-export function forgetSession(id: string): number {
+export function forgetSession(dir: string, id: string): number {
   let n = 0;
-  updateJson(path.join(stateDir(), 'sessions.json'), (d) => {
+  updateJson(path.join(dir, 'sessions.json'), (d) => {
     const data = asMap(d);
     const dirs = Object.keys(data).filter((k) => data[k] === id);
     n = dirs.length;

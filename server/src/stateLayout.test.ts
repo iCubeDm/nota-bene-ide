@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { fakeBackend } from './agent/fake.ts';
 import { startServer } from './server.ts';
+import { agentContext } from './state.ts';
 
 // Where a window keeps its data, per provider (epic 383, step 2a): one server will hold every agent, so this layout must
 // survive the move from "chosen by the process env" to "chosen by the agent".
@@ -57,4 +58,13 @@ it('a claude window keeps its data in the base folder', async () => {
   expect(fs.existsSync(path.join(home, 'seen-sessions.json'))).toBe(true);
   expect(fs.existsSync(path.join(home, 'archived-sessions.json'))).toBe(true);
   expect(fs.existsSync(path.join(home, 'providers'))).toBe(false);
+});
+
+it('an explicit agent context wins over the env', async () => {
+  process.env.NOTA_BENE_AGENT = 'claude';
+  await run({ agent: agentContext('codex', home) });
+  const own = path.join(home, 'providers', 'codex');
+  expect(fs.existsSync(path.join(own, 'seen-sessions.json'))).toBe(true);
+  expect(fs.existsSync(path.join(own, 'archived-sessions.json'))).toBe(true);
+  expect(fs.existsSync(path.join(home, 'seen-sessions.json'))).toBe(false);
 });

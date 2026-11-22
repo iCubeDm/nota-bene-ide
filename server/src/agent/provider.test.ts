@@ -24,15 +24,15 @@ describe('provider identity', () => {
       vi.stubEnv('NOTA_BENE_HOME', base);
       vi.stubEnv('NOTA_BENE_AGENT', 'claude');
       expect(stateDir()).toBe(base);
-      saveSession('/project', 'claude-session');
+      saveSession(stateDir(), '/project', 'claude-session');
       vi.stubEnv('NOTA_BENE_AGENT', 'codex');
       expect(stateDir()).toBe(providerStateDir(base, 'codex'));
-      expect(lastSession('/project')).toBeUndefined();
-      saveSession('/project', 'codex-session');
+      expect(lastSession(stateDir(), '/project')).toBeUndefined();
+      saveSession(stateDir(), '/project', 'codex-session');
       expect(underState(path.join(base, 'token'))).toBe(true);
       expect(underState(path.join(stateDir(), 'token'))).toBe(true);
       vi.stubEnv('NOTA_BENE_AGENT', 'claude');
-      expect(lastSession('/project')).toBe('claude-session');
+      expect(lastSession(stateDir(), '/project')).toBe('claude-session');
     } finally { fs.rmSync(base, { recursive: true, force: true }); }
   });
 
