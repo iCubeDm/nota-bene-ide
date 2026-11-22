@@ -163,6 +163,9 @@ type Shared = {
   requestRestart: () => boolean;
   exiting: () => boolean;
   exitWith: (code: number) => void;
+  /** the window's agent's id, and every agent's (their /info lists them: the switcher's rows, projects.ts) */
+  primaryId: string;
+  agents: () => { id: string; provider: AgentProvider }[];
   /** POST /control/open, set once the server is up */
   controlOpen: (body: unknown) => Promise<{ status: number; body: unknown }>;
 };
@@ -432,7 +435,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
         ...dictationRoutes({ hub }),
         ...cutRoutes({ hub, exporter: cutExporter, peaks: cutPeaks, reverse: cutReverse, root }),
         ...remoteRoutes({ hub, keeper: o.remote }),
-        ...projectRoutes({ hub, port: () => s.port(), provider: agent.provider, repoDir, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
+        ...projectRoutes({ hub, port: () => s.port(), provider: agent.provider, ...(a.id === s.primaryId ? {} : { agent: a.id }), repoDir, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
         ...systemRoutes({
           updater: win, newer,
           hub, root, stateDir: agent.stateDir, modes: a.backend.capabilities.modes, port: () => s.port(), repoDir,
@@ -453,7 +456,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       info: () => {
         const { id, root, title, model } = manager.info();
         // busy and clients: for another window's Settings → Windows; pending, last, replies: the phone's list
-        return { agent: a.id, root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root) };
+        return { agent: a.id, root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root), agents: s.agents() };
       },
     });
     const switchFailed = (e: unknown) => reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);
@@ -993,10 +996,12 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       o, audit, ...(authorize ? { authorize } : {}), allowedHosts, allowedOrigins, open: { '/auth': authRoute, '/hello': helloRoute }, control,
       port: () => ownPort, projectIcons, supervised, codeChanged, repoDir, newer, win, restart, requestRestart, exiting: () => exiting, exitWith,
       controlOpen: async () => ({ status: 503, body: 'starting' }),
+      primaryId: launchAgentId(agent.provider, nonce),
+      agents: () => [...agents.values()].map((x) => ({ id: x.id, provider: x.provider })),
     };
     // the first agent: the window's, addressed as /a/<id>/ and at the top (the phone and older pages)
     const primary = await startAgent(s, {
-      agent, id: launchAgentId(agent.provider, nonce), cwd: o.cwd, backend: o.backend,
+      agent, id: s.primaryId, cwd: o.cwd, backend: o.backend,
       ...(o.resume ? { resume: o.resume } : {}), ...(o.fork ? { fork: true } : {}),
       ...(o.onStats ? { onStats: o.onStats } : {}), ...(o.onLimit ? { onLimit: o.onLimit } : {}),
     });

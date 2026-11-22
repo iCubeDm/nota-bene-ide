@@ -17,7 +17,7 @@ import type { EventHub } from './hub.ts';
 import { HIDDEN } from './platform.ts';
 import { enterUrl, listProjects, PROVIDERS, remoteRows, sessionsOf, stopAt, stopOthers, type Computer } from './projects.ts';
 import { forgetRecent, readRecent } from './recent.ts';
-import { stateBaseDir } from './state.ts';
+import { AGENT_ID, stateBaseDir } from './state.ts';
 import { readJson } from './system.ts';
 
 /** Runs the launcher with `args`; resolves to its exit code and the first line it printed. */
@@ -129,6 +129,8 @@ export function projectRoutes(o: {
   /** this server's port (known after listen) */
   port: () => number;
   provider: AgentProvider;
+  /** epic 383: this agent's id when it is not the window's own (its rows are told apart by it) */
+  agent?: string;
   /** the checkout or package the server runs from: its launcher starts the new windows */
   repoDir: string;
   launch?: Launch;
@@ -139,6 +141,13 @@ export function projectRoutes(o: {
   const launch = o.launch ?? launcherOf(o.repoDir);
   const agents = o.agents ?? defaultAgents();
   const warned = new Set<string>();
+  const own = () => ({ port: o.port(), provider: o.provider, ...(o.agent ? { agent: o.agent } : {}) });
+  /** a row of the list as the page sends it back: a window, or an agent with its id; null for anything else */
+  const rowOf = (b: Record<string, unknown>) => {
+    if (!isProvider(b.provider) || !Number.isInteger(b.port) || typeof b.root !== 'string') return null;
+    if (b.agent !== undefined && (typeof b.agent !== 'string' || !AGENT_ID.test(b.agent))) return null;
+    return { provider: b.provider, port: b.port as number, root: b.root, ...(b.agent ? { agent: b.agent as string } : {}) };
+  };
   const fail = (res: ServerResponse, where: string, e: unknown) => {
     reportError(o.hub, where, e);
     if (!res.headersSent) text(res, 500, 'internal error');
@@ -163,31 +172,34 @@ export function projectRoutes(o: {
       const warn = (m: string) => { if (!warned.has(m)) { warned.add(m); reportError(o.hub, '/system/projects', new Error(m)); } };
       // a paired computer that cannot be asked (no connector, a broken hosts.json) lists nothing, as one offline
       const computers = (o.computers?.() ?? Promise.resolve([])).catch(() => []);
-      Promise.all([listProjects({ port: o.port(), provider: o.provider }, undefined, warn), computers])
+      Promise.all([listProjects(own(), undefined, warn), computers])
         .then(([l, c]) => json(res, 200, { ...l, running: [...l.running, ...remoteRows(c)] }), (e) => fail(res, '/system/projects', e));
     },
 
     '/system/projects/enter': post('/system/projects/enter', async (b, res) => {
-      if (!isProvider(b.provider) || !Number.isInteger(b.port) || typeof b.root !== 'string') return text(res, 400, 'bad request');
+      const w = rowOf(b);
+      if (!w) return text(res, 400, 'bad request');
       // a session id, or `new`: the page there starts a new session (web landing.ts)
       if (b.session !== undefined && b.session !== 'new' && !isSessionId(b.session)) return text(res, 400, 'bad request');
-      const r = await enterUrl({ provider: b.provider, port: b.port as number, root: b.root, ...(b.session ? { session: b.session } : {}) });
+      const r = await enterUrl({ ...w, ...(b.session ? { session: b.session } : {}) });
       if ('url' in r) return json(res, 200, r);
       text(res, r.error === 'no such window' ? 404 : 409, r.error);
     }),
 
     '/system/projects/sessions': post('/system/projects/sessions', async (b, res) => {
-      if (!isProvider(b.provider) || !Number.isInteger(b.port) || typeof b.root !== 'string') return text(res, 400, 'bad request');
-      const r = await sessionsOf({ provider: b.provider, port: b.port as number, root: b.root });
+      const w = rowOf(b);
+      if (!w) return text(res, 400, 'bad request');
+      const r = await sessionsOf(w);
       if (!('error' in r)) return json(res, 200, r);
       text(res, r.error === 'no such window' ? 404 : 409, r.error);
     }),
 
     // a project's window from the list; this window's own stop is POST /stop (its header)
     '/system/projects/stop': post('/system/projects/stop', async (b, res) => {
-      if (!isProvider(b.provider) || !Number.isInteger(b.port) || typeof b.root !== 'string') return text(res, 400, 'bad request');
-      if (b.port === o.port() && b.provider === o.provider) return text(res, 409, 'this window');
-      const r = await stopAt({ provider: b.provider, port: b.port as number, root: b.root });
+      const w = rowOf(b);
+      if (!w) return text(res, 400, 'bad request');
+      if (w.port === o.port()) return text(res, 409, 'this window');
+      const r = await stopAt(w);
       if ('ok' in r) return json(res, 200, r);
       text(res, r.error === 'no such window' ? 404 : r.error === 'refused' ? 502 : 409, r.error);
     }),
@@ -195,7 +207,7 @@ export function projectRoutes(o: {
     // the header's Stop Nota Bene: every other window first, then the page stops this one (POST /stop)
     '/system/projects/stop-others': (req, res) => {
       if (!only('POST', req, res)) return;
-      stopOthers({ port: o.port(), provider: o.provider }).then((r) => json(res, 200, r), (e) => fail(res, '/system/projects/stop-others', e));
+      stopOthers(own()).then((r) => json(res, 200, r), (e) => fail(res, '/system/projects/stop-others', e));
     },
 
     // a folder out of Recent (✕ on its row); launching it again brings it back (recent.ts)
