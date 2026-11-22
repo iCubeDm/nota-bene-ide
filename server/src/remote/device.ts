@@ -26,7 +26,12 @@ const INFO_MS = 5000;
  * never `/os/` (Show in Finder and Open act on this computer's desktop; issue 461).
  */
 export const goodPath = (p: unknown): p is string =>
-  typeof p === 'string' && p.length <= 8192 && /^\/[\x21-\x7e]*$/.test(p) && !p.startsWith('//') && !/[\\#]/.test(p) && !/^\/(control|remote)(\/|\?|$)/i.test(p)
+  typeof p === 'string' && p.length <= 8192 && /^\/[\x21-\x7e]*$/.test(p) && !p.startsWith('//') && !/[\\#]/.test(p) && goodRoute(unprefixed(p));
+
+/** epic 383: the path below an agent's prefix (`/a/<id>`), which the window answers as if it came at the top (http.ts stripAgent) */
+export const unprefixed = (p: string): string => p.replace(/^\/a\/[^/?]*(?=[/?]|$)/, '') || '/';
+
+const goodRoute = (p: string): boolean => !/^\/(control|remote)(\/|\?|$)/i.test(p)
   && !/^\/system\/(projects|folders|agents|remote)(\/|\?|$)/i.test(p) // issue 297: `remote` opens proxies to other computers
   && !/^\/os(\/|\?|$)/i.test(p); // issue 461: Show in Finder / Open act on this computer's desktop
 
@@ -181,7 +186,7 @@ export class DeviceChannel {
     const w = typeof o.port === 'number' ? this.#o.windows.get(o.port) : undefined;
     if (!w) return s.close(UNKNOWN_WINDOW, 'no such window');
     if (o.kind === 'ws') {
-      if (!/^\/ws(\?|$)/.test(o.path)) return s.close(BAD_FRAME, 'bad path');
+      if (!/^\/ws(\?|$)/.test(unprefixed(o.path))) return s.close(BAD_FRAME, 'bad path');
       return this.#wsStream(s, w, o.path);
     }
     const method = typeof o.method === 'string' ? o.method.toUpperCase() : '';

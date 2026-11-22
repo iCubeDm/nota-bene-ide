@@ -39,6 +39,20 @@ export function isAllowedHost(host: string | undefined, allowed: readonly string
   return host !== undefined && allowed.includes(host.toLowerCase());
 }
 
+/**
+ * `/a/<id>/…` (epic 383): the agent's prefix comes off `req.url` before anything reads the path, so every rule (Host and
+ * Origin, the control token, the login tiers, the routes) sees what it sees at the top. False: another agent's prefix.
+ */
+export function stripAgent(req: { url?: string }, id: string): boolean {
+  const url = req.url ?? '/';
+  const m = /^\/a\/([^/?]*)/.exec(url);
+  if (!m) return true;
+  if (m[1] !== id) return false;
+  const rest = url.slice(m[0].length);
+  req.url = rest.startsWith('/') ? rest : `/${rest}`;
+  return true;
+}
+
 export function httpHandler(o: {
   hub: EventHub;
   webDist: string;

@@ -6,7 +6,7 @@ import { fragmentSession, loginFromFragment } from './core/net/auth.ts';
 import { loadRemotePage } from './core/net/local.ts';
 import { startLanding } from './plugins/projects/landing.ts';
 import { enterFailure } from './plugins/projects/api.ts';
-import { defaultSocketUrl } from './core/net/socket.ts';
+import { agentBase, defaultSocketUrl } from './core/net/socket.ts';
 import { makeStore } from './core/store/store.ts';
 import { PLUGINS } from './plugins.ts';
 import './core/shell/theme.ts';
@@ -18,7 +18,7 @@ import './theme.css';
 const landing = fragmentSession(location.hash);
 // then whether this is another computer's window shown through this one (issue 297): the UI hides what is not there
 void loginFromFragment().then(() => loadRemotePage()).then(() => {
-  const store = makeStore({ url: defaultSocketUrl(location), plugins: PLUGINS });
+  const store = makeStore({ url: defaultSocketUrl(location), base: agentBase(location), plugins: PLUGINS });
   if (landing) startLanding(store, landing);
   enterFailure();
   createRoot(document.getElementById('root')!).render(

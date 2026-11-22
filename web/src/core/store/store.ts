@@ -133,6 +133,8 @@ const mediaMiddleware = (media: MediaController): Middleware => (api) => {
  */
 export function makeStore(o: {
   url: string;
+  /** the agent's route prefix (net/socket.ts agentBase); '' = the window's top */
+  base?: string;
   plugins: readonly Plugin[];
   connect?: Connect;
   pip?: PipApi;
@@ -168,7 +170,7 @@ export function makeStore(o: {
   bindConnections(store, connections);
   const self = agentConnection({
     id: SELF,
-    base: '',
+    base: o.base ?? '',
     url: o.url,
     ...(o.connect ? { connect: o.connect } : {}),
     deliver: (ev) => {

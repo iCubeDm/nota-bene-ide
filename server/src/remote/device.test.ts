@@ -127,6 +127,9 @@ describe('device channel', () => {
     expect(goodPath('/osx.md')).toBe(true);
     expect(goodPath('/system/windows')).toBe(true);
     for (const p of ['/remotely.md', '/file?path=remote/a.md', '/info']) expect(goodPath(p)).toBe(true);
+    // epic 383: an agent's prefix comes off before the rules, as the window takes it off
+    for (const p of ['/a/claude-abcdef/control/stop', '/a/claude-abcdef/remote/pair', '/a/x/system/projects/open', '/a/x/os/open', '/a/claude-abcdef/REMOTE']) expect(goodPath(p), p).toBe(false);
+    for (const p of ['/a/claude-abcdef/info', '/a/claude-abcdef/ws?tab=1', '/a/claude-abcdef', '/a/claude-abcdef/file?path=control/a.md']) expect(goodPath(p), p).toBe(true);
   });
 
   it('the computer name loses control and bidi-override characters and is capped at 64', () => {
@@ -284,6 +287,17 @@ describe('device channel', () => {
     expect((await t1.closed).code).toBe(4001);
     t2.send({ type: 'send', id: 'u1', text: 'from the phone' });
     await until(() => t2.events.some((e) => e.kind === 'user' && e.id === 'u1'));
+  });
+
+  it('under the agent\'s prefix (epic 383): the same window, the same refusals', async () => {
+    const a = await window();
+    const l = await paired(await windows());
+    const id = (JSON.parse((await l.phone.http(a.port, 'GET', '/info')).body.toString()) as { agent: string }).agent;
+    expect((await l.phone.http(a.port, 'GET', `/a/${id}/info`)).status).toBe(200);
+    await expect(l.phone.http(a.port, 'GET', `/a/${id}/control/stop`)).rejects.toMatchObject({ code: 4900 });
+    await expect(l.phone.http(a.port, 'POST', `/a/${id}/remote/pair`)).rejects.toMatchObject({ code: 4900 });
+    const t = l.phone.ws(a.port, `/a/${id}/ws?tab=t1`);
+    await until(() => t.events.some((e) => e.kind === 'hello'));
   });
 
   it('http: GET, Range, a write, and refused paths', async () => {

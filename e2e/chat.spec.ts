@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { en } from '../web/src/core/i18n/en.ts';
 import { ru } from '../web/src/core/i18n/ru.ts';
+import { apiGet } from './auth.ts';
 
 const DONE = /готово|done/;
 const INTERRUPTED = /прервано|interrupted/;
@@ -26,6 +27,19 @@ async function send(page: Page, text: string, key = 'Enter') {
   await composer(page).fill(text);
   await composer(page).press(key);
 }
+
+test('a page opened under its agent (/a/<id>/, epic 383) chats there as at the top @chat', async ({ page }) => {
+  await open(page);
+  const { agent } = (await (await apiGet(page, '/info')).json()) as { agent: string };
+  const sockets: string[] = [];
+  page.on('websocket', (ws) => sockets.push(new URL(ws.url()).pathname));
+  await page.goto(`/a/${agent}/`);
+  await expect(composer(page)).toBeVisible();
+  const text = uniq('show me');
+  await send(page, text);
+  await expect(donesAfter(page, text).first()).toHaveText(DONE);
+  expect(sockets).toEqual([`/a/${agent}/ws`]);
+});
 
 test('streams a markdown reply and shows the done line @chat', async ({ page }) => {
   await open(page);
