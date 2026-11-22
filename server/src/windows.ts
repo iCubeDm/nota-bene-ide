@@ -110,6 +110,29 @@ export function unregisterWindow(port: number, pid: number): void {
   });
 }
 
+/** An extra agent of a server (epic 383), kept so a relaunch of the same launch reopens it under its id. */
+export type KeptAgent = { id: string; provider: AgentProvider; root: string };
+export type KeptAgents = { launcherPid?: number; nonce: string; agents: KeptAgent[] };
+const keptFile = (port: number, base?: string) => path.join(dir(base), `${port}.agents.json`);
+
+/** The server's own file beside its entry (the launcher never writes it), replaced whole. */
+export function writeKeptAgents(port: number, k: KeptAgents, base?: string): void {
+  fs.mkdirSync(dir(base), { recursive: true });
+  writeJsonAtomic(keptFile(port, base), k, { space: 2 });
+}
+
+/** The port's kept agents; null when there is no file or it is not one of ours. */
+export function readKeptAgents(port: number, base?: string): KeptAgents | null {
+  try {
+    const k = JSON.parse(fs.readFileSync(keptFile(port, base), 'utf8')) as KeptAgents;
+    const good = (a: KeptAgent) => !!a && typeof a.id === 'string' && typeof a.provider === 'string' && typeof a.root === 'string';
+    if (!k || typeof k.nonce !== 'string' || !Array.isArray(k.agents) || !k.agents.every(good)) return null;
+    return { ...(typeof k.launcherPid === 'number' ? { launcherPid: k.launcherPid } : {}), nonce: k.nonce, agents: k.agents.map(({ id, provider, root }) => ({ id, provider, root })) };
+  } catch {
+    return null;
+  }
+}
+
 export { pidAlive }; // its callers import it from here
 
 /** GET http://127.0.0.1:PORT/info → { root } or null (no answer, not ours, not JSON, not logged in). The credential goes only to a listener that proved it holds the token (GET /hello). */
