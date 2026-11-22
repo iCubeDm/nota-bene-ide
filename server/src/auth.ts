@@ -24,7 +24,7 @@ import fs from 'node:fs';
 import type { IncomingHttpHeaders, RequestListener } from 'node:http';
 import path from 'node:path';
 import { writeAtomic } from './atomicFile.ts';
-import { SecretError, stateDir } from './state.ts';
+import { SecretError, serverStateDir } from './state.ts';
 
 export { SecretError };
 
@@ -132,7 +132,7 @@ function settled(file: string): string | null {
 
 /** A secret kept in `<stateDir>/<name>`: read, or created once (mode 600). Concurrent first callers get one value. */
 export function stateSecret(name: string): string {
-  const dir = stateDir();
+  const dir = serverStateDir();
   const file = path.join(dir, name);
   const have = readSecret(file);
   if (have) return have;

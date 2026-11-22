@@ -12,7 +12,7 @@ import { loadCodexHistory, restoreCodexReplay } from './history.ts';
 import { array, itemId, record, string } from './map.ts';
 const real = (p: string) => { try { return fs.realpathSync.native(p); } catch { return path.resolve(p); } };
 export function codexBackend(options: { connect?: (cwd?: string) => CodexConnection; /** the agent's state folder, for the replay history; default: the env-chosen one (tests) */ stateDir?: string } = {}): AgentBackend {
-  const stateDir = () => options.stateDir ?? envAgentContext().stateDir;
+  const agentDir = () => options.stateDir ?? envAgentContext().stateDir;
   const connect = options.connect ?? ((cwd?: string) => new CodexRpc({ cwd }));
   let metadata: CodexConnection | undefined;
   const sessions = new Set<CodexSession>();
@@ -53,7 +53,7 @@ export function codexBackend(options: { connect?: (cwd?: string) => CodexConnect
     async history(id, cwd, attachments, onError) {
       const t = await read(id); if (!t.cwd || !samePath(real(string(t.cwd)), real(cwd))) throw new Error('Codex conversation belongs to another folder');
       const events = remember(id, await loadCodexHistory(rpc(), id, attachments, onError));
-      return restoreCodexReplay(new HistoryArchive({ dir: path.join(stateDir(), 'history'), report: onError }), id, events, onError);
+      return restoreCodexReplay(new HistoryArchive({ dir: path.join(agentDir(), 'history'), report: onError }), id, events, onError);
     },
     async subagent(sessionId, cwd, call, attachments, onError) {
       const owner = [...sessions].find((s) => s.threadId === sessionId);

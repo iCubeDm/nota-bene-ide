@@ -41,7 +41,11 @@ export function envAgentContext(): AgentContext {
   return agentContext(parseProvider(process.env.NOTA_BENE_AGENT));
 }
 
-export function stateDir(): string {
+/**
+ * The window process's own folder: its token, control token, prefs and window registry. Chosen by NOTA_BENE_AGENT, as the
+ * agent's folder is; step 2b of epic 383 moves each of these to the one server.
+ */
+export function serverStateDir(): string {
   return envAgentContext().stateDir;
 }
 

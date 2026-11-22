@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LOCK } from './atomicFile.ts';
-import { stateDir } from './state.ts';
+import { serverStateDir } from './state.ts';
 import { liveWindows, moveWindow, pidAlive, readWindows, registerWindow, restartingWindows, rootHash, setBuilding, unregisterWindow, windowKey } from './windows.ts';
 
 let home: string;
@@ -19,7 +19,7 @@ afterEach(() => {
   fs.rmSync(home, { recursive: true, force: true });
 });
 
-const file = (port: number) => path.join(stateDir(), 'windows', `${port}.json`);
+const file = (port: number) => path.join(serverStateDir(), 'windows', `${port}.json`);
 // a pid that surely is not running: spawnSync waits for the child and reaps it
 const deadPid = () => spawnSync('true').pid!;
 

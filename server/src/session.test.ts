@@ -9,7 +9,7 @@ import type { FakeTurn } from './agent/fake.ts';
 import type { ProviderBackend as AgentBackend, PermissionAsk } from './agent/types.ts';
 import { EventHub } from './hub.ts';
 import { createSessionManager, trackedCommand } from './session.ts';
-import { lastSession, stateDir } from './state.ts';
+import { lastSession, serverStateDir } from './state.ts';
 import { prefsKey, readPrefs, setModePref } from './prefs.ts';
 import { AttachmentStore } from './attachments.ts';
 
@@ -133,7 +133,7 @@ describe('session manager', () => {
     const s = await make();
     s.send({ id: 'u1', text: 'hi' });
     await until(() => events.some((e) => e.kind === 'session' && e.id !== null));
-    expect(lastSession(stateDir(), '/proj')).toBe('fake-session');
+    expect(lastSession(serverStateDir(), '/proj')).toBe('fake-session');
     expect(s.info()).toEqual({ id: 'fake-session', root: '/proj', title: null, model: null });
   });
 
@@ -407,7 +407,7 @@ describe('session manager', () => {
     expect(events.some((e) => e.kind === 'agent' && (e.e as AgentEvent).t === 'init')).toBe(false);
     expect(events.filter((e) => e.kind === 'resumed')).toHaveLength(1);
     expect(events.filter((e) => e.kind === 'session')).toHaveLength(1); // same id: no new session event
-    expect(lastSession(stateDir(), '/proj')).toBe('old-session');
+    expect(lastSession(serverStateDir(), '/proj')).toBe('old-session');
   });
 
   it('fresh start: a session event with null id, then one more when the first init names the id', async () => {
@@ -1005,19 +1005,19 @@ describe('switch', () => {
       const { events, hub } = setup(backend);
       const m = await createSessionManager({ hub, backend, cwd: home, resume: 'src-id', fork: true });
       expect(backend.starts[0]).toMatchObject({ resume: 'src-id', fork: true });
-      expect(lastSession(stateDir(), home)).toBeUndefined(); // the source is never written
+      expect(lastSession(serverStateDir(), home)).toBeUndefined(); // the source is never written
       const ids: string[] = [];
       m.onSessionId((id) => ids.push(id));
       m.send({ id: 'u1', text: 'go' });
       await until(() => agentOf(events, 'turn-end').length === 1);
       const forked = m.info().id!;
       expect(forked).not.toBe('src-id');
-      expect(lastSession(stateDir(), home)).toBe(forked);
+      expect(lastSession(serverStateDir(), home)).toBe(forked);
       expect(ids).toEqual([forked]);
       await m.restart();
       expect(backend.starts[1]).toEqual(expect.objectContaining({ resume: forked }));
       expect(backend.starts[1]!.fork).toBeUndefined();
-      expect(lastSession(stateDir(), home)).toBe(forked);
+      expect(lastSession(serverStateDir(), home)).toBe(forked);
       m.close();
     });
 
@@ -1027,7 +1027,7 @@ describe('switch', () => {
       const m = await createSessionManager({ hub, backend, cwd: home, resume: 'src-id', fork: true });
       await m.restart();
       expect(backend.starts.map((x) => x.fork)).toEqual([true, true]);
-      expect(lastSession(stateDir(), home)).toBeUndefined();
+      expect(lastSession(serverStateDir(), home)).toBeUndefined();
       m.close();
     });
   });

@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseProvider, providerStateDir } from './provider.ts';
-import { stateDir, saveSession, lastSession } from '../state.ts';
+import { lastSession, saveSession, serverStateDir } from '../state.ts';
 import { underState } from '../stateGuard.ts';
 import { parseArgs } from '../main.ts';
 // @ts-expect-error plain launcher ESM has no declarations
@@ -23,16 +23,16 @@ describe('provider identity', () => {
     try {
       vi.stubEnv('NOTA_BENE_HOME', base);
       vi.stubEnv('NOTA_BENE_AGENT', 'claude');
-      expect(stateDir()).toBe(base);
-      saveSession(stateDir(), '/project', 'claude-session');
+      expect(serverStateDir()).toBe(base);
+      saveSession(serverStateDir(), '/project', 'claude-session');
       vi.stubEnv('NOTA_BENE_AGENT', 'codex');
-      expect(stateDir()).toBe(providerStateDir(base, 'codex'));
-      expect(lastSession(stateDir(), '/project')).toBeUndefined();
-      saveSession(stateDir(), '/project', 'codex-session');
+      expect(serverStateDir()).toBe(providerStateDir(base, 'codex'));
+      expect(lastSession(serverStateDir(), '/project')).toBeUndefined();
+      saveSession(serverStateDir(), '/project', 'codex-session');
       expect(underState(path.join(base, 'token'))).toBe(true);
-      expect(underState(path.join(stateDir(), 'token'))).toBe(true);
+      expect(underState(path.join(serverStateDir(), 'token'))).toBe(true);
       vi.stubEnv('NOTA_BENE_AGENT', 'claude');
-      expect(lastSession(stateDir(), '/project')).toBe('claude-session');
+      expect(lastSession(serverStateDir(), '/project')).toBe('claude-session');
     } finally { fs.rmSync(base, { recursive: true, force: true }); }
   });
 

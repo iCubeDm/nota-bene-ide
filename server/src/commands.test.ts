@@ -8,7 +8,7 @@ import { fakeBackend } from './agent/fake.ts';
 import type { FakeTurn } from './agent/fake.ts';
 import { CommentStore } from './comments.ts';
 import { startServer } from './server.ts';
-import { lastSession, stateDir } from './state.ts';
+import { lastSession, serverStateDir } from './state.ts';
 
 let home: string;
 let dist: string;
@@ -118,7 +118,7 @@ describe('compact and clear', () => {
     expect(store().get('fake-session')).toEqual([c('old')]);
     const dir = path.join(home, 'comments');
     expect(fs.readFileSync(path.join(dir, fs.readdirSync(dir).find((f) => f.includes('fake-session'))!), 'utf8')).toBe(before);
-    expect(lastSession(stateDir(), '/proj')).toBe(newId);
+    expect(lastSession(serverStateDir(), '/proj')).toBe(newId);
 
     // a reconnecting socket: no old turns
     const late = await connect(s.url);

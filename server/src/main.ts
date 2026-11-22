@@ -12,7 +12,7 @@ import { HANDOVER } from './updater.ts';
 import { hitRecorder, limitRecorder } from './usage/routes.ts';
 import { UsageStore } from './usage/store.ts';
 import { transcriptExists } from './sessions.ts';
-import { agentContext, lastSession, stateDir } from './state.ts';
+import { agentContext, lastSession, serverStateDir } from './state.ts';
 import { parseProvider, type AgentProvider } from './agent/provider.ts';
 import { pidAlive, realpathNative, samePath } from './platform.ts';
 import { packageVersion } from './version.ts';
@@ -85,7 +85,7 @@ export function invocationCwd(env: NodeJS.ProcessEnv, cwd: string): string {
 
 /** The startup log line that says which state dir this server uses (dev mode has its own). */
 export function stateLine(): string {
-  return `state: ${stateDir()}`;
+  return `state: ${serverStateDir()}`;
 }
 
 /** Exit code for a failed listen (port taken): the launcher retries its first start on another port. */

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { EFFORT_LEVELS, ALL_MODES, isThemeId, isUiLang, isUiScale } from '@nota-bene/shared';
 import type { AgentEffort as EffortLevel, AgentMode as Mode, ModelChoice, ThemeId, UiLang, UiScale } from '@nota-bene/shared';
 import { withLock, writeJsonAtomic } from './atomicFile.ts';
-import { stateDir } from './state.ts';
+import { serverStateDir } from './state.ts';
 
 /** `idleCompact[root]`: idle compaction per project dir; absent = on (the default) */
 /** `defaultMode`: the mode of a project with no entry in `modes` (Settings → Defaults; absent = auto) */
@@ -43,7 +43,7 @@ export function prefsKey(dir: string): string {
 }
 
 function file(): string {
-  return path.join(stateDir(), 'prefs.json');
+  return path.join(serverStateDir(), 'prefs.json');
 }
 
 /** A missing or corrupt file gives the defaults; corruption is logged once. */
