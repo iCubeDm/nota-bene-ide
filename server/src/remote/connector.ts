@@ -204,10 +204,11 @@ export class Connector extends EventEmitter {
       open: (o) => this.#links.get(host)?.link.open(o) ?? null, port, computer,
       projects: async () => {
         // this computer's windows (none current: the page is the other one's) and the paired ones'; no Recent, which
-        // would open folders here. Only that computer's own rows say more than what lists and moves
+        // would open folders here. Only that computer's own rows say more than what lists and moves. An agent beside a
+        // window's (epic 383) is not among them yet: the move from there names a window, as the host stream does
         const own = await listProjects({ port: 0, provider: 'claude' });
         const rows = remoteRows(this.computers(), { host, port });
-        return { running: [...own.running.map(bareRow), ...rows.map((r) => (r.remote?.host === host ? r : bareRow(r)))], recent: [], hidden: [] };
+        return { running: [...own.running.filter((r) => !r.agent).map(bareRow), ...rows.map((r) => (r.remote?.host === host ? r : bareRow(r)))], recent: [], hidden: [] };
       },
       enter: (to) => this.#enter(to),
       onClose: () => {

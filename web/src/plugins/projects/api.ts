@@ -14,7 +14,12 @@ export type RunningRow = {
   last: LastMessage | null;
   /** issue 297: a window of a paired computer (its host id and name), opened through this computer's connector */
   remote?: { host: string; name: string };
+  /** epic 383: an agent the server on `port` opened beside its window's (`provider` is that agent's) */
+  agent?: string;
 };
+/** A row as the switcher's routes take it back: a window, or a server's agent by its id. */
+export const rowRef = (w: RunningRow): { provider: Provider; port: number; root: string; agent?: string } =>
+  ({ provider: w.provider, port: w.port, root: w.root, ...(w.agent ? { agent: w.agent } : {}) });
 type RecentRow = { root: string; provider: Provider; at: number; running: boolean };
 export type ProjectsList = { running: RunningRow[]; recent: RecentRow[]; /** folders removed from Recent: out of this window's history too */ hidden?: string[] };
 
@@ -137,7 +142,7 @@ export async function enterProject(row: RunningRow, session?: string): Promise<b
   try {
     const r = row.remote
       ? await send(routes.systemRemoteOpen(), { host: row.remote.host, port: row.port })
-      : await send(routes.systemProjects('enter'), { provider: row.provider, port: row.port, root: row.root, ...(session ? { session } : {}) });
+      : await send(routes.systemProjects('enter'), { ...rowRef(row), ...(session ? { session } : {}) });
     // the remote routes say why as JSON `{error}`, the switcher's as text
     if (!r.ok) {
       const why = row.remote ? remoteWhy(((await r.json().catch(() => null)) as { error?: unknown } | null)?.error) : reasonText(await reasonOf(r));
@@ -154,7 +159,7 @@ export async function enterProject(row: RunningRow, session?: string): Promise<b
   }
 }
 
-/** Stops that window from the list (its agent and launcher; the session stays); the refusal's reason, or null. */
+/** Stops that window from the list (its agent and launcher; the session stays); the refusal's reason, or null. Not for an agent beside a window's: the server refuses. */
 export async function stopProject(row: RunningRow): Promise<string | null> {
   try {
     const r = await send(routes.systemProjects('stop'), { provider: row.provider, port: row.port, root: row.root });

@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { useT, shortHome, folderName, connections, routes, toast, withKey, selectSession, useAppDispatch, useAppSelector, remotePage, useRegistry, ago } from '@/sdk';
 import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog, ICONS, Svg } from '@/sdk/ui';
-import { enterProject, forgetRecent, onPageRestore, openFolder, reasonText, openStarter, PROVIDER_LABEL, selectProjectsMenu, setProjectsMenu, stopProject, useProjects, type Provider } from './api.ts';
+import { enterProject, forgetRecent, onPageRestore, openFolder, reasonText, openStarter, PROVIDER_LABEL, selectProjectsMenu, setProjectsMenu, stopProject, useProjects, type Provider, type RunningRow } from './api.ts';
 import { ProjectSessions, type LocalSession } from './ProjectSessions.tsx';
 import { badgeOf, foldRows, rowKey, rowTitle, titlePrefix, type ProjectRow } from './rows.ts';
 import { BadgeView, folderOf, LIVE, rowBadge, STATE_KEY, Tile } from './Tile.tsx';
@@ -26,6 +26,9 @@ function Chevron({ open, label, onClick }: { open: boolean; label: string; onCli
 }
 
 type RecentItem = { root: string; provider: Provider; at: number };
+
+/** A window of the list that stops from its row; an agent beside a window's (epic 383) closes with its project, not yet here. */
+const stoppable = (w: RunningRow) => LIVE.has(w.state) && !w.agent;
 
 export function ProjectSwitcher({ project, windowTitle }: { project: string; windowTitle: string }) {
   const t = useT();
@@ -99,7 +102,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
   };
   const stopRow = async (r: ProjectRow) => {
     setStopAsk(null);
-    for (const w of r.windows.filter((x) => LIVE.has(x.state))) {
+    for (const w of r.windows.filter(stoppable)) {
       const why = await stopProject(w);
       if (why) toast(t('projStopFail', reasonText(why)), r.root);
     }
@@ -156,7 +159,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
                         </span>
                         <BadgeView b={b} />
                       </button>
-                      {!r.current && !r.remote && !here && r.windows.some((w) => LIVE.has(w.state)) && (
+                      {!r.current && !r.remote && !here && r.windows.some(stoppable) && (
                         <button type="button" aria-label={t('projStop', folder)} title={t('projStop', folder)} onClick={() => setStopAsk(r)}
                           className="grid size-6 flex-none cursor-pointer place-items-center rounded text-muted-foreground opacity-0 hover:bg-muted hover:text-destructive focus-visible:opacity-100 group-hover/proj:opacity-100">
                           <Svg size={13}>{ICONS.power}</Svg>
@@ -222,8 +225,8 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
         {stopAsk && (
           <ConfirmDialog
             title={t('projStopQ', folderOf(stopAsk.root))}
-            body={[t('projStopBody', stopAsk.windows.filter((w) => LIVE.has(w.state)).map((w) => PROVIDER_LABEL[w.provider]).join(', ')),
-              ...(stopAsk.windows.some((w) => w.state === 'working') ? [t('stopWindowBusy')] : [])].join('\n')}
+            body={[t('projStopBody', stopAsk.windows.filter(stoppable).map((w) => PROVIDER_LABEL[w.provider]).join(', ')),
+              ...(stopAsk.windows.some((w) => stoppable(w) && w.state === 'working') ? [t('stopWindowBusy')] : [])].join('\n')}
             confirm={t('winStop')}
             onConfirm={() => void stopRow(stopAsk)}
             onCancel={() => setStopAsk(null)}
