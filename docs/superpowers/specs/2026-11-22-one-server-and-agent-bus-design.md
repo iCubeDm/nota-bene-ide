@@ -101,6 +101,10 @@ flowchart TB
 
 - **Registry**: `~/.nota-bene/server.json` `{port, pid, startedAt, version, nonce, agents: [{id, provider, root, cwd, session}]}`
   under a server lock. Per-folder locks become an in-process map.
+  As built (2c): the window registry (`windows/<port>.json`) stays the registry, read by the connector and the switcher;
+  the agents are kept beside it in `<port>.agents.json`, and the launch lock is one per server. Tokens stay per provider:
+  a server keeps the token of the provider it started as, and the launcher logs in with that one (M3's move is not needed
+  for attach and would sign every Codex and omp tab out).
 - **Attach**: `nota-bene [dir]`, `/nb` in Claude Code and Codex all do the same thing.
 
 ```mermaid
@@ -258,7 +262,7 @@ caller's turn. Unlike the subagents providers already have (inside one session, 
 ```mermaid
 flowchart LR
   A[2a characterization tests<br/>+ AgentContext, no behaviour change] --> B[2b agent ids, /a/id routes,<br/>web base path]
-  B --> C[2c agent map in one server, server.json,<br/>attach, Stop server, switch via /overview]
+  B --> C[2c agent map in one server, attach,<br/>kept agents; /overview, Stop server,<br/>switch in place; handover, app icon]
   C --> D[2d connector and phone<br/>on agent ids]
   C --> E[2e several agents per project<br/>tabs, + Agent]
   E --> F[2f agent bus MCP] --> G[2g helpers:<br/>spawn, close, folding up]

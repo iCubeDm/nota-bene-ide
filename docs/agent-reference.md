@@ -31,21 +31,26 @@ argument, state in `~/.nota-bene-dev` (`NOTA_BENE_DEV_HOME` overrides; an inheri
 follows the checkout's branch and is not shipped.
 
 **Launcher** (`bin/nota-bene.mjs [dir] [--port N] [--resume ID [--fork]] [--new] [--detach] [--no-open]`). It rebuilds a
-stale `web/dist` at launch and before a restart, opens the browser and supervises the server. One window per folder:
-a launch takes the folder's lock and gives way to a window already serving it (up to 10 s for one in its restart gap).
+stale `web/dist` at launch and before a restart, opens the browser and supervises the server. One server (epic 383):
+a launch takes the server-wide lock (`<base>/locks/server`), gives way to a window already serving the folder (up to 10 s
+for one in its restart gap), else opens the folder in a running server that answers `POST /control/open`
+(`server/src/attach.ts`: every provider's registry, each entry proved with its provider's token; an older server's 404 is
+passed over) and only then starts one. `--port N` never attaches. The server keeps its extra agents in
+`windows/<port>.agents.json`; a relaunch with the same launcher pid (a crash) or nonce (a restart, an update) reopens them
+under their ids, each on its folder's last session; a fresh launch ignores and replaces the file.
 Exit codes: 75 relaunches at once with `--continue`; 77 hands over to a newer version ([In-app update](#in-app-update));
 0, 130, 143 stop; 98 on a relaunch gives up; anything else is a crash, relaunched after 1 s, giving up after 5 crashes
 in 60 s. A relaunch keeps the port and the registry entry. The server is spawned with an IPC channel and stops when
 it closes, so a killed launcher leaves no orphan; the channel also carries `nota-bene:stop`, the Windows stand-in for
 SIGTERM. A foreground launcher stops when its parent shell is gone. `--detach` prints one line (`opened URL` or
-`already-open URL`) and logs to `$TMPDIR/nota-bene-PORT.log`.
+`already-open URL`, under `/a/<id>/` for an agent of the running server) and logs to `$TMPDIR/nota-bene-PORT.log`.
 Helpers: `--find DIR [--scan]` (the port of the live window, exit 1 if none), `--last DIR` (its last session id),
 `--url PORT` (the login URL), `--front PORT` (bring to front, logged in).
 
 **`/nb` skill** (`plugin/skills/nb/`). A checkout links it with `ln -sfn "$PWD/plugin/skills/nb" ~/.claude/skills/nb`; on Windows, in `cmd`, a junction needs no admin rights or Developer Mode: `mklink /J "%USERPROFILE%\.claude\skills\nb" "<checkout>\plugin\skills\nb"`.
-`open.mjs --plan` prints `NB-RUN` / `NB-WAIT` / `NB-NAME` and launches nothing; the skill runs `NB-RUN` as a Claude Code
-background task (its output is the window's log; ending the task or the session stops the window), then
-`open.mjs --wait` for the URL. Rules:
+`open.mjs --plan` prints `NB-RUN` (and `NB-NOTE` on a first install) and launches nothing; the skill runs `NB-RUN` in
+the foreground: `open.mjs` without `--plan`, which installs when needed, runs the launcher with `--detach` and prints one
+`NB:` line. The server outlives the Claude Code session. Rules:
 
 - `open.mjs` is plain Node with no imports beyond Node's own, so it runs on Windows; `plugin/` holds no `package.json`
   or lockfile (Claude Code would run npm there), and the plugin version equals the root `package.json` version (tested).
@@ -53,7 +58,7 @@ background task (its output is the window's log; ending the task or the session 
   Plan commands are quoted by `q()`: safe words as they are, anything else single-quoted.
 - The launcher is a checkout's (`bin/nota-bene.mjs` three levels above the physical skill dir) or the npm package
   `nota-bene-ide@<plugin version>` installed into `<data>/<version>/` on the first run, inside `NB-RUN`, never in the plan.
-  `.nb-installed` marks a finished install, `.nb-install-failed` a failed one.
+  `.nb-installed` marks a finished install.
 - Nothing the skill prints carries the `#t=` login: its output enters the transcript and goes to the API.
 - Test: `scripts/nb-open.test.ts` (kept out of `plugin/`, which ships).
 

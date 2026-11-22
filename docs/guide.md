@@ -46,7 +46,7 @@ Contents
 | `/nb new` | Opens it on a fresh session. |
 | `/nb fork` | Continues this conversation in the browser as a separate branch. |
 
-The window is a background task of the Claude Code session: its output is the window's log; it stops with the task, the session, or **Stop Nota Bene** (⏻). The first `/nb` after installing or updating the plugin installs the npm package (about 330 MB per plugin version) and takes a few minutes.
+When Nota Bene is already running, the folder opens in it, at `http://127.0.0.1:PORT/a/<agent>/`: one server holds the folders of every agent. Otherwise `/nb` starts it. It keeps running after the Claude Code session ends; **Stop Nota Bene** (⏻) stops it. The first `/nb` after installing or updating the plugin installs the npm package (about 330 MB per plugin version) and takes a few minutes.
 
 Claude Code does not update the plugin by itself: turn on auto-update for its marketplace ([Install](../README.md#install)). Until then a window opened by an older plugin shows **Update the /nb plugin** ([Updates](#updates)).
 
@@ -56,12 +56,12 @@ Claude Code does not update the plugin by itself: turn on auto-update for its ma
 nota-bene [dir] [options]       # or: npx nota-bene-ide [dir] [options]
 ```
 
-`dir` defaults to the current folder. Your home folder and `/` are refused (on Windows also a drive root `C:\` and a share root `\\server\share`).
+`dir` defaults to the current folder. Your home folder and `/` are refused (on Windows also a drive root `C:\` and a share root `\\server\share`). When Nota Bene is already running, the folder opens in it (any agent), the browser shows it, and the command returns at once; a restart or an update of that server reopens it.
 
 | Option | Meaning |
 |---|---|
 | `--agent claude\|codex\|omp` | The agent (see [Which agent](#which-agent)); state is separate per agent. |
-| `--port N` | Port N. Default: first free from 4777 to 4799, skipping 4780 and 4790–4795. |
+| `--port N` | A server of its own on port N, never the running one. Default: first free from 4777 to 4799, skipping 4780 and 4790–4795. |
 | `--resume ID` [`--fork`] | Open this session, or with `--fork` a new branch of it. |
 | `--new` | A fresh session (not with `--resume`). |
 | `--detach` | Run on its own; print `opened URL` or `already-open URL`. Log: `$TMPDIR/nota-bene-PORT.log`. |
