@@ -74,6 +74,9 @@ dir. The ACP backend's single `preopened` slot becomes per agent; Claude and Cod
 - **Sockets**: one per agent, `/a/<id>/ws`, today's protocol inside. A tab holds the socket of the agent on screen;
   switching closes it and opens the next (replay rebuilds the feed). One server socket, `/overview`, streams projects and
   agents with their state to every tab: the switcher, the rail, "N waiting", and "switch to agent X" sent by the launcher.
+  As built (2c): no `/overview` socket. The switcher and the rail keep polling `/system/projects`, which lists every agent.
+  "Switch to agent X" is the `open-agent` event on the agent socket of the last local tab (`go=1`), and switching is a
+  same-origin navigation to `/a/<id>/` (logged in already: the key and the cookie are the port's).
 
 ```mermaid
 flowchart TB

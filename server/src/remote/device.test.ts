@@ -392,3 +392,10 @@ describe('device channel', () => {
     expect(slow.channel.queuedBytes).toBeLessThan(256 * 1024);
   });
 });
+
+it('epic 383: a forwarded socket never follows the launcher (go is dropped); the rest of the query stays', async () => {
+  const { forwardedWsPath } = await import('./device.ts');
+  expect(forwardedWsPath('/ws?tab=t&pause=1&held=1&go=1')).toBe('/ws?tab=t&pause=1&held=1');
+  expect(forwardedWsPath('/a/codex-abcdef/ws?go=1&tab=t')).toBe('/a/codex-abcdef/ws?tab=t');
+  expect(forwardedWsPath('/ws')).toBe('/ws');
+});

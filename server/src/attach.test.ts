@@ -69,11 +69,32 @@ it('a server that opens no other agents is passed over', async () => {
 it('opens the folder as an agent of the running server, then finds it there', async () => {
   const port = await server(true);
   const first = await attachAgent({ root: path.join(tmp, 'b'), provider: 'codex', mode: 'resume' });
-  expect(first).toMatchObject({ port, opened: true });
+  expect(first).toMatchObject({ port, opened: true, shown: false });
   expect(first!.agent).toMatch(/^codex-[a-z2-7]{6}$/);
   expect(first!.url).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${port}/a/${first!.agent}/#t=[0-9a-f]{64}$`));
   const again = await attachAgent({ root: path.join(tmp, 'b'), provider: 'codex', mode: 'resume' });
   expect(again).toMatchObject({ port, agent: first!.agent, opened: false });
+});
+
+it('a tab of the server shows the agent (shown): the launcher opens no browser', async () => {
+  const token = accessToken();
+  const srv = http.createServer((req, res) => {
+    const m = /^\/hello\?c=([0-9a-f]+)$/.exec(req.url ?? '');
+    if (m) res.setHeader('content-type', 'application/json').end(JSON.stringify({ proof: proofFor(token, port, 'f0'.repeat(16), m[1]!), n: 'f0'.repeat(16) }));
+    else if (req.url === '/control/open') res.setHeader('content-type', 'application/json').end(JSON.stringify({ agent: 'codex-abcdef', opened: true, shown: true }));
+    else res.writeHead(404).end();
+  });
+  await new Promise<void>((r) => srv.listen(0, '127.0.0.1', () => r()));
+  closers.push(() => new Promise((r) => srv.close(() => r())));
+  const port = (srv.address() as { port: number }).port;
+  registerWindow(port, path.join(tmp, 'a'), process.pid);
+  expect(await attachAgent({ root: path.join(tmp, 'b'), provider: 'codex', mode: 'resume' })).toMatchObject({ port, agent: 'codex-abcdef', opened: true, shown: true });
+});
+
+it('port: only that server is asked; another one opens nothing', async () => {
+  const port = await server(true);
+  expect(await attachAgent({ root: path.join(tmp, 'b'), provider: 'codex', mode: 'resume', port: port + 1 })).toBeNull();
+  expect(await attachAgent({ root: path.join(tmp, 'b'), provider: 'codex', mode: 'resume', port })).toMatchObject({ port, opened: true });
 });
 
 it('a refused ask (no such folder) throws', async () => {

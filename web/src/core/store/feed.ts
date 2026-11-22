@@ -345,6 +345,7 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
     case 'restart-pending': // protocol 22: the controls slice
     case 'compact-pending': // protocol 27: the controls slice
     case 'send-held': // the composer: the draft went (held, not lost)
+    case 'open-agent': // protocol 30: the projects plugin moves the tab
       return s;
     default: {
       // as above: a protocol-4 server still sends `{kind:'sdk'}`

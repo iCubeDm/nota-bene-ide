@@ -1215,6 +1215,10 @@
       "pending": true
     },
     {
+      "kind": "open-agent",
+      "agent": "codex-abcdef"
+    },
+    {
       "kind": "compact-pending",
       "pending": true,
       "held": [

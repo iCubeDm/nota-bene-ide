@@ -3,6 +3,7 @@
 import { useSelector, useStore } from 'react-redux';
 import { has, type ClientMessage, type Feature, type ServerEvent } from '@nota-bene/shared';
 import { apiFetch, refusedForAuth, socketProtocols } from '../net/auth.ts';
+import { isLocalPage } from '../net/local.ts';
 import { connect as realConnect, type Connection, type SocketState } from '../net/socket.ts';
 import { coalesceChunks } from '../store/chunks.ts';
 import type { Route } from './routes.ts';
@@ -66,8 +67,9 @@ export function agentConnection(o: {
   // the server recognises a reconnect of the owning tab by it: no grace, no occupied (M7-15 fix round 1)
   const tabId = crypto.randomUUID();
   // pause=1 (gh-422): this page asks for a pending server restart in its own pause, so the server waits for that ask;
-  // held=1 (issue 499): it knows `send-held`, so its sends may wait behind a pending restart or compaction
-  const baseUrl = `${o.url}${o.url.includes('?') ? '&' : '?'}tab=${tabId}&pause=1&held=1`;
+  // held=1 (issue 499): it knows `send-held`, so its sends may wait behind a pending restart or compaction;
+  // go=1 (epic 383): a page on this computer moves to the agent the launcher opens (`open-agent`)
+  const baseUrl = `${o.url}${o.url.includes('?') ? '&' : '?'}tab=${tabId}&pause=1&held=1${isLocalPage() ? '&go=1' : ''}`;
   let state: ConnState = 'connecting';
   let hello: HelloEvent | null = null;
   const watchers = new Set<() => void>();

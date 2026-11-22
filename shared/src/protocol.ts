@@ -147,7 +147,10 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 
 export { FEATURES, has, type Feature } from './features.ts';
 /** The protocol this server speaks, announced in `hello`: the largest entry of `FEATURES`, where each number's additions are. */
-export const PROTOCOL = 29;
+export const PROTOCOL = 30;
+
+/** The form of an agent id (epic 383): `<provider>-<6 base32>`, as in `/a/<id>/`. */
+export const AGENT_ID = /^[a-z]+-[a-z2-7]{6}$/;
 
 /** protocol 27: a send the server holds behind a pending restart or compaction (issue 499), as the feed shows it */
 export type HeldSend = { id: string; text: string; ts: number; images?: ImageRef[]; voice?: Voice };
@@ -374,6 +377,8 @@ export type ServerEvent =
   | { kind: 'resumed'; id: string; cut?: true }
   /** protocol 22, never stored: a server restart is waiting for the next pause (on attach and when it changes) */
   | { kind: 'restart-pending'; pending: boolean }
+  /** protocol 30, to one `go=1` socket only, never stored: the launcher opened the server's agent `agent`, and this tab moves to it */
+  | { kind: 'open-agent'; agent: string }
   /**
    * protocol 27, never stored: a compaction waits for the next pause (`pending`), and the sends held until a pending
    * restart and compaction went, oldest first (on attach and when either changes)

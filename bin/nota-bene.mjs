@@ -1150,6 +1150,13 @@ export async function main(argv) {
       const port = await servingWindow(o.dir);
       if (port !== undefined) {
         const url = `http://127.0.0.1:${port}`;
+        // a tab of that server on another of its agents moves back to this one (epic 383); else the browser brings it to front
+        const hit = o.open && o.port === undefined && !o.new && !o.resume
+          ? await attachAgent({ root: o.dir, provider: o.agent ?? 'claude', mode: 'resume', port }).catch(() => null) : null;
+        if (hit?.shown) {
+          process.stdout.write(o.detach ? `already-open ${hit.url}\n` : `nota-bene: already open at ${url} (in the open tab)\n`);
+          return 0;
+        }
         if (o.open) await openBrowser(url); // bring it to front
         process.stdout.write(o.detach ? `already-open ${(await loginTarget(url)) ?? url}\n` : `nota-bene: already open at ${url}\n`);
         return 0;
@@ -1158,7 +1165,7 @@ export async function main(argv) {
       if (o.port === undefined) {
         let hit;
         try {
-          hit = await attachAgent({ root: o.dir, provider: o.agent ?? 'claude', mode: o.new ? 'new' : 'resume', ...(o.resume ? { session: o.resume, fork: o.fork } : {}) });
+          hit = await attachAgent({ root: o.dir, provider: o.agent ?? 'claude', mode: o.new ? 'new' : 'resume', ...(o.open ? {} : { show: false }), ...(o.resume ? { session: o.resume, fork: o.fork } : {}) });
         } catch (e) {
           say(`the running server refused the folder: ${e.message}`);
           return 1;
@@ -1172,11 +1179,14 @@ export async function main(argv) {
   }
 }
 
-/** The folder is an agent of a running server (attachAgent): the browser opened on it, then its URL (with the login for --detach). */
+/**
+ * The folder is an agent of a running server (attachAgent): the browser opened on it, unless a tab of that server shows it
+ * now (`shown`: the tab moved there), then its URL (with the login for --detach).
+ */
 async function attached(o, hit) {
-  if (o.open && !(await openPage(writeOpenPage(hit.url)))) say('the browser could not be opened');
+  if (o.open && !hit.shown && !(await openPage(writeOpenPage(hit.url)))) say('the browser could not be opened');
   process.stdout.write(o.detach ? `${hit.opened ? 'opened' : 'already-open'} ${hit.url}\n`
-    : `nota-bene: ${hit.opened ? 'opened' : 'already open'} at ${hit.url.slice(0, hit.url.indexOf('#'))}\n`);
+    : `nota-bene: ${hit.opened ? 'opened' : 'already open'} at ${hit.url.slice(0, hit.url.indexOf('#'))}${hit.shown ? ' (in the open tab)' : ''}\n`);
   return 0;
 }
 

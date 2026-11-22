@@ -77,6 +77,16 @@ export type DeviceOptions = {
   hostName?: string;
 };
 
+/** A socket from another device never follows the launcher (epic 383, `go=1`): only a page on this computer is moved. */
+export function forwardedWsPath(p: string): string {
+  const q = p.indexOf('?');
+  if (q < 0) return p;
+  const params = new URLSearchParams(p.slice(q + 1));
+  params.delete('go');
+  const rest = params.toString();
+  return rest ? `${p.slice(0, q)}?${rest}` : p.slice(0, q);
+}
+
 export class DeviceChannel {
   #o: DeviceOptions;
   #hs: Handshake | undefined;
@@ -188,7 +198,7 @@ export class DeviceChannel {
     if (!w) return s.close(UNKNOWN_WINDOW, 'no such window');
     if (o.kind === 'ws') {
       if (!/^\/ws(\?|$)/.test(unprefixed(o.path))) return s.close(BAD_FRAME, 'bad path');
-      return this.#wsStream(s, w, o.path);
+      return this.#wsStream(s, w, forwardedWsPath(o.path));
     }
     const method = typeof o.method === 'string' ? o.method.toUpperCase() : '';
     if (!METHODS.has(method)) return s.close(BAD_FRAME, 'bad method');

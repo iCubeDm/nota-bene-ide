@@ -64,6 +64,7 @@ export const HEARTBEAT_MS = 30_000;
 
 // Process-wide handlers are registered once; each running server's hub is in this set.
 const hubs = new Set<EventHub>();
+let attaches = 0; // orders the owners' attaches across a server's agents: the launcher moves the last one (Agent.shownSince)
 let handlersInstalled = false;
 
 function installProcessHandlers(): void {
@@ -184,6 +185,12 @@ type Agent = {
   notPaused(): boolean;
   /** its sockets that ask for a pending restart in their own pause (gh-422) */
   askers(): number;
+  /** when its owner socket, a page that follows the launcher (`go=1`), attached (a growing count); 0 with no such owner */
+  shownSince(): number;
+  /** any socket owns it (a page, the phone, another computer's page) */
+  owned(): boolean;
+  /** sends that owner to the agent `id` (protocol 30 `open-agent`) */
+  show(id: string): void;
   restartChanged(pending: boolean): void;
   onSwitch(fn: (restart: boolean) => void): void;
   /** a turn the exit cuts stays marked */
@@ -485,7 +492,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     const oneTab = o.oneTab ?? true;
     const graceMs = o.takeoverGraceMs ?? TAKEOVER_GRACE_MS;
     // the owner socket (R-M7-5); only used with oneTab. `alive`: false while a ping waits for its pong
-    let owner: { ws: WebSocket; alive: boolean; tab: string | null } | null = null;
+    let owner: { ws: WebSocket; alive: boolean; tab: string | null; since: number } | null = null;
     const heartbeat = oneTab
       ? setInterval(() => {
         if (!owner) return;
@@ -518,7 +525,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       const detach = () => { if (!detached) { detached = true; hubDetach(); askers.delete(ws); } };
       detachers.set(ws, detach);
       if (oneTab) {
-        const me = { ws, alive: true, tab };
+        const me = { ws, alive: true, tab, since: follows.has(ws) ? ++attaches : 0 };
         owner = me;
         ws.on('pong', () => { me.alive = true; });
       }
@@ -786,6 +793,8 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     const asksInPause = new WeakSet<WebSocket>();
     // issue 499: sockets of a page (protocol 27+, `?held=1`) that knows `send-held`: only their sends are held
     const holds = new WeakSet<WebSocket>();
+    // protocol 30: sockets of a page on this computer (`?go=1`, never the phone's) that moves to the agent the launcher opens
+    const follows = new WeakSet<WebSocket>();
     const askers = new Set<WebSocket>();
 
     let conns = 0;
@@ -798,6 +807,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       const passive = params.get('passive') === '1';
       if (params.get('pause') === '1') asksInPause.add(ws);
       if (params.get('held') === '1') holds.add(ws);
+      if (params.get('go') === '1') follows.add(ws);
       const conn = ++conns;
       audit?.write('ws-open', { conn, tab, passive });
       ws.on('close', (code) => audit?.write('ws-close', { conn, code }));
@@ -887,6 +897,15 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       root,
       notPaused,
       askers: () => askers.size,
+      owned: () => !!owner && owner.ws.readyState === owner.ws.OPEN,
+      shownSince: () => (owner && owner.ws.readyState === owner.ws.OPEN ? owner.since : 0),
+      show: (id) => {
+        try {
+          owner?.ws.send(JSON.stringify({ kind: 'open-agent', agent: id }));
+        } catch (e) {
+          reportError(hub, 'open-agent', e);
+        }
+      },
       restartChanged: (pending) => {
         hub.emit({ kind: 'restart-pending', pending }, { store: false });
         order.check(); // cancelled: what it held goes on
@@ -1126,10 +1145,12 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       keep();
       return id;
     };
-    // POST /control/open {root, provider?, mode?: 'resume' | 'new', session?, fork?}: the agent of that folder and provider,
-    // the one open unless a new or a named session is asked for. The launcher's way into a running server
+    // POST /control/open {root, provider?, mode?: 'resume' | 'new', session?, fork?, show?}: the agent of that folder and provider,
+    // the one open unless a new or a named session is asked for. The launcher's way into a running server; `show: false`
+    // (its --no-open) moves no tab
     s.controlOpen = async (body) => {
-      const b = (body ?? {}) as { root?: unknown; provider?: unknown; mode?: unknown; session?: unknown; fork?: unknown };
+      const b = (body ?? {}) as { root?: unknown; provider?: unknown; mode?: unknown; session?: unknown; fork?: unknown; show?: unknown };
+      const shown = b.show === false ? () => ({}) : showIn;
       let provider: AgentProvider;
       try { provider = parseProvider(b.provider === undefined ? undefined : String(b.provider)); } catch { return { status: 400, body: 'bad provider' }; }
       if (typeof b.root !== 'string' || !path.isAbsolute(b.root)) return { status: 400, body: 'root must be an absolute path' };
@@ -1140,12 +1161,23 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       if (b.session !== undefined && !isSessionId(b.session)) return { status: 400, body: 'bad session' };
       if (b.session === undefined && b.mode !== 'new') {
         const have = [...agents.values()].find((a) => a.provider === provider && samePath(realpathOr(a.root()), root));
-        if (have) return { status: 200, body: { agent: have.id, opened: false } };
+        if (have) return { status: 200, body: { agent: have.id, opened: false, ...shown(have) } };
       }
       if (!o.backends) return { status: 501, body: 'this server opens no other agents' };
       const target = launchTarget({ dir: root, resume: b.session as string | undefined, fork: b.fork === true, new: b.mode === 'new', native: provider !== 'claude' }, agentContext(provider).stateDir);
       const id = await openAgent({ provider, cwd: root, backend: o.backends(provider), ...target });
-      return { status: 200, body: { agent: id, opened: true } };
+      return { status: 200, body: { agent: id, opened: true, ...shown(agents.get(id)!) } };
+    };
+    // `shown`: a tab on this computer shows the agent: one already did, or the last one attached moves to it (the launcher
+    // then opens no browser); none: the launcher opens one
+    // an agent another device holds (the phone) is no place to move a tab: it would land there occupied
+    const showIn = (a: Agent): { shown?: true } => {
+      if (a.shownSince()) return { shown: true };
+      if (a.owned()) return {};
+      const tab = [...agents.values()].reduce<Agent | null>((m, x) => (x.shownSince() > (m?.shownSince() ?? 0) ? x : m), null);
+      if (!tab) return {};
+      tab.show(a.id);
+      return { shown: true };
     };
     // an agent beside the window's closes alone (the switcher's Close project); its session stays, its folder under Recent
     s.closeAgent = (id) => {
