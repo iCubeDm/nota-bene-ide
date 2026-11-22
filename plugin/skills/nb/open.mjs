@@ -111,7 +111,7 @@ export function q(s) {
 
 const SELF_PHYS = fileURLToPath(import.meta.url);
 const SKDIR = real(path.dirname(SELF_PHYS)) ?? path.dirname(SELF_PHYS); // physical: the skill dir may be linked from ~/.claude/skills/nb
-// this script as it was called (through the ~/.claude/skills/nb link), so NB-WAIT matches the skill's allowed-tools
+// this script as it was called (through the ~/.claude/skills/nb link), so NB-RUN matches the skill's allowed-tools
 const SELF = path.resolve(process.argv[1] ?? SELF_PHYS);
 
 async function main(argv) {

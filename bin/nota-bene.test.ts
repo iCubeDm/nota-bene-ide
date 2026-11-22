@@ -287,7 +287,7 @@ describe('nota-bene launcher', () => {
     expect(w.launcherPid).toBe(r.p.pid);
     expect(w.pid).not.toBe(r.p.pid);
     expect(await info(4791)).toMatchObject({ root: project, supervised: true });
-    // in the foreground (the /nb background task) the server's URL line reaches the launcher's stdout: the task output
+    // in the foreground (a terminal) the server's URL line reaches the launcher's stdout
     expect(r.out().split('\n')[0]).toBe(`Nota Bene: http://127.0.0.1:4791  project: ${project}`);
 
     const found = bin(['--find', project]);
@@ -352,7 +352,7 @@ describe('nota-bene launcher', () => {
     expect(windows()['4794']).toBeUndefined();
   }, 15000);
 
-  // what Claude Code sends when the /nb background task is stopped
+  // what Claude Code sends when a background task running the launcher is stopped
   // SIGTERM takes the same handler (the parent-shell test below goes through it)
   // Windows: a signal cannot be sent to one process (kill() is TerminateProcess, Ctrl+C reaches a whole console); the stop it
   // takes is the parent-shell test's

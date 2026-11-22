@@ -1,9 +1,11 @@
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { fakeBackend } from './agent/fake.ts';
 import { attachAgent } from './attach.ts';
+import { accessToken, proofFor } from './auth.ts';
 import { startServer } from './server.ts';
 import { controlToken } from './system.ts';
 import { registerWindow } from './windows.ts';
@@ -42,6 +44,20 @@ async function server(opensAgents: boolean): Promise<number> {
 }
 
 it('no running server: null', async () => {
+  expect(await attachAgent({ root: path.join(tmp, 'b'), provider: 'codex', mode: 'resume' })).toBeNull();
+});
+
+it('an older server (no /control/open: 404) is passed over', async () => {
+  const token = accessToken();
+  const old = http.createServer((req, res) => {
+    const m = /^\/hello\?c=([0-9a-f]+)$/.exec(req.url ?? '');
+    if (m) res.setHeader('content-type', 'application/json').end(JSON.stringify({ proof: proofFor(token, port, 'f0'.repeat(16), m[1]!), n: 'f0'.repeat(16) }));
+    else res.writeHead(404).end();
+  });
+  await new Promise<void>((r) => old.listen(0, '127.0.0.1', () => r()));
+  closers.push(() => new Promise((r) => old.close(() => r())));
+  const port = (old.address() as { port: number }).port;
+  registerWindow(port, path.join(tmp, 'a'), process.pid);
   expect(await attachAgent({ root: path.join(tmp, 'b'), provider: 'codex', mode: 'resume' })).toBeNull();
 });
 

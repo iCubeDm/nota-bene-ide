@@ -805,7 +805,7 @@ function dropEntry(port, pid) {
 }
 
 /**
- * A foreground launcher (the /nb background task) stops when the process that started it is gone (it was SIGKILLed
+ * A foreground launcher (a terminal's, or a Claude Code background task running it) stops when the process that started it is gone (it was SIGKILLed
  * without its children), and the child is stopped as on SIGTERM. An inner launcher learns it from its outer part's IPC
  * channel, which closes however that ends. Otherwise the parent is polled every 2 s: gone once ppid changes (POSIX
  * reparents an orphan) or its pid is dead (Windows never reparents; a reused pid only delays this, it never stops a

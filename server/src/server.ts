@@ -1146,6 +1146,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       try {
         const provider = parseProvider(k.provider);
         if (!AGENT_ID.test(k.id) || !k.id.startsWith(`${provider}-`)) throw new Error(`not an agent id: ${k.id}`);
+        if (!fs.statSync(k.root, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`the folder of agent ${k.id} is gone: ${k.root}`);
         const target = launchTarget({ dir: k.root, native: provider !== 'claude' }, agentContext(provider).stateDir);
         await openAgent({ provider, cwd: k.root, backend: backends!(provider), id: k.id, ...target });
       } catch (e) {

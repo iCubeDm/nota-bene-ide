@@ -10,7 +10,7 @@ runs the window as a Claude Code background task.
 proved with its provider's token, as `server/src/projects.ts` does) before it starts one; a server-wide launch lock makes
 two cold launches end with one server. The server keeps its extra agents in `<registry>/<port>.agents.json`, owned by it,
 and reopens them when a relaunch of the same launch (same launcher pid or nonce) starts. `/nb` runs the launcher with
-`--detach` in the foreground through `open.mjs --start`, which prints one `NB:` line without the login.
+`--detach` in the foreground through `open.mjs` without `--plan`, which prints one `NB:` line without the login.
 
 **Tech Stack:** Node ≥23.6 TypeScript run directly, the launcher `bin/nota-bene.mjs` (ESM importing server .ts), Vitest.
 
@@ -30,6 +30,11 @@ and reopens them when a relaunch of the same launch (same launcher pid or nonce)
   omp tab and break the switcher's and connector's proofs of old windows mid-transition. Revisit in 2d if the phone needs it.
 - **Registry stays `windows/<port>.json`.** It already is the server registry (connector, `--find`, switcher read it);
   `server.json` would be a second one. The agents list lives beside it as `<port>.agents.json`.
+- **No in-progress map for `/control/open`** (final review): an open completes within one macrotask (no I/O is awaited
+  in `startAgent`), so two asks cannot interleave; revisit if an agent's start ever awaits I/O.
+- **Deferred minors** (final review): kept agents reopen before main installs its launcher watch (a backend start that
+  hangs delays it); an attach during a server's restart gap or stop starts a second server; `<port>.agents.json` is not
+  removed on a clean stop (only pid reuse on the same port would reopen old agents).
 - **A tab is not switched in place yet**: attach opens the agent's URL `/a/<id>/` (the switcher's `/overview` is 2c-3).
 
 ## Review Focus
@@ -85,8 +90,8 @@ and reopens them when a relaunch of the same launch (same launcher pid or nonce)
 
 **Files:** Modify `plugin/skills/nb/open.mjs`, `plugin/skills/nb/SKILL.md`; tests where open.mjs is tested (`bin/*.test.ts`).
 
-- `--plan` prints `NB-RUN: <open.mjs --start DIR args>` and `NB-NAME:` only (plus `NB-NOTE:` on a first install);
-  `--start` installs when needed (package), runs the launcher with `--detach`, and prints one `NB:` line:
+- `--plan` prints `NB-RUN: <open.mjs without --plan>` only (plus `NB-NOTE:` on a first install); that run installs
+  when needed (package), runs the launcher with `--detach`, and prints one `NB:` line:
   `NB: opened <url without #t=> for DIR<note>.` or `NB: already open at <url> …`, or the error. `--run` and `--wait` go.
 - SKILL.md: run NB-RUN in the foreground (timeout 600000), relay the `NB:` line; the window no longer stops with the session.
 - [ ] Tests updated to the new lines; one asserting no `#t=` in any output. Commit `gh-383: /nb opens the folder in the running server`.

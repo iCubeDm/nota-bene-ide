@@ -132,7 +132,7 @@ describe('kept agents (2c-2): a relaunch of the same launch reopens the extra ag
   });
   const ids = async (url: string, id: string) => (await fetch(`${url}/a/${id}/info`)).status;
 
-  it.each([['restart or update: the same nonce', N1, 111], ['crash: the same launcher, a new nonce', N2, 111]] as const)('%s', async (_, nonce, pid) => {
+  it.each([['restart or update (a new inner launcher): the same nonce', N1, 222], ['crash: the same launcher, a new nonce', N2, 111]] as const)('%s', async (_, nonce, pid) => {
     const s = await start(0, N1, 111);
     const port = Number(new URL(s.url).port);
     const b = await s.open({ provider: 'codex', cwd: path.join(tmp, 'b'), backend: fakeBackend([]) });
@@ -141,6 +141,20 @@ describe('kept agents (2c-2): a relaunch of the same launch reopens the extra ag
     closers.push(again.close);
     expect(await ids(again.url, b)).toBe(200);
     expect(await json(`${again.url}/a/${b}/info`)).toMatchObject({ root: path.join(tmp, 'b') });
+  });
+
+  it('a kept agent whose folder is gone is dropped, not kept for good', async () => {
+    const s = await start(0, N1, 111);
+    const port = Number(new URL(s.url).port);
+    const gone = path.join(tmp, 'gone');
+    fs.mkdirSync(gone);
+    const b = await s.open({ provider: 'codex', cwd: gone, backend: fakeBackend([]) });
+    await s.close();
+    fs.rmSync(gone, { recursive: true });
+    const again = await start(port, N1, 111);
+    closers.push(again.close);
+    expect(await ids(again.url, b)).toBe(404);
+    expect(readKeptAgents(port)?.agents).toEqual([]);
   });
 
   it('a fresh launch (another launcher and nonce) ignores them and starts with its own', async () => {
