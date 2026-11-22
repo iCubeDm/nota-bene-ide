@@ -177,12 +177,15 @@ export function serverArgs(o, port, relaunch) {
  * The server child's environment. Started through npx / npm run, we inherit npm's `npm_*` variables and a PATH that npm
  * prefixed with the package's node_modules/.bin (and node-gyp-bin); the server and the agent it runs must not see either.
  */
-export function serverEnv(base, launcherPid, { handover = false, updatedFrom } = {}) {
+export function serverEnv(base, launcherPid, { handover = false, updatedFrom, fold = false } = {}) {
   const env = { ...base, NOTA_BENE_SUPERVISED: '1', NOTA_BENE_LAUNCHER_PID: String(launcherPid) };
-  // the server's permission to exit 77, and the version it was updated from: ours to give, never inherited
+  // the server's permission to exit 77, the version it was updated from, and to fold into a server below (epic 383: a port
+  // we picked, not the user's --port): ours to give, never inherited
   delete env.NOTA_BENE_HANDOVER;
   delete env.NOTA_BENE_UPDATED_FROM;
+  delete env.NOTA_BENE_FOLD;
   if (handover) env.NOTA_BENE_HANDOVER = '1';
+  if (fold) env.NOTA_BENE_FOLD = '1';
   if (updatedFrom) env.NOTA_BENE_UPDATED_FROM = updatedFrom;
   // only when npm / npx started us: a plain shell launch keeps the user's own NPM_TOKEN, npm_config_registry, PATH
   if (!(base.npm_execpath || base.npm_lifecycle_event)) return env;
@@ -944,7 +947,7 @@ async function supervise(o, autoPort, release, state) {
     }
     state.nonce = nonce;
     // the version updated from: for the window's first server only, so a later restart does not say "updated" again
-    const env = serverEnv(process.env, process.pid, { handover: mayHandOver, updatedFrom: first ? state.updatedFrom : undefined });
+    const env = serverEnv(process.env, process.pid, { handover: mayHandOver, updatedFrom: first ? state.updatedFrom : undefined, fold: o.fold === true });
     env.NOTA_BENE_NONCE = nonce;
     delete env.NOTA_BENE_AUTOPORT;
     delete env.NOTA_BENE_LOCKED;
@@ -1236,6 +1239,10 @@ async function launch(o, argv, buildOutput, release) {
   const picked = o.port === undefined;
   // a detached launcher gets its port from the parent's pick (NOTA_BENE_AUTOPORT), so it may still retry once on a race
   const autoPort = picked || process.env.NOTA_BENE_AUTOPORT === '1';
+  // epic 383: a window on a port we picked may fold into a server below; one on the user's --port stays its own. A detached or
+  // inner launcher learns it from its parent (NOTA_BENE_AUTOPORT, NOTA_BENE_FOLD)
+  o.fold = autoPort || process.env.NOTA_BENE_FOLD === '1';
+  delete process.env.NOTA_BENE_FOLD;
   if (picked) {
     o.port = await firstFreePort();
     if (o.port === null) {
@@ -1307,6 +1314,7 @@ async function outer(o, autoPort, release) {
         delete env.NOTA_BENE_AUTOPORT;
         delete env.NOTA_BENE_UPDATED_FROM;
         if (from) env.NOTA_BENE_UPDATED_FROM = from;
+        if (o.fold) env.NOTA_BENE_FOLD = '1';
         const started = Date.now();
         // its own process group: a version that hangs is stopped with its server, which may ignore SIGTERM and hold the port
         // the IPC channel: it watches us through it (`watchParent`), and takes STOP_MESSAGE on Windows

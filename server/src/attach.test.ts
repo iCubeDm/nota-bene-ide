@@ -94,6 +94,7 @@ it('a tab of the server shows the agent (shown): the launcher opens no browser',
 it('port: only that server is asked; another one opens nothing', async () => {
   const port = await server(true);
   expect(await attachAgent({ root: path.join(tmp, 'b'), provider: 'codex', mode: 'resume', port: port + 1 })).toBeNull();
+  expect(await attachAgent({ root: path.join(tmp, 'b'), provider: 'codex', mode: 'resume', under: port })).toBeNull();
   expect(await attachAgent({ root: path.join(tmp, 'b'), provider: 'codex', mode: 'resume', port })).toMatchObject({ port, opened: true });
 });
 

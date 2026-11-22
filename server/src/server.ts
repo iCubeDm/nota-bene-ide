@@ -55,6 +55,8 @@ import { CutPeaks } from './cut/peaks.ts';
 import { CutReverse } from './cut/reverse.ts';
 import { cutRoutes } from './cut/routes.ts';
 import { usageRoutes } from './usage/routes.ts';
+import { attachAgent } from './attach.ts';
+import { startFold } from './fold.ts';
 import { CHALLENGE_RE, KEY_PROTOCOL, accessToken, authenticated, isNonce, loginRoute, newNonce, proofFor } from './auth.ts';
 
 /** how long a newcomer waits for the owner to close before it is told `occupied` (R-M7-6) */
@@ -129,6 +131,8 @@ export type ServerOptions = {
    * relaunch of the same launch (this launcher pid: a crash; this nonce: a restart or an update) reopens them under their ids
    */
   keep?: { launcherPid?: number };
+  /** epic 383 (main.ts, a launcher's window on a port it picked): alone, idle and with no tab, it hands its folder to a server below and ends (fold.ts) */
+  fold?: { everyMs: number };
 };
 
 /** One agent of a server (epic 383): a provider's session line in a folder, today's window minus the process. */
@@ -181,6 +185,8 @@ type Agent = {
   /** a request already known to be this agent's `/ws` */
   upgrade: (req: http.IncomingMessage, socket: Duplex, head: Buffer) => void;
   root(): string;
+  /** its session's id (none before the first turn) */
+  session(): string | null;
   /** not a pause: its turn, a question, a switch, a `! cmd` run or a task */
   notPaused(): boolean;
   /** its sockets that ask for a pending restart in their own pause (gh-422) */
@@ -895,6 +901,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       handler,
       upgrade: (req, socket, head) => wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req)),
       root,
+      session: () => manager.info().id,
       notPaused,
       askers: () => askers.size,
       owned: () => !!owner && owner.ws.readyState === owner.ws.OPEN,
@@ -1071,6 +1078,13 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     // a listening server's own errors (a socket error before any request) are reported, never thrown out of its emit
     server.on('error', (e) => report('server', e));
     const port = (server.address() as AddressInfo).port;
+    const stopFold = o.fold ? startFold({
+      port, everyMs: o.fold.everyMs,
+      quiet: () => agents.size === 1 && primary.hub.clients() === 0 && !primary.notPaused() && !restart.pending(),
+      what: () => { const id = primary.session(); return { root: primary.root(), provider: primary.provider, ...(id ? { session: id } : {}) }; },
+      attach: attachAgent,
+      stop: () => { audit?.write('fold'); exitWith(0); }, // as Stop: the launcher unregisters the window
+    }) : () => {};
     ownPort = port;
     if (audit) {
       audit.port = port;
@@ -1106,6 +1120,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       audit?.close();
       win.stop();
       restart.stop();
+      stopFold();
       hostClient.close(); // the Whisper host drops this window's jobs
       if (keeper) {
         keeper.stop(); // the connector goes on for the other windows
@@ -1159,8 +1174,10 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       if (!fs.statSync(root).isDirectory()) return { status: 400, body: 'not a folder' };
       if (b.mode !== undefined && b.mode !== 'resume' && b.mode !== 'new') return { status: 400, body: 'bad mode' };
       if (b.session !== undefined && !isSessionId(b.session)) return { status: 400, body: 'bad session' };
-      if (b.session === undefined && b.mode !== 'new') {
-        const have = [...agents.values()].find((a) => a.provider === provider && samePath(realpathOr(a.root()), root));
+      // the folder's agent, or (a named session) the one that has that session: a retry opens no second one (fold.ts)
+      if (b.mode !== 'new') {
+        const have = [...agents.values()].find((a) => a.provider === provider && samePath(realpathOr(a.root()), root)
+          && (b.session === undefined || a.session()?.toLowerCase() === String(b.session).toLowerCase()));
         if (have) return { status: 200, body: { agent: have.id, opened: false, ...shown(have) } };
       }
       if (!o.backends) return { status: 501, body: 'this server opens no other agents' };
