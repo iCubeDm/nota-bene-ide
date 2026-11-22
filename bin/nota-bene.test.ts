@@ -599,6 +599,13 @@ describe('nota-bene launcher', () => {
     expect(await d.exited, d.err()).toBe(0);
     expect(d.out()).toBe(`nota-bene: already open at http://127.0.0.1:${port}/a/${m![1]}/\n`);
     expect(fs.existsSync(launchLock())).toBe(false);
+    // with the browser (as /nb runs it: --detach, no --no-open), the page opened logs in to that agent
+    const log = path.join(tmp, 'opened-attach.log');
+    const e = spawnSync(process.execPath, [BIN, other, '--detach', '--fake', FAKE], { env: env(openerStub(path.join(tmp, 'opener-attach'), log)), encoding: 'utf8', timeout: 20000 });
+    expect(e.status, e.stderr).toBe(0);
+    const pages = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n') : []);
+    await waitFor(() => pages().length > 0);
+    expect(fs.readFileSync(pages()[0]!, 'utf8')).toMatch(new RegExp(`http://127\\.0\\.0\\.1:${port}/a/${m![1]}/${loginRe}`));
   }, 40000);
 
   it('two parallel --detach launches on one folder end with ONE window: one says opened, the other already-open', async () => {

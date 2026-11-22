@@ -1172,14 +1172,11 @@ export async function main(argv) {
   }
 }
 
-/** The folder is an agent of a running server (attachAgent): its URL with the login for --detach, else the browser opened on it. */
+/** The folder is an agent of a running server (attachAgent): the browser opened on it, then its URL (with the login for --detach). */
 async function attached(o, hit) {
-  if (o.detach) {
-    process.stdout.write(`${hit.opened ? 'opened' : 'already-open'} ${hit.url}\n`);
-    return 0;
-  }
   if (o.open && !(await openPage(writeOpenPage(hit.url)))) say('the browser could not be opened');
-  process.stdout.write(`nota-bene: ${hit.opened ? 'opened' : 'already open'} at ${hit.url.slice(0, hit.url.indexOf('#'))}\n`);
+  process.stdout.write(o.detach ? `${hit.opened ? 'opened' : 'already-open'} ${hit.url}\n`
+    : `nota-bene: ${hit.opened ? 'opened' : 'already open'} at ${hit.url.slice(0, hit.url.indexOf('#'))}\n`);
   return 0;
 }
 
