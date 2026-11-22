@@ -198,7 +198,8 @@ export function projectRoutes(o: {
     '/system/projects/stop': post('/system/projects/stop', async (b, res) => {
       const w = rowOf(b);
       if (!w) return text(res, 400, 'bad request');
-      if (w.port === o.port()) return text(res, 409, 'this window');
+      // this page's server stops from its header; an agent beside it closes from here, unless it is this page's
+      if (w.port === o.port() && (!w.agent || w.agent === o.agent)) return text(res, 409, 'this window');
       const r = await stopAt(w);
       if ('ok' in r) return json(res, 200, r);
       text(res, r.error === 'no such window' ? 404 : r.error === 'refused' ? 502 : 409, r.error);

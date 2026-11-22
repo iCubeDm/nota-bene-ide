@@ -315,16 +315,29 @@ it('another project stops from its row after a confirm, each live window of it; 
   await waitFor(() => expect(getToasts().some((x) => x.title === 'Could not stop: the window is not answering')).toBe(true));
 });
 
-it('epic 383: an agent the server opened is its folder\'s row: it moves and lists sessions as that agent, and has no stop', async () => {
+it('epic 383: an agent the server opened is its folder\'s row: it moves and lists sessions as that agent', async () => {
   list = { ...LIST, running: [...LIST.running, { provider: 'codex', port: 4791, root: '/w/dh', title: 'Plan', session: S3, state: 'idle', current: false, clients: 0, unseen: 0, last: at(10, 'dh reply'), agent: 'codex-abcdef' }] };
   await openMenu();
   const g = within(screen.getByRole('group', { name: t('projProjects') }));
-  expect(g.queryByRole('button', { name: 'Stop dh' })).toBeNull();
   fireEvent.click(g.getByRole('button', { name: t('projExpand', 'dh') }));
   await waitFor(() => expect(calls.find((c) => c.url === '/system/projects/sessions')?.body).toEqual({ provider: 'codex', port: 4791, root: '/w/dh', agent: 'codex-abcdef' }));
   fireEvent.click(projectRow('dh'));
   await waitFor(() => expect(nav.go).toHaveBeenCalledWith(URL_OK));
   expect(calls.find((c) => c.url === '/system/projects/enter')!.body).toEqual({ provider: 'codex', port: 4791, root: '/w/dh', agent: 'codex-abcdef' });
+});
+
+it('epic 383: Stop on an agent\'s row closes it alone; a window whose server holds other projects has no stop', async () => {
+  list = { ...LIST, running: [...LIST.running, { provider: 'codex', port: 4795, root: '/w/dh', title: 'Plan', session: S3, state: 'working', current: false, clients: 0, unseen: 0, last: at(10, 'dh reply'), agent: 'codex-abcdef' }] };
+  await openMenu();
+  const g = within(screen.getByRole('group', { name: t('projProjects') }));
+  expect(g.queryByRole('button', { name: 'Stop blog' })).toBeNull(); // its server is dh's too
+  fireEvent.click(g.getByRole('button', { name: 'Stop dh' }));
+  const dlg = await screen.findByRole('dialog');
+  expect(dlg).toHaveTextContent('Its agent stops (Codex)');
+  fireEvent.click(within(dlg).getByRole('button', { name: 'Stop' }));
+  await waitFor(() => expect(calls.filter((c) => c.url === '/system/projects/stop').map((c) => c.body)).toEqual([
+    { provider: 'codex', port: 4795, root: '/w/dh', agent: 'codex-abcdef' },
+  ]));
 });
 
 // issue 449: Back to this page after a move from Recent brings it from the back/forward cache with the menu still open

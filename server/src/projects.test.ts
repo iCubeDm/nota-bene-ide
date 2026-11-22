@@ -252,7 +252,7 @@ it('epic 383: enterUrl to an agent logs in under its prefix; a wrong folder or i
   expect(await enterUrl({ provider: 'codex', port, root: b, agent: 'codex-zzzzzz' })).toEqual({ error: 'window not answering' });
 });
 
-it('epic 383: sessionsOf asks the agent under its prefix; stopAt refuses an agent before sending anything', async () => {
+it('epic 383: sessionsOf asks the agent under its prefix', async () => {
   const a = mk('nb-proj-a-'), b = mk('nb-proj-b-');
   const { port, id } = await windowWithAgent(a, b);
   const asked: string[] = [];
@@ -262,9 +262,15 @@ it('epic 383: sessionsOf asks the agent under its prefix; stopAt refuses an agen
   };
   expect(await sessionsOf({ provider: 'codex', port, root: b, agent: id }, fetchFn)).toEqual({ current: S1, sessions: [{ id: S1, title: 'x', at: 1 }] });
   expect(asked).toContain(`/a/${id}/sessions`);
-  asked.length = 0;
-  expect(await stopAt({ provider: 'codex', port, root: b, agent: id }, fetchFn)).toEqual({ error: 'refused' });
-  expect(asked).toEqual([]);
+});
+
+it('epic 383: stopAt closes an agent alone, with its server\'s control token; its window goes on', async () => {
+  const a = mk('nb-proj-a-'), b = mk('nb-proj-b-');
+  const { port, id } = await windowWithAgent(a, b);
+  expect(await stopAt({ provider: 'codex', port, root: a, agent: id })).toEqual({ error: 'window not answering' });
+  expect(await stopAt({ provider: 'codex', port, root: b, agent: id })).toEqual({ ok: true });
+  const l = await listProjects({ port, provider: 'claude' });
+  expect(l.running.map((r) => [r.root, r.agent])).toEqual([[a, undefined]]);
 });
 
 it('epic 383: stopOthers from an agent\'s page leaves its own server', async () => {

@@ -166,6 +166,8 @@ type Shared = {
   /** the window's agent's id, and every agent's (their /info lists them: the switcher's rows, projects.ts) */
   primaryId: string;
   agents: () => { id: string; provider: AgentProvider }[];
+  /** POST /a/<id>/control/close, set once the server is up: 200, or 409 for the window's own agent */
+  closeAgent: (id: string) => number;
   /** POST /control/open, set once the server is up */
   controlOpen: (body: unknown) => Promise<{ status: number; body: unknown }>;
 };
@@ -448,6 +450,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
             cancelRestart: () => void restart.cancel(),
             stop: () => exitWith(0), // the launcher treats 0 as "stop" and unregisters the window
             open: (b) => s.controlOpen(b),
+            close: () => s.closeAgent(a.id),
           },
         }),
       },
@@ -996,6 +999,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       o, audit, ...(authorize ? { authorize } : {}), allowedHosts, allowedOrigins, open: { '/auth': authRoute, '/hello': helloRoute }, control,
       port: () => ownPort, projectIcons, supervised, codeChanged, repoDir, newer, win, restart, requestRestart, exiting: () => exiting, exitWith,
       controlOpen: async () => ({ status: 503, body: 'starting' }),
+      closeAgent: () => 409,
       primaryId: launchAgentId(agent.provider, nonce),
       agents: () => [...agents.values()].map((x) => ({ id: x.id, provider: x.provider })),
     };
@@ -1142,6 +1146,15 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       const target = launchTarget({ dir: root, resume: b.session as string | undefined, fork: b.fork === true, new: b.mode === 'new', native: provider !== 'claude' }, agentContext(provider).stateDir);
       const id = await openAgent({ provider, cwd: root, backend: o.backends(provider), ...target });
       return { status: 200, body: { agent: id, opened: true } };
+    };
+    // an agent beside the window's closes alone (the switcher's Close project); its session stays, its folder under Recent
+    s.closeAgent = (id) => {
+      const a = agents.get(id);
+      if (!a || a === primary) return 409;
+      agents.delete(id);
+      keep();
+      void a.close();
+      return 200;
     };
     // a relaunch of the same launch: the agents it had, each resuming its folder's last session; a fresh one starts with none
     const kept = o.keep ? readKeptAgents(port) : null;

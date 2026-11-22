@@ -27,8 +27,12 @@ function Chevron({ open, label, onClick }: { open: boolean; label: string; onCli
 
 type RecentItem = { root: string; provider: Provider; at: number };
 
-/** A window of the list that stops from its row; an agent beside a window's (epic 383) closes with its project, not yet here. */
-const stoppable = (w: RunningRow) => LIVE.has(w.state) && !w.agent;
+/**
+ * What a row's stop ends: an agent beside a window's (epic 383) closes alone; a window's stop is its server's, so not one
+ * whose server holds other projects' agents (Stop Nota Bene ends those).
+ */
+const stopsAlone = (running: RunningRow[]) => (w: RunningRow): boolean =>
+  LIVE.has(w.state) && (!!w.agent || !running.some((x) => x.agent && x.port === w.port && !x.remote));
 
 export function ProjectSwitcher({ project, windowTitle }: { project: string; windowTitle: string }) {
   const t = useT();
@@ -69,6 +73,7 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
   const needle = q.trim().toLowerCase();
   const hit = (...s: (string | null | undefined)[]) => !needle || s.some((x) => x?.toLowerCase().includes(needle));
   const rows = foldRows(running).filter((r) => hit(r.root, ...r.windows.map((w) => w.title)));
+  const stoppable = stopsAlone(running);
   const runningRoots = new Set(running.filter((r) => !r.remote).map((r) => r.root));
   const hidden = new Set([...(data?.hidden ?? []), ...forgot]);
   const recentAll = new Map<string, RecentItem>();

@@ -123,6 +123,31 @@ it('/control/open: an agent for a folder and provider, the one already open, or 
   expect((await fetch(`${s.url}/control/open`, { method: 'POST', headers: { origin: s.url }, body: JSON.stringify({ root: b }) })).status).toBe(403);
 });
 
+it('/a/<id>/control/close closes that agent alone; the window\'s own is not closed so', async () => {
+  let closedB = false;
+  const two = fakeBackend([]);
+  two.close = async () => { closedB = true; };
+  const s = await startServer({
+    insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'),
+    nonce: 'c'.repeat(32), keep: { launcherPid: 111 },
+  });
+  closers.push(s.close);
+  const port = Number(new URL(s.url).port);
+  const b = await s.open({ provider: 'codex', cwd: path.join(tmp, 'b'), backend: two });
+  const close = (base: string) => fetch(`${s.url}${base}/control/close`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() } });
+  const top = await json(`${s.url}/info`);
+  expect((await close('')).status).toBe(409);
+  expect((await close(`/a/${top.agent}`)).status).toBe(409);
+  expect((await close(`/a/${b}`)).status).toBe(200);
+  await until(() => closedB);
+  expect((await fetch(`${s.url}/a/${b}/info`)).status).toBe(404);
+  expect(readKeptAgents(port)?.agents).toEqual([]);
+  expect((await json(`${s.url}/info`)).root).toBe(path.join(tmp, 'a'));
+  // only with the control token, never from a page
+  const b2 = await s.open({ provider: 'codex', cwd: path.join(tmp, 'b'), backend: fakeBackend([]) });
+  expect((await fetch(`${s.url}/a/${b2}/control/close`, { method: 'POST', headers: { origin: s.url } })).status).toBe(403);
+});
+
 describe('kept agents (2c-2): a relaunch of the same launch reopens the extra agents under their ids', () => {
   const N1 = 'a'.repeat(32);
   const N2 = 'b'.repeat(32);

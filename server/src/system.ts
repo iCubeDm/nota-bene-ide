@@ -299,6 +299,8 @@ export function systemRoutes(o: {
     supervised(): boolean; exiting(): boolean; restartAgent(): void; restartServer(): void; restartServerNow?(): void; cancelRestart?(): void; stop(): void;
     /** POST /control/open (epic 383): the server's agent for a folder, opened if needed; the answer's status and body */
     open?(body: unknown): Promise<{ status: number; body: unknown }>;
+    /** POST /control/close (epic 383): this agent closes, the server and its other agents go on; the answer's status */
+    close?(): number;
   };
   probe?: (port: number) => Promise<WindowInfo | null>;
   relay?: (port: number, action: ControlAction, token: string) => Promise<number>;
@@ -476,8 +478,13 @@ export function systemRoutes(o: {
       if (!only('POST', req, res)) return;
       const action = (req.url ?? '').split('?')[0]!.slice('/control/'.length) as ControlAction;
       const open = action === ('open' as string) ? o.control.open : undefined;
-      if (!CONTROL_ACTIONS.includes(action) && !open) return text(res, 404, 'not found');
+      const close = action === ('close' as string) ? o.control.close : undefined;
+      if (!CONTROL_ACTIONS.includes(action) && !open && !close) return text(res, 404, 'not found');
       if (o.control.exiting()) return text(res, 409, 'exiting'); // a stop or restart is already under way
+      if (close) {
+        const status = close();
+        return status === 200 ? json(res, 200, { ok: true }) : text(res, status, 'the window\'s own agent stops with its window');
+      }
       if (open) {
         return void readJson(req).then(open).then(
           (r) => (typeof r.body === 'string' ? text(res, r.status, r.body) : json(res, r.status, r.body)),

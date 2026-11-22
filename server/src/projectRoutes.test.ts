@@ -226,6 +226,8 @@ it('stop refuses a bad body, this window and an unknown one; stop-others with no
   const s = await serve();
   expect((await s.post('/system/projects/stop', { provider: 'claude', port: 'x', root: tree })).status).toBe(400);
   expect((await s.post('/system/projects/stop', { provider: 'claude', port: 4791, root: tree })).status).toBe(409);
+  // an agent beside this window's (epic 383) is no part of it: it is looked for (none here), not refused
+  expect((await s.post('/system/projects/stop', { provider: 'codex', port: 4791, root: tree, agent: 'codex-abcdef' })).status).toBe(404);
   expect((await s.post('/system/projects/stop', { provider: 'claude', port: 4794, root: tree })).status).toBe(404);
   expect(await (await s.post('/system/projects/stop-others', {})).json()).toEqual({ stopped: 0, failed: 0 });
 });
