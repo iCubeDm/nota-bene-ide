@@ -163,6 +163,11 @@ stateDiagram-v2
 - **Old windows during the switch**: listed in the switcher; each hands its folder to the server once it is idle with
   no tab open, then ends, and its session continues as an agent of the server. An old window that updates hands its
   folder to the server and ends.
+  As built (2c, `server/src/fold.ts`): a window alone in its server, on a port its launcher picked, with a session and with
+  no tab and nothing under way for two looks 30 s apart, opens its folder (resuming its session) in a running server below
+  its port, then ends as Stop does; `/control/open` answers a named session with the agent that has it, so a retry opens no
+  second one. A window of this release folds after its updates too (its launcher passes the flag on); windows started by an
+  earlier release cannot (their launcher passes no flag): they are stopped and reopened by hand, once.
 
 ### M5. Tabs
 

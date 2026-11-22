@@ -1129,6 +1129,10 @@ describe('pluginOriginEnv', () => {
 });
 
 describe('serverEnv', () => {
+  it('epic 383: NOTA_BENE_FOLD only on a port the launcher picked, never inherited', () => {
+    expect(serverEnv({ NOTA_BENE_FOLD: '1' }, 1).NOTA_BENE_FOLD).toBeUndefined();
+    expect(serverEnv({}, 1, { fold: true }).NOTA_BENE_FOLD).toBe('1');
+  });
   it('strips from the server child what the `! cmd` environment strips (server/src/session/shellText.ts shellEnv)', () => {
     for (const base of [
       { npm_execpath: '/x/npm', npm_lifecycle_event: 'start', npm_config_registry: 'r', INIT_CWD: '/w', PATH: '/p/node_modules/.bin:/q/node-gyp-bin:/usr/bin:/bin', HOME: '/h' },

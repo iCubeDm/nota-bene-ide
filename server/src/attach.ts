@@ -19,8 +19,11 @@ const OPEN_MS = 60_000; // a backend's first start (Codex app-server, an ACP age
 
 /** `shown`: a tab of that server shows the agent now (it was there, or moved to it): no browser to open */
 export type Attached = { port: number; agent: string; opened: boolean; shown: boolean; url: string };
-/** `port`: only the server there is asked (the launcher's own window of the folder); `show: false`: no tab moves to it */
-export type AttachAsk = { root: string; provider: AgentProvider; mode: 'resume' | 'new'; session?: string; fork?: boolean; port?: number; show?: boolean };
+/**
+ * `port`: only the server there is asked (the launcher's own window of the folder); `under`: only those below that port (a
+ * window folding in, fold.ts); `show: false`: no tab moves to it
+ */
+export type AttachAsk = { root: string; provider: AgentProvider; mode: 'resume' | 'new'; session?: string; fork?: boolean; port?: number; under?: number; show?: boolean };
 
 /** The running servers to try, by port: every provider's live entries with that provider's tokens. */
 function servers(): { port: number; token: string; control: string }[] {
@@ -46,7 +49,7 @@ function servers(): { port: number; token: string; control: string }[] {
  * a new one. null: no such server. Throws when a server refuses the ask itself (400: a bad folder or session).
  */
 export async function attachAgent(ask: AttachAsk, fetchFn: typeof fetch = fetch): Promise<Attached | null> {
-  for (const s of servers().filter((x) => ask.port === undefined || x.port === ask.port)) {
+  for (const s of servers().filter((x) => (ask.port === undefined || x.port === ask.port) && (ask.under === undefined || x.port < ask.under))) {
     const n = await proveListener({ dial: s.port, timeoutMs: PROVE_MS, token: s.token, fetchFn });
     if (n === null) continue;
     let r: Response;

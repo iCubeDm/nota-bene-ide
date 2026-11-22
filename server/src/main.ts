@@ -113,6 +113,15 @@ export function takePluginVersion(env: NodeJS.ProcessEnv): string | undefined {
   return v || undefined;
 }
 
+/** Epic 383: the launcher picked this window's port, so it may fold into a server below (fold.ts); taken out of `env`. */
+export function takeFold(env: NodeJS.ProcessEnv): boolean {
+  const v = env.NOTA_BENE_FOLD === '1';
+  delete env.NOTA_BENE_FOLD;
+  return v;
+}
+
+const FOLD_LOOK_MS = 30_000; // two quiet looks in a row: a window with no tab for about a minute folds in
+
 async function main(): Promise<void> {
   dropInheritedLauncherEnv(process.env, process.ppid);
   let args: ReturnType<typeof parseArgs>;
@@ -135,6 +144,7 @@ async function main(): Promise<void> {
   const nonce = isNonce(process.env.NOTA_BENE_NONCE) ? process.env.NOTA_BENE_NONCE : undefined;
   delete process.env.NOTA_BENE_NONCE;
   const pluginVersion = takePluginVersion(process.env);
+  const fold = takeFold(process.env);
   const webDist = fileURLToPath(new URL('../../web/dist', import.meta.url));
   let started: Awaited<ReturnType<typeof startServer>>;
   try {
@@ -153,7 +163,7 @@ async function main(): Promise<void> {
       audit: {},
       // only a launcher's window is in the registry the connector serves: one outside it (npm run dev, a test server) would
       // start a connector that finds no window and exits within a minute, again and again
-      ...(process.env.NOTA_BENE_SUPERVISED === '1' ? { remote: remoteKeeper(), keep: { launcherPid: Number(process.env.NOTA_BENE_LAUNCHER_PID) } } : {}),
+      ...(process.env.NOTA_BENE_SUPERVISED === '1' ? { remote: remoteKeeper(), keep: { launcherPid: Number(process.env.NOTA_BENE_LAUNCHER_PID) }, ...(fold ? { fold: { everyMs: FOLD_LOOK_MS } } : {}) } : {}),
     });
   } catch (e) {
     if ((e as NodeJS.ErrnoException).syscall !== 'listen') throw e;

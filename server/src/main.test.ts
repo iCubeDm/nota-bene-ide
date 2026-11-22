@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { STOP_MESSAGE, dropInheritedLauncherEnv, invocationCwd, launchTarget, parseArgs, stateLine, takePluginVersion, watchLauncher } from './main.ts';
+import { STOP_MESSAGE, dropInheritedLauncherEnv, takeFold, invocationCwd, launchTarget, parseArgs, stateLine, takePluginVersion, watchLauncher } from './main.ts';
 import { saveSession, serverStateDir } from './state.ts';
 
 const cwd = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-main-')));
@@ -162,4 +162,11 @@ describe('watchLauncher', () => {
     watchLauncher(undefined, () => { throw new Error('stopped'); }, 2000, proc);
     expect(proc.listenerCount('disconnect') + proc.listenerCount('message')).toBe(0);
   });
+});
+
+it('epic 383: takeFold says whether the launcher asked for folding, and takes it out of the env', () => {
+  const env: NodeJS.ProcessEnv = { NOTA_BENE_FOLD: '1' };
+  expect(takeFold(env)).toBe(true);
+  expect(env.NOTA_BENE_FOLD).toBeUndefined();
+  expect(takeFold(env)).toBe(false);
 });

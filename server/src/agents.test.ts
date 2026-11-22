@@ -115,7 +115,12 @@ it('/control/open: an agent for a folder and provider, the one already open, or 
   const again = await open({ root: b, provider: 'codex', mode: 'new' });
   expect(again).toMatchObject({ status: 200, body: { opened: true } });
   expect((again.body as { agent: string }).agent).not.toBe(id);
-  expect(made).toEqual(['codex', 'codex']);
+  expect(made).toEqual(['codex', 'codex']); // the third below resumes a named session
+  // the same session asked again (a window folding in that retries): the agent that has it, no second one
+  const sid = '55555555-5555-4555-8555-555555555555';
+  const resumed = (await open({ root: b, provider: 'codex', session: sid })).body as { agent: string; opened: boolean };
+  expect(resumed.opened).toBe(true);
+  expect((await open({ root: b, provider: 'codex', session: sid })).body).toEqual({ agent: resumed.agent, opened: false });
   for (const bad of [{}, { root: 'rel' }, { root: path.join(tmp, 'missing') }, { root: path.join(tmp, 'dist', 'index.html') }, { root: b, provider: 'gpt' }, { root: b, mode: 'x' }, { root: b, session: 'not-an-id' }]) {
     expect((await open(bad)).status, JSON.stringify(bad)).toBe(400);
   }
