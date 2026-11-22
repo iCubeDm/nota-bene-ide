@@ -17,8 +17,10 @@ const PROVIDERS: AgentProvider[] = ['claude', 'codex', 'omp'];
 const PROVE_MS = 1500;
 const OPEN_MS = 60_000; // a backend's first start (Codex app-server, an ACP agent) may take a while
 
-export type Attached = { port: number; agent: string; opened: boolean; url: string };
-export type AttachAsk = { root: string; provider: AgentProvider; mode: 'resume' | 'new'; session?: string; fork?: boolean };
+/** `shown`: a tab of that server shows the agent now (it was there, or moved to it): no browser to open */
+export type Attached = { port: number; agent: string; opened: boolean; shown: boolean; url: string };
+/** `port`: only the server there is asked (the launcher's own window of the folder); `show: false`: no tab moves to it */
+export type AttachAsk = { root: string; provider: AgentProvider; mode: 'resume' | 'new'; session?: string; fork?: boolean; port?: number; show?: boolean };
 
 /** The running servers to try, by port: every provider's live entries with that provider's tokens. */
 function servers(): { port: number; token: string; control: string }[] {
@@ -44,7 +46,7 @@ function servers(): { port: number; token: string; control: string }[] {
  * a new one. null: no such server. Throws when a server refuses the ask itself (400: a bad folder or session).
  */
 export async function attachAgent(ask: AttachAsk, fetchFn: typeof fetch = fetch): Promise<Attached | null> {
-  for (const s of servers()) {
+  for (const s of servers().filter((x) => ask.port === undefined || x.port === ask.port)) {
     const n = await proveListener({ dial: s.port, timeoutMs: PROVE_MS, token: s.token, fetchFn });
     if (n === null) continue;
     let r: Response;
@@ -52,7 +54,7 @@ export async function attachAgent(ask: AttachAsk, fetchFn: typeof fetch = fetch)
       // redirect: 'error': a 307/308 would carry the token on to wherever it points
       r = await fetchFn(`http://127.0.0.1:${s.port}/control/open`, {
         method: 'POST', headers: { [CONTROL_HEADER]: s.control, 'content-type': 'application/json' }, redirect: 'error',
-        body: JSON.stringify({ root: ask.root, provider: ask.provider, mode: ask.mode, ...(ask.session ? { session: ask.session, fork: ask.fork === true } : {}) }),
+        body: JSON.stringify({ root: ask.root, provider: ask.provider, mode: ask.mode, ...(ask.show === false ? { show: false } : {}), ...(ask.session ? { session: ask.session, fork: ask.fork === true } : {}) }),
         signal: AbortSignal.timeout(OPEN_MS),
       });
     } catch {
@@ -60,9 +62,9 @@ export async function attachAgent(ask: AttachAsk, fetchFn: typeof fetch = fetch)
     }
     if (r.status === 400) throw new Error(await r.text());
     if (!r.ok) continue; // 404: an older server; 501: one that opens no other agents; 503: still starting
-    const j = (await r.json().catch(() => null)) as { agent?: unknown; opened?: unknown } | null;
+    const j = (await r.json().catch(() => null)) as { agent?: unknown; opened?: unknown; shown?: unknown } | null;
     if (typeof j?.agent !== 'string' || !AGENT_ID.test(j.agent)) continue;
-    return { port: s.port, agent: j.agent, opened: j.opened === true, url: `http://127.0.0.1:${s.port}/a/${j.agent}/#t=${loginCredential(s.token, s.port, n)}` };
+    return { port: s.port, agent: j.agent, opened: j.opened === true, shown: j.shown === true, url: `http://127.0.0.1:${s.port}/a/${j.agent}/#t=${loginCredential(s.token, s.port, n)}` };
   }
   return null;
 }

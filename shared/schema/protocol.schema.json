@@ -2144,6 +2144,22 @@
         },
         {
           "properties": {
+            "agent": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "open-agent",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "agent"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
             "held": {
               "items": {
                 "$ref": "#/definitions/HeldSend"
@@ -3944,6 +3960,7 @@
     "mediaAnchors": 4,
     "modeAck": 2,
     "models": 6,
+    "openAgent": 30,
     "pageAnchors": 13,
     "polygons": 24,
     "projectIcon": 15,
@@ -3960,5 +3977,5 @@
     "voiceDetect": 18,
     "wholePicture": 25
   },
-  "x-protocol": 29
+  "x-protocol": 30
 }

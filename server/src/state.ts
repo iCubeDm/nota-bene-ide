@@ -48,8 +48,7 @@ export function launchAgentId(provider: AgentProvider, nonce: string): string {
   return `${provider}-${[...h.subarray(0, 6)].map((b) => B32[b & 31]).join('')}`;
 }
 
-/** The form of an agent id. */
-export const AGENT_ID = /^[a-z]+-[a-z2-7]{6}$/;
+export { AGENT_ID } from '@nota-bene/shared';
 
 /** Another agent of a server (epic 383, step 2c): a fresh id of the same form. */
 export function newAgentId(provider: AgentProvider): string {

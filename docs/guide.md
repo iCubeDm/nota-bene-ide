@@ -46,7 +46,7 @@ Contents
 | `/nb new` | Opens it on a fresh session. |
 | `/nb fork` | Continues this conversation in the browser as a separate branch. |
 
-When Nota Bene is already running, the folder opens in it, at `http://127.0.0.1:PORT/a/<agent>/`: one server holds the folders of every agent. Otherwise `/nb` starts it. It keeps running after the Claude Code session ends; **Stop Nota Bene** (⏻) stops it. The first `/nb` after installing or updating the plugin installs the npm package (about 330 MB per plugin version) and takes a few minutes.
+When Nota Bene is already running, the folder opens in it, at `http://127.0.0.1:PORT/a/<agent>/`: one server holds the folders of every agent. A Nota Bene tab open on this computer moves to it (the last one used); with none, the browser opens a new one. Otherwise `/nb` starts it. It keeps running after the Claude Code session ends; **Stop Nota Bene** (⏻) stops it. The first `/nb` after installing or updating the plugin installs the npm package (about 330 MB per plugin version) and takes a few minutes.
 
 Claude Code does not update the plugin by itself: turn on auto-update for its marketplace ([Install](../README.md#install)). Until then a window opened by an older plugin shows **Update the /nb plugin** ([Updates](#updates)).
 

@@ -340,6 +340,15 @@ it('epic 383: Stop on an agent\'s row closes it alone; a window whose server hol
   ]));
 });
 
+it('epic 383: the launcher\'s open-agent moves this tab to that agent of its server; anything else in it is no move', async () => {
+  const store = setup();
+  const { serverEvent } = await import('@/core/store/store.ts');
+  act(() => { store.dispatch(serverEvent({ kind: 'open-agent', agent: 'codex-abcdef' })); });
+  expect(nav.go).toHaveBeenCalledWith('/a/codex-abcdef/');
+  act(() => { store.dispatch(serverEvent({ kind: 'open-agent', agent: '../x' })); });
+  expect(nav.go).toHaveBeenCalledTimes(1);
+});
+
 // issue 449: Back to this page after a move from Recent brings it from the back/forward cache with the menu still open
 it('a page restored by Back has the menu closed', async () => {
   await openMenu();

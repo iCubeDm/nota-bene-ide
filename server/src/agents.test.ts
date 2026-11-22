@@ -36,8 +36,8 @@ async function until(cond: () => boolean, ms = 3000): Promise<void> {
   }
 }
 
-async function socket(url: string): Promise<{ ws: WebSocket; events: ServerEvent[] }> {
-  const ws = new WebSocket(`${url.replace('http', 'ws')}/ws`);
+async function socket(url: string, query = ''): Promise<{ ws: WebSocket; events: ServerEvent[] }> {
+  const ws = new WebSocket(`${url.replace('http', 'ws')}/ws${query}`);
   const events: ServerEvent[] = [];
   ws.on('message', (d) => events.push(JSON.parse(String(d)) as ServerEvent));
   await new Promise<void>((res, rej) => { ws.once('open', () => res()); ws.once('error', rej); });
@@ -121,6 +121,50 @@ it('/control/open: an agent for a folder and provider, the one already open, or 
   }
   // only with the control token, never from a page
   expect((await fetch(`${s.url}/control/open`, { method: 'POST', headers: { origin: s.url }, body: JSON.stringify({ root: b }) })).status).toBe(403);
+});
+
+it('/control/open moves the tab that follows (go=1) to the agent, the last one attached; with none the launcher opens one', async () => {
+  const a = path.join(tmp, 'a');
+  const b = path.join(tmp, 'b');
+  const s = await startServer({ insecureNoAuth: true, cwd: a, port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'), backends: () => fakeBackend([]) });
+  closers.push(s.close);
+  const open = async (body: unknown) => (await fetch(`${s.url}/control/open`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() }, body: JSON.stringify(body) })).json() as Promise<{ agent: string; opened: boolean; shown?: true }>;
+  const top = await json(`${s.url}/info`);
+  // no tab: the launcher opens the browser
+  const first = await open({ root: b, provider: 'codex' });
+  expect(first.shown).toBeUndefined();
+  // a phone (no go=1) is not moved
+  const phone = await socket(s.url);
+  expect((await open({ root: b, provider: 'codex' })).shown).toBeUndefined();
+  phone.ws.close();
+  await until(() => phone.ws.readyState === WebSocket.CLOSED);
+  const tab = await socket(s.url, '?tab=t1&go=1');
+  expect(await open({ root: b, provider: 'codex' })).toEqual({ agent: first.agent, opened: false, shown: true });
+  await until(() => tab.events.some((e) => e.kind === 'open-agent'));
+  expect(tab.events.filter((e) => e.kind === 'open-agent')).toEqual([{ kind: 'open-agent', agent: first.agent }]);
+  tab.ws.close(); // the page goes
+  await until(() => tab.ws.readyState === WebSocket.CLOSED);
+  // a tab already on that agent is not moved; the other one is, to the window's own agent
+  const onB = await socket(`${s.url}/a/${first.agent}`, '?tab=t2&go=1');
+  expect((await open({ root: b, provider: 'codex' })).shown).toBe(true);
+  expect((await open({ root: a })).shown).toBe(true);
+  await until(() => onB.events.some((e) => e.kind === 'open-agent'));
+  expect(onB.events.filter((e) => e.kind === 'open-agent')).toEqual([{ kind: 'open-agent', agent: top.agent }]);
+  expect(tab.events.filter((e) => e.kind === 'open-agent')).toHaveLength(1);
+});
+
+it('/control/open with show: false moves no tab; an agent another device owns is not one a tab moves onto', async () => {
+  const b = path.join(tmp, 'b');
+  const s = await startServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'), backends: () => fakeBackend([]) });
+  closers.push(s.close);
+  const open = async (body: unknown) => (await fetch(`${s.url}/control/open`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() }, body: JSON.stringify(body) })).json() as Promise<{ agent: string; shown?: true }>;
+  const tab = await socket(s.url, '?tab=t1&go=1');
+  const first = await open({ root: b, provider: 'codex', show: false });
+  expect(first.shown).toBeUndefined();
+  await socket(`${s.url}/a/${first.agent}`); // the phone holds it
+  expect((await open({ root: b, provider: 'codex' })).shown).toBeUndefined();
+  await new Promise((r) => setTimeout(r, 50));
+  expect(tab.events.some((e) => e.kind === 'open-agent')).toBe(false);
 });
 
 it('/a/<id>/control/close closes that agent alone; the window\'s own is not closed so', async () => {

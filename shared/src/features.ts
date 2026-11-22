@@ -120,6 +120,11 @@ export const FEATURES = {
    * need it: the flag comes from the proxy, the page from the other computer.
    */
   remoteProjects: 29,
+  /**
+   * `open-agent` (epic 383): a page that says `go=1` on the ws url follows the launcher; the server sends that event to the
+   * last such page attached when `/control/open` opens an agent no such page shows. A server of an older protocol never sends it
+   */
+  openAgent: 30,
 } as const;
 
 export type Feature = keyof typeof FEATURES;
