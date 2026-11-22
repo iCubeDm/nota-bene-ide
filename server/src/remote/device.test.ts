@@ -128,7 +128,7 @@ describe('device channel', () => {
     expect(goodPath('/system/windows')).toBe(true);
     for (const p of ['/remotely.md', '/file?path=remote/a.md', '/info']) expect(goodPath(p)).toBe(true);
     // epic 383: an agent's prefix comes off before the rules, as the window takes it off
-    for (const p of ['/a/claude-abcdef/control/stop', '/a/claude-abcdef/remote/pair', '/a/x/system/projects/open', '/a/x/os/open', '/a/claude-abcdef/REMOTE']) expect(goodPath(p), p).toBe(false);
+    for (const p of ['/a/claude-abcdef/control/stop', '/a/claude-abcdef/remote/pair', '/a/x/system/projects/open', '/a/x/os/open', '/a/claude-abcdef/REMOTE', '/a/x//evil.example/y', '/a/x/\\y']) expect(goodPath(p), p).toBe(false);
     for (const p of ['/a/claude-abcdef/info', '/a/claude-abcdef/ws?tab=1', '/a/claude-abcdef', '/a/claude-abcdef/file?path=control/a.md']) expect(goodPath(p), p).toBe(true);
   });
 

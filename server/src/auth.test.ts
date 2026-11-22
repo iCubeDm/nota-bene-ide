@@ -486,6 +486,17 @@ describe('the agent prefix (epic 383): /a/<id>/… is the route below it, every 
     expect((await wsTry(`${s.url}/a/${id}`, { cookie: s.cookie, origin: s.origin }, [`nb.${s.key}`])).frame).toBeDefined();
     expect((await wsTry(`${s.url}/a/${id}`, { cookie: s.cookie, origin: s.origin })).status).toBe(401);
     expect((await wsTry(`${s.url}/a/${launchAgentId('claude', N2)}`, { authorization: `Bearer ${s.helper}` })).status).toBe(404);
+    // an upgrade is /ws exactly, at the top or under the prefix: a path a URL parser would choke on or normalise is no socket
+    for (const p of ['//[/ws', `/a/${id}//%/ws`, '/x/../ws', `/a/${id}/x/../ws`, '//evil/ws']) {
+      const status = await new Promise<number>((resolve, reject) => {
+        const r = http.request({ host: '127.0.0.1', port: s.port, path: p, headers: { connection: 'upgrade', upgrade: 'websocket', authorization: `Bearer ${s.helper}` } });
+        r.on('response', (res) => resolve(res.statusCode!));
+        r.on('upgrade', () => reject(new Error(`${p} upgraded`)));
+        r.on('error', reject);
+        r.end();
+      });
+      expect(status, p).toBe(400);
+    }
     // /control/ takes only the control token and never an Origin, under the prefix as at the top
     const control = { 'x-nota-bene-control': controlToken() };
     expect((await req(s.port, `/a/${id}/control/stop`, { method: 'POST', headers: { ...control, origin: s.origin } })).status).toBe(403);

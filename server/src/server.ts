@@ -22,7 +22,7 @@ import { complete, fileRoutes } from './fileRoutes.ts';
 import { osFileRoutes } from './osFiles.ts';
 import { tmpDirNames } from './tmpImage.ts';
 import { readPrefs } from './prefs.ts';
-import { httpHandler, isAllowedHost, stripAgent } from './http.ts';
+import { httpHandler, isAllowedHost, pathOf, stripAgent } from './http.ts';
 import { SwitchError, createSessionManager, trackedCommand } from './session.ts';
 import type { IdleConfig } from './idle.ts';
 import { archiveRoute, deleteRoute, listSessionsView, renameRoute, seenRoute } from './sessions.ts';
@@ -483,13 +483,10 @@ export async function startServer(o: {
         else done(true);
       },
     });
-    // the wss re-emits the http server's errors; unhandled, a listen error (EADDRINUSE) would throw out of the
-    // server's emit before the listen promise below could reject. The listen promise reports it
-    wss.on('error', () => {});
     // the socket is `/ws`, at the top or under the agent's prefix; anything else is no upgrade of ours
     server.on('upgrade', (req, socket, head) => {
       const mine = stripAgent(req, agentId);
-      if (!mine || new URL(req.url ?? '/', 'http://x').pathname !== '/ws') {
+      if (!mine || pathOf(req.url ?? '/') !== '/ws') {
         socket.end(`HTTP/1.1 ${mine ? '400 Bad Request' : '404 Not Found'}\r\nconnection: close\r\ncontent-length: 0\r\n\r\n`);
         return;
       }
@@ -895,6 +892,8 @@ export async function startServer(o: {
       throw e; // syscall 'listen': main exits with 98, the launcher's "port taken" code
     }
 
+    // a listening server's own errors (a socket error before any request) are reported, never thrown out of its emit
+    server.on('error', (e) => reportError(hub, 'server', e));
     const port = (server.address() as AddressInfo).port;
     ownPort = port;
     if (audit) {

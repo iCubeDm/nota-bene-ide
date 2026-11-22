@@ -6,6 +6,7 @@ import http from 'node:http';
 import os from 'node:os';
 import { HOST_WINDOW_INFO, type HostStreamMessage, type HostWindow } from '@nota-bene/shared';
 import WebSocket from 'ws';
+import { agentPrefix } from '../http.ts';
 import { windowKey } from '../windows.ts';
 import { windowInfo, type ProvedWindow, type Windows } from './discover.ts';
 import { BAD_FRAME, Mux, TOO_LARGE, UNKNOWN_WINDOW, UNREACHABLE, type Stream } from './mux.ts';
@@ -26,12 +27,12 @@ const INFO_MS = 5000;
  * never `/os/` (Show in Finder and Open act on this computer's desktop; issue 461).
  */
 export const goodPath = (p: unknown): p is string =>
-  typeof p === 'string' && p.length <= 8192 && /^\/[\x21-\x7e]*$/.test(p) && !p.startsWith('//') && !/[\\#]/.test(p) && goodRoute(unprefixed(p));
+  typeof p === 'string' && p.length <= 8192 && /^\/[\x21-\x7e]*$/.test(p) && !/[\\#]/.test(p) && goodRoute(unprefixed(p));
 
-/** epic 383: the path below an agent's prefix (`/a/<id>`), which the window answers as if it came at the top (http.ts stripAgent) */
-export const unprefixed = (p: string): string => p.replace(/^\/a\/[^/?]*(?=[/?]|$)/, '') || '/';
+/** epic 383: the path below an agent's prefix (`/a/<id>`), which the window answers as if it came at the top (http.ts agentPrefix) */
+export const unprefixed = (p: string): string => agentPrefix(p)?.rest ?? p;
 
-const goodRoute = (p: string): boolean => !/^\/(control|remote)(\/|\?|$)/i.test(p)
+const goodRoute = (p: string): boolean => !p.startsWith('//') && !/^\/(control|remote)(\/|\?|$)/i.test(p)
   && !/^\/system\/(projects|folders|agents|remote)(\/|\?|$)/i.test(p) // issue 297: `remote` opens proxies to other computers
   && !/^\/os(\/|\?|$)/i.test(p); // issue 461: Show in Finder / Open act on this computer's desktop
 
