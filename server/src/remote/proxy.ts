@@ -13,7 +13,7 @@ import type { AddressInfo, Socket } from 'node:net';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { isUiLang, type UiLang } from '@nota-bene/shared';
 import { authenticated, cookieRoute, KEY_PROTOCOL, loginCredential, loginRoute, newNonce } from '../auth.ts';
-import { FORWARDED, goodPath, MAX_BODY } from './device.ts';
+import { FORWARDED, goodPath, MAX_BODY, unprefixed } from './device.ts';
 import { CLOSED, collect, TOO_LARGE, UNREACHABLE, type Stream } from './mux.ts';
 
 /** How long a listener stays after its last connection closed (also when the tab never came). */
@@ -172,7 +172,8 @@ export class WindowProxy {
     if (!this.#hostOk(req)) return text(res, 403, 'forbidden host');
     const raw = req.url ?? '/';
     const qi = raw.indexOf('?');
-    const path = qi === -1 ? raw : raw.slice(0, qi);
+    // under an agent's prefix (epic 383) the page asks for what it asks for at the top: the window takes the prefix off too
+    const path = unprefixed(qi === -1 ? raw : raw.slice(0, qi));
     const method = req.method ?? 'GET';
     const read = method === 'GET' || method === 'HEAD';
     if (!read && req.headers.origin !== this.#origin) return text(res, 403, 'forbidden origin');
@@ -276,7 +277,7 @@ export class WindowProxy {
     };
     const raw = req.url ?? '/';
     // a browser always sends its Origin with a socket: none, or another one, is not this page
-    if (!this.#hostOk(req) || req.headers.origin !== this.#origin || !goodPath(raw) || !/^\/ws(\?|$)/.test(raw)) return refuse('403 Forbidden');
+    if (!this.#hostOk(req) || req.headers.origin !== this.#origin || !goodPath(raw) || !/^\/ws(\?|$)/.test(unprefixed(raw))) return refuse('403 Forbidden');
     if (!this.#authed(req, true)) return refuse('401 Unauthorized');
     this.#wss.handleUpgrade(req, sock, head, (ws) => this.#pipe(ws, raw));
   }

@@ -22,14 +22,14 @@ import { complete, fileRoutes } from './fileRoutes.ts';
 import { osFileRoutes } from './osFiles.ts';
 import { tmpDirNames } from './tmpImage.ts';
 import { readPrefs } from './prefs.ts';
-import { httpHandler, isAllowedHost } from './http.ts';
+import { httpHandler, isAllowedHost, pathOf, stripAgent } from './http.ts';
 import { SwitchError, createSessionManager, trackedCommand } from './session.ts';
 import type { IdleConfig } from './idle.ts';
 import { archiveRoute, deleteRoute, listSessionsView, renameRoute, seenRoute } from './sessions.ts';
 import { readArchived, setArchived } from './archivedSessions.ts';
 import { markSeen, readSeen } from './seen.ts';
 import { codeChecker } from './codeStamp.ts';
-import { envAgentContext, forgetSession, stateBaseDir, type AgentContext } from './state.ts';
+import { envAgentContext, forgetSession, launchAgentId, stateBaseDir, type AgentContext } from './state.ts';
 import { AuditLog } from './audit.ts';
 import { moveWindow } from './windows.ts';
 import { pidAlive } from './platform.ts';
@@ -205,6 +205,8 @@ export async function startServer(o: {
       && (process.channel ? process.connected : pidAlive(process.ppid));
     const codeChanged = codeChecker({ repoDir: o.repoDir ?? path.resolve(import.meta.dirname, '..', '..') });
     const nonce = o.nonce !== undefined && isNonce(o.nonce) ? o.nonce : newNonce();
+    // the one agent of this window, addressed as /a/<id>/ (epic 383; the top keeps answering for the phone and older pages)
+    const agentId = launchAgentId(agent.provider, nonce);
     const authorize = token === null ? undefined : (req: http.IncomingMessage, needKey: boolean) => authenticated(req.headers, token, ownPort, nonce, needKey);
     const allowedHosts: string[] = []; // filled after listen, once the port is known
     const allowedOrigins: string[] = [...(o.allowedOrigins ?? [])];
@@ -322,7 +324,7 @@ export async function startServer(o: {
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
       res.end(JSON.stringify({ proof: proofFor(token, ownPort, nonce, c), n: nonce }));
     };
-    const server = http.createServer(httpHandler({
+    const handler = httpHandler({
       hub,
       open: { '/auth': authRoute, '/hello': helloRoute },
       ...(authorize ? { authorize } : {}),
@@ -458,13 +460,17 @@ export async function startServer(o: {
       info: () => {
         const { id, root, title, model } = manager.info();
         // busy and clients: for another window's Settings → Windows; pending, last, replies: the phone's list
-        return { root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root) };
+        return { agent: agentId, root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root) };
       },
-    }));
+    });
+    const server = http.createServer((req, res) => {
+      if (stripAgent(req, agentId)) return handler(req, res);
+      res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+      res.end('no such agent');
+    });
     const switchFailed = (e: unknown) => reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);
     const wss = new WebSocketServer({
-      server,
-      path: '/ws',
+      noServer: true,
       // the page's key travels as the `nb.<key>` subprotocol (never in the URL); echo it or the browser drops the socket
       handleProtocols: (protocols) => [...protocols].find((p) => p.startsWith(KEY_PROTOCOL)) ?? false,
       verifyClient: ({ req }, done) => {
@@ -477,9 +483,15 @@ export async function startServer(o: {
         else done(true);
       },
     });
-    // the wss re-emits the http server's errors; unhandled, a listen error (EADDRINUSE) would throw out of the
-    // server's emit before the listen promise below could reject. The listen promise reports it
-    wss.on('error', () => {});
+    // the socket is `/ws`, at the top or under the agent's prefix; anything else is no upgrade of ours
+    server.on('upgrade', (req, socket, head) => {
+      const mine = stripAgent(req, agentId);
+      if (!mine || pathOf(req.url ?? '/') !== '/ws') {
+        socket.end(`HTTP/1.1 ${mine ? '400 Bad Request' : '404 Not Found'}\r\nconnection: close\r\ncontent-length: 0\r\n\r\n`);
+        return;
+      }
+      wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+    });
 
     // a client message the agent's capabilities forbid: a `server-error` (as the other refusals that are no `send`);
     // the web hides these controls, so this only fires for a stale page or a hand-made client
@@ -880,6 +892,8 @@ export async function startServer(o: {
       throw e; // syscall 'listen': main exits with 98, the launcher's "port taken" code
     }
 
+    // a listening server's own errors (a socket error before any request) are reported, never thrown out of its emit
+    server.on('error', (e) => reportError(hub, 'server', e));
     const port = (server.address() as AddressInfo).port;
     ownPort = port;
     if (audit) {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { connect, defaultSocketUrl } from './socket.ts';
+import { agentBase, connect, defaultSocketUrl } from './socket.ts';
 
 class FakeWS {
   static instances: FakeWS[] = [];
@@ -132,6 +132,12 @@ describe('defaultSocketUrl', () => {
   it('picks wss on https and ws otherwise', () => {
     expect(defaultSocketUrl(new URL('https://h.example:8443/x'))).toBe('wss://h.example:8443/ws');
     expect(defaultSocketUrl(new URL('http://127.0.0.1:4777/'))).toBe('ws://127.0.0.1:4777/ws');
+  });
+
+  it('a page opened under an agent (/a/<id>/, epic 383) talks to that agent: its routes and its socket', () => {
+    for (const p of ['/a/claude-k3f7qz/', '/a/claude-k3f7qz', '/a/codex-m2x7aa/some/deep/link']) expect(agentBase(new URL(`http://h${p}`)), p).toBe(`/a/${p.split('/')[2]}`);
+    for (const p of ['/', '/x', '/a/', '/a/claude-K3F7QZ/', '/a/gpt-k3f7qz/', '/a/claude-k3f7qz0/', '/ab/claude-k3f7qz/']) expect(agentBase(new URL(`http://h${p}`)), p).toBe('');
+    expect(defaultSocketUrl(new URL('https://h:1/a/omp-aaaaaa/#t=x'))).toBe('wss://h:1/a/omp-aaaaaa/ws');
   });
 
   it('a function url is evaluated at each open: a retry can differ from the first connect', () => {

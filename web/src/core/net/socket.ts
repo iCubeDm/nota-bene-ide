@@ -6,8 +6,14 @@ const RECONNECT_MS = 1000;
 export type SocketState = 'open' | 'closed' | 'taken' | 'unauthorized';
 export type Connection = { send(m: ClientMessage): boolean; close(): void; reconnect?(): void };
 
+/** The page's agent (epic 383): `/a/<id>` when the page was opened under one, else '' (the window's top, today's URLs). */
+export function agentBase(loc: Location | URL): string {
+  const m = /^\/a\/((?:claude|codex|omp)-[a-z2-7]{6})(?:\/|$)/.exec(loc.pathname);
+  return m ? `/a/${m[1]}` : '';
+}
+
 export function defaultSocketUrl(loc: Location | URL): string {
-  return `${loc.protocol === 'https:' ? 'wss' : 'ws'}://${loc.host}/ws`;
+  return `${loc.protocol === 'https:' ? 'wss' : 'ws'}://${loc.host}${agentBase(loc)}/ws`;
 }
 
 /**

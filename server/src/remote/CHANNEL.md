@@ -183,6 +183,9 @@ prefixes (case-insensitive):
 
 A `ws` path must also be `/ws` (with an optional query).
 
+A path under an agent's prefix, `/a/<id>/…`, is checked as the path below it: the window takes the prefix off
+before its own rules too.
+
 An unknown `port` closes the stream with 4904.
 
 ## Reconnects

@@ -13,6 +13,7 @@ import {
   sessionCookie, verifiedBearer,
 } from './auth.ts';
 import { startServer } from './server.ts';
+import { launchAgentId } from './state.ts';
 import { controlToken } from './system.ts';
 import { shellEnv } from './session/shellText.ts';
 
@@ -452,6 +453,54 @@ describe('the route matrix: each route x no credentials, cookie, cookie plus key
     expect((await req(s.port, '/restart-server', { method: 'POST', headers: { ...auth, origin: s.origin } })).status).toBe(409);
     expect((await req(s.port, '/restart-server', { method: 'POST', headers: { ...auth, origin: 'https://evil.example' } })).status).toBe(403);
     expect((await req(s.port, '/restart-server', { method: 'POST', headers: auth })).status).toBe(403); // no Origin on a non-GET: refused
+  });
+});
+
+describe('the agent prefix (epic 383): /a/<id>/… is the route below it, every rule included', () => {
+  it('each route of the matrix keeps its tier under the prefix; another agent\'s prefix is 404 even with the key', async () => {
+    const s = await boot({ nonce: N1 });
+    const a = `/a/${launchAgentId('claude', N1)}`;
+    const call = (m: { method: string; path: string }, headers: Record<string, string>) =>
+      req(s.port, a + m.path, { method: m.method, headers: { origin: s.origin, 'content-type': 'application/json', ...headers }, body: m.method === 'POST' ? '{}' : undefined });
+    for (const m of MATRIX) {
+      const label = `${m.method} ${a}${m.path}`;
+      expect((await call(m, {})).status, `${label}: no credentials`).toBe(401);
+      const cookieOnly = (await call(m, { cookie: s.cookie })).status;
+      if (m.cookie === 'open') expect(cookieOnly, `${label}: cookie`).not.toBe(401);
+      else expect(cookieOnly, `${label}: cookie`).toBe(401);
+      expect((await call(m, { cookie: s.cookie, 'x-nota-bene-key': s.key })).status, `${label}: cookie + key`).not.toBe(401);
+    }
+    const keyed = { cookie: s.cookie, 'x-nota-bene-key': s.key };
+    for (const p of [`/a/${launchAgentId('claude', N2)}/info`, `/a/${launchAgentId('codex', N1)}/info`, '/a/x/info', '/a/']) {
+      expect((await req(s.port, p, { headers: keyed })).status, p).toBe(404);
+    }
+  });
+
+  it('names its agent in /info, serves the shell and the socket under it, and keeps the control token rule', async () => {
+    const s = await boot({ nonce: N1, oneTab: false });
+    const id = launchAgentId('claude', N1);
+    const keyed = { cookie: s.cookie, 'x-nota-bene-key': s.key };
+    expect(JSON.parse((await req(s.port, `/a/${id}/info`, { headers: keyed })).body).agent).toBe(id);
+    expect(JSON.parse((await req(s.port, '/info', { headers: keyed })).body).agent).toBe(id);
+    for (const p of [`/a/${id}`, `/a/${id}/`, `/a/${id}/app.js`]) expect((await req(s.port, p)).status, p).toBe(200);
+    expect((await wsTry(`${s.url}/a/${id}`, { cookie: s.cookie, origin: s.origin }, [`nb.${s.key}`])).frame).toBeDefined();
+    expect((await wsTry(`${s.url}/a/${id}`, { cookie: s.cookie, origin: s.origin })).status).toBe(401);
+    expect((await wsTry(`${s.url}/a/${launchAgentId('claude', N2)}`, { authorization: `Bearer ${s.helper}` })).status).toBe(404);
+    // an upgrade is /ws exactly, at the top or under the prefix: a path a URL parser would choke on or normalise is no socket
+    for (const p of ['//[/ws', `/a/${id}//%/ws`, '/x/../ws', `/a/${id}/x/../ws`, '//evil/ws']) {
+      const status = await new Promise<number>((resolve, reject) => {
+        const r = http.request({ host: '127.0.0.1', port: s.port, path: p, headers: { connection: 'upgrade', upgrade: 'websocket', authorization: `Bearer ${s.helper}` } });
+        r.on('response', (res) => resolve(res.statusCode!));
+        r.on('upgrade', () => reject(new Error(`${p} upgraded`)));
+        r.on('error', reject);
+        r.end();
+      });
+      expect(status, p).toBe(400);
+    }
+    // /control/ takes only the control token and never an Origin, under the prefix as at the top
+    const control = { 'x-nota-bene-control': controlToken() };
+    expect((await req(s.port, `/a/${id}/control/stop`, { method: 'POST', headers: { ...control, origin: s.origin } })).status).toBe(403);
+    expect((await req(s.port, `/a/${id}/control/stop`, { method: 'POST', headers: keyed })).status).toBe(403);
   });
 });
 

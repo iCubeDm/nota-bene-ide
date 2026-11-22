@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -34,6 +35,17 @@ export type AgentContext = { provider: AgentProvider; stateDir: string };
 /** `provider`'s context under `base`: its folder created and checked as every state folder is. */
 export function agentContext(provider: AgentProvider, base: string = stateBaseDir()): AgentContext {
   return { provider, stateDir: ensureStateDir(providerStateDir(base, provider)) };
+}
+
+const B32 = 'abcdefghijklmnopqrstuvwxyz234567';
+
+/**
+ * A window's agent id (epic 383, step 2b): `<provider>-<6 base32>`, what `/a/<id>/` addresses. A window holds one agent, so
+ * the id comes from its launch nonce: a restart keeps it, as it keeps the login, and a new launch or a crash replaces both.
+ */
+export function launchAgentId(provider: AgentProvider, nonce: string): string {
+  const h = createHash('sha256').update(`nota-bene:agent:${nonce}`).digest();
+  return `${provider}-${[...h.subarray(0, 6)].map((b) => B32[b & 31]).join('')}`;
 }
 
 /** The context the launcher chose for this process through NOTA_BENE_AGENT; the only reader of that variable here. */

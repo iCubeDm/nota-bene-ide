@@ -257,8 +257,8 @@ caller's turn. Unlike the subagents providers already have (inside one session, 
 
 ```mermaid
 flowchart LR
-  A[2a characterization tests<br/>+ AgentContext, no behaviour change] --> B[2b agent map in one process<br/>/a/id routes, web base path]
-  B --> C[2c server.json, attach, Stop server,<br/>switch in place via /overview]
+  A[2a characterization tests<br/>+ AgentContext, no behaviour change] --> B[2b agent ids, /a/id routes,<br/>web base path]
+  B --> C[2c agent map in one server, server.json,<br/>attach, Stop server, switch via /overview]
   C --> D[2d connector and phone<br/>on agent ids]
   C --> E[2e several agents per project<br/>tabs, + Agent]
   E --> F[2f agent bus MCP] --> G[2g helpers:<br/>spawn, close, folding up]
