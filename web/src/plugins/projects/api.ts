@@ -159,10 +159,10 @@ export async function enterProject(row: RunningRow, session?: string): Promise<b
   }
 }
 
-/** Stops that window from the list (its agent and launcher; the session stays); the refusal's reason, or null. Not for an agent beside a window's: the server refuses. */
+/** Stops that window from the list (its agent and launcher), or closes an agent beside a window's; the session stays. The refusal's reason, or null. */
 export async function stopProject(row: RunningRow): Promise<string | null> {
   try {
-    const r = await send(routes.systemProjects('stop'), { provider: row.provider, port: row.port, root: row.root });
+    const r = await send(routes.systemProjects('stop'), rowRef(row));
     return r.ok ? null : await reasonOf(r);
   } catch (e) {
     return e instanceof Error ? e.message : String(e);

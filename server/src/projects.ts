@@ -151,10 +151,10 @@ export const bareRow = (r: RunningRow): RunningRow => ({ ...r, title: null, sess
 export type EnterResult = { url: string } | { error: 'no such window' | 'window not answering' };
 /** A window, or with `agent` (epic 383) an agent the server on `port` opened: `provider` is then that agent's */
 type Window = { provider: AgentProvider; port: number; root: string; agent?: string };
-type Proved = { token: string; nonce: string; bearer: string; root: string; base: string } | { error: 'no such window' | 'window not answering' };
+type Proved = { provider: AgentProvider; token: string; nonce: string; bearer: string; root: string; base: string } | { error: 'no such window' | 'window not answering' };
 
 /** The registry entry on `port` and its token: of `provider`, or for an agent of whichever provider's server holds the port. */
-function entryOf(o: Window): { token: string; w: WindowEntry } | null {
+function entryOf(o: Window): { provider: AgentProvider; token: string; w: WindowEntry } | null {
   for (const provider of o.agent ? PROVIDERS : [o.provider]) {
     let p: ReturnType<typeof providerOf>;
     try {
@@ -164,7 +164,7 @@ function entryOf(o: Window): { token: string; w: WindowEntry } | null {
       throw e;
     }
     const w = p?.entries.find(([k]) => Number(k) === o.port)?.[1];
-    if (p && w && pidAlive(w.pid)) return { token: p.token, w };
+    if (p && w && pidAlive(w.pid)) return { provider, token: p.token, w };
   }
   return null;
 }
@@ -182,7 +182,7 @@ async function proved(o: Window, fetchFn: typeof fetch): Promise<Proved> {
   const base = o.agent ? `/a/${o.agent}` : '';
   const j = await infoAt(o.port, base, bearer, fetchFn, 1500);
   if (!j || (o.agent ? !sameRoot(j.root, o.root) : j.root !== e.w.root)) return { error: 'window not answering' };
-  return { token: e.token, nonce: n, bearer, root: j.root, base };
+  return { provider: e.provider, token: e.token, nonce: n, bearer, root: j.root, base };
 }
 
 /** The login URL of that window; with `session`, the page there opens that session once logged in (web landing.ts). */
@@ -216,17 +216,18 @@ export type StopResult = { ok: true } | { error: 'no such window' | 'window not 
 
 /**
  * Stops that window (its POST /control/stop, with its provider's control token): its agent and launcher stop, the session
- * stays. The window is proved first, so the token goes only to a listener that holds that provider's access token.
+ * stays; an agent beside a window's closes alone (POST /a/<id>/control/close). The listener is proved first, so the token
+ * goes only to one that holds that provider's access token.
  */
 export async function stopAt(o: Window, fetchFn: typeof fetch = fetch): Promise<StopResult> {
-  if (o.agent) return { error: 'refused' }; // its server's stop would stop every agent there: closing one comes with the project's Close
   const r = await proved(o, fetchFn);
   if ('error' in r) return r;
-  const control = readSecret(path.join(providerStateDir(stateBaseDir(), o.provider), 'control-token'));
+  // the server's provider's: an agent's provider may be another
+  const control = readSecret(path.join(providerStateDir(stateBaseDir(), r.provider), 'control-token'));
   if (!control) return { error: 'refused' };
   try {
     // redirect: 'error': a 307/308 would carry the token on to wherever it points
-    const res = await fetchFn(`http://127.0.0.1:${o.port}/control/stop`, { method: 'POST', headers: { [CONTROL_HEADER]: control }, signal: AbortSignal.timeout(3000), redirect: 'error' });
+    const res = await fetchFn(`http://127.0.0.1:${o.port}${r.base}/control/${o.agent ? 'close' : 'stop'}`, { method: 'POST', headers: { [CONTROL_HEADER]: control }, signal: AbortSignal.timeout(3000), redirect: 'error' });
     return res.ok ? { ok: true } : { error: 'refused' };
   } catch {
     return { error: 'window not answering' };
