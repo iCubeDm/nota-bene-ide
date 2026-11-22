@@ -9,7 +9,7 @@ import type { ProviderBackend as AgentBackend } from './agent/types.ts';
 import { CommentStore } from './comments.ts';
 import { AttachmentStore } from './attachments.ts';
 import { startServer } from './server.ts';
-import { stateDir } from './state.ts';
+import { serverStateDir } from './state.ts';
 
 let home: string;
 let dist: string;
@@ -149,7 +149,7 @@ describe('comment sync', () => {
     const setup = async (backend: AgentBackend) => {
       const s = await boot({ backend });
       const a = await connect(s.url);
-      const id = new AttachmentStore({ dir: path.join(stateDir(), 'attachments') }).put(png, 'image/png');
+      const id = new AttachmentStore({ dir: path.join(serverStateDir(), 'attachments') }).put(png, 'image/png');
       // the session starts with a first message, so the comments below are stored (and read back by `send`) under its id
       a.ws.send(JSON.stringify({ type: 'send', id: 'u0', text: 'start' }));
       await until(() => a.events.some(isResult));

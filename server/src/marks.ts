@@ -108,11 +108,11 @@ function writeExclusive(file: string): void {
 
 /** Throws when the (existing, real) `.nota-bene` folder is the server's state folder. Native realpaths on both sides:
  *  the JS one keeps the spelling it was given, so `c:\users\x\.nota-bene` would not equal `C:\Users\x\.nota-bene`. */
-function notStateDir(nb: string, stateDir: (() => string) | undefined): void {
-  if (!stateDir) return;
+function notStateDir(nb: string, own: (() => string) | undefined): void {
+  if (!own) return;
   let state: string;
   try {
-    state = fs.realpathSync.native(stateDir());
+    state = fs.realpathSync.native(own());
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return;
     throw e;

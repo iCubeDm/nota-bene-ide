@@ -14,7 +14,7 @@ import { fakeBackend } from './agent/fake.ts';
 import type { ProviderBackend as AgentBackend, ProviderSession as AgentSession, PermissionAsk, SessionInfo } from './agent/types.ts';
 import { EventHub } from './hub.ts';
 import { createSessionManager, SwitchError } from './session.ts';
-import { lastSession } from './state.ts';
+import { lastSession, serverStateDir } from './state.ts';
 import { prefsKey, readPrefs } from './prefs.ts';
 
 /** the task methods of a test double that has no tasks */
@@ -221,7 +221,7 @@ describe('SessionManager characterization', () => {
     const newId = s.info().id!;
     expect(newId).toMatch(/^[0-9a-f-]{36}$/i);
     expect(newId).not.toBe('fake-session');
-    expect(lastSession('/proj')).toBe(newId);
+    expect(lastSession(serverStateDir(), '/proj')).toBe(newId);
     expect(heard).toEqual([[newId, 'fake-session']]);
     expect(agentOf(events, 'reset')).toHaveLength(1); // seen live
     expect(agentOf(events, 'reset')[0]?.e).toMatchObject({ prev: 'fake-session' }); // the cleared one, for the page's archive offer

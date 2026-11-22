@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathKey } from './platform.ts';
-import { stateBaseDir, stateDir } from './state.ts';
+import { serverStateDir, stateBaseDir } from './state.ts';
 
 /**
  * Every folder that holds secrets, as real paths: the current state folder and the two default ones (`~/.nota-bene`,
@@ -15,7 +15,7 @@ import { stateBaseDir, stateDir } from './state.ts';
 function realStates(): string[] | null {
   let cur: string;
   try {
-    cur = fs.realpathSync.native(stateDir());
+    cur = fs.realpathSync.native(serverStateDir());
   } catch {
     return null;
   }

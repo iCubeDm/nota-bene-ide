@@ -12,7 +12,7 @@ import { HANDOVER } from './updater.ts';
 import { hitRecorder, limitRecorder } from './usage/routes.ts';
 import { UsageStore } from './usage/store.ts';
 import { transcriptExists } from './sessions.ts';
-import { lastSession, stateDir } from './state.ts';
+import { agentContext, lastSession, serverStateDir } from './state.ts';
 import { parseProvider, type AgentProvider } from './agent/provider.ts';
 import { pidAlive, realpathNative, samePath } from './platform.ts';
 import { packageVersion } from './version.ts';
@@ -69,11 +69,12 @@ export function parseArgs(
  */
 export function launchTarget(
   args: Pick<ReturnType<typeof parseArgs>, 'dir' | 'resume' | 'fork' | 'new'>,
+  stateDir: string,
   projectsDir?: string,
 ): { resume?: string; fork?: boolean } {
   if (args.resume !== undefined) return { resume: args.resume, ...(args.fork ? { fork: true } : {}) };
   if (args.new) return {};
-  const last = lastSession(args.dir);
+  const last = lastSession(stateDir, args.dir);
   return last && transcriptExists(last, projectsDir) ? { resume: last } : {};
 }
 
@@ -84,7 +85,7 @@ export function invocationCwd(env: NodeJS.ProcessEnv, cwd: string): string {
 
 /** The startup log line that says which state dir this server uses (dev mode has its own). */
 export function stateLine(): string {
-  return `state: ${stateDir()}`;
+  return `state: ${serverStateDir()}`;
 }
 
 /** Exit code for a failed listen (port taken): the launcher retries its first start on another port. */
@@ -130,10 +131,11 @@ async function main(): Promise<void> {
     console.error(e instanceof Error ? e.message : String(e));
     process.exit(2);
   }
-  process.env.NOTA_BENE_AGENT = args.agent ?? 'claude';
+  process.env.NOTA_BENE_AGENT = args.agent ?? 'claude'; // child launches still read it
+  const agent = agentContext(parseProvider(args.agent));
   const backend = args.fake
     ? fakeFromScript(JSON.parse(fs.readFileSync(args.fake, 'utf8')), args.dir)
-    : args.agent === 'codex' ? codexBackend() : args.agent === 'omp' ? ompBackend() : sdkBackend();
+    : args.agent === 'codex' ? codexBackend({ stateDir: agent.stateDir }) : args.agent === 'omp' ? ompBackend() : sdkBackend();
   const native = args.agent === 'codex' || args.agent === 'omp';
   // the launcher's launch nonce (public, but it stays out of the agent's and the `!` commands' environment all the same)
   const nonce = isNonce(process.env.NOTA_BENE_NONCE) ? process.env.NOTA_BENE_NONCE : undefined;
@@ -146,7 +148,8 @@ async function main(): Promise<void> {
       cwd: args.dir,
       port: args.port,
       backend,
-      ...(native ? (args.resume ? { resume: args.resume, ...(args.fork ? { fork: true } : {}) } : !args.new && lastSession(args.dir) ? { resume: lastSession(args.dir)! } : {}) : launchTarget(args)),
+      ...(native ? (args.resume ? { resume: args.resume, ...(args.fork ? { fork: true } : {}) } : !args.new && lastSession(agent.stateDir, args.dir) ? { resume: lastSession(agent.stateDir, args.dir)! } : {}) : launchTarget(args, agent.stateDir)),
+      agent,
       webDist,
       allowedOrigins: args.allowOrigins,
       ...(!native && !args.fake ? { onStats: limitRecorder(new UsageStore('claude')), onLimit: hitRecorder(new UsageStore('claude')) } : {}),

@@ -45,7 +45,7 @@ import { SecretError, accessToken, isNonce, loginCredential, newNonce, proveList
 import { HIDDEN, killTree, npmSpec, realpathNative, samePath } from '../server/src/platform.ts';
 import { launcherOf, patchUpdateState, readCurrent, runtimeDir, writeCurrent } from '../server/src/runtime.ts';
 import { transcriptExists } from '../server/src/sessions.ts';
-import { lastSession, stateBaseDir, stateDir } from '../server/src/state.ts';
+import { envAgentContext, lastSession, serverStateDir, stateBaseDir } from '../server/src/state.ts';
 import { defaultChoice, detectAgents, lastAgent, menu, parseChoice, rememberAgent } from '../server/src/agent/choice.ts';
 import { recordRecent } from '../server/src/recent.ts';
 import { parentPluginVersion, pluginInstallVersion } from '../server/src/pluginOrigin.ts';
@@ -460,7 +460,7 @@ export function ensureBuildAsync(repo, env = process.env, stdio = 'inherit', loc
  * Returns the release function (idempotent; removes the lock only while it is still ours).
  */
 export async function acquireLaunchLock(root, waitMs = LOCK_WAIT_MS) {
-  const lock = path.join(stateDir(), 'locks', rootHash(root));
+  const lock = path.join(serverStateDir(), 'locks', rootHash(root));
   const pidFile = path.join(lock, 'pid');
   const owner = () => {
     try {
@@ -591,7 +591,7 @@ export async function loginTarget(base) {
 }
 
 function last(dir) {
-  const id = lastSession(realDir(dir));
+  const id = lastSession(envAgentContext().stateDir, realDir(dir));
   if (!id || (process.env.NOTA_BENE_AGENT === 'claude' && !transcriptExists(id))) return 1;
   process.stdout.write(`${id}\n`);
   return 0;
@@ -624,7 +624,7 @@ const OPEN_PAGE_KEEP_MS = 30_000;
  * trust as the token file; the login value in it dies with the launch anyway). `url` is a loginTarget().
  */
 export function writeOpenPage(url) {
-  const dir = path.join(stateDir(), 'open');
+  const dir = path.join(serverStateDir(), 'open');
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const st = fs.lstatSync(dir);
   if (!st.isDirectory()) throw new Error(`${dir} is not a plain folder (a symbolic link?); delete it`);

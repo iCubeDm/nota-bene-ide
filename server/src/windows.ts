@@ -11,7 +11,7 @@ import type { AgentProvider } from './agent/provider.ts';
 import { SecretError, verifiedBearer } from './auth.ts';
 import { withLock, writeJsonAtomic } from './atomicFile.ts';
 import { pidAlive } from './platform.ts';
-import { stateDir } from './state.ts';
+import { serverStateDir } from './state.ts';
 
 export type WindowEntry = {
   root: string;
@@ -37,7 +37,7 @@ export const rootHash = (root: string): string => createHash('sha1').update(root
  */
 export const windowKey = (provider: AgentProvider, root: string): string => `${provider}:${rootHash(root)}`;
 
-const dir = (base?: string) => path.join(base ?? stateDir(), 'windows');
+const dir = (base?: string) => path.join(base ?? serverStateDir(), 'windows');
 const fileOf = (port: number | string, base?: string) => path.join(dir(base), `${port}.json`);
 
 function readEntry(port: number | string, base?: string): WindowEntry | undefined {

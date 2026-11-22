@@ -4,7 +4,7 @@ import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STOP_MESSAGE, dropInheritedLauncherEnv, invocationCwd, launchTarget, parseArgs, stateLine, takePluginVersion, watchLauncher } from './main.ts';
-import { saveSession } from './state.ts';
+import { saveSession, serverStateDir } from './state.ts';
 
 const cwd = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-main-')));
 // --continue reads the session registry: keep it in a temp NOTA_BENE_HOME, never the real ~/.nota-bene
@@ -68,27 +68,27 @@ describe('launch options', () => {
     const args = (extra: string[] = []) => parseArgs(extra, cwd);
 
     it('default resumes the saved session when its transcript exists', () => {
-      saveSession(cwd, 'saved-id');
-      expect(launchTarget(args(), projects)).toEqual({ resume: 'saved-id' });
-      expect(launchTarget(args(['--continue']), projects)).toEqual({ resume: 'saved-id' });
+      saveSession(serverStateDir(), cwd, 'saved-id');
+      expect(launchTarget(args(), serverStateDir(), projects)).toEqual({ resume: 'saved-id' });
+      expect(launchTarget(args(['--continue']), serverStateDir(), projects)).toEqual({ resume: 'saved-id' });
     });
 
     it('default starts new when the transcript is gone, or nothing is saved', () => {
-      saveSession(cwd, 'gone-id');
-      expect(launchTarget(args(), projects)).toEqual({});
-      saveSession(cwd, null);
-      expect(launchTarget(args(), projects)).toEqual({});
+      saveSession(serverStateDir(), cwd, 'gone-id');
+      expect(launchTarget(args(), serverStateDir(), projects)).toEqual({});
+      saveSession(serverStateDir(), cwd, null);
+      expect(launchTarget(args(), serverStateDir(), projects)).toEqual({});
     });
 
     it('--new ignores the saved session', () => {
-      saveSession(cwd, 'saved-id');
-      expect(launchTarget(args(['--new']), projects)).toEqual({});
+      saveSession(serverStateDir(), cwd, 'saved-id');
+      expect(launchTarget(args(['--new']), serverStateDir(), projects)).toEqual({});
     });
 
     it('--resume wins over the saved session, and --fork rides along', () => {
-      saveSession(cwd, 'saved-id');
-      expect(launchTarget(args(['--resume', 'other']), projects)).toEqual({ resume: 'other' });
-      expect(launchTarget(args(['--resume', 'other', '--fork']), projects)).toEqual({ resume: 'other', fork: true });
+      saveSession(serverStateDir(), cwd, 'saved-id');
+      expect(launchTarget(args(['--resume', 'other']), serverStateDir(), projects)).toEqual({ resume: 'other' });
+      expect(launchTarget(args(['--resume', 'other', '--fork']), serverStateDir(), projects)).toEqual({ resume: 'other', fork: true });
     });
   });
 });

@@ -29,7 +29,7 @@ import { archiveRoute, deleteRoute, listSessionsView, renameRoute, seenRoute } f
 import { readArchived, setArchived } from './archivedSessions.ts';
 import { markSeen, readSeen } from './seen.ts';
 import { codeChecker } from './codeStamp.ts';
-import { forgetSession, stateBaseDir, stateDir } from './state.ts';
+import { envAgentContext, forgetSession, stateBaseDir, type AgentContext } from './state.ts';
 import { AuditLog } from './audit.ts';
 import { moveWindow } from './windows.ts';
 import { pidAlive } from './platform.ts';
@@ -38,7 +38,6 @@ import { RESTART, restartGate } from './restartGate.ts';
 import { compactOrder } from './compactOrder.ts';
 import { TurnMarks, changesWork } from './turnMarks.ts';
 import { projectRoutes } from './projectRoutes.ts';
-import { parseProvider } from './agent/provider.ts';
 import { updateCheck } from './update.ts';
 import { updater } from './updater.ts';
 import { runtimeDir } from './runtime.ts';
@@ -118,6 +117,8 @@ export async function startServer(o: {
   restartEveryMs?: number;
   /** keeps the remote-access connector running and serves /remote (main.ts); absent = none (tests), /remote answers 503 */
   remote?: RemoteKeeper;
+  /** which agent this is and where its data lives (main.ts); default: the one NOTA_BENE_AGENT chose */
+  agent?: AgentContext;
 }): Promise<{ url: string; close(): Promise<void> }> {
   const hub = new EventHub();
   hostClient.reportTo((where, e) => reportError(hub, where, e)); // the Whisper host's trouble is this window's to show
@@ -134,18 +135,21 @@ export async function startServer(o: {
     const token = o.insecureNoAuth ? null : accessToken();
     // made at start, never by a request: an unauthenticated /control/* must not be able to create the file
     const control = controlToken();
-    const attachments = new AttachmentStore({ dir: path.join(stateDir(), 'attachments') });
+    // the agent's folder is made and checked here too, so a refused one stops the start as the secrets do
+    const agent = o.agent ?? envAgentContext();
+    const attachments = new AttachmentStore({ dir: path.join(agent.stateDir, 'attachments') });
     // a picture per project folder, shared by every provider's windows of it: the base state folder, never the project
     const projectIcons = new ProjectIconStore({ dir: path.join(stateBaseDir(), 'project-icons') });
-    const archive = new HistoryArchive({ dir: path.join(stateDir(), 'history'), report: (e) => reportError(hub, 'archive', e) });
+    const archive = new HistoryArchive({ dir: path.join(agent.stateDir, 'history'), report: (e) => reportError(hub, 'archive', e) });
     // gh-422: the mark of a turn the server is in the middle of, so the start after a cut one can say so
     const turnMarks = new TurnMarks({
-      dir: path.join(stateDir(), 'turns-open'),
+      dir: path.join(agent.stateDir, 'turns-open'),
       // the agent's work (not a switch, whose ↻ ends its own turn): a turn, a question or approval, a running task
       working: () => (manager.busy() && !manager.switching()) || hub.tasksRunning() > 0,
       session: () => manager.info().id,
     });
     const manager = await createSessionManager({
+      stateDir: agent.stateDir,
       hub,
       turnCut: (id) => turnMarks.take(id),
       attachments,
@@ -162,7 +166,7 @@ export async function startServer(o: {
       // a voice message whose transcript failed never reaches the agent: the comments it carried are pending again
       onDropped: (id) => { store.markPending(manager.info().id, id); broadcastComments(); },
     });
-    const store = new CommentStore({ dir: path.join(stateDir(), 'comments') });
+    const store = new CommentStore({ dir: path.join(agent.stateDir, 'comments') });
     // comments are live state, not history: never stored in the replay, a new socket gets the set directly
     const currentComments = () => store.get(manager.info().id);
     /** the current session's set with its revision (protocol 19); `ack` names the ops this change applied */
@@ -173,7 +177,7 @@ export async function startServer(o: {
     const broadcastComments = (ack?: string) => hub.emit(commentsEvent(ack), { store: false });
     // the web's prompt history: a new session's first prompts wait in memory for its id (as comments do); a /clear or a fork
     // keeps the history, so the new id gets a copy of the previous one's
-    const prompts = new PromptStore({ dir: path.join(stateDir(), 'prompts'), report: (e) => reportError(hub, 'prompts', e) });
+    const prompts = new PromptStore({ dir: path.join(agent.stateDir, 'prompts'), report: (e) => reportError(hub, 'prompts', e) });
     hub.tap((ev) => { if (changesWork(ev)) turnMarks.schedule(); });
     manager.onSessionId((id, prev) => {
       turnMarks.schedule();
@@ -251,7 +255,7 @@ export async function startServer(o: {
     // issue 499: a compaction ordered while the agent works waits for the next pause, after a pending restart; the sends
     // of pages that understand it (`held=1`) wait behind both
     const order = compactOrder({
-      dir: path.join(stateDir(), 'compact-pending'),
+      dir: path.join(agent.stateDir, 'compact-pending'),
       session: () => manager.archiveId(),
       busy: notPaused,
       switching: () => manager.switching(),
@@ -268,18 +272,18 @@ export async function startServer(o: {
     manager.onSwitch((_id, { restart: same }) => { if (!same) order.enter(manager.archiveId()); });
     /** a request to restart: at once in a pause (true), else pending (false) */
     const requestRestart = () => restart.request() === 'now';
-    const marks = new MarkFiles({ root, stateDir });
+    const marks = new MarkFiles({ root, stateDir: () => agent.stateDir });
     // the video editor's export (epic 406): ffmpeg is looked up again at each connect and start, so one installed later is found
     const cutExporter = new CutExporter({ root, ...(o.ffmpeg ? { ffmpeg: o.ffmpeg } : {}) });
     cutExporter.ffmpegState(); // warm: ffmpeg's version is asked now, in the background, so the first hello already knows it
     // the waveforms need any ffmpeg that decodes, not one new enough for the export
     const cutPeaks = new CutPeaks({ root, ffmpeg: o.ffmpeg ?? (() => findFfmpeg()) });
-    const cutReverse = new CutReverse({ root, ffmpeg: o.ffmpeg ?? (() => findFfmpeg()), stateDir });
+    const cutReverse = new CutReverse({ root, ffmpeg: o.ffmpeg ?? (() => findFfmpeg()), stateDir: () => agent.stateDir });
     // a deleted session: Nota Bene's own data of it goes too, each part on its own (a failure is reported, the rest still goes)
     const forgetDeleted = (id: string) => {
       const parts: [string, () => void][] = [
         ['history', () => archive.forget(id)], ['prompts', () => prompts.forget(id)], ['comments', () => store.forget(id)],
-        ['archived', () => setArchived(id, false)], ['last session', () => void forgetSession(id)], ['compact-pending', () => order.forget(id)],
+        ['archived', () => setArchived(id, false, agent.stateDir)], ['last session', () => void forgetSession(agent.stateDir, id)], ['compact-pending', () => order.forget(id)],
       ];
       for (const [what, drop] of parts) {
         try { drop(); } catch (e) { reportError(hub, `sessions/delete ${what}`, e); }
@@ -292,7 +296,7 @@ export async function startServer(o: {
         return;
       }
       const { id } = manager.info();
-      listSessionsView({ backend: o.backend, current: id, root: root(), archived: readArchived() }).then(
+      listSessionsView({ backend: o.backend, current: id, root: root(), archived: readArchived(agent.stateDir) }).then(
         (view) => {
           res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
           res.end(req.method === 'HEAD' ? undefined : JSON.stringify(view));
@@ -348,8 +352,8 @@ export async function startServer(o: {
         }),
         '/sessions': sessionsRoute,
         '/sessions/rename': renameRoute({ hub, rename: (id, title) => manager.rename(id, title) }),
-        '/seen': seenRoute({ hub, current: () => manager.info().id, mark: (id, at) => markSeen(id, at) }),
-        '/sessions/archive': archiveRoute({ hub, current: () => manager.info().id, set: (id, on) => setArchived(id, on) }),
+        '/seen': seenRoute({ hub, current: () => manager.info().id, mark: (id, at) => markSeen(id, at, agent.stateDir) }),
+        '/sessions/archive': archiveRoute({ hub, current: () => manager.info().id, set: (id, on) => setArchived(id, on, agent.stateDir) }),
         '/sessions/delete': deleteRoute({
           hub, current: () => manager.info().id, switching: () => manager.switching(),
           // another live window of this provider on it (a terminal CLI cannot be seen: the dialog says so)
@@ -434,10 +438,10 @@ export async function startServer(o: {
         ...dictationRoutes({ hub }),
         ...cutRoutes({ hub, exporter: cutExporter, peaks: cutPeaks, reverse: cutReverse, root }),
         ...remoteRoutes({ hub, keeper: o.remote }),
-        ...projectRoutes({ hub, port: () => ownPort, provider: parseProvider(process.env.NOTA_BENE_AGENT), repoDir, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
+        ...projectRoutes({ hub, port: () => ownPort, provider: agent.provider, repoDir, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
         ...systemRoutes({
           updater: win, newer,
-          hub, root, modes: o.backend.capabilities.modes, port: () => ownPort, repoDir,
+          hub, root, stateDir: agent.stateDir, modes: o.backend.capabilities.modes, port: () => ownPort, repoDir,
           control: {
             supervised,
             exiting: () => exiting,
@@ -454,7 +458,7 @@ export async function startServer(o: {
       info: () => {
         const { id, root, title, model } = manager.info();
         // busy and clients: for another window's Settings → Windows; pending, last, replies: the phone's list
-        return { root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen()[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root) };
+        return { root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root) };
       },
     }));
     const switchFailed = (e: unknown) => reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);
@@ -880,7 +884,7 @@ export async function startServer(o: {
     ownPort = port;
     if (audit) {
       audit.port = port;
-      audit.write('server-start', { root: root(), agent: process.env.NOTA_BENE_AGENT ?? 'claude', node: process.version, supervised: supervised() });
+      audit.write('server-start', { root: root(), agent: agent.provider, node: process.version, supervised: supervised() });
     }
     // a supervised window keeps its registry entry's root current, so a relaunch reopens the folder it switched to
     manager.onSwitch((_id, { restart }) => {

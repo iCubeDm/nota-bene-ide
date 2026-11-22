@@ -9,7 +9,7 @@ import { fakeBackend } from './agent/fake.ts';
 import type { FakeTurn } from './agent/fake.ts';
 import { CommentStore } from './comments.ts';
 import { startServer } from './server.ts';
-import { lastSession, saveSession } from './state.ts';
+import { lastSession, saveSession, serverStateDir } from './state.ts';
 import { wirePath } from './wirePath.ts';
 
 const SA = '11111111-1111-4111-8111-111111111111';
@@ -158,13 +158,13 @@ describe('GET /sessions', () => {
     for (const f of own) { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, '{}\n'); }
     const keep = path.join(home, 'prompts', `${SA}.jsonl`);
     fs.writeFileSync(keep, '{}\n');
-    saveSession(B, SB);
-    saveSession(A, SA);
+    saveSession(serverStateDir(), B, SB);
+    saveSession(serverStateDir(), A, SA);
     expect((await postJson(s.url, '/sessions/delete', { id: SB })).status).toBe(200);
     expect(own.filter((f) => fs.existsSync(f))).toEqual([]);
     expect(fs.existsSync(keep)).toBe(true);
-    expect(lastSession(B)).toBeUndefined();
-    expect(lastSession(A)).toBe(SA);
+    expect(lastSession(serverStateDir(), B)).toBeUndefined();
+    expect(lastSession(serverStateDir(), A)).toBe(SA);
   });
 
   it('refuses a foreign host', async () => {
@@ -203,7 +203,7 @@ describe('switch', () => {
     expect(await (await get(s.url, '/tree')).json()).toEqual([{ name: 'b-only.txt', dir: false }]);
     expect(await (await get(s.url, '/complete?q=only')).json()).toEqual(['b-only.txt']);
     expect(await (await get(s.url, '/info')).json()).toMatchObject({ root: B, session: SB });
-    expect(lastSession(B)).toBe(SB);
+    expect(lastSession(serverStateDir(), B)).toBe(SB);
 
     // a late socket gets the new session's history, not the old one's
     const late = await connect(s.url);

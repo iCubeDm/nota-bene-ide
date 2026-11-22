@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { forgetSession, lastSession, saveSession, SecretError, sharedHomeRefusal, stateDir } from './state.ts';
+import { forgetSession, lastSession, saveSession, SecretError, serverStateDir, sharedHomeRefusal } from './state.ts';
 
 let home: string;
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -17,28 +17,28 @@ afterEach(() => {
 
 describe('state', () => {
   it('saves then reads a session id', () => {
-    saveSession('/p', 'abc');
-    expect(lastSession('/p')).toBe('abc');
+    saveSession(serverStateDir(), '/p', 'abc');
+    expect(lastSession(serverStateDir(), '/p')).toBe('abc');
   });
   it('forgetSession drops every project whose last session it was, and only those', () => {
-    saveSession('/p', 'gone');
-    saveSession('/q', 'gone');
-    saveSession('/r', 'kept');
-    expect(forgetSession('gone')).toBe(2);
-    expect([lastSession('/p'), lastSession('/q'), lastSession('/r')]).toEqual([undefined, undefined, 'kept']);
-    expect(forgetSession('gone')).toBe(0);
+    saveSession(serverStateDir(), '/p', 'gone');
+    saveSession(serverStateDir(), '/q', 'gone');
+    saveSession(serverStateDir(), '/r', 'kept');
+    expect(forgetSession(serverStateDir(), 'gone')).toBe(2);
+    expect([lastSession(serverStateDir(), '/p'), lastSession(serverStateDir(), '/q'), lastSession(serverStateDir(), '/r')]).toEqual([undefined, undefined, 'kept']);
+    expect(forgetSession(serverStateDir(), 'gone')).toBe(0);
   });
   it('null deletes the entry', () => {
-    saveSession('/p', 'abc');
-    saveSession('/p', null);
-    expect(lastSession('/p')).toBeUndefined();
+    saveSession(serverStateDir(), '/p', 'abc');
+    saveSession(serverStateDir(), '/p', null);
+    expect(lastSession(serverStateDir(), '/p')).toBeUndefined();
   });
   it('corrupt sessions.json yields undefined without throwing', () => {
-    fs.writeFileSync(path.join(stateDir(), 'sessions.json'), '{');
-    expect(lastSession('/p')).toBeUndefined();
+    fs.writeFileSync(path.join(serverStateDir(), 'sessions.json'), '{');
+    expect(lastSession(serverStateDir(), '/p')).toBeUndefined();
   });
   it('leaves no sessions.json.tmp* after a save', () => {
-    saveSession('/p', 'abc');
+    saveSession(serverStateDir(), '/p', 'abc');
     expect(fs.readdirSync(home).filter((f) => f.startsWith('sessions.json.tmp'))).toEqual([]);
   });
 });
@@ -75,18 +75,29 @@ describe('Windows: a state folder outside the user profile is refused (its defau
       try {
         process.env.USERPROFILE = fake.toUpperCase();
         delete process.env.NOTA_BENE_ALLOW_SHARED_HOME;
-        expect(() => stateDir()).toThrow(SecretError);
-        expect(() => stateDir()).toThrow(/outside your user profile/);
+        expect(() => serverStateDir()).toThrow(SecretError);
+        expect(() => serverStateDir()).toThrow(/outside your user profile/);
         process.env.NOTA_BENE_ALLOW_SHARED_HOME = '1';
-        expect(stateDir()).toBe(home);
+        expect(serverStateDir()).toBe(home);
         // in the profile, spelled in another case: fine
         process.env.USERPROFILE = path.dirname(home).toLowerCase();
         delete process.env.NOTA_BENE_ALLOW_SHARED_HOME;
         process.env.NOTA_BENE_HOME = path.join(home, 'inner');
-        expect(stateDir()).toBe(path.join(home, 'inner'));
+        expect(serverStateDir()).toBe(path.join(home, 'inner'));
       } finally {
         fs.rmSync(fake, { recursive: true, force: true });
       }
     });
   });
+});
+
+it('only process-wide modules use the env-chosen folder (epic 383, step 2a)', () => {
+  const src = path.resolve(import.meta.dirname);
+  const files = fs.readdirSync(src, { recursive: true, encoding: 'utf8' }).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'));
+  const using = (re: RegExp) => files.filter((f) => re.test(fs.readFileSync(path.join(src, f), 'utf8'))).map((f) => f.split(path.sep).join('/')).sort();
+  expect(using(/\bstateDir\(\)/)).toEqual([]);
+  expect(using(/\bserverStateDir\(/)).toEqual(['auth.ts', 'main.ts', 'prefs.ts', 'state.ts', 'stateGuard.ts', 'windows.ts']);
+  // per-agent code gets its folder passed in; these fall back to the env only where no context was given (tests)
+  expect(using(/\benvAgentContext\(/)).toEqual(['agent/codex/backend.ts', 'server.ts', 'session.ts', 'state.ts']);
+  expect(using(/process\.env\.NOTA_BENE_AGENT\b/)).toEqual(['main.ts', 'state.ts']);
 });

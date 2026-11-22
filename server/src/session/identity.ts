@@ -6,6 +6,8 @@ import { SESSION_ID, realOr } from './target.ts';
 
 type IdentityOptions = {
   root: string; resume?: string; fork?: boolean;
+  /** the agent's state folder: its `sessions.json` remembers each project's last session */
+  stateDir: string;
   title: () => string | null;
   emit: (ev: Extract<EmitInput, { kind: 'session' }>) => void;
   report: (where: string, e: unknown) => void;
@@ -57,7 +59,7 @@ export class SessionIdentity {
       this.forkPending = this.cleared = false;
       this.sid = e.sessionId;
       // not caught: a registry that cannot be written fails the agent, as before M7-11
-      if (this.saved !== e.sessionId) { this.saved = e.sessionId; saveSession(this.dir, e.sessionId); }
+      if (this.saved !== e.sessionId) { this.saved = e.sessionId; saveSession(this.o.stateDir, this.dir, e.sessionId); }
     }
     if (e.model) this.mdl = e.model;
     this.announce();
@@ -74,7 +76,7 @@ export class SessionIdentity {
       this.forkPending = false;
       this.sid = next;
       this.saved = next;
-      try { saveSession(this.dir, next); } catch (e) { this.o.report('session', e); }
+      try { saveSession(this.o.stateDir, this.dir, next); } catch (e) { this.o.report('session', e); }
     }
     return next;
   }
@@ -91,7 +93,7 @@ export class SessionIdentity {
     this.heard = id; // the server sends this id's comments in onSwitch, not through the id listeners
     this.mdl = null;
     if (id && !this.forkPending) {
-      try { saveSession(this.dir, id); } catch (e) { this.o.report('session', e); }
+      try { saveSession(this.o.stateDir, this.dir, id); } catch (e) { this.o.report('session', e); }
     }
     return same;
   }
