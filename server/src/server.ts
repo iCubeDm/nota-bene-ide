@@ -3,11 +3,13 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
+import type { Duplex } from 'node:stream';
 import { EventEmitter } from 'node:events';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { isAttachmentAnchor, parseClientMessage, PROTOCOL, TAKEN_OVER_CODE } from '@nota-bene/shared';
 import type { ClientMessage, Comment, RemoteState, ServerEvent, Stats } from '@nota-bene/shared';
 import type { ProviderBackend as AgentBackend } from './agent/types.ts';
+import type { AgentProvider } from './agent/provider.ts';
 import { guard, reportError } from './errors.ts';
 import { HistoryArchive, historyRoutes } from './archive.ts';
 import { subagentRoutes } from './subagent.ts';
@@ -17,19 +19,19 @@ import { ProjectIconStore, projectIconRoutes } from './projectIcon.ts';
 import { MarkFiles, markRoutes } from './marks.ts';
 import { CommentStore } from './comments.ts';
 import { PromptStore, promptRoutes } from './prompts.ts';
-import { EventHub } from './hub.ts';
+import { EventHub, type EmitInput } from './hub.ts';
 import { complete, fileRoutes } from './fileRoutes.ts';
 import { osFileRoutes } from './osFiles.ts';
 import { tmpDirNames } from './tmpImage.ts';
 import { readPrefs } from './prefs.ts';
-import { httpHandler, isAllowedHost, pathOf, stripAgent } from './http.ts';
+import { agentPrefix, httpHandler, isAllowedHost, pathOf } from './http.ts';
 import { SwitchError, createSessionManager, trackedCommand } from './session.ts';
 import type { IdleConfig } from './idle.ts';
 import { archiveRoute, deleteRoute, listSessionsView, renameRoute, seenRoute } from './sessions.ts';
 import { readArchived, setArchived } from './archivedSessions.ts';
 import { markSeen, readSeen } from './seen.ts';
 import { codeChecker } from './codeStamp.ts';
-import { envAgentContext, forgetSession, launchAgentId, stateBaseDir, type AgentContext } from './state.ts';
+import { agentContext, envAgentContext, forgetSession, launchAgentId, newAgentId, stateBaseDir, type AgentContext } from './state.ts';
 import { AuditLog } from './audit.ts';
 import { moveWindow } from './windows.ts';
 import { pidAlive } from './platform.ts';
@@ -75,7 +77,7 @@ function installProcessHandlers(): void {
   process.on('unhandledRejection', report);
 }
 
-export async function startServer(o: {
+export type ServerOptions = {
   cwd: string;
   port: number;
   backend: AgentBackend;
@@ -119,27 +121,71 @@ export async function startServer(o: {
   remote?: RemoteKeeper;
   /** which agent this is and where its data lives (main.ts); default: the one NOTA_BENE_AGENT chose */
   agent?: AgentContext;
-}): Promise<{ url: string; close(): Promise<void> }> {
+};
+
+/** One agent of a server (epic 383): a provider's session line in a folder, today's window minus the process. */
+export type AgentOptions = {
+  agent: AgentContext;
+  id: string;
+  cwd: string;
+  backend: AgentBackend;
+  resume?: string;
+  fork?: boolean;
+  onStats?: (s: Stats) => void;
+  onLimit?: (info: unknown) => void;
+};
+
+/** What a server's agents share: the listener and its login, the process's exit, its update and its restart. */
+type Shared = {
+  o: ServerOptions;
+  audit: AuditLog | null;
+  authorize?: (req: http.IncomingMessage, needKey: boolean) => boolean;
+  allowedHosts: string[];
+  allowedOrigins: string[];
+  /** the routes anyone may reach: /auth, /hello */
+  open: Record<string, http.RequestListener>;
+  control: string;
+  port: () => number;
+  projectIcons: ProjectIconStore;
+  supervised: () => boolean;
+  codeChanged: () => boolean;
+  repoDir: string;
+  newer: ReturnType<typeof updateCheck>;
+  win: ReturnType<typeof updater>;
+  restart: ReturnType<typeof restartGate>;
+  requestRestart: () => boolean;
+  exiting: () => boolean;
+  exitWith: (code: number) => void;
+};
+
+type Agent = {
+  id: string;
+  provider: AgentProvider;
+  hub: EventHub;
+  handler: http.RequestListener;
+  /** a request already known to be this agent's `/ws` */
+  upgrade: (req: http.IncomingMessage, socket: Duplex, head: Buffer) => void;
+  root(): string;
+  /** not a pause: its turn, a question, a switch, a `! cmd` run or a task */
+  notPaused(): boolean;
+  /** its sockets that ask for a pending restart in their own pause (gh-422) */
+  askers(): number;
+  restartChanged(pending: boolean): void;
+  onSwitch(fn: (restart: boolean) => void): void;
+  /** a turn the exit cuts stays marked */
+  freeze(): void;
+  close(): Promise<void>;
+};
+
+/** An agent of the server `s`: its session, stores, routes, socket and one-tab rule. */
+async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
+  const { o, audit, authorize, allowedHosts, allowedOrigins, projectIcons, supervised, codeChanged, repoDir, newer, win, restart, requestRestart, exitWith } = s;
+  const agent = a.agent;
   const hub = new EventHub();
-  hostClient.reportTo((where, e) => reportError(hub, where, e)); // the Whisper host's trouble is this window's to show
-  installProcessHandlers();
   hubs.add(hub);
-  const audit = o.audit ? new AuditLog({ port: o.port, ...o.audit }) : null;
-  if (audit) {
-    audit.prune();
-    hub.tap((ev) => audit.server(ev));
-  }
+  audit && hub.tap((ev) => audit.server(ev));
   try {
-    // the secrets first: a refused one (loose mode, foreign owner, ...) must stop the start before the agent is spawned
-    // the access token: read once at start (a rotated file takes effect at the next start). Auth is on unless a test says no
-    const token = o.insecureNoAuth ? null : accessToken();
-    // made at start, never by a request: an unauthenticated /control/* must not be able to create the file
-    const control = controlToken();
-    // the agent's folder is made and checked here too, so a refused one stops the start as the secrets do
-    const agent = o.agent ?? envAgentContext();
     const attachments = new AttachmentStore({ dir: path.join(agent.stateDir, 'attachments') });
-    // a picture per project folder, shared by every provider's windows of it: the base state folder, never the project
-    const projectIcons = new ProjectIconStore({ dir: path.join(stateBaseDir(), 'project-icons') });
     const archive = new HistoryArchive({ dir: path.join(agent.stateDir, 'history'), report: (e) => reportError(hub, 'archive', e) });
     // gh-422: the mark of a turn the server is in the middle of, so the start after a cut one can say so
     const turnMarks = new TurnMarks({
@@ -154,12 +200,12 @@ export async function startServer(o: {
       turnCut: (id) => turnMarks.take(id),
       attachments,
       archive,
-      backend: o.backend,
-      ...(o.onStats ? { onStats: o.onStats } : {}),
-      ...(o.onLimit ? { onLimit: o.onLimit } : {}),
-      cwd: o.cwd,
-      ...(o.resume ? { resume: o.resume } : {}),
-      ...(o.resume && o.fork && o.backend.capabilities.fork ? { fork: true } : {}),
+      backend: a.backend,
+      ...(a.onStats ? { onStats: a.onStats } : {}),
+      ...(a.onLimit ? { onLimit: a.onLimit } : {}),
+      cwd: a.cwd,
+      ...(a.resume ? { resume: a.resume } : {}),
+      ...(a.resume && a.fork && a.backend.capabilities.fork ? { fork: true } : {}),
       ...(o.idle ? { idle: o.idle } : {}),
       ...(o.idleOffInSettings ? { idleOffInSettings: o.idleOffInSettings } : {}),
       ...(o.shell ? { shell: o.shell } : {}),
@@ -197,63 +243,11 @@ export async function startServer(o: {
       if (!restart) store.dropPending();
       broadcastComments();
     });
-    // supervised = our launcher is still our parent: an orphan (launcher killed) must not offer a restart nobody catches.
-    // Windows never reparents, so the parent must also still be there: its IPC channel open (main.ts watchLauncher), or
-    // without one (an older launcher) its pid alive
-    const supervised = () => process.env.NOTA_BENE_SUPERVISED === '1'
-      && process.ppid === Number(process.env.NOTA_BENE_LAUNCHER_PID)
-      && (process.channel ? process.connected : pidAlive(process.ppid));
-    const codeChanged = codeChecker({ repoDir: o.repoDir ?? path.resolve(import.meta.dirname, '..', '..') });
-    const nonce = o.nonce !== undefined && isNonce(o.nonce) ? o.nonce : newNonce();
-    // the one agent of this window, addressed as /a/<id>/ (epic 383; the top keeps answering for the phone and older pages)
-    const agentId = launchAgentId(agent.provider, nonce);
-    const authorize = token === null ? undefined : (req: http.IncomingMessage, needKey: boolean) => authenticated(req.headers, token, ownPort, nonce, needKey);
-    const allowedHosts: string[] = []; // filled after listen, once the port is known
-    const allowedOrigins: string[] = [...(o.allowedOrigins ?? [])];
     // the one source of the project root: a switch changes it, so every route reads it per request
     const root = () => manager.info().root;
-    let ownPort = 0; // set after listen
-    // the exit after a reply (restart-server 75, stop 0): close what can be closed, but never hang on it
-    let exiting = false;
-    const exitWith = (code: number) => {
-      if (exiting) return; // the first exit wins
-      exiting = true;
-      turnMarks.freeze(); // a turn this exit cuts stays marked: the close below ends it
-      audit?.write('server-exit', { code });
-      void Promise.race([close(), new Promise<void>((r) => setTimeout(r, 2000))]).then(() => {
-        setTimeout(() => (o.exit ?? process.exit)(code), 100);
-      });
-    };
-    // the in-app update: this window's notice, install and hand-over to a newer version (exit 77 in a pause)
-    const repoDir = o.repoDir ?? path.resolve(import.meta.dirname, '..', '..');
-    const newer = updateCheck();
-    const real = (p: string) => { try { return fs.realpathSync(p); } catch { return p; } };
     // not a pause: a turn, a waiting question or approval, a switch, a `! cmd` run or a task of the agent still running.
     // The update's hand-over (77) and a pending restart (75) wait for the same pause
     const notPaused = () => manager.busy() || manager.shellRunning() || hub.tasksRunning() > 0;
-    const win = updater({
-      version: () => describeVersion(repoDir),
-      canUpdate: process.env.NOTA_BENE_HANDOVER === '1',
-      busy: notPaused,
-      tabs: () => hub.clients(),
-      exit: exitWith,
-      newer,
-      fromRuntime: real(repoDir).startsWith(real(runtimeDir()) + path.sep),
-      updatedFrom: process.env.NOTA_BENE_UPDATED_FROM,
-      pluginVersion: o.pluginVersion,
-    });
-    // gh-422: "Restart the server" while the agent works waits for the next pause (exit 75 then)
-    const restart = restartGate({
-      busy: notPaused,
-      // only a page that will ask in its pause holds the server's own rule back: the phone and an older bundle never ask
-      tabs: () => askers.size,
-      exit: exitWith,
-      changed: (pending) => {
-        hub.emit({ kind: 'restart-pending', pending }, { store: false });
-        order.check(); // cancelled: what it held goes on
-      },
-      everyMs: o.restartEveryMs,
-    });
     // issue 499: a compaction ordered while the agent works waits for the next pause, after a pending restart; the sends
     // of pages that understand it (`held=1`) wait behind both
     const order = compactOrder({
@@ -272,8 +266,6 @@ export async function startServer(o: {
     order.enter(manager.archiveId()); // the start: what this session's last run left pending goes on
     manager.onSessionId(() => order.moved());
     manager.onSwitch((_id, { restart: same }) => { if (!same) order.enter(manager.archiveId()); });
-    /** a request to restart: at once in a pause (true), else pending (false) */
-    const requestRestart = () => restart.request() === 'now';
     const marks = new MarkFiles({ root, stateDir: () => agent.stateDir });
     // the video editor's export (epic 406): ffmpeg is looked up again at each connect and start, so one installed later is found
     const cutExporter = new CutExporter({ root, ...(o.ffmpeg ? { ffmpeg: o.ffmpeg } : {}) });
@@ -298,7 +290,7 @@ export async function startServer(o: {
         return;
       }
       const { id } = manager.info();
-      listSessionsView({ backend: o.backend, current: id, root: root(), archived: readArchived(agent.stateDir) }).then(
+      listSessionsView({ backend: a.backend, current: id, root: root(), archived: readArchived(agent.stateDir) }).then(
         (view) => {
           res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
           res.end(req.method === 'HEAD' ? undefined : JSON.stringify(view));
@@ -310,23 +302,9 @@ export async function startServer(o: {
         },
       );
     };
-    const authRoute = loginRoute(token, () => ownPort, nonce);
-    // GET /hello?c=<hex>: the one thing a helper may ask before it trusts a port. Answers only the proof that this server holds the
-    // token for the port it is bound to and the given challenge: no root, no state, nothing to replay (the port is in the proof)
-    const helloRoute: http.RequestListener = (req, res) => {
-      const plain = (status: number, body: string) => {
-        res.writeHead(status, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
-        res.end(body);
-      };
-      if (req.method !== 'GET') return plain(405, 'method not allowed');
-      const c = new URL(req.url ?? '/', 'http://x').searchParams.get('c') ?? '';
-      if (token === null || !CHALLENGE_RE.test(c)) return plain(400, 'bad request');
-      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-      res.end(JSON.stringify({ proof: proofFor(token, ownPort, nonce, c), n: nonce }));
-    };
     const handler = httpHandler({
       hub,
-      open: { '/auth': authRoute, '/hello': helloRoute },
+      open: s.open,
       ...(authorize ? { authorize } : {}),
       allowedHosts,
       allowedOrigins,
@@ -346,7 +324,7 @@ export async function startServer(o: {
         // the web's prompt history (HTTP only): the current conversation's sent prompts
         ...promptRoutes({ store: prompts, current: () => manager.info().id, own: () => manager.archiveId(), hub }),
         // a subagent's conversation (protocol 7); same rule: only the current conversation's
-        ...subagentRoutes({ backend: o.backend, attachments, hub, current: () => manager.archiveId(), root }),
+        ...subagentRoutes({ backend: a.backend, attachments, hub, current: () => manager.archiveId(), root }),
         // a shell task's output tail (protocol 8)
         ...taskOutputRoutes({ hub, current: () => manager.archiveId(), taskOutput: (id) => manager.taskOutput(id) }),
         ...markRoutes(marks, hub, {
@@ -359,15 +337,15 @@ export async function startServer(o: {
         '/sessions/delete': deleteRoute({
           hub, current: () => manager.info().id, switching: () => manager.switching(),
           // another live window of this provider on it (a terminal CLI cannot be seen: the dialog says so)
-          openElsewhere: async (id) => (await listWindows(ownPort)).some((w) => !w.current && w.state === 'live' && w.session?.toLowerCase() === id),
-          remove: o.backend.capabilities.deleteSession && o.backend.deleteSession ? (id) => o.backend.deleteSession!(id) : undefined,
+          openElsewhere: async (id) => (await listWindows(s.port())).some((w) => !w.current && w.state === 'live' && w.session?.toLowerCase() === id),
+          remove: a.backend.capabilities.deleteSession && a.backend.deleteSession ? (id) => a.backend.deleteSession!(id) : undefined,
           forget: forgetDeleted,
         }),
         '/agent-account': (req, res) => {
           const run = async () => {
-            if (!o.backend.account) { res.writeHead(404); res.end(); return; }
+            if (!a.backend.account) { res.writeHead(404); res.end(); return; }
             if (req.method !== 'GET' && req.method !== 'POST') { res.writeHead(405); res.end(); return; }
-            const value = req.method === 'POST' ? await o.backend.login?.() : await o.backend.account();
+            const value = req.method === 'POST' ? await a.backend.login?.() : await a.backend.account();
             res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(value));
           };
           void run().catch((e) => { res.writeHead(503, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: e instanceof Error ? e.message : 'Codex unavailable' })); });
@@ -378,9 +356,9 @@ export async function startServer(o: {
             res.end('method not allowed');
             return;
           }
-          if (!supervised() || exiting) {
+          if (!supervised() || s.exiting()) {
             res.writeHead(409, { 'content-type': 'text/plain; charset=utf-8' });
-            res.end(exiting ? 'exiting' : 'not supervised');
+            res.end(s.exiting() ? 'exiting' : 'not supervised');
             return;
           }
           // `{now: true}`: Restart now, the running turn is cut. Otherwise at once in a pause, else pending
@@ -428,7 +406,7 @@ export async function startServer(o: {
             res.end('method not allowed');
             return;
           }
-          if (exiting) {
+          if (s.exiting()) {
             res.writeHead(409, { 'content-type': 'text/plain; charset=utf-8' });
             res.end('exiting');
             return;
@@ -440,13 +418,13 @@ export async function startServer(o: {
         ...dictationRoutes({ hub }),
         ...cutRoutes({ hub, exporter: cutExporter, peaks: cutPeaks, reverse: cutReverse, root }),
         ...remoteRoutes({ hub, keeper: o.remote }),
-        ...projectRoutes({ hub, port: () => ownPort, provider: agent.provider, repoDir, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
+        ...projectRoutes({ hub, port: () => s.port(), provider: agent.provider, repoDir, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
         ...systemRoutes({
           updater: win, newer,
-          hub, root, stateDir: agent.stateDir, modes: o.backend.capabilities.modes, port: () => ownPort, repoDir,
+          hub, root, stateDir: agent.stateDir, modes: a.backend.capabilities.modes, port: () => s.port(), repoDir,
           control: {
             supervised,
-            exiting: () => exiting,
+            exiting: s.exiting,
             restartAgent: () => void manager.restart().catch(switchFailed),
             restartServer: () => { if (requestRestart()) exitWith(RESTART); },
             restartServerNow: () => exitWith(RESTART),
@@ -456,17 +434,12 @@ export async function startServer(o: {
         }),
       },
       webDist: o.webDist,
-      controlToken: () => control,
+      controlToken: () => s.control,
       info: () => {
         const { id, root, title, model } = manager.info();
         // busy and clients: for another window's Settings → Windows; pending, last, replies: the phone's list
-        return { agent: agentId, root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root) };
+        return { agent: a.id, root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root) };
       },
-    });
-    const server = http.createServer((req, res) => {
-      if (stripAgent(req, agentId)) return handler(req, res);
-      res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
-      res.end('no such agent');
     });
     const switchFailed = (e: unknown) => reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);
     const wss = new WebSocketServer({
@@ -483,19 +456,9 @@ export async function startServer(o: {
         else done(true);
       },
     });
-    // the socket is `/ws`, at the top or under the agent's prefix; anything else is no upgrade of ours
-    server.on('upgrade', (req, socket, head) => {
-      const mine = stripAgent(req, agentId);
-      if (!mine || pathOf(req.url ?? '/') !== '/ws') {
-        socket.end(`HTTP/1.1 ${mine ? '400 Bad Request' : '404 Not Found'}\r\nconnection: close\r\ncontent-length: 0\r\n\r\n`);
-        return;
-      }
-      wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
-    });
-
     // a client message the agent's capabilities forbid: a `server-error` (as the other refusals that are no `send`);
     // the web hides these controls, so this only fires for a stale page or a hand-made client
-    const caps = o.backend.capabilities;
+    const caps = a.backend.capabilities;
     const refuse = (what: string) => reportError(hub, 'capability', new Error(`${what}: the agent does not support it`));
 
     const oneTab = o.oneTab ?? true;
@@ -878,6 +841,169 @@ export async function startServer(o: {
       timer = setTimeout(settle, graceMs);
     });
 
+
+    let closing: Promise<void> | null = null;
+    const close = () => (closing ??= new Promise<void>((resolve) => {
+      hubs.delete(hub);
+      if (heartbeat) clearInterval(heartbeat);
+      order.stop();
+      turnMarks.freeze(); // a stop (SIGTERM, ⏻) during a turn keeps its mark: the close ends the turn
+      manager.close();
+      const backendClose = a.backend.close?.().catch((e) => reportError(hub, 'backend-close', e));
+      cutExporter.dispose();
+      cutPeaks.dispose();
+      cutReverse.dispose();
+      for (const c of wss.clients) c.terminate();
+      wss.close(() => { void Promise.resolve(backendClose).then(() => resolve()); });
+    }));
+    return {
+      id: a.id,
+      provider: agent.provider,
+      hub,
+      handler,
+      upgrade: (req, socket, head) => wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req)),
+      root,
+      notPaused,
+      askers: () => askers.size,
+      restartChanged: (pending) => {
+        hub.emit({ kind: 'restart-pending', pending }, { store: false });
+        order.check(); // cancelled: what it held goes on
+      },
+      onSwitch: (fn) => manager.onSwitch((_id, { restart: same }) => fn(same)),
+      freeze: () => turnMarks.freeze(),
+      close,
+    };
+  } catch (e) {
+    hubs.delete(hub);
+    throw e;
+  }
+}
+
+/**
+ * The server: one listener, login and process for its agents (epic 383). It starts with the agent of `o.cwd` and
+ * `o.backend`, whose routes also answer at the top; `open` adds another, under `/a/<id>/` only.
+ */
+export async function startServer(o: ServerOptions): Promise<{ url: string; close(): Promise<void>; open(x: { provider: AgentProvider; cwd: string; backend: AgentBackend; resume?: string; fork?: boolean }): Promise<string> }> {
+  installProcessHandlers();
+  const agents = new Map<string, Agent>();
+  const sum = (f: (a: Agent) => number) => [...agents.values()].reduce((n, a) => n + f(a), 0);
+  const report = (where: string, e: unknown) => { for (const a of agents.values()) reportError(a.hub, where, e); };
+  hostClient.reportTo(report); // the Whisper host's trouble is every agent's to show
+  const audit = o.audit ? new AuditLog({ port: o.port, ...o.audit }) : null;
+  audit?.prune();
+  try {
+    // the secrets first: a refused one (loose mode, foreign owner, ...) must stop the start before the agent is spawned
+    // the access token: read once at start (a rotated file takes effect at the next start). Auth is on unless a test says no
+    const token = o.insecureNoAuth ? null : accessToken();
+    // made at start, never by a request: an unauthenticated /control/* must not be able to create the file
+    const control = controlToken();
+    // the agent's folder is made and checked here too, so a refused one stops the start as the secrets do
+    const agent = o.agent ?? envAgentContext();
+    // a picture per project folder, shared by every provider's windows of it: the base state folder, never the project
+    const projectIcons = new ProjectIconStore({ dir: path.join(stateBaseDir(), 'project-icons') });
+    // supervised = our launcher is still our parent: an orphan (launcher killed) must not offer a restart nobody catches.
+    // Windows never reparents, so the parent must also still be there: its IPC channel open (main.ts watchLauncher), or
+    // without one (an older launcher) its pid alive
+    const supervised = () => process.env.NOTA_BENE_SUPERVISED === '1'
+      && process.ppid === Number(process.env.NOTA_BENE_LAUNCHER_PID)
+      && (process.channel ? process.connected : pidAlive(process.ppid));
+    const codeChanged = codeChecker({ repoDir: o.repoDir ?? path.resolve(import.meta.dirname, '..', '..') });
+    const nonce = o.nonce !== undefined && isNonce(o.nonce) ? o.nonce : newNonce();
+    const authorize = token === null ? undefined : (req: http.IncomingMessage, needKey: boolean) => authenticated(req.headers, token, ownPort, nonce, needKey);
+    const allowedHosts: string[] = []; // filled after listen, once the port is known
+    const allowedOrigins: string[] = [...(o.allowedOrigins ?? [])];
+    let ownPort = 0; // set after listen
+    // the exit after a reply (restart-server 75, stop 0): close what can be closed, but never hang on it
+    let exiting = false;
+    const exitWith = (code: number) => {
+      if (exiting) return; // the first exit wins
+      exiting = true;
+      for (const a of agents.values()) a.freeze(); // a turn this exit cuts stays marked: the close below ends it
+      audit?.write('server-exit', { code });
+      void Promise.race([close(), new Promise<void>((r) => setTimeout(r, 2000))]).then(() => {
+        setTimeout(() => (o.exit ?? process.exit)(code), 100);
+      });
+    };
+    // the in-app update: this window's notice, install and hand-over to a newer version (exit 77 in a pause)
+    const repoDir = o.repoDir ?? path.resolve(import.meta.dirname, '..', '..');
+    const newer = updateCheck();
+    const real = (p: string) => { try { return fs.realpathSync(p); } catch { return p; } };
+    // not a pause: any agent's turn, question, switch, `! cmd` run or task. The update's hand-over (77) and a pending
+    // restart (75) wait for the same pause
+    const notPaused = () => [...agents.values()].some((a) => a.notPaused());
+    const win = updater({
+      version: () => describeVersion(repoDir),
+      canUpdate: process.env.NOTA_BENE_HANDOVER === '1',
+      busy: notPaused,
+      tabs: () => sum((a) => a.hub.clients()),
+      exit: exitWith,
+      newer,
+      fromRuntime: real(repoDir).startsWith(real(runtimeDir()) + path.sep),
+      updatedFrom: process.env.NOTA_BENE_UPDATED_FROM,
+      pluginVersion: o.pluginVersion,
+    });
+    // gh-422: "Restart the server" while the agent works waits for the next pause (exit 75 then)
+    const restart = restartGate({
+      busy: notPaused,
+      // only a page that will ask in its pause holds the server's own rule back: the phone and an older bundle never ask
+      tabs: () => sum((a) => a.askers()),
+      exit: exitWith,
+      changed: (pending) => { for (const a of agents.values()) a.restartChanged(pending); },
+      everyMs: o.restartEveryMs,
+    });
+    /** a request to restart: at once in a pause (true), else pending (false) */
+    const requestRestart = () => restart.request() === 'now';
+    const authRoute = loginRoute(token, () => ownPort, nonce);
+    // GET /hello?c=<hex>: the one thing a helper may ask before it trusts a port. Answers only the proof that this server holds the
+    // token for the port it is bound to and the given challenge: no root, no state, nothing to replay (the port is in the proof)
+    const helloRoute: http.RequestListener = (req, res) => {
+      const plain = (status: number, body: string) => {
+        res.writeHead(status, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
+        res.end(body);
+      };
+      if (req.method !== 'GET') return plain(405, 'method not allowed');
+      const c = new URL(req.url ?? '/', 'http://x').searchParams.get('c') ?? '';
+      if (token === null || !CHALLENGE_RE.test(c)) return plain(400, 'bad request');
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+      res.end(JSON.stringify({ proof: proofFor(token, ownPort, nonce, c), n: nonce }));
+    };
+    const s: Shared = {
+      o, audit, ...(authorize ? { authorize } : {}), allowedHosts, allowedOrigins, open: { '/auth': authRoute, '/hello': helloRoute }, control,
+      port: () => ownPort, projectIcons, supervised, codeChanged, repoDir, newer, win, restart, requestRestart, exiting: () => exiting, exitWith,
+    };
+    // the first agent: the window's, addressed as /a/<id>/ and at the top (the phone and older pages)
+    const primary = await startAgent(s, {
+      agent, id: launchAgentId(agent.provider, nonce), cwd: o.cwd, backend: o.backend,
+      ...(o.resume ? { resume: o.resume } : {}), ...(o.fork ? { fork: true } : {}),
+      ...(o.onStats ? { onStats: o.onStats } : {}), ...(o.onLimit ? { onLimit: o.onLimit } : {}),
+    });
+    agents.set(primary.id, primary);
+    /** the request's agent, its prefix taken off `req.url`; undefined: no such agent */
+    const agentOf = (req: http.IncomingMessage): Agent | undefined => {
+      const p = agentPrefix(req.url ?? '/');
+      if (!p) return primary;
+      const found = agents.get(p.id);
+      if (found) req.url = p.rest;
+      return found;
+    };
+    const server = http.createServer((req, res) => {
+      const found = agentOf(req);
+      if (found) return found.handler(req, res);
+      // the Host check before any answer that depends on the agents there are
+      res.writeHead(isAllowedHost(req.headers.host, allowedHosts) ? 404 : 403, { 'content-type': 'text/plain; charset=utf-8' });
+      res.end('no such agent');
+    });
+    // the socket is `/ws`, at the top or under an agent's prefix; anything else is no upgrade of ours
+    server.on('upgrade', (req, socket, head) => {
+      const found = agentOf(req);
+      if (!found || pathOf(req.url ?? '/') !== '/ws') {
+        const status = !isAllowedHost(req.headers.host, allowedHosts) ? '403 Forbidden' : found ? '400 Bad Request' : '404 Not Found';
+        socket.end(`HTTP/1.1 ${status}\r\nconnection: close\r\ncontent-length: 0\r\n\r\n`);
+        return;
+      }
+      found.upgrade(req, socket, head);
+    });
+
     try {
       await new Promise<void>((resolve, reject) => {
         server.once('error', reject);
@@ -887,35 +1013,35 @@ export async function startServer(o: {
         });
       });
     } catch (e) {
-      manager.close();
-      wss.close();
+      await primary.close();
       throw e; // syscall 'listen': main exits with 98, the launcher's "port taken" code
     }
 
     // a listening server's own errors (a socket error before any request) are reported, never thrown out of its emit
-    server.on('error', (e) => reportError(hub, 'server', e));
+    server.on('error', (e) => report('server', e));
     const port = (server.address() as AddressInfo).port;
     ownPort = port;
     if (audit) {
       audit.port = port;
-      audit.write('server-start', { root: root(), agent: agent.provider, node: process.version, supervised: supervised() });
+      audit.write('server-start', { root: primary.root(), agent: agent.provider, node: process.version, supervised: supervised() });
     }
     // a supervised window keeps its registry entry's root current, so a relaunch reopens the folder it switched to
-    manager.onSwitch((_id, { restart }) => {
-      if (restart || !supervised()) return;
+    primary.onSwitch((same) => {
+      if (same || !supervised()) return;
       try {
-        moveWindow(port, root(), process.pid, process.ppid); // keeps the release it runs: prune must not remove it
+        moveWindow(port, primary.root(), process.pid, process.ppid); // keeps the release it runs: prune must not remove it
       } catch (e) {
-        reportError(hub, 'windows', e);
+        reportError(primary.hub, 'windows', e);
       }
     });
     // never `localhost`: that host name is the desktop proxies' (remote/proxy.ts), and cookies are scoped by host only
     allowedHosts.push(`127.0.0.1:${port}`);
     allowedOrigins.push(`http://127.0.0.1:${port}`);
     const keeper = o.remote;
-    const remoteState = (state: RemoteState) => hub.emit({ kind: 'remote', state }, { store: false });
-    const remotePair = (p: PairOutcome) => hub.emit({ kind: 'remote-pair', ...p }, { store: false });
-    const remoteWarn = (m: string) => reportError(hub, 'remote', new Error(m));
+    const each = (ev: EmitInput) => { for (const a of agents.values()) a.hub.emit(ev, { store: false }); };
+    const remoteState = (state: RemoteState) => each({ kind: 'remote', state });
+    const remotePair = (p: PairOutcome) => each({ kind: 'remote-pair', ...p });
+    const remoteWarn = (m: string) => report('remote', new Error(m));
     if (keeper) {
       keeper.on('state', remoteState);
       keeper.on('pair', remotePair);
@@ -924,16 +1050,11 @@ export async function startServer(o: {
     }
 
     let closing: Promise<void> | null = null;
-    const close = () => (closing ??= new Promise<void>((resolve) => {
+    const close = () => (closing ??= (async () => {
       audit?.write('server-stop');
       audit?.close();
-      hubs.delete(hub);
-      if (heartbeat) clearInterval(heartbeat);
       win.stop();
       restart.stop();
-      order.stop();
-      turnMarks.freeze(); // a stop (SIGTERM, ⏻) during a turn keeps its mark: the close ends the turn
-      manager.close();
       hostClient.close(); // the Whisper host drops this window's jobs
       if (keeper) {
         keeper.stop(); // the connector goes on for the other windows
@@ -941,20 +1062,23 @@ export async function startServer(o: {
         keeper.off('pair', remotePair);
         keeper.off('warn', remoteWarn);
       }
-      const backendClose = o.backend.close?.().catch((e) => reportError(hub, 'backend-close', e));
-      cutExporter.dispose();
-      cutPeaks.dispose();
-      cutReverse.dispose();
-      for (const c of wss.clients) c.terminate();
-      wss.close(() => {
-        server.close(() => { void Promise.resolve(backendClose).then(() => resolve()); });
+      await Promise.all([...agents.values()].map((a) => a.close()));
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
         server.closeAllConnections();
       });
-    }));
-    return { url: `http://127.0.0.1:${port}`, close };
+    })());
+    /** another agent (epic 383): its own id, minted, under `/a/<id>/` only */
+    const openAgent = async (x: { provider: AgentProvider; cwd: string; backend: AgentBackend; resume?: string; fork?: boolean }): Promise<string> => {
+      let id: string;
+      do id = newAgentId(x.provider); while (agents.has(id));
+      const added = await startAgent(s, { agent: agentContext(x.provider), id, cwd: x.cwd, backend: x.backend, ...(x.resume ? { resume: x.resume } : {}), ...(x.fork ? { fork: true } : {}) });
+      agents.set(id, added);
+      return id;
+    };
+    return { url: `http://127.0.0.1:${port}`, close, open: openAgent };
   } catch (e) {
     audit?.close();
-    hubs.delete(hub);
     throw e;
   }
 }

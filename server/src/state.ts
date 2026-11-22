@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -46,6 +46,11 @@ const B32 = 'abcdefghijklmnopqrstuvwxyz234567';
 export function launchAgentId(provider: AgentProvider, nonce: string): string {
   const h = createHash('sha256').update(`nota-bene:agent:${nonce}`).digest();
   return `${provider}-${[...h.subarray(0, 6)].map((b) => B32[b & 31]).join('')}`;
+}
+
+/** Another agent of a server (epic 383, step 2c): a fresh id of the same form. */
+export function newAgentId(provider: AgentProvider): string {
+  return `${provider}-${[...randomBytes(6)].map((b) => B32[b & 31]).join('')}`;
 }
 
 /** The context the launcher chose for this process through NOTA_BENE_AGENT; the only reader of that variable here. */
