@@ -342,6 +342,15 @@ describe('arguments', () => {
     expect(r.out).not.toContain(tok);
   });
 
+  it('an agent of the running server (epic 383): its URL under /a/<id>/, without the login', async () => {
+    const tok = 'ab'.repeat(32);
+    let r = await nb('new', { env: { STUB_OUT: `opened http://127.0.0.1:4795/a/claude-k3f7qz/#t=${tok}` } });
+    expect(r.out).toBe(`NB: opened http://127.0.0.1:4795/a/claude-k3f7qz/ for ${shown(project)}. Log: ${shown(path.join(tmp, 'nota-bene-4795.log'))}\n`);
+    r = await nb('', { env: { STUB_OUT: `already-open http://127.0.0.1:4795/a/codex-k3f7qz/#t=${tok}` } });
+    expect(r.out).toBe('NB: already open at http://127.0.0.1:4795/a/codex-k3f7qz/ (brought to front).\n');
+    expect(r.out).not.toContain(tok);
+  });
+
   it('a launch that lost the race to another on this folder (already-open) is reported as already open', async () => {
     let r = await nb('', { env: { STUB_OUT: 'already-open http://127.0.0.1:4794' } });
     expect(r.code).toBe(0);
@@ -463,15 +472,10 @@ describe.skipIf(WIN)('a refused token file', () => { // Windows has no POSIX mod
     expect(launches()).toEqual([]);
   });
 
-  it('without --plan it exits 1 with the same line, and --wait reports it at once instead of waiting out the timeout', async () => {
+  it('without --plan it exits 1 with the same line', async () => {
     seedLoose();
-    let r = await nb('');
+    const r = await nb('');
     expect([r.code, r.out]).toEqual([1, expect.stringMatching(/^NB: .*readable by other users/)]);
-    const t0 = Date.now();
-    r = await sh([stubApp, '--wait', project], { env: { NB_WAIT_SECS: '20' } });
-    expect(r.code).toBe(1);
-    expect(r.out).toMatch(/^NB: .*readable by other users/);
-    expect(Date.now() - t0).toBeLessThan(10_000);
   });
 });
 
@@ -524,7 +528,7 @@ describe.skipIf(WIN)('two /nb calls on one folder at the same moment', () => {
   }, 60_000);
 });
 
-// --plan: what the /nb skill runs. It launches nothing; the skill runs NB-RUN as a background task, then NB-WAIT.
+// --plan: what the /nb skill runs. It launches nothing; the skill runs NB-RUN in the foreground.
 describe('--plan', () => {
   const stubBin = () => path.join(tmp, 'app/bin/nota-bene.mjs');
   const plan = (args: string, o: RunOpts & { sid?: string } = {}) => {
@@ -532,42 +536,34 @@ describe('--plan', () => {
     return sh([o.script ?? stubApp, '--plan', args, o.sid ?? SID], o);
   };
   const lines = (r: Result) => Object.fromEntries(r.out.trimEnd().split('\n').map((l) => {
-    const m = /^(NB-RUN|NB-WAIT|NB-NAME): (.*)$/.exec(l);
+    const m = /^(NB-RUN|NB-NOTE): (.*)$/.exec(l);
     if (!m) throw new Error(`not a plan line: ${l}`);
     return [m[1], m[2]];
   }));
 
-  it('new: the foreground launcher with --new, the wait, the task name; nothing launched', async () => {
+  it('new: one foreground command, this script without --plan (no background task); nothing launched', async () => {
     const r = await plan('new');
     expect(r.code).toBe(0);
-    expect(r.out).toBe(`NB-RUN: node ${shown(stubBin())} ${shown(project)} --agent claude --new\n`
-      + `NB-WAIT: node ${shown(stubApp)} --wait ${shown(project)}\n`
-      + 'NB-NAME: Nota Bene · project\n');
+    expect(r.out).toBe(`NB-RUN: node ${shown(stubApp)} new\n`);
     expect(launches()).toEqual([]);
     expect(opened()).toEqual([]);
+    // run as the skill runs it, it opens the folder in the foreground and prints the NB: line
+    const run = await bash(lines(r)['NB-RUN']!);
+    expect(run.code, run.out).toBe(0);
+    expect(launches()).toEqual([[project, '--detach', '--agent', 'claude', '--new']]);
+    expect(run.out).toBe(`NB: opened http://127.0.0.1:4795 for ${shown(project)}. Log: ${shown(path.join(tmp, 'nota-bene-4795.log'))}\n`);
   });
 
-  it('no argument: the default resume, and --last words the note the wait prints', async () => {
-    let r = await plan('');
-    expect(lines(r)['NB-RUN']).toBe(`node ${shown(stubBin())} ${shown(project)} --agent claude`);
-    expect(lines(r)['NB-WAIT']).toBe(`node ${shown(stubApp)} --wait ${shown(project)} `
-      + "' (new session: no earlier window session for this folder)'");
-    const id = 'feedface-0000-4000-8000-000000000001';
-    fs.writeFileSync(path.join(nbHome, 'sessions.json'), JSON.stringify({ [project]: id }));
-    fs.mkdirSync(path.join(claudeDir, 'projects/p'), { recursive: true });
-    fs.writeFileSync(path.join(claudeDir, 'projects/p', `${id}.jsonl`), '');
-    r = await plan('');
-    expect(lines(r)['NB-RUN']).toBe(`node ${shown(stubBin())} ${shown(project)} --agent claude`);
-    expect(lines(r)['NB-WAIT']).toBe(`node ${shown(stubApp)} --wait ${shown(project)} `
-      + "' (resumed the last window session feedface)'");
+  it('no argument: the default resume', async () => {
+    const r = await plan('');
+    expect(lines(r)['NB-RUN']).toBe(`node ${shown(stubApp)} ''`);
     expect(launches()).toEqual([]);
   });
 
-  it('fork with a valid session id: --resume SID --fork', async () => {
+  it('fork with a valid session id: fork SID', async () => {
     const r = await plan('форк');
     expect(r.code).toBe(0);
-    expect(lines(r)['NB-RUN']).toBe(`node ${shown(stubBin())} ${shown(project)} --agent claude --resume ${SID} --fork`);
-    expect(lines(r)['NB-WAIT']).toBe(`node ${shown(stubApp)} --wait ${shown(project)} ` + "' (forked from this conversation)'");
+    expect(lines(r)['NB-RUN']).toBe(`node ${shown(stubApp)} fork ${SID}`);
   });
 
   it('a window already open on the folder: the usual NB: line, brought to front, no NB-RUN', async () => {
@@ -603,58 +599,18 @@ describe('--plan', () => {
     expect(launches()).toEqual([]);
   });
 
-  it.skipIf(!BASH)('a folder named `p r$oj Проект`: one word per command, the UTF-8 raw inside single quotes (no escape codes), read back exactly in bash and zsh', async () => {
+  it.skipIf(!BASH)('a folder named `p r$oj Проект`: the run opens it from its own folder in bash and zsh', async () => {
     const odd = path.join(project, 'p r$oj Проект');
     fs.mkdirSync(odd);
     const r = await plan('new', { cwd: odd });
     expect(r.code).toBe(0);
-    // Claude Code refuses text with escape codes ($'\320...') when it matches allowed-tools: a non-ASCII path stays raw, in '...'
-    expect(r.out).not.toMatch(/\$'|\\[0-9]{3}/);
-    expect(lines(r)['NB-RUN']).toContain(`'${shown(odd)}'`);
-    const { 'NB-RUN': run, 'NB-WAIT': wait } = lines(r);
-    // a stub node records the argv it gets
-    const got = path.join(tmp, 'node-argv.log');
-    const d = binDir('stubnode', [['node', `#!/bin/sh\n"${shown(process.execPath)}" -e 'console.log(JSON.stringify(process.argv.slice(1)))' -- "$@" >> "${shown(got)}"\n`]]);
     const shells = [BASH!, ...(fs.existsSync('/bin/zsh') ? ['/bin/zsh'] : [])];
     for (const shell of shells) {
-      fs.rmSync(got, { force: true });
-      const e = await bash(run!, { shell, cwd: tmp, env: { PATH: `${d}${path.delimiter}${env().PATH}` } });
+      fs.rmSync(path.join(tmp, 'argv.log'), { force: true });
+      const e = await bash(lines(r)['NB-RUN']!, { shell, cwd: odd });
       expect(e.code, e.out).toBe(0);
-      expect(fs.readFileSync(got, 'utf8').trim().split('\n').map((l) => JSON.parse(l))).toEqual([[shown(stubBin()), shown(odd), '--agent', 'claude', '--new']]);
+      expect(launches()).toEqual([[odd, '--detach', '--agent', 'claude', '--new']]);
     }
-    // the wait finds the window of that folder
-    await fakeWindow(4792, odd);
-    register(4792, odd, process.pid);
-    for (const shell of shells) {
-      const w = await bash(wait!, { shell, cwd: tmp });
-      expect(w).toEqual({ code: 0, out: `NB: opened ${plainUrl(4792)} for ${shown(odd)}.\n` });
-    }
-  });
-});
-
-describe('--wait', () => {
-  it('prints the URL with the note once the window is up', async () => {
-    await fakeWindow(4793, project);
-    register(4793, project, process.pid);
-    const r = await sh([stubApp, '--wait', project, ' (forked from this conversation)']);
-    expect(r).toEqual({ code: 0, out: `NB: opened ${plainUrl(4793)} for ${shown(project)} (forked from this conversation).\n` });
-  });
-
-  it('polls until a window that comes up later is registered', async () => {
-    const waiting = sh([stubApp, '--wait', project]);
-    await new Promise((res) => setTimeout(res, 1200));
-    await fakeWindow(4794, project);
-    register(4794, project, process.pid);
-    expect(await waiting).toEqual({ code: 0, out: `NB: opened ${plainUrl(4794)} for ${shown(project)}.\n` });
-  });
-
-  it('times out (NB_WAIT_SECS, test only) with a pointer to the task output, exit 1', async () => {
-    await fakeWindow(4795, path.join(tmp, 'elsewhere')); // another folder's window is not ours
-    register(4795, path.join(tmp, 'elsewhere'), process.pid);
-    const t0 = Date.now();
-    const r = await sh([stubApp, '--wait', project], { env: { NB_WAIT_SECS: '1' } });
-    expect(r).toEqual({ code: 1, out: "NB: the window did not come up in 1s — see the background task's output.\n" });
-    expect(Date.now() - t0).toBeGreaterThanOrEqual(1000);
   });
 });
 
@@ -686,16 +642,14 @@ describe('the package lookup (plugin install)', () => {
     return sh([pkgOpen, ...(d === null ? [] : ['--data', d]), '--plan', args, o.sid ?? SID], o);
   };
   const lines = (r: Result) => Object.fromEntries(r.out.trimEnd().split('\n').map((l) => {
-    const m = /^(NB-RUN|NB-WAIT|NB-NAME|NB-NOTE): (.*)$/.exec(l);
+    const m = /^(NB-RUN|NB-NOTE): (.*)$/.exec(l);
     if (!m) throw new Error(`not a plan line: ${l}`);
     return [m[1], m[2]];
   }));
 
   it('a checkout above the skill wins over the data dir (nothing installed, npm untouched)', async () => {
     const r = await sh([stubApp, '--data', data, '--plan', 'new', SID]);
-    expect(r.out).toBe(`NB-RUN: node ${shown(path.join(tmp, 'app/bin/nota-bene.mjs'))} ${shown(project)} --agent claude --new\n`
-      + `NB-WAIT: node ${shown(stubApp)} --wait ${shown(project)}\n`
-      + 'NB-NAME: Nota Bene · project\n');
+    expect(r.out).toBe(`NB-RUN: node ${shown(stubApp)} new\n`);
     expect(npmCalls()).toEqual([]);
     expect(fs.existsSync(data)).toBe(false);
   });
@@ -713,35 +667,31 @@ describe('the package lookup (plugin install)', () => {
     const r = await plan('new');
     expect(r.code).toBe(0);
     const l = lines(r);
-    expect(l['NB-RUN']).toBe(`node ${esc(shown(pkgOpen))} --data ${esc(shown(data))} --run ${shown(project)} --agent claude --new`);
-    expect(l['NB-WAIT']).toBe(`node ${esc(shown(pkgOpen))} --data ${esc(shown(data))} --wait ${shown(project)}`);
-    expect(l['NB-NAME']).toBe('Nota Bene · project');
-    expect(l['NB-NOTE']).toBe(`first run: installing nota-bene-ide@${PKG_VER} (about 330 MB) in the background task; this can take a few minutes.`);
+    expect(l['NB-RUN']).toBe(`node ${esc(shown(pkgOpen))} --data ${esc(shown(data))} new`);
+    expect(l['NB-NOTE']).toBe(`first run: installing nota-bene-ide@${PKG_VER} (about 330 MB); this can take a few minutes.`);
     expect(npmCalls()).toEqual([]);
     expect(fs.existsSync(path.join(data, PKG_VER, 'node_modules'))).toBe(false);
   });
 
-  it('--run installs the pinned version once with npm --prefix, then runs the launcher with the plan\'s arguments', async () => {
-    const r = await sh([pkgOpen, '--data', data, '--run', project, '--resume', SID, '--fork']);
+  it('the run installs the pinned version once with npm --prefix, then opens the folder with the plan\'s arguments', async () => {
+    const r = await sh([pkgOpen, '--data', data, 'fork', SID]);
     expect(r.code).toBe(0);
     expect(npmCalls()).toEqual([['install', '--prefix', prefix(), `nota-bene-ide@${PKG_VER}`, '--no-audit', '--no-fund']]);
     expect(fs.readFileSync(path.join(prefix(), '.nb-installed'), 'utf8').trim()).toBe(PKG_VER);
-    expect(launches()).toEqual([[project, '--resume', SID, '--fork']]);
+    expect(launches()).toEqual([[project, '--detach', '--agent', 'claude', '--resume', SID, '--fork']]);
     expect(r.out).toContain(`first run, installing nota-bene-ide@${PKG_VER}`);
-    expect(r.out).toMatch(/opened http:\/\/127\.0\.0\.1:4795\n$/);
+    expect(r.out).toMatch(/NB: opened http:\/\/127\.0\.0\.1:4795 for .*\(forked from this conversation\)/);
     // the second time nothing is installed again
     fs.rmSync(path.join(tmp, 'npm.log'));
-    await sh([pkgOpen, '--data', data, '--run', project]);
+    await sh([pkgOpen, '--data', data, 'new', SID]);
     expect(npmCalls()).toEqual([]);
   });
 
-  it('installed: NB-RUN is plain `node <data>/.../bin/nota-bene.mjs` (matches allowed-tools), no note, no npm', async () => {
+  it('installed: NB-RUN is this script with the data dir (matches allowed-tools), no note, no npm', async () => {
     installed();
     const r = await plan('');
     const l = lines(r);
-    expect(l['NB-RUN']).toBe(`node ${esc(shown(pkgBin()))} ${shown(project)} --agent claude`);
-    expect(l['NB-WAIT']).toBe(`node ${esc(shown(pkgOpen))} --data ${esc(shown(data))} --wait ${shown(project)} `
-      + "' (new session: no earlier window session for this folder)'");
+    expect(l['NB-RUN']).toBe(`node ${esc(shown(pkgOpen))} --data ${esc(shown(data))} ''`);
     expect(l['NB-NOTE']).toBeUndefined();
     expect(npmCalls()).toEqual([]);
   });
@@ -749,9 +699,9 @@ describe('the package lookup (plugin install)', () => {
   it('fork and its Russian aliases behave as in a checkout; a bad session id is refused', async () => {
     installed();
     for (const a of ['fork', 'форк', 'продолжить']) {
-      expect(lines(await plan(a))['NB-RUN']).toBe(`node ${esc(shown(pkgBin()))} ${shown(project)} --agent claude --resume ${SID} --fork`);
+      expect(lines(await plan(a))['NB-RUN']).toBe(`node ${esc(shown(pkgOpen))} --data ${esc(shown(data))} fork ${SID}`);
     }
-    expect(lines(await plan('заново'))['NB-RUN']).toBe(`node ${esc(shown(pkgBin()))} ${shown(project)} --agent claude --new`);
+    expect(lines(await plan('заново'))['NB-RUN']).toBe(`node ${esc(shown(pkgOpen))} --data ${esc(shown(data))} new`);
     const r = await plan('fork', { sid: 'nope' });
     expect(r.out).toBe("NB: no valid session id to fork ('nope').\n");
     expect(r.code).toBe(0);
@@ -770,8 +720,8 @@ describe('the package lookup (plugin install)', () => {
     fs.mkdirSync(old, { recursive: true });
     fs.writeFileSync(path.join(old, 'nota-bene.mjs'), '// old');
     fs.writeFileSync(path.join(data, '9.9.8/.nb-installed'), '9.9.8\n');
-    expect(lines(await plan('new'))['NB-RUN']).toContain('--run');
-    await sh([pkgOpen, '--data', data, '--run', project]);
+    expect(lines(await plan('new'))['NB-NOTE']).toBeDefined();
+    await sh([pkgOpen, '--data', data, 'new', SID]);
     expect(npmCalls()).toEqual([['install', '--prefix', prefix(), `nota-bene-ide@${PKG_VER}`, '--no-audit', '--no-fund']]);
     expect(fs.readFileSync(path.join(prefix(), '.nb-installed'), 'utf8').trim()).toBe(PKG_VER);
     expect(fs.readFileSync(path.join(old, 'nota-bene.mjs'), 'utf8')).toBe('// old');
@@ -781,7 +731,7 @@ describe('the package lookup (plugin install)', () => {
   it('a package whose marker is there but whose launcher is gone is installed again', async () => {
     installed();
     fs.rmSync(pkgBin());
-    expect(lines(await plan('new'))['NB-RUN']).toContain('--run');
+    expect(lines(await plan('new'))['NB-NOTE']).toBeDefined();
   });
 
   it('the plugin version equals the package version, and the plugin dir has no package.json or lockfile', () => {
@@ -806,40 +756,13 @@ describe('the package lookup (plugin install)', () => {
   });
 
   it('an install failure: the NB: line with the fix and the npm tail, nothing marked installed, no launch', async () => {
-    const r = await sh([pkgOpen, '--data', data, '--run', project], { env: { STUB_NPM_FAIL: '1' } });
+    const r = await sh([pkgOpen, '--data', data, 'new', SID], { env: { STUB_NPM_FAIL: '1' } });
     expect(r.code).toBe(1);
     expect(r.out).toContain(`NB: installing nota-bene-ide@${PKG_VER} failed (npm exit 1).`);
     expect(r.out).toContain(`npm install --prefix "${shown(prefix())}" nota-bene-ide@${PKG_VER}`);
     expect(r.out).toContain('npm ERR! boom: the last npm line');
     expect(fs.existsSync(path.join(prefix(), '.nb-installed'))).toBe(false);
     expect(launches()).toEqual([]);
-    // --wait reports the same, at once, instead of waiting out the install timeout
-    const t0 = Date.now();
-    const w = await sh([pkgOpen, '--data', data, '--wait', project]);
-    expect(w.code).toBe(1);
-    expect(w.out).toContain(`NB: installing nota-bene-ide@${PKG_VER} failed`);
-    expect(Date.now() - t0).toBeLessThan(5000);
-    // the next plan clears the old failure, so a retry's wait does not read it
-    await plan('');
-    expect(fs.existsSync(path.join(prefix(), '.nb-install-failed'))).toBe(false);
-  });
-
-  it('--wait is patient on a first install: it waits for the install, then for the window', async () => {
-    await fakeWindow(4792, project);
-    register(4792, project, process.pid);
-    const t0 = Date.now();
-    const run = sh([pkgOpen, '--data', data, '--run', project], { env: { STUB_NPM_SLEEP: '2' } });
-    const wait = sh([pkgOpen, '--data', data, '--wait', project, ' (note)'], { env: { NB_INSTALL_WAIT_SECS: '30' } });
-    const [w] = await Promise.all([wait, run]);
-    expect(w.code).toBe(0);
-    expect(w.out).toBe(`NB: opened ${plainUrl(4792)} for ${shown(project)} (note).\n`);
-    expect(Date.now() - t0).toBeGreaterThanOrEqual(1900);
-  });
-
-  it('--wait gives up on an install that never finishes, pointing at the task output', async () => {
-    const r = await sh([pkgOpen, '--data', data, '--wait', project], { env: { NB_INSTALL_WAIT_SECS: '1' } });
-    expect(r.code).toBe(1);
-    expect(r.out).toBe("NB: the first install is still running after 1s - see the background task's output.\n");
   });
 
   const lockAt = (o: { pid?: string; ts?: number }) => {
@@ -856,7 +779,7 @@ describe('the package lookup (plugin install)', () => {
     ['a live but recycled pid, taken longer ago than the stale limit', { pid: String(process.pid), ts: now() - 100 }, { NB_LOCK_STALE_SECS: '5' }],
   ])('a stale lock (%s) is reclaimed and the install goes ahead', async (_n, lock, extra) => {
     lockAt(lock);
-    const r = await sh([pkgOpen, '--data', data, '--run', project], { env: { NB_INSTALL_WAIT_SECS: '20', ...extra } });
+    const r = await sh([pkgOpen, '--data', data, 'new', SID], { env: { NB_INSTALL_WAIT_SECS: '20', ...extra } });
     expect(r.code).toBe(0);
     expect(npmCalls()).toHaveLength(1);
     expect(fs.existsSync(path.join(prefix(), '.nb-install.lock'))).toBe(false);
@@ -864,11 +787,10 @@ describe('the package lookup (plugin install)', () => {
 
   it('a fresh lock of a live holder is respected (no second install) until it gives up', async () => {
     lockAt({ pid: String(process.pid), ts: now() });
-    const r = await sh([pkgOpen, '--data', data, '--run', project], { env: { NB_INSTALL_WAIT_SECS: '2' } });
+    const r = await sh([pkgOpen, '--data', data, 'new', SID], { env: { NB_INSTALL_WAIT_SECS: '2' } });
     expect(r.code).toBe(1);
     expect(r.out).toContain('another install of');
     expect(npmCalls()).toEqual([]);
-    expect(fs.existsSync(path.join(prefix(), '.nb-install-failed'))).toBe(true); // --wait learns of it
   });
 
   it('a waiter that judged the lock stale and is then overtaken never disturbs the fresh lock that took its place (no second install)', async () => {
@@ -882,14 +804,14 @@ describe('the package lookup (plugin install)', () => {
     for (const f of ['stalled', 'go', 'released']) fs.rmSync(`${gate}.${f}`, { force: true });
     const env = { NB_TEST_RECLAIM_GATE: gate, STUB_NPM_SLEEP: '4', NB_INSTALL_WAIT_SECS: '30' };
     const until = async (f: () => boolean) => { for (let i = 0; i < 200 && !f(); i++) await new Promise((r) => setTimeout(r, 50)); expect(f()).toBe(true); };
-    const b = sh([pkgOpen, '--data', data, '--run', project], { env });
+    const b = sh([pkgOpen, '--data', data, 'new', SID], { env });
     await until(() => fs.existsSync(`${gate}.stalled`));
-    const a = sh([pkgOpen, '--data', data, '--run', project], { env });
+    const a = sh([pkgOpen, '--data', data, 'new', SID], { env });
     await until(() => npmCalls().length === 1); // A took the lock and is installing
     fs.writeFileSync(`${gate}.go`, '');
     // B acts on its stale judgment: it re-judges under the mutex, finds A's lock fresh and lets go of the mutex
     await until(() => fs.existsSync(`${gate}.released`));
-    const c = sh([pkgOpen, '--data', data, '--run', project], { env });
+    const c = sh([pkgOpen, '--data', data, 'new', SID], { env });
     const rs = await Promise.all([a, b, c]);
     expect(rs.map((r) => r.code)).toEqual([0, 0, 0]);
     expect(npmCalls()).toHaveLength(1);
@@ -900,7 +822,7 @@ describe('the package lookup (plugin install)', () => {
     fs.chmodSync(prefix(), 0o555);
     try {
       const t0 = Date.now();
-      const r = await sh([pkgOpen, '--data', data, '--run', project], { env: { NB_INSTALL_WAIT_SECS: '2' } });
+      const r = await sh([pkgOpen, '--data', data, 'new', SID], { env: { NB_INSTALL_WAIT_SECS: '2' } });
       expect(r.code).toBe(1);
       expect(r.out).toContain('another install of');
       expect(npmCalls()).toEqual([]);
@@ -916,29 +838,23 @@ describe('the package lookup (plugin install)', () => {
     fs.mkdirSync(mutex);
     const old = new Date(Date.now() - 180_000);
     fs.utimesSync(mutex, old, old);
-    const r = await sh([pkgOpen, '--data', data, '--run', project], { env: { NB_INSTALL_WAIT_SECS: '20' } });
+    const r = await sh([pkgOpen, '--data', data, 'new', SID], { env: { NB_INSTALL_WAIT_SECS: '20' } });
     expect(r.code).toBe(0);
     expect(npmCalls()).toHaveLength(1);
   });
 
-  it('every failure writes the marker: npm missing in --run, and --wait reports it at once', async () => {
-    const env = { PATH: binDir('nonpm-run', []) };
-    const r = await sh([pkgOpen, '--data', data, '--run', project], { env });
+  it('npm missing on the run: the same NB: line, exit 1, nothing launched', async () => {
+    fs.rmSync(path.join(tmp, 'argv.log'), { force: true });
+    const r = await sh([pkgOpen, '--data', data, 'new', SID], { env: { PATH: binDir('nonpm-run', []) } });
     expect(r.code).toBe(1);
     expect(r.out).toContain('NB: npm not found on PATH');
-    const t0 = Date.now();
-    const w = await sh([pkgOpen, '--data', data, '--wait', project], { env });
-    expect(w.code).toBe(1);
-    expect(w.out).toContain('NB: npm not found on PATH');
-    expect(Date.now() - t0).toBeLessThan(5000);
+    expect(launches()).toEqual([]);
   });
 
-  it('a launcher file without the installed marker (a half-written install) is not enough: --wait keeps waiting for the marker', async () => {
+  it('a launcher file without the installed marker (a half-written install) is not enough: the plan installs again', async () => {
     fs.mkdirSync(path.dirname(pkgBin()), { recursive: true });
     fs.writeFileSync(pkgBin(), '// half');
-    const r = await sh([pkgOpen, '--data', data, '--wait', project], { env: { NB_INSTALL_WAIT_SECS: '1' } });
-    expect(r.code).toBe(1);
-    expect(r.out).toBe("NB: the first install is still running after 1s - see the background task's output.\n");
+    expect(lines(await plan('new'))['NB-NOTE']).toBeDefined();
   });
 
   it('SKILL.md passes the data dir single-quoted on every line: a live ${...} makes Claude Code refuse the line before any turn', () => {
@@ -955,25 +871,12 @@ describe('the package lookup (plugin install)', () => {
       fs.rmSync(path.join(tmp, 'npm.log'), { force: true });
       fs.rmSync(data, { recursive: true, force: true });
       lockAt({ ts: 1 });
-      const runs = Array.from({ length: 6 }, () => sh([pkgOpen, '--data', data, '--run', project], { env: { STUB_NPM_SLEEP: '1', NB_INSTALL_WAIT_SECS: '30' } }));
+      const runs = Array.from({ length: 6 }, () => sh([pkgOpen, '--data', data, 'new', SID], { env: { STUB_NPM_SLEEP: '1', NB_INSTALL_WAIT_SECS: '30' } }));
       const rs = await Promise.all(runs);
       expect(rs.map((r) => r.code)).toEqual([0, 0, 0, 0, 0, 0]);
       expect(npmCalls().length, `trial ${trial}`).toBe(1);
     }
   }, 60_000);
-
-  it('--wait reports an interrupted install at once: a lock with a dead pid, or (after a short grace) no lock and no marker', async () => {
-    lockAt({ pid: '999999', ts: now() - 10 });
-    const t0 = Date.now();
-    let w = await sh([pkgOpen, '--data', data, '--wait', project]);
-    expect(w.code).toBe(1);
-    expect(w.out).toContain('did not finish: the background task stopped or never started');
-    fs.rmSync(path.join(prefix(), '.nb-install.lock'), { recursive: true });
-    w = await sh([pkgOpen, '--data', data, '--wait', project], { env: { NB_INSTALL_GRACE_SECS: '1' } });
-    expect(w.code).toBe(1);
-    expect(w.out).toContain('did not finish');
-    expect(Date.now() - t0).toBeLessThan(8000);
-  });
 
   it.skipIf(WIN)('--plan on a data dir it cannot write: one NB: line naming the sandbox, exit 0, no NB-RUN, no retry advice', async () => { // Windows: chmod cannot make a folder unwritable
     fs.mkdirSync(data);
@@ -998,11 +901,11 @@ describe('the package lookup (plugin install)', () => {
     expect(md).toContain('!`node "${CLAUDE_SKILL_DIR}/open.mjs" --data ');
   });
 
-  it('a second --run during an install waits for it instead of installing twice', async () => {
+  it('a second run during an install waits for it instead of installing twice', async () => {
     fs.rmSync(path.join(tmp, 'argv.log'), { force: true });
-    const first = sh([pkgOpen, '--data', data, '--run', project], { env: { STUB_NPM_SLEEP: '2' } });
+    const first = sh([pkgOpen, '--data', data, 'new', SID], { env: { STUB_NPM_SLEEP: '2' } });
     await new Promise((r) => setTimeout(r, 700));
-    const second = await sh([pkgOpen, '--data', data, '--run', project]);
+    const second = await sh([pkgOpen, '--data', data, 'new', SID]);
     await first;
     expect(second.code).toBe(0);
     expect(npmCalls()).toHaveLength(1);
@@ -1027,32 +930,26 @@ describe('the package lookup (plugin install)', () => {
   const readBack = (line: string): string[] => execFileSync(BASH!, ['-c', 'eval "set -- $RUN"; printf "%s\\n" "$@"'],
     { encoding: 'utf8', env: { ...process.env, RUN: line }, windowsHide: true }).replace(/\n$/, '').split('\n');
 
-  it.skipIf(!BASH)('a Cyrillic folder with an apostrophe: single-quoted, the quote closed and reopened, and read back exactly', async () => {
-    const odd = path.join(project, "Проект д'Артаньяна");
-    fs.mkdirSync(odd);
-    const run = lines(await plan('new', { cwd: odd }))['NB-RUN']!;
+  it.skipIf(!BASH)('a Cyrillic data dir with an apostrophe: single-quoted, the quote closed and reopened, and read back exactly', async () => {
+    const odd = path.join(path.dirname(project), "Проект д'Артаньяна");
+    const run = lines(await plan('new', { data: odd }))['NB-RUN']!;
     expect(run).toContain("д'\\''Артаньяна");
     expect(run).not.toContain("$'");
-    expect(readBack(run).slice(-4)).toEqual([shown(odd), '--agent', 'claude', '--new']);
+    expect(readBack(run).slice(-3)).toEqual(['--data', shown(odd), 'new']);
   });
 
   it.skipIf(!BASH || WIN)("a control character in a folder name keeps bash's $'...' form (the only form that can carry it)", async () => { // Windows: no control characters in file names
-    const odd = path.join(project, 'tab\there');
-    fs.mkdirSync(odd);
-    const run = lines(await plan('new', { cwd: odd }))['NB-RUN']!;
+    const odd = path.join(path.dirname(project), 'tab\there');
+    const run = lines(await plan('new', { data: odd }))['NB-RUN']!;
     expect(run).toContain("$'");
     expect(readBack(run)).toContain(odd);
   });
 
-  it('an ASCII folder with a space: single-quoted, never a backslash-escaped space (Claude Code refuses those)', async () => {
-    installed(); // the wait then carries the --last note
-    const odd = path.join(project, 'my project');
-    fs.mkdirSync(odd);
-    const r = await plan('', { cwd: odd });
+  it('an ASCII data dir with a space: single-quoted, never a backslash-escaped space (Claude Code refuses those)', async () => {
+    installed();
+    const r = await plan('');
     expect(r.out).not.toMatch(/\\ /);
-    expect(lines(r)['NB-RUN']).toContain(`'${shown(odd)}'`);
-    expect(lines(r)['NB-WAIT']).toContain(`'${shown(odd)}'`);
-    expect(lines(r)['NB-WAIT']).toContain("' (new session: no earlier window session for this folder)'"); // spaces and parentheses
+    expect(lines(r)['NB-RUN']).toContain(`'${shown(data)}'`);
   });
 
   it.skipIf(!BASH)('q(): safe words as they are, the rest single-quoted (raw UTF-8, quote closed and reopened), control characters as $\'...\'', () => {
@@ -1071,6 +968,6 @@ describe('the package lookup (plugin install)', () => {
     fs.mkdirSync(odd);
     const r = await plan('new', { cwd: odd, data: path.join(path.dirname(project), "da ta $x") });
     const run = lines(r)['NB-RUN']!;
-    expect(readBack(run)).toEqual(['node', shown(pkgOpen), '--data', shown(path.join(path.dirname(project), 'da ta $x')), '--run', shown(odd), '--agent', 'claude', '--new']);
+    expect(readBack(run)).toEqual(['node', shown(pkgOpen), '--data', shown(path.join(path.dirname(project), 'da ta $x')), 'new']);
   });
 });
