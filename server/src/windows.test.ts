@@ -6,7 +6,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LOCK } from './atomicFile.ts';
 import { serverStateDir } from './state.ts';
-import { liveWindows, moveWindow, pidAlive, readWindows, registerWindow, restartingWindows, rootHash, setBuilding, unregisterWindow, windowKey } from './windows.ts';
+import { liveWindows, moveWindow, pidAlive, readKeptAgents, readWindows, writeKeptAgents, registerWindow, restartingWindows, rootHash, setBuilding, unregisterWindow, windowKey } from './windows.ts';
 
 let home: string;
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -157,5 +157,17 @@ describe('windowKey (issue 511)', () => {
     expect(rootHash('/p')).toBe(hash);
     expect(windowKey('codex', '/p')).toBe(`codex:${hash}`);
     expect(windowKey('claude', '/p')).not.toBe(windowKey('codex', '/p'));
+  });
+});
+
+describe('kept agents (2c-2)', () => {
+  it('round-trip; a broken or missing file reads null', () => {
+    expect(readKeptAgents(4791)).toBeNull();
+    writeKeptAgents(4791, { launcherPid: 7, nonce: 'n', agents: [{ id: 'codex-abcdef', provider: 'codex', root: '/p' }] });
+    expect(readKeptAgents(4791)).toEqual({ launcherPid: 7, nonce: 'n', agents: [{ id: 'codex-abcdef', provider: 'codex', root: '/p' }] });
+    fs.writeFileSync(path.join(serverStateDir(), 'windows', '4791.agents.json'), '{"nonce":1}');
+    expect(readKeptAgents(4791)).toBeNull();
+    // the registry lists windows only
+    expect(Object.keys(readWindows())).toEqual([]);
   });
 });

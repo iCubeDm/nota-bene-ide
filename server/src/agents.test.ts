@@ -1,12 +1,13 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import type { ServerEvent } from '@nota-bene/shared';
 import { fakeBackend } from './agent/fake.ts';
 import { startServer } from './server.ts';
 import { CONTROL_HEADER, controlToken } from './system.ts';
+import { readKeptAgents } from './windows.ts';
 
 // Several agents in one server (epic 383, step 2c): each its own folder, session, socket and one-tab rule; the top is the
 // first one's, as a window's is today.
@@ -120,4 +121,50 @@ it('/control/open: an agent for a folder and provider, the one already open, or 
   }
   // only with the control token, never from a page
   expect((await fetch(`${s.url}/control/open`, { method: 'POST', headers: { origin: s.url }, body: JSON.stringify({ root: b }) })).status).toBe(403);
+});
+
+describe('kept agents (2c-2): a relaunch of the same launch reopens the extra agents under their ids', () => {
+  const N1 = 'a'.repeat(32);
+  const N2 = 'b'.repeat(32);
+  const start = (port: number, nonce: string, launcherPid: number) => startServer({
+    insecureNoAuth: true, cwd: path.join(tmp, 'a'), port, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'),
+    nonce, keep: { launcherPid }, backends: () => fakeBackend([]),
+  });
+  const ids = async (url: string, id: string) => (await fetch(`${url}/a/${id}/info`)).status;
+
+  it.each([['restart or update (a new inner launcher): the same nonce', N1, 222], ['crash: the same launcher, a new nonce', N2, 111]] as const)('%s', async (_, nonce, pid) => {
+    const s = await start(0, N1, 111);
+    const port = Number(new URL(s.url).port);
+    const b = await s.open({ provider: 'codex', cwd: path.join(tmp, 'b'), backend: fakeBackend([]) });
+    await s.close();
+    const again = await start(port, nonce, pid);
+    closers.push(again.close);
+    expect(await ids(again.url, b)).toBe(200);
+    expect(await json(`${again.url}/a/${b}/info`)).toMatchObject({ root: path.join(tmp, 'b') });
+  });
+
+  it('a kept agent whose folder is gone is dropped, not kept for good', async () => {
+    const s = await start(0, N1, 111);
+    const port = Number(new URL(s.url).port);
+    const gone = path.join(tmp, 'gone');
+    fs.mkdirSync(gone);
+    const b = await s.open({ provider: 'codex', cwd: gone, backend: fakeBackend([]) });
+    await s.close();
+    fs.rmSync(gone, { recursive: true });
+    const again = await start(port, N1, 111);
+    closers.push(again.close);
+    expect(await ids(again.url, b)).toBe(404);
+    expect(readKeptAgents(port)?.agents).toEqual([]);
+  });
+
+  it('a fresh launch (another launcher and nonce) ignores them and starts with its own', async () => {
+    const s = await start(0, N1, 111);
+    const port = Number(new URL(s.url).port);
+    const b = await s.open({ provider: 'codex', cwd: path.join(tmp, 'b'), backend: fakeBackend([]) });
+    await s.close();
+    const fresh = await start(port, N2, 222);
+    closers.push(fresh.close);
+    expect(await ids(fresh.url, b)).toBe(404);
+    expect(readKeptAgents(port)?.agents).toEqual([]);
+  });
 });

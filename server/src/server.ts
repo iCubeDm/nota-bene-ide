@@ -31,9 +31,9 @@ import { archiveRoute, deleteRoute, launchTarget, listSessionsView, renameRoute,
 import { readArchived, setArchived } from './archivedSessions.ts';
 import { markSeen, readSeen } from './seen.ts';
 import { codeChecker } from './codeStamp.ts';
-import { agentContext, envAgentContext, forgetSession, launchAgentId, newAgentId, stateBaseDir, type AgentContext } from './state.ts';
+import { AGENT_ID, agentContext, envAgentContext, forgetSession, launchAgentId, newAgentId, stateBaseDir, type AgentContext } from './state.ts';
 import { AuditLog } from './audit.ts';
-import { moveWindow } from './windows.ts';
+import { moveWindow, readKeptAgents, writeKeptAgents } from './windows.ts';
 import { pidAlive, samePath } from './platform.ts';
 import { controlToken, describeVersion, listWindows, readJson, systemRoutes } from './system.ts';
 import { RESTART, restartGate } from './restartGate.ts';
@@ -123,6 +123,11 @@ export type ServerOptions = {
   agent?: AgentContext;
   /** a backend for another agent of `provider` (main.ts; tests pass fakes); absent = no agent beyond the first */
   backends?: (provider: AgentProvider) => AgentBackend;
+  /**
+   * The launcher's server (main.ts): its extra agents are kept beside its registry entry (`<port>.agents.json`), and a
+   * relaunch of the same launch (this launcher pid: a crash; this nonce: a restart or an update) reopens them under their ids
+   */
+  keep?: { launcherPid?: number };
 };
 
 /** One agent of a server (epic 383): a provider's session line in a folder, today's window minus the process. */
@@ -1087,16 +1092,29 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       })]);
     })());
     /** another agent (epic 383): its own id, minted, under `/a/<id>/` only */
-    const openAgent = async (x: { provider: AgentProvider; cwd: string; backend: AgentBackend; resume?: string; fork?: boolean }): Promise<string> => {
+    /** the extra agents into `<port>.agents.json` (o.keep) */
+    const keep = () => {
+      if (!o.keep) return;
+      try {
+        const extra = [...agents.values()].filter((a) => a !== primary).map((a) => ({ id: a.id, provider: a.provider, root: a.root() }));
+        writeKeptAgents(port, { ...(o.keep.launcherPid !== undefined ? { launcherPid: o.keep.launcherPid } : {}), nonce, agents: extra });
+      } catch (e) {
+        reportError(primary.hub, 'windows', e);
+      }
+    };
+    const openAgent = async (x: { provider: AgentProvider; cwd: string; backend: AgentBackend; resume?: string; fork?: boolean; id?: string }): Promise<string> => {
       if (closing || exiting) throw new Error('the server is stopping');
-      let id: string;
-      do id = newAgentId(x.provider); while (agents.has(id));
+      if (x.id !== undefined && agents.has(x.id)) throw new Error(`agent ${x.id} is open already`);
+      let id = x.id ?? '';
+      while (!id || agents.has(id)) id = newAgentId(x.provider);
       const added = await startAgent(s, { agent: agentContext(x.provider), id, cwd: x.cwd, backend: x.backend, ...(x.resume ? { resume: x.resume } : {}), ...(x.fork ? { fork: true } : {}) });
       if (closing || exiting) {
         await added.close(); // the close has already gone through the map: this one would outlive it
         throw new Error('the server is stopping');
       }
       agents.set(id, added);
+      added.onSwitch((same) => { if (!same) keep(); });
+      keep();
       return id;
     };
     // POST /control/open {root, provider?, mode?: 'resume' | 'new', session?, fork?}: the agent of that folder and provider,
@@ -1120,6 +1138,22 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       const id = await openAgent({ provider, cwd: root, backend: o.backends(provider), ...target });
       return { status: 200, body: { agent: id, opened: true } };
     };
+    // a relaunch of the same launch: the agents it had, each resuming its folder's last session; a fresh one starts with none
+    const kept = o.keep ? readKeptAgents(port) : null;
+    const same = kept && ((o.keep!.launcherPid !== undefined && kept.launcherPid === o.keep!.launcherPid) || kept.nonce === nonce);
+    const backends = o.backends;
+    for (const k of same && backends ? kept.agents : []) {
+      try {
+        const provider = parseProvider(k.provider);
+        if (!AGENT_ID.test(k.id) || !k.id.startsWith(`${provider}-`)) throw new Error(`not an agent id: ${k.id}`);
+        if (!fs.statSync(k.root, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`the folder of agent ${k.id} is gone: ${k.root}`);
+        const target = launchTarget({ dir: k.root, native: provider !== 'claude' }, agentContext(provider).stateDir);
+        await openAgent({ provider, cwd: k.root, backend: backends!(provider), id: k.id, ...target });
+      } catch (e) {
+        reportError(primary.hub, 'agents', e); // that one is dropped: its folder is gone, or its backend would not start
+      }
+    }
+    keep();
     return { url: `http://127.0.0.1:${port}`, close: () => close!(), open: openAgent };
   } catch (e) {
     audit?.close();

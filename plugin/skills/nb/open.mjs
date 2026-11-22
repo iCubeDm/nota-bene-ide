@@ -1,38 +1,33 @@
 // Open Nota Bene (browser chat over Claude Code with inline comments) on the current folder. Called by the /nb skill.
 // Usage: node open.mjs [--data DIR] [--plan] "<skill arguments>" <calling sessionId>
-//        node open.mjs [--data DIR] --wait <dir> [note]
-//        node open.mjs [--data DIR] --run <dir> [launcher args...]   (package install only: installs if needed, then runs the launcher)
 //   --data DIR is the plugin's data dir (SKILL.md passes ${CLAUDE_PLUGIN_DATA}: it is NOT in the env of Bash commands).
 //   Where the launcher lives, in this order:
 //     1. a checkout: bin/nota-bene.mjs three levels above this skill dir (plugin/skills/nb -> repo root), as before;
 //        found through the ~/.claude/skills/nb symlink (a junction on Windows) too. Needs Node >= 23.6 (it runs the .ts sources).
 //     2. the npm package nota-bene-ide@<plugin version> installed under DIR/<version>/ (one install per version, about 330 MB
-//        each, not pruned yet; npm install --prefix DIR/<version>, done on the first run, by --run, i.e. in the background task,
-//        never in the --plan preprocessing). Needs Node >= 22.
-//        The version is the plugin's (.claude-plugin/plugin.json); a plugin update therefore reinstalls.
-//   no arguments — a window already open on the folder is just brought to front; otherwise a new window, where the
-//                  server resumes the folder's last window session (if its transcript still exists), else starts one
+//        each, not pruned yet; npm install --prefix DIR/<version>, done on the first run, never in the --plan preprocessing).
+//        Needs Node >= 22. The version is the plugin's (.claude-plugin/plugin.json); a plugin update therefore reinstalls.
+//   no arguments — a window already open on the folder is just brought to front; otherwise the folder opens, resuming its
+//                  last window session (if its transcript still exists), else starting one
 //   new          — always a new session
 //   fork         — carry the calling terminal conversation over: the window resumes it as a fork (new session id),
 //                  so the terminal and the window never append to one transcript
+// The folder opens as an agent of the running Nota Bene server, or in a server the launcher starts (`--detach`, epic 383):
+// either way it outlives this Claude Code session; nothing runs as its background task.
 // --plan (what the skill runs) launches nothing: after the same guards and the same "already open" check it prints
-//   NB-RUN: <the foreground launcher command>     the skill runs it as a Claude Code background task (its output is
-//                                                 the window's log; stopping the task, or ending the session, ends it)
-//   NB-WAIT: <open.mjs --wait command>             then waits with it for the window to come up
-//   NB-NAME: Nota Bene · <folder>                  the task's description
-// or one NB: line (an error, a refusal, "already open"). Both commands are read back by Claude Code's Bash tool, which is bash
-// (Git Bash on Windows), and are built by q(): a word of safe characters stays as it is, anything else (spaces, quotes, $,
+//   NB-RUN: <this script without --plan>     the skill runs it in the foreground; it prints one NB: line
+//   NB-NOTE: <text>                           on a first install only: the run installs the package first (minutes)
+// or one NB: line (an error, a refusal, "already open"). The command is read back by Claude Code's Bash tool, which is bash
+// (Git Bash on Windows), and is built by q(): a word of safe characters stays as it is, anything else (spaces, quotes, $,
 // parentheses, non-ASCII) is single-quoted, so bash and zsh read each back exactly and Claude Code accepts the text (it refuses
-// backslash-escaped spaces and $'\320...' escapes). Paths in them use forward slashes on Windows too (C:/Users/...), which
+// backslash-escaped spaces and $'\320...' escapes). Paths in it use forward slashes on Windows too (C:/Users/...), which
 // node and bash both take and the allowed-tools patterns match.
-// --wait polls --find every 0.5 s for up to 40 s (NB_WAIT_SECS, test only) and prints "NB: opened URL for DIR<note>."
-// The URL this script prints for the skill is the plain one, with no token: the skill's output enters the Claude Code transcript
-// and goes to the API. A browser logs in through the launcher, which opens a page in the state dir that redirects with the token
-// (a new window: the launcher itself; an open one: --front). A second browser can use `nota-bene --url PORT` in a terminal.
-// Without --plan the window is started with --detach (terminal use).
-// The launcher is bin/nota-bene.mjs (--find / --last / --detach). It keeps one window per folder (its launch lock),
-// so two /nb at once end with one window; this script finds, words and relays. It ships alone in the plugin (no package.json,
-// no imports beyond Node's own) and parses on old Node versions, so the floor check below can say what is wrong.
+// The URL this script prints for the skill is the plain one, with no login: the skill's output enters the Claude Code transcript
+// and goes to the API. A browser logs in through the launcher, which opens a page in the state dir that redirects with the login
+// (a new folder: the launcher itself; an open one: --front). A second browser can use `nota-bene --url PORT` in a terminal.
+// The launcher is bin/nota-bene.mjs (--find / --last / --detach). Its launch lock keeps one server, so two /nb at once end with
+// one agent for the folder; this script finds, words and relays. It ships alone in the plugin (no package.json, no imports
+// beyond Node's own) and parses on old Node versions, so the floor check below can say what is wrong.
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -116,7 +111,7 @@ export function q(s) {
 
 const SELF_PHYS = fileURLToPath(import.meta.url);
 const SKDIR = real(path.dirname(SELF_PHYS)) ?? path.dirname(SELF_PHYS); // physical: the skill dir may be linked from ~/.claude/skills/nb
-// this script as it was called (through the ~/.claude/skills/nb link), so NB-WAIT matches the skill's allowed-tools
+// this script as it was called (through the ~/.claude/skills/nb link), so NB-RUN matches the skill's allowed-tools
 const SELF = path.resolve(process.argv[1] ?? SELF_PHYS);
 
 async function main(argv) {
@@ -166,7 +161,6 @@ async function main(argv) {
   // npm is only needed for the first install of the package
   const NPM_MISSING = `NB: npm not found on PATH; the first run installs ${PKG}@${VER} with it. Install Node.js with npm (nodejs.org), or run \`npm install -g ${PKG}\` and open it with \`nota-bene\`.`;
   const lock = path.join(PREFIX, '.nb-install.lock');
-  const failed = path.join(PREFIX, '.nb-install-failed');
   const STALE_SECS = secs(process.env.NB_LOCK_STALE_SECS, 3600); // a live slow install must not be robbed; a recycled pid costs one waiter timeout
   const olderThan = (p, ms) => { try { return Date.now() - fs.statSync(p).mtimeMs > ms; } catch { return false; } };
   // seconds since the lock was taken; huge when it carries no timestamp and is over a minute old; 0 when just taken
@@ -187,18 +181,17 @@ async function main(argv) {
   const GATE = process.env.NB_TEST_RECLAIM_GATE;
   let gated = false;
 
-  // install the package into DATA/<version>; progress goes to our stdout (the background task's output). The lock keeps two /nb
-  // runs from installing at once. EVERY failure writes .nb-install-failed, which is how --wait learns of it.
+  // install the package into DATA/<version>; progress goes to our stdout. The lock keeps two /nb runs from installing at once.
   async function installPkg() {
     const log = path.join(PREFIX, '.nb-install.log');
     try { fs.mkdirSync(PREFIX, { recursive: true }); } catch { say(`NB: cannot create the plugin data dir ${shown(PREFIX)}.`); return false; }
-    const tee = (text) => { process.stdout.write(text); try { fs.writeFileSync(failed, text); } catch { /* the message is out */ } };
+    const tee = (text) => process.stdout.write(text);
     const npm = which('npm');
     if (!npm) { tee(`${NPM_MISSING}\n`); return false; }
     const started = Date.now();
     for (;;) {
       // the time limit counts elapsed seconds, not loop turns: a mkdir that keeps failing (unwritable dir) or a stale lock that
-      // cannot be removed must still end in the failure marker that --wait reports
+      // cannot be removed must still end
       const waited = Math.floor((Date.now() - started) / 1000);
       if (waited >= secs(process.env.NB_INSTALL_WAIT_SECS, 540)) { tee(`NB: another install of ${PKG}@${VER} is still running after ${waited}s.\n`); return false; }
       // Every change of the lock's existence (taking a free lock, removing a stale one) happens inside a short critical section,
@@ -247,7 +240,6 @@ async function main(argv) {
     // taken: another run may have finished between our last look and the lock
     if (installed()) { rmrf(lock); return true; }
     rmrf(path.join(PREFIX, '.nb-installed'));
-    rmrf(failed);
     say(`Nota Bene: first run, installing ${PKG}@${VER} into the plugin data dir (about 330 MB, this takes a while)...`);
     const spec = npmSpawn(npm, ['install', '--prefix', PREFIX, `${PKG}@${VER}`, '--no-audit', '--no-fund']);
     let logText = '';
@@ -272,69 +264,11 @@ async function main(argv) {
     return true;
   }
 
-  // --run <dir> [launcher args]: the package launcher as the background task's foreground command, installing first if needed
-  if (argv[0] === '--run') {
-    if (SRC !== 'package') { say('NB: --run is for the package install only.'); exit(1); }
-    if (FIRST_RUN && !(await installPkg())) exit(1);
-    const args = [BIN, ...argv.slice(1)];
-    // POSIX: become the launcher (as the shell version's exec did), so the task's signals reach it directly
-    if (!WIN && typeof process.execve === 'function') {
-      await new Promise((r) => process.stdout.write('', r)); // the install's lines are out before this process is replaced
-      process.execve(process.execPath, [process.execPath, ...args], process.env);
-    }
-    const c = spawn(process.execPath, args, { stdio: 'inherit', windowsHide: true });
-    for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
-      try { process.on(sig, () => { try { c.kill(sig); } catch { /* gone */ } }); } catch { /* no such signal here */ }
-    }
-    const code = await new Promise((resolve) => {
-      c.on('error', () => resolve(1));
-      c.on('exit', (code, sig) => resolve(code ?? (sig ? 128 + (os.constants.signals[sig] ?? 0) : 1)));
-    });
-    exit(code);
-  }
-
   const find = (dir, extra = []) => {
     const r = spawnSync(process.execPath, [BIN, '--find', dir, ...extra], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     return { rc: r.status ?? 1, port: (r.stdout ?? '').trim(), err: r.stderr ?? '' };
   };
 
-  // --wait <dir> [note]: the window the background task is starting, once the registry has it (verified by /info)
-  if (argv[0] === '--wait') {
-    const arg = argv[1] ?? '';
-    const SECS = secs(process.env.NB_WAIT_SECS, 40);
-    const WNOTE = argv[2] ?? '';
-    const WDIR = arg && isDir(arg) ? real(arg) : null;
-    if (!WDIR) { say(`NB: no such folder '${arg}'.`); exit(1); }
-    if (FIRST_RUN) {
-      // a first install is under way in the background task: wait for it (patiently), or for its failure marker
-      const ISECS = secs(process.env.NB_INSTALL_WAIT_SECS, 540);
-      const GRACE = secs(process.env.NB_INSTALL_GRACE_SECS, 15);
-      for (let i = 0; i < ISECS * 2; i++) {
-        if (installed()) break;
-        const f = read(failed);
-        if (f !== null) { process.stdout.write(f); exit(1); }
-        // the background task died or was stopped without a word: its lock names a dead pid, or (after a moment for the task to
-        // start) there is no lock and no marker at all. Say so now instead of waiting out the timeout.
-        const holder = (read(path.join(lock, 'pid')) ?? '').trim();
-        if ((holder !== '' && !alive(holder)) || (!isDir(lock) && i >= GRACE * 2)) {
-          if (isFile(path.join(PREFIX, '.nb-installed'))) break;
-          say(`NB: the install of ${PKG}@${VER} did not finish: the background task stopped or never started. Run /nb again.`);
-          exit(1);
-        }
-        await sleep(500);
-      }
-      if (!isFile(path.join(PREFIX, '.nb-installed'))) { say(`NB: the first install is still running after ${ISECS}s - see the background task's output.`); exit(1); }
-    }
-    for (let i = 0; i < SECS * 2; i++) {
-      const r = find(WDIR);
-      // 3: a secret file is refused (loose mode, foreign owner, ...): say so now, do not wait out the timeout
-      if (r.rc === 3) { relayErr(r.err); exit(1); }
-      if (r.rc === 0 && r.port) { say(`NB: opened http://127.0.0.1:${r.port} for ${shown(WDIR)}${WNOTE}.`); exit(0); }
-      await sleep(500);
-    }
-    say(`NB: the window did not come up in ${SECS}s — see the background task's output.`);
-    exit(1);
-  }
   if (PLAN) argv = argv.slice(1);
 
   const ARG = (argv[0] ?? '').toLowerCase().trim();
@@ -360,7 +294,7 @@ async function main(argv) {
   const OPENER = WIN || process.platform === 'darwin' || !!which('xdg-open');
   let FRONTED = false; // set once a browser was really pointed at the window
   const frontNote = (url) => (FRONTED ? 'brought to front'
-    : `no browser could be opened from here: run \`nota-bene --url ${url.slice(url.lastIndexOf(':') + 1)}\` in a terminal for a login link`);
+    : `no browser could be opened from here: run \`nota-bene --url ${new URL(url).port}\` in a terminal for a login link`);
   const already = (url) => {
     if (MODE === 'fork') say(`NB: a window is already open on this folder at ${url} (${frontNote(url)}). It was NOT switched to this conversation: switching restarts it and may cut a running turn. To move this conversation there, quit the terminal claude and pick it in Sessions ▾.`);
     else say(`NB: already open at ${url} (${frontNote(url)}).`);
@@ -400,11 +334,10 @@ async function main(argv) {
   if (process.env.NOTA_BENE_FAKE) ARGS.push('--fake', process.env.NOTA_BENE_FAKE);
 
   if (PLAN) {
-    let RUN;
     if (FIRST_RUN) {
       if (!which('npm')) bail(NPM_MISSING);
-      // the install needs a writable data dir; under Claude Code's sandbox mode it is not, and the background task would fail the
-      // same way on every retry, so say the likely cause here (a plan runs first) and give no "run /nb again"
+      // the install needs a writable data dir; under Claude Code's sandbox mode it is not, and the run would fail the same way
+      // on every retry, so say the likely cause here (a plan runs first) and give no "run /nb again"
       try {
         fs.mkdirSync(PREFIX, { recursive: true });
         fs.writeFileSync(path.join(PREFIX, '.nb-probe'), '');
@@ -412,21 +345,13 @@ async function main(argv) {
       } catch {
         bail(`NB: cannot write to the plugin data dir ${shown(PREFIX)}, which the first run needs to install ${PKG}@${VER}. The likely cause is Claude Code's sandbox mode (it blocks writes outside the project): allow writes to that folder in the sandbox settings, or turn the sandbox off for /nb. Retrying will not help until then.`);
       }
-      rmrf(failed);
-      // the install runs inside the background task, never in this preprocessing
-      RUN = `node ${q(shown(SELF))} --data ${q(shown(DATA))} --run ${q(shown(DIR))}`;
-    } else {
-      RUN = `node ${q(shown(BIN))} ${q(shown(DIR))}`;
     }
-    for (const a of ARGS.slice(1)) RUN += ` ${q(a)}`; // without the leading --detach: the task runs it in the foreground
-    let WAIT = `node ${q(shown(SELF))}`;
-    if (SRC === 'package') WAIT += ` --data ${q(shown(DATA))}`;
-    WAIT += ` --wait ${q(shown(DIR))}`;
-    if (NOTE) WAIT += ` ${q(NOTE)}`;
+    // this script again, without --plan: it installs when needed, opens the folder and prints one NB: line
+    let RUN = `node ${q(shown(SELF))}`;
+    if (SRC === 'package') RUN += ` --data ${q(shown(DATA))}`;
+    RUN += ` ${q(MODE === 'last' ? '' : MODE)}${MODE === 'fork' ? ` ${q(SID)}` : ''}`;
     say(`NB-RUN: ${RUN}`);
-    say(`NB-WAIT: ${WAIT}`);
-    say(`NB-NAME: Nota Bene · ${path.basename(DIR).replace(/\n/g, ' ')}`);
-    if (FIRST_RUN) say(`NB-NOTE: first run: installing ${PKG}@${VER} (about 330 MB) in the background task; this can take a few minutes.`);
+    if (FIRST_RUN) say(`NB-NOTE: first run: installing ${PKG}@${VER} (about 330 MB); this can take a few minutes.`);
     exit(0);
   }
   if (FIRST_RUN) {
@@ -439,12 +364,13 @@ async function main(argv) {
   const r = spawnSync(process.execPath, [BIN, DIR, ...ARGS], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const RC = r.status ?? 1;
   const OUT = (r.stdout ?? '').replace(/\n+$/, '');
-  const lm = /^(opened|already-open) (http:\/\/127\.0\.0\.1:([0-9]+)(\/#t=[0-9a-f]+)?)$/.exec(OUT);
+  // an agent of the running server is under its /a/<id>/
+  const lm = /^(opened|already-open) http:\/\/127\.0\.0\.1:([0-9]+)(\/a\/[a-z]+-[a-z2-7]{6})?\/?(#t=[0-9a-f]+)?$/.exec(OUT);
   if (RC === 0 && lm) {
-    const URL_ = `http://127.0.0.1:${lm[3]}`; // the launcher's line carries #t=LOGIN; the skill's output must not
+    const URL_ = `http://127.0.0.1:${lm[2]}${lm[3] ? `${lm[3]}/` : ''}`; // the launcher's line carries #t=LOGIN; the skill's output must not
     if (OPENER) FRONTED = true; // the launcher opened (or fronted) the login page itself
     if (lm[1] === 'already-open') already(URL_);
-    say(`NB: opened ${URL_} for ${shown(DIR)}${NOTE}. Log: ${shown(path.join(os.tmpdir(), `nota-bene-${lm[3]}.log`))}`);
+    say(`NB: opened ${URL_} for ${shown(DIR)}${NOTE}. Log: ${shown(path.join(os.tmpdir(), `nota-bene-${lm[2]}.log`))}`);
     exit(0);
   }
   // the launcher's error (its "nota-bene: " prefix becomes ours), then the log tail it printed

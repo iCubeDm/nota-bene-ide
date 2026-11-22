@@ -126,7 +126,10 @@ async function main(): Promise<void> {
   const agent = agentContext(parseProvider(args.agent));
   // a backend per agent, as a window had its own (the ACP one keeps a session slot per instance)
   const backendFor = (p: AgentProvider) => (p === 'codex' ? codexBackend({ stateDir: agentContext(p).stateDir }) : p === 'omp' ? ompBackend() : sdkBackend());
-  const backend = args.fake ? fakeFromScript(JSON.parse(fs.readFileSync(args.fake, 'utf8')), args.dir) : backendFor(agent.provider);
+  // --fake (the launcher's tests): every agent plays the same script
+  const script = args.fake ? JSON.parse(fs.readFileSync(args.fake, 'utf8')) : undefined;
+  const backends = script ? () => fakeFromScript(script, args.dir) : backendFor;
+  const backend = backends(agent.provider);
   const native = args.agent === 'codex' || args.agent === 'omp';
   // the launcher's launch nonce (public, but it stays out of the agent's and the `!` commands' environment all the same)
   const nonce = isNonce(process.env.NOTA_BENE_NONCE) ? process.env.NOTA_BENE_NONCE : undefined;
@@ -141,7 +144,7 @@ async function main(): Promise<void> {
       backend,
       ...launchTarget({ ...args, native }, agent.stateDir),
       agent,
-      ...(args.fake ? {} : { backends: backendFor }),
+      backends,
       webDist,
       allowedOrigins: args.allowOrigins,
       ...(!native && !args.fake ? { onStats: limitRecorder(new UsageStore('claude')), onLimit: hitRecorder(new UsageStore('claude')) } : {}),
@@ -150,7 +153,7 @@ async function main(): Promise<void> {
       audit: {},
       // only a launcher's window is in the registry the connector serves: one outside it (npm run dev, a test server) would
       // start a connector that finds no window and exits within a minute, again and again
-      ...(process.env.NOTA_BENE_SUPERVISED === '1' ? { remote: remoteKeeper() } : {}),
+      ...(process.env.NOTA_BENE_SUPERVISED === '1' ? { remote: remoteKeeper(), keep: { launcherPid: Number(process.env.NOTA_BENE_LAUNCHER_PID) } } : {}),
     });
   } catch (e) {
     if ((e as NodeJS.ErrnoException).syscall !== 'listen') throw e;
