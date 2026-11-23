@@ -405,6 +405,7 @@ export const de: Dict = {
   projThis: 'dieses Fenster',
   projWorking: 'arbeitet',
   projWaiting: 'wartet auf dich',
+  agentAdd: 'Einen Agenten zum Projekt hinzufügen',
   projIdle: 'bereit',
   projRestarting: 'startet neu',
   projSilent: 'antwortet nicht',

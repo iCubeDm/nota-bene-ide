@@ -405,6 +405,7 @@ export const zhCN: Dict = {
   projThis: '当前窗口',
   projWorking: '工作中',
   projWaiting: '等你处理',
+  agentAdd: '向此项目添加智能体',
   projIdle: '空闲',
   projRestarting: '正在重启',
   projSilent: '无响应',

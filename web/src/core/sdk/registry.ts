@@ -38,9 +38,10 @@ export type AnyTabView = { [K in keyof TabKinds]: TabView<K> }[keyof TabKinds];
  * the Usage row) and the settings button's badge; the tool strips; the panels left and right of the middle column; the
  * chat pane; over the panes; the footer; the overlays after the frame. The composer's (issue 545): its status line, its
  * tools row after the keys help and at its right end, and the pickers of a message field, which the comment popup shares
- * (a picker reads its field with `useComposerField()`).
+ * (a picker reads its field with `useComposerField()`). `tabs.chat`: in the tab strip right after the chat's tab (epic 383:
+ * the project's other agents).
  */
-export type SlotName = 'header.title' | 'header.center' | 'header.end' | 'header.menu' | 'header.badge' | 'strip.left' | 'strip.right'
+export type SlotName = 'header.title' | 'header.center' | 'header.end' | 'header.menu' | 'header.badge' | 'strip.left' | 'strip.right' | 'tabs.chat'
   | 'panel.left' | 'panel.right' | 'chat' | 'panes' | 'footer' | 'overlay'
   | 'composer.status' | 'composer.tools' | 'composer.end' | 'composer.pickers';
 

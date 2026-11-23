@@ -405,6 +405,7 @@ export const ptBR: Dict = {
   projThis: 'esta janela',
   projWorking: 'trabalhando',
   projWaiting: 'esperando por você',
+  agentAdd: 'Adicionar um agente a este projeto',
   projIdle: 'ocioso',
   projRestarting: 'reiniciando',
   projSilent: 'não responde',

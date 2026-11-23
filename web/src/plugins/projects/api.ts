@@ -179,11 +179,11 @@ export const openStarter = (mode: 'open' | 'new'): void => starter?.(mode);
  * Opens `dir` in a window of `provider` (started if none) and moves this tab there, to `session` when given (landing.ts);
  * resolves to the refusal's reason, or null.
  */
-export async function openFolder(dir: string, provider: Provider, create?: { name: string; git: boolean }, session?: string): Promise<string | null> {
+export async function openFolder(dir: string, provider: Provider, create?: { name: string; git: boolean }, session?: string, fresh?: boolean): Promise<string | null> {
   try {
     const r = create
       ? await send(routes.systemProjects('create'), { parent: dir, name: create.name, git: create.git, provider })
-      : await send(routes.systemProjects('open'), { dir, provider });
+      : await send(routes.systemProjects('open'), { dir, provider, ...(fresh ? { new: true } : {}) });
     if (!r.ok) return reasonOf(r);
     const { url } = (await r.json()) as { url?: unknown };
     if (typeof url !== 'string') return 'bad answer';

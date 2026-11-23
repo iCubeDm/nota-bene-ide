@@ -46,6 +46,7 @@ it('each slot lists the plugins\' parts in the frame\'s order', () => {
     'header.badge': ['10 RemoteDot'],
     'strip.left': ['10 FilesToggle', '20 VcsToggles'],
     'strip.right': ['10 CommentsToggle'],
+    'tabs.chat': ['10 AgentTabs'],
     'panel.left': ['10 ProjectRail', '30 Tree', '40 ChangesPanel'],
     'panel.right': ['10 Comments'],
     chat: ['10 ChatFeed', '20 HighlightLayer'],

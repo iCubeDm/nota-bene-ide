@@ -413,6 +413,7 @@ export const ru = {
   projThis: 'это окно',
   projWorking: 'работает',
   projWaiting: 'ждёт тебя',
+  agentAdd: 'Добавить агента в проект',
   projIdle: 'свободен',
   projRestarting: 'перезапускается',
   projSilent: 'не отвечает',
