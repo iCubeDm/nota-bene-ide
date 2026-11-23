@@ -20,7 +20,7 @@ export { ViewPane } from '../components/ViewPane.tsx';
 export { ToolButton } from '../components/ToolButton.tsx';
 export { PanelResizer, usePanelWidth } from '../shell/PanelResizer.tsx';
 export { SettingsRow, SettingsFail } from '../components/SettingsRow.tsx';
-export { ICONS, Svg, ArchiveIcon } from '../components/icons.tsx';
+export { AgentIcon, ICONS, Svg, ArchiveIcon } from '../components/icons.tsx';
 export { focusTab } from '../tabs/focus.ts';
 export { FileIcon } from '../components/FileIcon.tsx';
 export { PlayIcon, PauseIcon, ReplayIcon, VolumeOffIcon, VolumeLowIcon, VolumeHighIcon, PencilIcon, PipIcon, EnterFullscreenIcon, ExitFullscreenIcon, EdgeBackIcon, EdgeForwardIcon, FrameBackIcon, FrameForwardIcon } from '../components/playerIcons.tsx';

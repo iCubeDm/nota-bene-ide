@@ -52,6 +52,8 @@ it('the other live agents of this folder on this computer, each with its agent, 
   await waitFor(() => expect(tabs()).toHaveLength(2));
   expect(tabs().map((b) => b.textContent)).toEqual(['CodexReview the diff!', 'Claude2']);
   expect(tabs()[0]!.getAttribute('aria-label')).toBe('Codex · Review the diff · ' + t('projWaiting'));
+  // issue 644: each with its vendor's mark
+  expect(tabs().map((b) => b.querySelector('[data-agent-icon]')?.getAttribute('data-agent-icon'))).toEqual(['codex', 'claude']);
   fireEvent.click(tabs()[0]!);
   await waitFor(() => expect(nav.go).toHaveBeenCalledWith(URL_OK));
   expect(calls.find((c) => c.url === '/system/projects/enter')!.body).toEqual({ provider: 'codex', port: 4791, root: '/w/site', agent: 'codex-k3f7qz' });

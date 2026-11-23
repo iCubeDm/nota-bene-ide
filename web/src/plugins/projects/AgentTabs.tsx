@@ -6,7 +6,7 @@
 // helper's own page, Keep makes it an agent of the project.
 import { useEffect, useState } from 'react';
 import { connections, remotePage, routes, send, toast, useSources, useT } from '@/sdk';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, Svg, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
+import { AgentIcon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, Svg, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { enterProject, openFolder, PROVIDER_LABEL, reasonText, useProjects, type Provider, type RunningRow } from './api.ts';
 import { badgeOf } from './rows.ts';
 import { BadgeView, DOT, LIVE, STATE_KEY } from './Tile.tsx';
@@ -52,7 +52,7 @@ export function AgentTabs() {
     const why = await openFolder(dir, p, undefined, undefined, true);
     if (why) toast(t('projEnterFailed', reasonText(why)), dir);
   };
-  const choices = (dir: string) => kinds.map((p) => <DropdownMenuItem key={p} onSelect={() => void add(dir, p)}>{PROVIDER_LABEL[p]}</DropdownMenuItem>);
+  const choices = (dir: string) => kinds.map((p) => <DropdownMenuItem key={p} onSelect={() => void add(dir, p)}><AgentIcon provider={p} />{PROVIDER_LABEL[p]}</DropdownMenuItem>);
   return (
     <>
       {here.lead && !remote && (
@@ -112,6 +112,7 @@ function HelperGroup({ helpers }: { helpers: RunningRow[] }) {
         {helpers.map((h) => (
           <DropdownMenuItem key={h.id ?? h.port} onSelect={() => void enterProject(h)}>
             <span aria-hidden className={`size-1.5 flex-none rounded-full ${DOT[h.state]}`} />
+            <AgentIcon provider={h.provider} />
             {[PROVIDER_LABEL[h.provider], h.title].filter(Boolean).join(' · ')}
           </DropdownMenuItem>
         ))}
@@ -120,7 +121,7 @@ function HelperGroup({ helpers }: { helpers: RunningRow[] }) {
   );
 }
 
-/** Another agent of the project, a tab of the strip's look: its state, its kind, its worktree's branch, its session's title, its badge. */
+/** Another agent of the project, a tab of the strip's look: its state, its kind (its vendor's mark and name), its worktree's branch, its session's title, its badge. */
 function AgentTab({ r, branch }: { r: RunningRow; branch?: string | undefined }) {
   const t = useT();
   const name = PROVIDER_LABEL[r.provider];
@@ -135,6 +136,7 @@ function AgentTab({ r, branch }: { r: RunningRow; branch?: string | undefined })
       className="flex h-7 max-w-[220px] flex-none cursor-pointer items-center gap-1.5 rounded-lg px-2.5 text-[0.78125rem] font-medium whitespace-nowrap text-muted-foreground hover:bg-muted/50 hover:text-foreground"
     >
       <span aria-hidden className={`size-1.5 flex-none rounded-full ${DOT[r.state]}`} />
+      <AgentIcon provider={r.provider} />
       <span className="text-foreground/80">{name}</span>
       {branch && <span className="rounded bg-muted px-1 text-[0.6875rem]">{branch}</span>}
       {r.title && <span className="truncate">{r.title}</span>}
