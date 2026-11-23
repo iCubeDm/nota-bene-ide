@@ -2229,6 +2229,34 @@
         },
         {
           "properties": {
+            "agent": {
+              "type": "string"
+            },
+            "file": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "edit-overlap",
+              "type": "string"
+            },
+            "provider": {
+              "$ref": "#/definitions/AgentProvider"
+            },
+            "ts": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "file",
+            "agent",
+            "provider",
+            "ts"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
             "id": {
               "type": "string"
             },
@@ -3964,6 +3992,7 @@
     "commentOps": 19,
     "compactOrder": 27,
     "cutAnchors": 23,
+    "editOverlap": 33,
     "fireLabel": 3,
     "heldSends": 27,
     "hostAgents": 31,
@@ -3989,5 +4018,5 @@
     "voiceDetect": 18,
     "wholePicture": 25
   },
-  "x-protocol": 32
+  "x-protocol": 33
 }

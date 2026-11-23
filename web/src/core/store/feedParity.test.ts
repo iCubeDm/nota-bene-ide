@@ -43,6 +43,8 @@ function project(it: FeedItem): Record<string, unknown> {
       return { kind: it.kind, id: it.id, cmd: it.cmd, output: it.output, running: it.running, code: it.code };
     case 'notice':
       return { kind: it.kind, key: it.key, text: it.text };
+    case 'overlap': // not on the phone yet: no case below has one
+      return { kind: it.kind, key: it.key, file: it.file, agent: it.agent };
   }
 }
 

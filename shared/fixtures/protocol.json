@@ -1219,6 +1219,13 @@
       "agent": "codex-abcdef"
     },
     {
+      "kind": "edit-overlap",
+      "file": "src/x.ts",
+      "agent": "codex-abcdef",
+      "provider": "codex",
+      "ts": 1700000000000
+    },
+    {
       "kind": "compact-pending",
       "pending": true,
       "held": [
