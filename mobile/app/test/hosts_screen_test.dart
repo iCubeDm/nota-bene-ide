@@ -119,8 +119,20 @@ void main() {
           window(4791, '/home/u/notes', title: 'Lead'),
           window(4791, '/home/u/site', title: 'Site', agent: 'claude-s2s2s2'),
           window(4791, '/home/u/notes', title: 'Second', agent: 'codex-c2c2c2'),
-          window(4791, '/home/u/notes', title: 'Helper one', agent: 'codex-h2h2h2', lead: 'claude-x2x2x2'),
-          window(4791, '/home/u/notes', title: 'Helper two', agent: 'omp-h3h3h3', lead: 'codex-c2c2c2'),
+          window(
+            4791,
+            '/home/u/notes',
+            title: 'Helper one',
+            agent: 'codex-h2h2h2',
+            lead: 'claude-x2x2x2',
+          ),
+          window(
+            4791,
+            '/home/u/notes',
+            title: 'Helper two',
+            agent: 'omp-h3h3h3',
+            lead: 'codex-c2c2c2',
+          ),
         ]),
       );
       final opened = <String>[];
