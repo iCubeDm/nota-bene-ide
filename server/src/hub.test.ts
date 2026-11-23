@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { reduceTasks, type ServerEvent } from '@nota-bene/shared';
-import { EventHub } from './hub.ts';
+import { EventHub, REPORT_WAIT_MS } from './hub.ts';
 import { guard } from './errors.ts';
 
 const user = (id: string): Extract<ServerEvent, { kind: 'user' }> => ({ kind: 'user', id, text: id, ts: 1 });
@@ -376,6 +376,47 @@ describe('EventHub.tasksRunning', () => {
     expect(hub.tasksRunning()).toBe(1);
     task({ id: 'a', phase: 'done', status: 'done' });
     expect(hub.tasksRunning()).toBe(0);
+  });
+});
+
+describe('EventHub.reportDue: a background task ended, its report not yet told', () => {
+  const at = (hub: EventHub, ts: number, e: object) => hub.emit({ kind: 'agent', e, ts } as never);
+  const task = (hub: EventHub, ts: number, e: object) => at(hub, ts, { t: 'task', ...e });
+
+  it('is due from the end of a background task until the agent starts its turn', () => {
+    const hub = new EventHub();
+    task(hub, 1000, { id: 'a', phase: 'started', desc: 'review', type: 'local_agent', bg: true });
+    expect(hub.reportDue(1000)).toBe(false);
+    task(hub, 2000, { id: 'a', phase: 'done', status: 'done' });
+    expect(hub.tasksRunning()).toBe(0);
+    expect(hub.reportDue(2000 + REPORT_WAIT_MS - 1)).toBe(true);
+    at(hub, 5000, { t: 'turn-start' });
+    expect(hub.reportDue(5000)).toBe(false);
+  });
+
+  it('a task that blocked its call, a watcher, or a CLI that never reports: not due, or not for long', () => {
+    const hub = new EventHub();
+    task(hub, 0, { id: 'f', phase: 'started', desc: 'run', type: 'local_bash', bg: false });
+    task(hub, 0, { id: 'w', phase: 'started', desc: 'watch', type: 'monitor_mcp', bg: true, ambient: true });
+    task(hub, 10, { id: 'f', phase: 'done' });
+    task(hub, 10, { id: 'w', phase: 'done' });
+    expect(hub.reportDue(10)).toBe(false);
+    task(hub, 20, { id: 'b', phase: 'started', desc: 'build', type: 'local_bash', bg: true });
+    task(hub, 30, { id: 'b', phase: 'done' });
+    expect(hub.reportDue(30 + REPORT_WAIT_MS)).toBe(false);
+  });
+
+  it('one that ended during a turn is due from that turn\'s end; a replayed history owes nothing', () => {
+    const hub = new EventHub();
+    at(hub, 0, { t: 'turn-start' });
+    task(hub, 0, { id: 'a', phase: 'started', desc: 'review', type: 'local_agent', bg: true });
+    task(hub, 10, { id: 'a', phase: 'done' });
+    at(hub, 50_000, { t: 'turn-end', stop: 'done', secs: 1, answers: [], queued: 0 });
+    expect(hub.reportDue(50_000 + REPORT_WAIT_MS - 1)).toBe(true);
+    const s = sock();
+    hub.attach(s);
+    hub.reset((JSON.parse(s.frames[0]!) as { events: ServerEvent[] }).events);
+    expect(hub.reportDue(50_000)).toBe(false);
   });
 });
 
