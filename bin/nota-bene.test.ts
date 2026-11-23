@@ -230,7 +230,7 @@ async function stopWindow(port: number): Promise<void> {
   expect(r.status).toBe(200);
 }
 
-async function info(port: number): Promise<{ root: string; supervised: boolean; agents: { id: string }[] } | null> {
+async function info(port: number): Promise<{ root: string; supervised: boolean; agents: { id: string; root: string }[] } | null> {
   try {
     const r = await fetch(`http://127.0.0.1:${port}/info`, { headers: authHeaders(), signal: AbortSignal.timeout(500) });
     return r.ok ? ((await r.json()) as { root: string; supervised: boolean; agents: { id: string }[] }) : null;
@@ -500,7 +500,7 @@ describe('nota-bene launcher', () => {
     await waitFor(() => !alive(first.pid));
     const r = launch([]);
     expect(await r.exited, r.err()).toBe(0);
-    expect(r.out()).toBe('nota-bene: already open at http://127.0.0.1:4792\n');
+    expect(r.out()).toBe(`nota-bene: already open at ${await agentAt(4792)}/\n`);
     expect(Object.keys(windows())).toEqual(['4792']);
   }, 20000);
 
@@ -561,10 +561,10 @@ describe('nota-bene launcher', () => {
     // a second launch on the same folder, plain and --detach, gives way to the window
     const r2 = launch([]);
     expect(await r2.exited, r2.err()).toBe(0);
-    expect(r2.out()).toBe('nota-bene: already open at http://127.0.0.1:4793\n');
+    expect(r2.out()).toBe(`nota-bene: already open at ${await agentAt(4793)}/\n`);
     const d2 = launch(['--detach']);
     expect(await d2.exited, d2.err()).toBe(0);
-    expect(d2.out()).toBe(`already-open ${await loginUrlOf(4793)}\n`);
+    expect(d2.out()).toBe(`already-open ${await agentAt(4793)}/#t=${await loginOf(4793)}\n`);
     expect(Object.keys(windows())).toEqual(['4793']);
     // a window missing from the registry (a failed registry write) is found by /info
     const other = path.join(tmp, 'project-b');
@@ -611,6 +611,26 @@ describe('nota-bene launcher', () => {
     expect(fs.readFileSync(pages()[0]!, 'utf8')).toMatch(new RegExp(`http://127\\.0\\.0\\.1:${port}/a/${m![1]}/${loginRe}`));
   }, 40000);
 
+  it('issue 642: a folder whose agent was closed opens a new agent there, not the server\'s home', async () => {
+    const a = launch(['--detach']);
+    expect(await a.exited, a.err()).toBe(0);
+    const port = Number(Object.keys(windows())[0]);
+    const other = path.join(tmp, 'project-b');
+    fs.mkdirSync(other);
+    const b = launch(['--detach'], {}, FAKE, other);
+    expect(await b.exited, b.err()).toBe(0);
+    const first = (await info(port))!.agents.find((x) => x.root === project)!.id;
+    const close = await fetch(`http://127.0.0.1:${port}/a/${first}/control/close`, { method: 'POST', headers: { 'x-nota-bene-control': fs.readFileSync(path.join(home, 'control-token'), 'utf8').trim() } });
+    expect(close.status).toBe(200);
+    expect((await info(port))!.root).toBe(project); // the server keeps the folder (issue 639)
+    const c = launch(['--detach']);
+    expect(await c.exited, c.err()).toBe(0);
+    const m = new RegExp(`^opened http://127\\.0\\.0\\.1:${port}/a/(claude-[a-z2-7]{6})/${loginRe}\\n$`).exec(c.out());
+    expect(m, c.out()).not.toBeNull();
+    expect(m![1]).not.toBe(first);
+    expect(Object.keys(windows())).toEqual([String(port)]);
+  }, 40000);
+
   it('two parallel --detach launches on one folder end with ONE window: one says opened, the other already-open', async () => {
     const [a, b] = [launch(['--detach']), launch(['--detach'])];
     expect(await a.exited, a.err()).toBe(0);
@@ -618,10 +638,13 @@ describe('nota-bene launcher', () => {
     const [verbA, urlA] = a.out().trim().split(' ');
     const [verbB, urlB] = b.out().trim().split(' ');
     expect([verbA, verbB].sort()).toEqual(['already-open', 'opened']);
-    expect(urlB).toBe(urlA);
     const entries = Object.entries(windows()).filter(([, w]) => w.root === project);
     expect(entries).toHaveLength(1);
-    expect(urlA).toBe(await loginUrlOf(Number(entries[0]![0])));
+    // the new window's home, and its agent of the folder (issue 642)
+    const port = Number(entries[0]![0]);
+    const [opened, again] = verbA === 'opened' ? [urlA, urlB] : [urlB, urlA];
+    expect(opened).toBe(await loginUrlOf(port));
+    expect(again).toBe(`${await agentAt(port)}/#t=${await loginOf(port)}`);
     const roots = [];
     for (let p = 4791; p <= 4795; p++) roots.push((await info(p))?.root);
     expect(roots.filter((r) => r === project)).toHaveLength(1);
@@ -1355,7 +1378,7 @@ describe('the access token', () => {
     groups.add(run.pid!);
     await waitFor(() => windows()['4791'] && logLines(op.log).length > 0);
     const second = spawnSync(process.execPath, [BIN, project, '--fake', FAKE], { env: env(op.env), encoding: 'utf8', timeout: 15000 });
-    expect([second.stdout, second.stderr]).toEqual(['nota-bene: already open at http://127.0.0.1:4791\n', '']); // the foreground line has no token
+    expect([second.stdout, second.stderr]).toEqual([`nota-bene: already open at ${await agentAt(4791)}/\n`, '']); // the foreground line has no token
     await waitFor(() => logLines(op.log).length === 2);
     for (const arg of logLines(op.log)) {
       expect(arg).not.toMatch(/^https?:/);
@@ -1558,7 +1581,7 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
       expect(second.p.exitCode).toBeNull(); // still waiting, not a second window
       fs.writeFileSync(gate, '');
       expect(await second.exited, second.err()).toBe(0);
-      expect(second.out()).toBe('nota-bene: already open at http://127.0.0.1:4793\n');
+      expect(second.out()).toBe(`nota-bene: already open at ${await agentAt(4793)}/\n`);
       expect(Object.keys(windows())).toEqual(['4793']);
       expect(windows()['4793']?.building).toBeUndefined();
     }, 60000);
