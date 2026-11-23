@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **Agents of a project ask each other.** A Claude agent can list the project's other agents, ask one and get its answer, or tell it something; the message shows in the other's feed as from it.
+- **Agents of a project ask each other.** A Claude, Codex or omp agent can list the project's other agents, ask one and get its answer, or tell it something; the message shows in the other's feed as from it.
 - **A warning when two agents edit one file.** Agents of one project that edit the same uncommitted file at the same time each get a line in the feed naming the other.
 - **Several agents in one project.** A project's other agents are tabs beside the chat; **+** adds one (Claude, Codex or omp) on the same folder.
 - **Another computer's agents in the switcher.** The projects a paired computer's Nota Bene holds are listed and open from here, each agent by itself.
