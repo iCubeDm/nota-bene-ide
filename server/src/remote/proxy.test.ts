@@ -251,6 +251,24 @@ describe('the proxy without a window behind it', () => {
     expect(kinds).toEqual(['public', 'public']);
   });
 
+  it('epic 383: the switch from this page names an agent, and the page of one opens on its prefix', async () => {
+    const asked: unknown[] = [];
+    const p = new WindowProxy({ open: () => null, port: 4777, agent: 'codex-k3f7qz', computer: { host: 'h', name: 'Studio' }, projects: async () => ({}), enter: async (to) => (asked.push(to), { error: 'no such window' }), onClose: () => {} });
+    await p.start();
+    closers.push(() => p.close());
+    expect(p.url).toMatch(new RegExp(`^http://localhost:${p.port}/a/codex-k3f7qz/#t=[0-9a-f]{64}$`));
+    const origin = `http://localhost:${p.port}`;
+    const login = p.url.split('#t=')[1]!;
+    const auth = await req(p.port, '/auth', { method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify({ login }) });
+    const cookie = String(auth.headers['set-cookie']![0]).split(';')[0]!;
+    const nav = { cookie, 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' };
+    await req(p.port, '/system/remote/enter?host=h&port=4777&agent=claude-a2b3c4', { headers: nav });
+    await req(p.port, '/system/remote/enter?provider=omp&port=4790&root=%2Fp&agent=omp-x2y3z4', { headers: nav });
+    const bad = await req(p.port, '/system/remote/enter?host=h&port=4777&agent=..%2Fx', { headers: nav });
+    expect([bad.status, bad.headers.location]).toEqual([303, '/?enter=failed']);
+    expect(asked).toEqual([{ host: 'h', port: 4777, agent: 'claude-a2b3c4' }, { provider: 'omp', port: 4790, root: '/p', agent: 'omp-x2y3z4' }]);
+  });
+
   it('a computer that is not connected: the same page, in English without a saved language', async () => {
     const p = new WindowProxy({ open: () => null, port: 4777, computer: { host: 'h', name: 'Studio' }, projects: async () => ({}), enter: async () => ({ error: 'x' }), onClose: () => {} });
     await p.start();

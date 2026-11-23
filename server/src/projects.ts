@@ -129,7 +129,7 @@ export type Computer = { id: string; name: string; windows: HostWindow[] };
  * The windows of the paired computers as rows (issue 297), the state from what the host stream says (`pending`, `busy`);
  * `current`: the one a desktop proxy's page shows. An unknown agent's window is left out (the page names the agents).
  */
-export function remoteRows(computers: Computer[], current?: { host: string; port: number }): RunningRow[] {
+export function remoteRows(computers: Computer[], current?: { host: string; port: number; agent?: string }): RunningRow[] {
   return computers.flatMap((c) => c.windows.flatMap((w): RunningRow[] => {
     // a newer computer's agent this one does not know
     if (!PROVIDERS.includes(w.provider)) return [];
@@ -137,7 +137,8 @@ export function remoteRows(computers: Computer[], current?: { host: string; port
     return [{
       provider: w.provider, port: w.port, root: w.root, title: typeof w.title === 'string' ? w.title : null,
       session: typeof w.session === 'string' ? w.session : null, state: w.pending ? 'waiting' : w.busy ? 'working' : 'idle',
-      current: current?.host === c.id && current.port === w.port, clients: 0, unseen: 0, last, remote: { host: c.id, name: c.name },
+      current: current?.host === c.id && current.port === w.port && current.agent === w.agent, clients: 0, unseen: 0, last,
+      remote: { host: c.id, name: c.name }, ...(w.agent ? { agent: w.agent } : {}),
     }];
   }));
 }
