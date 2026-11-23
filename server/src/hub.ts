@@ -3,6 +3,12 @@ import { reduceTasks, type ServerEvent, type Task, type TasksState } from '@nota
 /** `buffered`: bytes accepted but not yet written to the peer (a WebSocket's bufferedAmount) */
 type Sock = { send(data: string): void; buffered?(): number };
 
+/**
+ * How long after a background task's end (or the end of the turn it ended in) the agent is given to start the turn that
+ * reports it: the CLI was seen starting it 2-12 s later; a CLI that told it within its turn starts none.
+ */
+export const REPORT_WAIT_MS = 30_000;
+
 /** A socket this far behind does not get the frames that can be skipped (`lossy`): the next one carries all they did. */
 export const LOSSY_BACKLOG = 1024 * 1024;
 
@@ -22,6 +28,8 @@ export class EventHub {
   private archived = new WeakSet<ServerEvent>();
   /** what reduceTasks makes of the history, kept as the history grows (issue 471) */
   private tasks: TasksState = {};
+  /** a background task ended and the agent has not started a turn since: the time the wait counts from */
+  private due: number | null = null;
   /** the history's streamed blocks still open, each with its chunks, in the order the feed reducers match them */
   private open: ServerEvent[][] = [];
   private socks = new Set<Sock>();
@@ -79,6 +87,14 @@ export class EventHub {
   /** The agent's tasks still running, not counting watchers (`ambient`): a window with one is not in a pause for an update. */
   tasksRunning(): number {
     return Object.values(this.tasks).filter((t) => t.status === 'running' && !t.ambient).length;
+  }
+
+  /**
+   * A background task ended and its report is still to come: the CLI tells it in a turn of its own, seconds later, and
+   * a restart in between loses it (issue 612). Not a pause, for at most REPORT_WAIT_MS.
+   */
+  reportDue(now = Date.now()): boolean {
+    return this.due !== null && now - this.due < REPORT_WAIT_MS;
   }
 
   /** The ids of every task still running, watchers included: what a dead agent leaves behind. */
@@ -184,9 +200,15 @@ export class EventHub {
    */
   private store(ev: ServerEvent): void {
     this.history.push(ev);
+    const was = this.tasks;
     this.tasks = reduceTasks(this.tasks, ev);
     if (ev.kind !== 'agent') return;
     const t = ev.e.t;
+    if (t === 'task' && ev.e.phase === 'done') {
+      const task = was[ev.e.id];
+      if (task?.status === 'running' && task.bg && !task.ambient && !task.inner) this.due = ev.ts;
+    } else if (t === 'turn-start') this.due = null;
+    else if (t === 'turn-end' && this.due !== null) this.due = ev.ts;
     if (t === 'message-start') this.open.push([]);
     else if (t === 'message-chunk') this.open.at(-1)?.push(ev);
     else if (t === 'turn-end') this.open = [];
@@ -204,6 +226,7 @@ export class EventHub {
     this.tasks = {};
     this.open = [];
     for (const ev of events) this.store(ev);
+    this.due = null; // the history's reports are told
   }
 
   private replayFrame(): string {

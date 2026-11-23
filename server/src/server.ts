@@ -279,7 +279,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     const root = () => manager.info().root;
     // not a pause: a turn, a waiting question or approval, a switch, a `! cmd` run or a task of the agent still running.
     // The update's hand-over (77) and a pending restart (75) wait for the same pause
-    const notPaused = () => manager.busy() || manager.shellRunning() || hub.tasksRunning() > 0;
+    const notPaused = () => manager.busy() || manager.shellRunning() || hub.tasksRunning() > 0 || hub.reportDue();
     // issue 499: a compaction ordered while the agent works waits for the next pause, after a pending restart; the sends
     // of pages that understand it (`held=1`) wait behind both
     const order = compactOrder({
