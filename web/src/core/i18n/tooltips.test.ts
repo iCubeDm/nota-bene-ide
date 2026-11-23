@@ -56,6 +56,7 @@ const SAMPLES: Record<string, (lang: string) => unknown[][]> = {
   markColor: () => [[1], [2], [3], [4], [5]],
   markUndo: () => [[true], [false]],
   projUnseenTip: () => [[3]],
+  helpersOf: () => [[1], [4]],
   projStop: () => [['my-project']],
   projExpand: () => [['my-project']],
   projForget: () => [['my-project']],

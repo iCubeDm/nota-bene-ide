@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setLang, t } from '@/core/i18n/index.ts';
 import { makeStore } from '@/core/testing';
 import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
@@ -94,4 +94,30 @@ it('issue 620: an agent in another worktree of the repository is a tab too, with
   const items = await screen.findAllByRole('menuitem', { name: 'Codex' });
   fireEvent.click(items.at(-1)!);
   await waitFor(() => expect(calls.find((c) => c.url === '/system/projects/open')!.body).toEqual({ dir: '/w/site-x', provider: 'codex', new: true }));
+});
+
+describe('helpers (epic 383 2g)', () => {
+  const lead = { provider: 'claude' as const, port: 4791, root: '/w/site', title: 'Lead', session: 's1', state: 'idle' as const, current: true, clients: 1, unseen: 0, last: null, id: 'claude-l2l2l2' };
+  const helper = (n: string, state: 'working' | 'idle' | 'waiting', of = 'claude-l2l2l2') =>
+    ({ provider: 'codex' as const, port: 4791, root: '/w/site', title: `Help ${n}`, session: `h${n}`, state, current: false, clients: 0, unseen: 0, last: null, agent: `codex-h${n}h2h2h`.slice(0, 12), id: `codex-h${n}h2h2h`.slice(0, 12), lead: of });
+
+  it('a lead\'s helpers are one group after it: a count and their state dots, each opens from its menu', async () => {
+    list = { running: [lead, helper('a', 'working'), helper('b', 'waiting')], recent: [], hidden: [] };
+    setup();
+    const group = await screen.findByRole('button', { name: t('helpersOf', 2) });
+    expect(tabs()).toHaveLength(0);
+    expect(group.querySelectorAll('[data-dot]')).toHaveLength(2);
+    fireEvent.pointerDown(group, { button: 0, pointerType: 'mouse' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Help b/ }));
+    await waitFor(() => expect(nav.go).toHaveBeenCalledWith(URL_OK));
+  });
+
+  it('on a helper\'s page: its lead is a tab, and Keep makes it an agent of the project', async () => {
+    list = { running: [{ ...lead, current: false, agent: 'claude-l2l2l2' }, { ...helper('a', 'idle'), current: true }], recent: [], hidden: [] };
+    setup();
+    await waitFor(() => expect(tabs()).toHaveLength(1));
+    expect(tabs()[0]!.textContent).toContain('Lead');
+    fireEvent.click(screen.getByRole('button', { name: t('helperKeep') }));
+    await waitFor(() => expect(calls.some((c) => c.url === '/agent/keep')).toBe(true));
+  });
 });

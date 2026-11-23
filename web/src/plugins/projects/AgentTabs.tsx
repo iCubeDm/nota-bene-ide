@@ -2,8 +2,10 @@
 // an agent of the same computer (this one, or the one whose page this is) on the same folder; a click moves this tab to
 // it, as the switcher does. + starts a new agent of an installed kind on the folder, or (issue 620) on another worktree
 // of its repository, and moves there; an agent in such a worktree is a tab of the project too, named with its branch.
+// Helpers an agent started (2g) sit under their lead as one group (a count and their state dots), not as tabs; on a
+// helper's own page, Keep makes it an agent of the project.
 import { useEffect, useState } from 'react';
-import { connections, remotePage, routes, toast, useSources, useT } from '@/sdk';
+import { connections, remotePage, routes, send, toast, useSources, useT } from '@/sdk';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, Svg, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { enterProject, openFolder, PROVIDER_LABEL, reasonText, useProjects, type Provider, type RunningRow } from './api.ts';
 import { badgeOf } from './rows.ts';
@@ -28,6 +30,14 @@ export function AgentTabs() {
   if (!here) return null;
   const same = (r: RunningRow) => (r.root === here.root || (!here.remote && trees.has(r.root))) && r.remote?.host === here.remote?.host;
   const others = data!.running.filter((r) => !r.current && same(r) && LIVE.has(r.state));
+  // a helper whose lead is here (this agent or a tab) goes in its lead's group
+  const ids = new Set([here.id, ...others.map((r) => r.id)].filter(Boolean));
+  const grouped = (r: RunningRow) => !!r.lead && ids.has(r.lead);
+  const helpersOf = (id: string | undefined) => (id ? others.filter((r) => r.lead === id) : []);
+  const keep = async () => {
+    const r = await send('/agent/keep', {}).catch(() => null);
+    if (!r?.ok) toast(t('helperKeep'), t('whyBadRequest'));
+  };
   const add = async (dir: string, p: Provider) => {
     const why = await openFolder(dir, p, undefined, undefined, true);
     if (why) toast(t('projEnterFailed', reasonText(why)), dir);
@@ -35,7 +45,18 @@ export function AgentTabs() {
   const choices = (dir: string) => kinds.map((p) => <DropdownMenuItem key={p} onSelect={() => void add(dir, p)}>{PROVIDER_LABEL[p]}</DropdownMenuItem>);
   return (
     <>
-      {others.map((r) => <AgentTab key={`${r.port}/${r.agent ?? r.provider}`} r={r} branch={r.root === here.root ? undefined : trees.get(r.root)} />)}
+      {here.lead && !remote && (
+        <button type="button" title={t('helperKeepTip')} onClick={() => void keep()} className="h-6 flex-none rounded-md border border-border-soft px-2 text-[0.6875rem] text-muted-foreground hover:text-foreground">
+          {t('helperKeep')}
+        </button>
+      )}
+      <HelperGroup helpers={helpersOf(here.id)} />
+      {others.filter((r) => !grouped(r)).map((r) => (
+        <span key={`${r.port}/${r.agent ?? r.provider}`} className="flex flex-none items-center">
+          <AgentTab r={r} branch={r.root === here.root ? undefined : trees.get(r.root)} />
+          <HelperGroup helpers={helpersOf(r.id)} />
+        </span>
+      ))}
       {!remote && kinds.length > 0 && (
         <DropdownMenu>
           <Tooltip>
@@ -61,6 +82,31 @@ export function AgentTabs() {
         </DropdownMenu>
       )}
     </>
+  );
+}
+
+/** A lead's helpers: their count and state dots; its menu opens one. */
+function HelperGroup({ helpers }: { helpers: RunningRow[] }) {
+  const t = useT();
+  if (helpers.length === 0) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" aria-label={t('helpersOf', helpers.length)} title={t('helpersOf', helpers.length)}
+          className="flex h-6 flex-none items-center gap-1 rounded-md px-1.5 text-[0.6875rem] text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+          <span>{helpers.length}</span>
+          {helpers.map((h) => <span key={h.id ?? h.port} data-dot aria-hidden className={`size-1.5 rounded-full ${DOT[h.state]}`} />)}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {helpers.map((h) => (
+          <DropdownMenuItem key={h.id ?? h.port} onSelect={() => void enterProject(h)}>
+            <span aria-hidden className={`size-1.5 flex-none rounded-full ${DOT[h.state]}`} />
+            {[PROVIDER_LABEL[h.provider], h.title].filter(Boolean).join(' · ')}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

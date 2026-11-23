@@ -38,7 +38,7 @@ import { moveWindow, readKeptAgents, writeKeptAgents } from './windows.ts';
 import { pidAlive, samePath } from './platform.ts';
 import { controlToken, describeVersion, listWindows, readJson, systemRoutes } from './system.ts';
 import { overlapWatch } from './overlap.ts';
-import { agentBus, type BusAgent } from './bus.ts';
+import { agentBus, HELPER_IDLE_MS, type BusAgent } from './bus.ts';
 import { RESTART, restartGate } from './restartGate.ts';
 import { compactOrder } from './compactOrder.ts';
 import { TurnMarks, changesWork } from './turnMarks.ts';
@@ -123,6 +123,8 @@ export type ServerOptions = {
   heartbeatMs?: number;
   /** tests shorten how often a pending restart looks for a pause with no page open (restartGate, gh-422) */
   restartEveryMs?: number;
+  /** epic 383 2g: how long a helper may idle before it folds up (tests); default HELPER_IDLE_MS */
+  helperIdleMs?: number;
   /** keeps the remote-access connector running and serves /remote (main.ts); absent = none (tests), /remote answers 503 */
   remote?: RemoteKeeper;
   /** which agent this is and where its data lives (main.ts); default: the one NOTA_BENE_AGENT chose */
@@ -146,6 +148,8 @@ export type AgentOptions = {
   backend: AgentBackend;
   resume?: string;
   fork?: boolean;
+  /** epic 383 2g: the agent that started it (a helper's lead) */
+  lead?: string;
   onStats?: (s: Stats) => void;
   onLimit?: (info: unknown) => void;
 };
@@ -181,6 +185,10 @@ type Shared = {
   /** epic 383 2f: the agent bus, and the bearer an agent calls it with (null: a server without an access token) */
   bus: ReturnType<typeof agentBus>;
   busBearer: (id: string) => string | null;
+  /** epic 383 2g: a helper of `lead`, set once the server is up */
+  spawnHelper: (lead: BusAgent, provider: string, cwd: string) => Promise<BusAgent>;
+  /** an agent's lead changed (Keep): the kept agents are written again */
+  leadChanged: () => void;
   /** POST /a/<id>/control/close, set once the server is up: 200, or 409 for the window's own agent */
   closeAgent: (id: string) => number;
   /** POST /control/open, set once the server is up */
@@ -211,6 +219,9 @@ type Agent = {
   onSwitch(fn: (restart: boolean) => void): void;
   /** epic 383 2f: the agent on the agent bus */
   bus: BusAgent;
+  /** epic 383 2g: a helper's lead (null: the person's agent), and when it last did anything (an idle helper folds up) */
+  lead(): string | null;
+  activeAt(): number;
   /** the conversation got an id, or another one (its first, a /clear) */
   onSessionId(fn: () => void): void;
   /** a turn the exit cuts stays marked */
@@ -297,6 +308,10 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     });
     // the one source of the project root: a switch changes it, so every route reads it per request
     const root = () => manager.info().root;
+    // epic 383 2g: a helper's lead, until the person keeps it; any event of its own counts as activity
+    let lead = a.lead ?? null;
+    let activeAt = Date.now();
+    hub.tap(() => { activeAt = Date.now(); });
     // its turns and edits, for the warning when another agent edits the same file in an overlapping turn
     hub.tap((ev) => {
       if (ev.kind === 'user') s.overlap.turn(a.id, true);
@@ -327,7 +342,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     undo.push(() => order.stop());
     // epic 383 2f: this agent on the bus. A message waits for its pause (and for a pending restart or compaction)
     const onBus: BusAgent = {
-      id: a.id, provider: agent.provider, root, hub, title: () => manager.info().title ?? null,
+      id: a.id, provider: agent.provider, root, hub, title: () => manager.info().title ?? null, lead: () => lead,
       busy: () => notPaused() || order.holding(), waiting: () => manager.pending(),
       deliver: (m) => void manager.send({ id: m.id, text: m.shown, heard: m.text, from: m.from }),
     };
@@ -485,6 +500,14 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
           res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
           res.end('{"ok":true}', () => exitWith(0));
         },
+        // epic 383 2g: the person keeps a helper: it loses its lead and stays as an agent of the project
+        '/agent/keep': (req, res) => {
+          if (req.method !== 'POST') return void res.writeHead(405, { 'content-type': 'text/plain; charset=utf-8' }).end('method not allowed');
+          if (!lead) return void res.writeHead(409, { 'content-type': 'text/plain; charset=utf-8' }).end('not a helper');
+          lead = null;
+          s.leadChanged();
+          res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' }).end('{"ok":true}');
+        },
         ...usageRoutes({ hub }),
         ...dictationRoutes({ hub }),
         ...cutRoutes({ hub, exporter: cutExporter, peaks: cutPeaks, reverse: cutReverse, root }),
@@ -511,7 +534,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       info: () => {
         const { id, root, title, model } = manager.info();
         // busy and clients: for another window's Settings → Windows; pending, last, replies: the phone's list
-        return { agent: a.id, root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root), agents: s.agents() };
+        return { agent: a.id, ...(lead ? { lead } : {}), root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root), agents: s.agents() };
       },
     });
     const switchFailed = (e: unknown) => reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);
@@ -958,6 +981,8 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       },
       onSwitch: (fn) => manager.onSwitch((_id, { restart: same }) => fn(same)),
       bus: onBus,
+      lead: () => lead,
+      activeAt: () => activeAt,
       onSessionId: (fn) => manager.onSessionId(() => fn()),
       freeze: () => turnMarks.freeze(),
       close,
@@ -1082,7 +1107,11 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
           return [...agents.values()].filter((x) => x.id !== id && (samePath(realpathOr(x.root()), here) || trees.has(realpathOr(x.root())))).map((x) => x.bus);
         },
         bearer: (id) => s.busBearer(id),
+        spawn: (lead, provider, cwd) => s.spawnHelper(lead, provider, cwd),
+        close: (id) => void s.closeAgent(id),
       }),
+      spawnHelper: async () => { throw new Error('the server is starting'); },
+      leadChanged: () => {},
       busBearer: (id) => (token === null ? null : createHmac('sha256', token).update(`nota-bene:mcp:${id}`).digest('hex')),
       overlap: overlapWatch({
         found: ({ file, agents: pair }) => {
@@ -1200,12 +1229,14 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     }
 
     let closing: Promise<void> | null = null;
+    let folding: NodeJS.Timeout | undefined; // epic 383 2g: the idle helpers' fold-up, set below
     close = () => (closing ??= (async () => {
       audit?.write('server-stop');
       audit?.close();
       win.stop();
       restart.stop();
       stopFold();
+      clearInterval(folding);
       hostClient.close(); // the Whisper host drops this window's jobs
       if (keeper) {
         keeper.stop(); // the connector goes on for the other windows
@@ -1226,19 +1257,20 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       try {
         const extra = [...agents.values()].filter((a) => a !== primary).map((a) => {
           const session = a.session();
-          return { id: a.id, provider: a.provider, root: a.root(), ...(session ? { session } : {}) };
+          const lead = a.lead();
+          return { id: a.id, provider: a.provider, root: a.root(), ...(session ? { session } : {}), ...(lead ? { lead } : {}) };
         });
         writeKeptAgents(port, { ...(o.keep.launcherPid !== undefined ? { launcherPid: o.keep.launcherPid } : {}), nonce, agents: extra });
       } catch (e) {
         reportError(primary.hub, 'windows', e);
       }
     };
-    const openAgent = async (x: { provider: AgentProvider; cwd: string; backend: AgentBackend; resume?: string; fork?: boolean; id?: string }): Promise<string> => {
+    const openAgent = async (x: { provider: AgentProvider; cwd: string; backend: AgentBackend; resume?: string; fork?: boolean; id?: string; lead?: string }): Promise<string> => {
       if (closing || exiting) throw new Error('the server is stopping');
       if (x.id !== undefined && agents.has(x.id)) throw new Error(`agent ${x.id} is open already`);
       let id = x.id ?? '';
       while (!id || agents.has(id)) id = newAgentId(x.provider);
-      const added = await startAgent(s, { agent: agentContext(x.provider), id, cwd: x.cwd, backend: x.backend, ...(x.resume ? { resume: x.resume } : {}), ...(x.fork ? { fork: true } : {}) });
+      const added = await startAgent(s, { agent: agentContext(x.provider), id, cwd: x.cwd, backend: x.backend, ...(x.resume ? { resume: x.resume } : {}), ...(x.fork ? { fork: true } : {}), ...(x.lead ? { lead: x.lead } : {}) });
       if (closing || exiting) {
         await added.close(); // the close has already gone through the map: this one would outlive it
         throw new Error('the server is stopping');
@@ -1292,10 +1324,31 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       agents.delete(id);
       s.overlap.forget(id);
       s.bus.forget(id);
+      // its helpers fold up with it
+      for (const h of [...agents.values()].filter((x) => x.lead() === id)) s.closeAgent(h.id);
       keep();
       void a.close();
       return 200;
     };
+    s.leadChanged = keep;
+    // epic 383 2g: a helper in the lead's project (its folder or another worktree of its repository), the lead's
+    // provider if none is named; it starts a new session
+    s.spawnHelper = async (lead, provider, cwd) => {
+      if (!o.backends) throw new Error('this server opens no other agents');
+      const p = parseProvider(provider);
+      let dir: string;
+      try { dir = fs.realpathSync.native(path.resolve(lead.root(), cwd)); } catch { throw new Error(`no such folder: ${cwd}`); }
+      const trees = new Set((await repo(lead.root()).catch(() => null))?.checkouts ?? []);
+      if (!samePath(dir, realpathOr(lead.root())) && !trees.has(dir)) throw new Error(`${cwd} is not this project's folder or a worktree of its repository`);
+      const target = launchTarget({ dir, new: true, native: p !== 'claude' }, agentContext(p).stateDir);
+      const id = await openAgent({ provider: p, cwd: dir, backend: o.backends(p), lead: lead.id, ...target });
+      return agents.get(id)!.bus;
+    };
+    // a helper idle this long (no event of its own, nothing running, nothing on its way) folds up
+    folding = setInterval(() => {
+      for (const h of [...agents.values()]) if (h.lead() && !h.bus.busy() && Date.now() - h.activeAt() >= (o.helperIdleMs ?? HELPER_IDLE_MS)) s.closeAgent(h.id);
+    }, Math.min(60_000, o.helperIdleMs ?? HELPER_IDLE_MS));
+    folding.unref();
     // a relaunch of the same launch: the agents it had, each resuming its folder's last session; a fresh one starts with none
     const kept = o.keep ? readKeptAgents(port) : null;
     const same = kept && ((o.keep!.launcherPid !== undefined && kept.launcherPid === o.keep!.launcherPid) || kept.nonce === nonce);
@@ -1309,7 +1362,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
         if (!AGENT_ID.test(k.id) || !k.id.startsWith(`${provider}-`)) throw new Error(`not an agent id: ${k.id}`);
         if (!fs.statSync(k.root, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`the folder of agent ${k.id} is gone: ${k.root}`);
         const target = launchTarget({ dir: k.root, ...(k.session ? { resume: k.session } : {}), native: provider !== 'claude' }, agentContext(provider).stateDir);
-        await openAgent({ provider, cwd: k.root, backend: backends!(provider), id: k.id, ...target });
+        await openAgent({ provider, cwd: k.root, backend: backends!(provider), id: k.id, ...(k.lead ? { lead: k.lead } : {}), ...target });
       } catch (e) {
         reportError(primary.hub, 'agents', e); // that one is dropped: its folder is gone, or its backend would not start
       } finally {

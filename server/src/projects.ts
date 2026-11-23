@@ -30,11 +30,14 @@ export type RunningRow = {
   remote?: { host: string; name: string };
   /** epic 383: an agent the server on `port` opened beside its window's, at `/a/<agent>/` */
   agent?: string;
+  /** epic 383 2g: its agent id (the window's own too), and a helper's lead */
+  id?: string;
+  lead?: string;
 };
 export type ProjectsList = { running: RunningRow[]; recent: (RecentEntry & { running: boolean })[]; /** folders removed from Recent (recent.ts): the page drops them from its session history too */ hidden: string[] };
 export type ProbedInfo = {
   root: string; session?: string | null; title?: string | null; busy?: boolean; pending?: boolean; clients?: number;
-  unseen?: number; last?: LastMessage | null;
+  unseen?: number; last?: LastMessage | null; /** epic 383: its agent id, and (2g) a helper's lead */ agent?: string; lead?: string;
   /** epic 383: the other agents of that server, each its own /a/<id>/info (probeWith) */
   extra?: (ProbedInfo & { agent: string; provider: AgentProvider })[];
 };
@@ -105,6 +108,7 @@ export async function listProjects(own: Own, probe: Probe = probeWith, warn: (m:
         provider: p, port, root: wirePath(root), title: i?.title ?? null, session: i?.session ?? null, state,
         current: port === own.port && (agent ? agent === own.agent : provider === own.provider && !own.agent), clients: i?.clients ?? 0,
         unseen: typeof i?.unseen === 'number' ? i.unseen : 0, last: i?.last ?? null, ...(agent ? { agent } : {}),
+        ...(typeof i?.agent === 'string' ? { id: i.agent } : agent ? { id: agent } : {}), ...(typeof i?.lead === 'string' ? { lead: i.lead } : {}),
       });
       rows.push(row(provider, w.root, live, !alive ? 'restarting' : !live ? 'silent' : stateOf(live)));
       // its other agents: as they answer, or while it restarts the ones it keeps (they come back with it)
