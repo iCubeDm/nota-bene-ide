@@ -1044,16 +1044,23 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       if (found) req.url = p.rest;
       return found;
     };
-    const server = http.createServer((req, res) => {
+    /** the kept agents a relaunch is still reopening (below): a request for one waits, so a tab reloaded meanwhile gets its page */
+    const reopening = new Map<string, Promise<void>>();
+    const reopened = (req: http.IncomingMessage) => reopening.get(agentPrefix(req.url ?? '/')?.id ?? '');
+    const server = http.createServer(function serve(req, res) {
       const found = agentOf(req);
       if (found) return found.handler(req, res);
+      const wait = reopened(req);
+      if (wait) return void wait.then(() => serve(req, res));
       // the Host check before any answer that depends on the agents there are
       res.writeHead(isAllowedHost(req.headers.host, allowedHosts) ? 404 : 403, { 'content-type': 'text/plain; charset=utf-8' });
       res.end('no such agent');
     });
     // the socket is `/ws`, at the top or under an agent's prefix; anything else is no upgrade of ours
-    server.on('upgrade', (req, socket, head) => {
+    server.on('upgrade', function upgrade(req, socket, head) {
       const found = agentOf(req);
+      const wait = found ? undefined : reopened(req);
+      if (wait) return void wait.then(() => upgrade(req, socket, head));
       if (!found || pathOf(req.url ?? '/') !== '/ws') {
         const status = !isAllowedHost(req.headers.host, allowedHosts) ? '403 Forbidden' : found ? '400 Bad Request' : '404 Not Found';
         socket.end(`HTTP/1.1 ${status}\r\nconnection: close\r\ncontent-length: 0\r\n\r\n`);
@@ -1209,7 +1216,10 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     const kept = o.keep ? readKeptAgents(port) : null;
     const same = kept && ((o.keep!.launcherPid !== undefined && kept.launcherPid === o.keep!.launcherPid) || kept.nonce === nonce);
     const backends = o.backends;
-    for (const k of same && backends ? kept.agents : []) {
+    const reopen = same && backends ? kept.agents : [];
+    const settled = new Map(reopen.map((k) => [k.id, Promise.withResolvers<void>()]));
+    for (const [id, p] of settled) reopening.set(id, p.promise);
+    for (const k of reopen) {
       try {
         const provider = parseProvider(k.provider);
         if (!AGENT_ID.test(k.id) || !k.id.startsWith(`${provider}-`)) throw new Error(`not an agent id: ${k.id}`);
@@ -1218,6 +1228,9 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
         await openAgent({ provider, cwd: k.root, backend: backends!(provider), id: k.id, ...target });
       } catch (e) {
         reportError(primary.hub, 'agents', e); // that one is dropped: its folder is gone, or its backend would not start
+      } finally {
+        reopening.delete(k.id);
+        settled.get(k.id)!.resolve();
       }
     }
     keep();

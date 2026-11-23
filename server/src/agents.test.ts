@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 import type { ServerEvent } from '@nota-bene/shared';
 import { fakeBackend } from './agent/fake.ts';
@@ -11,6 +11,16 @@ import { readKeptAgents } from './windows.ts';
 
 // Several agents in one server (epic 383, step 2c): each its own folder, session, socket and one-tab rule; the top is the
 // first one's, as a window's is today.
+
+// a reopen that takes a while, as a real agent's does (its session's history): the session manager comes late when set
+const slow = vi.hoisted(() => ({ ms: 0 }));
+vi.mock('./session.ts', async (orig) => {
+  const m = await orig<typeof import('./session.ts')>();
+  return { ...m, createSessionManager: async (...a: Parameters<typeof m.createSessionManager>) => {
+    if (slow.ms) await new Promise((ok) => setTimeout(ok, slow.ms));
+    return m.createSessionManager(...a);
+  } };
+});
 
 let tmp: string;
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -215,6 +225,23 @@ describe('kept agents (2c-2): a relaunch of the same launch reopens the extra ag
     closers.push(again.close);
     expect(await ids(again.url, b)).toBe(200);
     expect(await json(`${again.url}/a/${b}/info`)).toMatchObject({ root: path.join(tmp, 'b') });
+  });
+
+  it('a request for a kept agent still reopening waits for it (a tab reloaded right after the restart gets its page)', async () => {
+    const s = await start(0, N1, 111);
+    const port = Number(new URL(s.url).port);
+    const b = await s.open({ provider: 'codex', cwd: path.join(tmp, 'b'), backend: fakeBackend([]) });
+    await s.close();
+    slow.ms = 300;
+    const again = start(port, N1, 111);
+    try {
+      let first: number | undefined;
+      while (first === undefined) first = await fetch(`http://127.0.0.1:${port}/a/${b}/`).then((r) => r.status, () => undefined);
+      expect(first).toBe(200);
+    } finally {
+      slow.ms = 0;
+      closers.push((await again).close);
+    }
   });
 
   it('a kept agent whose folder is gone is dropped, not kept for good', async () => {
