@@ -141,6 +141,8 @@ sequenceDiagram
     the icon exists. Strings in every UI language.
   - No installable web app: it cannot start a stopped server, so it adds nothing to the icon. A desktop shell later
     replaces the icon.
+  - As built (#594): the icon runs `nota-bene --app`, the most recent project (Recent) as `nota-bene <folder>` opens it;
+    with no recent project it says to open one first (no server without a folder).
 - **Stop**: "Stop server" in the switcher and `nota-bene stop` stop every agent; "Close project" stops that project's
   agents. A stopped server starts empty next time, previous projects under "Recent".
 - **Restart, crash, update**:

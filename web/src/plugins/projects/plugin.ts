@@ -1,6 +1,7 @@
 import { AGENT_ID, type AgentProvider } from '@nota-bene/shared';
 import type { WithSlice } from '@reduxjs/toolkit';
 import { definePlugin, serverEvent } from '@/sdk';
+import { AppIcon, shortcutResource } from './AppIcon.tsx';
 import { ProjectTitle } from './ProjectSwitcher.tsx';
 import { ProjectRail } from './ProjectRail.tsx';
 import { Starter } from './Starter.tsx';
@@ -26,13 +27,15 @@ export const projectsPlugin = definePlugin({
     { slot: 'header.title', order: 10, render: ProjectTitle },
     // the open projects, outermost: a stopgap before one server for every project (issue 419)
     { slot: 'panel.left', order: 10, render: ProjectRail },
+    // epic 383: the app icon's offer, beside the update notice (20)
+    { slot: 'header.end', order: 15, render: AppIcon },
     { slot: 'overlay', order: 50, render: Starter },
     { slot: 'overlay', order: 70, render: Seen },
   ],
   // Alt+P, in a field too (also on a Mac, where Option+P types π): the project switcher in the header
   commands: [{ id: 'hk_projects', codes: ['KeyP'], mods: { alt: true }, inFields: true, order: 70, run: ({ store }) => void store.dispatch(setProjectsMenu(!selectProjectsMenu(store.getState()))) }],
   settings: projectsSettings,
-  resources: [projectsResource],
+  resources: [projectsResource, shortcutResource],
   // epic 383: `nota-bene` or `/nb` opened another agent of this tab's server: the tab moves to it (same origin, logged in)
   listeners: (start) => {
     start({ actionCreator: serverEvent, effect: ({ payload: ev }) => { if (ev.kind === 'open-agent' && AGENT_ID.test(ev.agent)) nav.go(`/a/${ev.agent}/`); } });

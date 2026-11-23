@@ -68,8 +68,11 @@ nota-bene [dir] [options]       # or: npx nota-bene-ide [dir] [options]
 | `--no-open` | Do not open the browser. |
 | `--url PORT` | Print the login URL of the window on PORT, for another browser. |
 | `--front PORT` | Bring the window on PORT to the front, logged in. |
+| `--app` | Open the most recent project, as the app icon does (no `dir`). |
 
 For a Codex or omp window, add `--agent codex` or `--agent omp` to `--url` and `--front`. Without `--detach` Ctrl+C (on Windows also closing the terminal) stops the window. Script helpers: `--find DIR [--scan]` (port of the live window on DIR, exit 1 if none), `--last DIR` (DIR's last session id), `--version`, `--help`.
+
+**App icon.** `nota-bene shortcut` adds Nota Bene to your apps: `~/Applications/Nota Bene.app` on macOS, a Start menu entry on Windows, a `.desktop` file on Linux. A click opens your most recent project (starting Nota Bene if it is not running), so no terminal is needed. A tab on this computer offers the same with **Add** while no icon is installed; **Not now** hides the offer for 30 days. The icon runs the launcher that installed it; a moved or removed launcher needs `nota-bene shortcut` again.
 
 <details><summary>More</summary>
 

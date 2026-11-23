@@ -501,3 +501,31 @@ describe('update routes', () => {
     expect(s.calls).toEqual(['auto true', 'auto false']);
   });
 });
+
+describe('app icon routes', () => {
+  async function serve(shortcut: { path: () => string | null; installed: () => boolean; install: () => string }) {
+    const routes = systemRoutes({ hub: new EventHub(), root: () => proj, stateDir: serverStateDir(), port: () => 0, repoDir: proj, shortcut,
+      updater: {} as Updater, control: { supervised: () => false, exiting: () => false, restartAgent() {}, restartServer() {}, stop() {} } });
+    const srv = http.createServer((req, res) => routes[new URL(req.url!, 'http://x').pathname]!(req, res));
+    await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+    closers.push(() => new Promise<void>((r) => srv.close(() => r())));
+    return `http://127.0.0.1:${(srv.address() as { port: number }).port}/system/shortcut`;
+  }
+
+  it('GET says whether this computer can have the icon and has it; install installs it', async () => {
+    let installed = false;
+    const url = await serve({ path: () => '/apps/Nota Bene.app', installed: () => installed, install: () => { installed = true; return '/apps/Nota Bene.app'; } });
+    expect(await (await fetch(url)).json()).toEqual({ can: true, installed: false });
+    expect((await fetch(`${url}/install`)).status).toBe(405);
+    const r = await fetch(`${url}/install`, { method: 'POST' });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ path: '/apps/Nota Bene.app' });
+    expect(await (await fetch(url)).json()).toEqual({ can: true, installed: true });
+  });
+
+  it('a platform without one: can is false; a failed install is a 500', async () => {
+    const url = await serve({ path: () => null, installed: () => false, install: () => { throw new Error('no app icon on aix'); } });
+    expect(await (await fetch(url)).json()).toEqual({ can: false, installed: false });
+    expect((await fetch(`${url}/install`, { method: 'POST' })).status).toBe(500);
+  });
+});
