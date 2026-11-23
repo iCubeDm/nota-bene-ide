@@ -388,51 +388,13 @@ describe('guards', () => {
 });
 
 describe('an existing window', () => {
-  it('a registered window is brought to front', async () => {
+  it('issue 642: an open window is not fronted here; the launcher is asked for the folder\'s agent', async () => {
     await fakeWindow(4792, project);
     register(4792, project, process.pid);
-    const r = await nb('');
-    expect(r.code).toBe(0);
-    expect(r.out).toBe(`NB: already open at ${plainUrl(4792)} (brought to front).\n`);
-    expect(openedUrls()).toEqual([tokUrl(4792)]);
-    expect(launches()).toEqual([]);
-  });
-
-  it('with fork it says the window was NOT switched', async () => {
-    await fakeWindow(4792, project);
-    register(4792, project, process.pid);
-    const r = await nb('fork');
-    expect(r.out).toBe(`NB: a window is already open on this folder at ${plainUrl(4792)} (brought to front). It was `
-      + 'NOT switched to this conversation: switching restarts it and may cut a running turn. To move this conversation '
-      + 'there, quit the terminal claude and pick it in Sessions ▾.\n');
-    expect(launches()).toEqual([]);
-  });
-
-  it('fork with an invalid session id still brings an open window to front with the NOT switched note', async () => {
-    await fakeWindow(4792, project);
-    register(4792, project, process.pid);
-    const r = await nb('fork', { sid: 'garbage' });
-    expect(r.code).toBe(0);
-    expect(r.out).toMatch(/^NB: a window is already open on this folder at http:\/\/127\.0\.0\.1:4792 \(brought to front\)\. It was NOT switched/);
-    expect(openedUrls()).toEqual([tokUrl(4792)]);
-  });
-
-  it('an unregistered window (a lost registry write) is found by the /info scan', async () => {
-    await fakeWindow(4791, path.join(tmp, 'elsewhere'));
-    await fakeWindow(4793, project);
-    const r = await nb('new');
-    expect(r.out).toBe(`NB: already open at ${plainUrl(4793)} (brought to front).\n`);
-    expect(openedUrls()).toEqual([tokUrl(4793)]);
-    expect(launches()).toEqual([]);
-  });
-
-  it('a --front that fails is not reported as "brought to front": it says how to get a login link', async () => {
-    await fakeWindow(4792, project);
-    register(4792, project, process.pid);
-    const r = await nb('', { env: { STUB_FRONT_FAIL: '1' } });
-    expect(r.out).toBe(`NB: already open at ${plainUrl(4792)} (no browser could be opened from here: run \`nota-bene --url 4792\` in a terminal for a login link).\n`);
-    expect(r.out).not.toContain('brought to front');
-    expect(r.out).not.toContain('#t=');
+    const r = await nb('', { env: { STUB_OUT: 'already-open http://127.0.0.1:4792/a/claude-k3f7qz/' } });
+    expect(r.out).toBe('NB: already open at http://127.0.0.1:4792/a/claude-k3f7qz/ (brought to front).\n');
+    expect(launches()).toEqual([[project, '--detach', '--agent', 'claude']]);
+    expect(opened()).toEqual([]);
   });
 
   it('the launcher\'s failure line is relayed without any #t= fragment', async () => {
@@ -491,13 +453,6 @@ describe('the environment', () => {
   });
 
   // the launcher fronts the window; with no opener on PATH (open / xdg-open) its --front fails, and the skill says so
-  it.skipIf(WIN)('without a browser opener it says to open the URL instead of "brought to front"', async () => { // Windows: the launcher's opener is not looked up on PATH
-    await fakeWindow(4792, project);
-    register(4792, project, process.pid);
-    const r = await nb('', { env: { PATH: binDir('sandbox', [['node', process.execPath]]) } });
-    expect(r.code).toBe(0);
-    expect(r.out).toBe(`NB: already open at ${plainUrl(4792)} (no browser could be opened from here: run \`nota-bene --url 4792\` in a terminal for a login link).\n`);
-  });
 });
 
 // Windows: needs the Windows launcher (its own track) and a stub for its browser opener, which is not looked up on PATH
@@ -564,23 +519,6 @@ describe('--plan', () => {
     const r = await plan('форк');
     expect(r.code).toBe(0);
     expect(lines(r)['NB-RUN']).toBe(`node ${shown(stubApp)} fork ${SID}`);
-  });
-
-  it('a window already open on the folder: the usual NB: line, brought to front, no NB-RUN', async () => {
-    await fakeWindow(4792, project);
-    register(4792, project, process.pid);
-    let r = await plan('');
-    expect(r.out).toBe(`NB: already open at ${plainUrl(4792)} (brought to front).\n`);
-    expect(openedUrls()).toEqual([tokUrl(4792)]);
-    r = await plan('fork');
-    expect(r.out).toMatch(/^NB: a window is already open on this folder at http:\/\/127\.0\.0\.1:4792 .*NOT switched/);
-    await fakeWindow(4793, path.join(tmp, 'elsewhere'));
-    const other = path.join(project, 'sub');
-    fs.mkdirSync(other);
-    await fakeWindow(4794, other); // unregistered: found by the /info scan
-    r = await plan('new', { cwd: other });
-    expect(r.out).toBe(`NB: already open at ${plainUrl(4794)} (brought to front).\n`);
-    expect(launches()).toEqual([]);
   });
 
   it('guards and refusals are the same NB: lines', async () => {
@@ -705,14 +643,6 @@ describe('the package lookup (plugin install)', () => {
     const r = await plan('fork', { sid: 'nope' });
     expect(r.out).toBe("NB: no valid session id to fork ('nope').\n");
     expect(r.code).toBe(0);
-  });
-
-  it('installed: a window already open on the folder is brought to front, no NB-RUN', async () => {
-    installed();
-    await fakeWindow(4792, project);
-    register(4792, project, process.pid);
-    const r = await plan('');
-    expect(r.out).toBe(`NB: already open at ${plainUrl(4792)} (brought to front).\n`);
   });
 
   it('the version is pinned: a plugin update installs beside the old version and leaves it untouched', async () => {
