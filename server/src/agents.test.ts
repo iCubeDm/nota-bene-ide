@@ -117,6 +117,32 @@ it('two agents of one folder edit one file in overlapping turns: a warning in ea
   expect(sb.events.find((e) => e.kind === 'edit-overlap')).toMatchObject({ file: 'x.ts', agent: top.agent, provider: 'claude' });
 });
 
+it('the agent bus: an agent asks another of its folder at /a/<id>/mcp; the target\'s feed shows the message from it (epic 383 2f)', async () => {
+  const a = path.join(tmp, 'a');
+  const s = await startServer({ insecureNoAuth: true, cwd: a, port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist') });
+  closers.push(s.close);
+  const two = fakeBackend([{ text: 'looks fine' }]);
+  const b = await s.open({ provider: 'codex', cwd: a, backend: two });
+  const far = await s.open({ provider: 'omp', cwd: path.join(tmp, 'b'), backend: fakeBackend([]) });
+  const top = await json(`${s.url}/info`);
+  const sb = await socket(`${s.url}/a/${b}`);
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js');
+  const c = new Client({ name: 'test', version: '1' });
+  await c.connect(new StreamableHTTPClientTransport(new URL(`${s.url}/a/${top.agent}/mcp`)));
+  try {
+    const listed = JSON.parse((await c.callTool({ name: 'agents', arguments: {} }) as { content: { text: string }[] }).content[0]!.text) as { id: string }[];
+    expect(listed.map((x) => x.id)).toEqual([b]); // not the agent of another folder
+    expect(far).toBeTruthy();
+    const r = await c.callTool({ name: 'ask', arguments: { to: b, text: 'review x.ts' } }) as { content: { text: string }[] };
+    expect(r.content[0]!.text).toBe('looks fine');
+    expect(two.prompts[0]).toContain(`[Message from agent ${top.agent} (Claude)`);
+    expect(sb.events.find((e) => e.kind === 'user')).toMatchObject({ text: 'review x.ts', from: { agent: top.agent, provider: 'claude' } });
+  } finally {
+    await c.close();
+  }
+});
+
 it('/control/open: an agent for a folder and provider, the one already open, or a new session as another', async () => {
   const made: string[] = [];
   const a = path.join(tmp, 'a');

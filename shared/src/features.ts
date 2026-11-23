@@ -137,6 +137,8 @@ export const FEATURES = {
   remoteAgents: 32,
   /** the `edit-overlap` event: two agents of one server edit one file in overlapping turns (epic 383 2e) */
   editOverlap: 33,
+  /** the agent bus (epic 383 2f): a `user` event may carry `from`, another agent's message */
+  agentBus: 34,
 } as const;
 
 export type Feature = keyof typeof FEATURES;

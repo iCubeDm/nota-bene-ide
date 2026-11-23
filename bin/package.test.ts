@@ -114,7 +114,7 @@ it('the generated package.json: unscoped name, one bin, exact runtime deps only,
   expect(j.name).not.toMatch(/^@/);
   expect(j.bin).toEqual({ [BIN]: 'bin/nota-bene.mjs' });
   expect(j.version).toBe((JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version);
-  expect(Object.keys(j.dependencies).sort()).toEqual(['@anthropic-ai/claude-agent-sdk', 'uqr', 'ws']);
+  expect(Object.keys(j.dependencies).sort()).toEqual(['@anthropic-ai/claude-agent-sdk', '@modelcontextprotocol/sdk', 'uqr', 'ws']);
   for (const v of Object.values(j.dependencies)) expect(v).toMatch(/^\d+\.\d+\.\d+$/);
   expect(j.private).toBeUndefined();
   expect(j.publishConfig).toBeUndefined();
@@ -149,7 +149,7 @@ it('nota-bene remote runs from the package, its runtime deps installed beside it
 it('a read-only install runs: --find / --last answer, a window serves /info and the page and starts the packaged Whisper host for a dictation, codeChanged stays false, nothing is written to it', { timeout: 30_000 }, async () => {
   // the dependencies live in the repo; make them reachable from the package directory the way npm would
   fs.mkdirSync(path.join(tmp, 'node_modules'), { recursive: true });
-  for (const d of ['ws', '@anthropic-ai']) {
+  for (const d of ['ws', '@anthropic-ai', '@modelcontextprotocol']) {
     const link = path.join(tmp, 'node_modules', d);
     if (!fs.existsSync(link)) fs.symlinkSync(fileURLToPath(new URL(`../node_modules/${d}`, import.meta.url)), link);
   }

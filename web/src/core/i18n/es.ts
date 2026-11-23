@@ -121,6 +121,7 @@ export const es: Dict = {
   agentNoComment: 'Para comentar aquí hay que reiniciar el servidor (código actualizado).',
   batchHead: BATCH_HEADS.es,
   resumed: (id) => `↻ sesión ${id} reanudada`,
+  fromAgent: (agent: string, id: string) => `de ${agent} · ${id}`,
   editOverlap: (agent: string, file: string) => `⚠ ${agent} también está editando ${file}, en un turno a la vez que este; los cambios no están confirmados.`,
   editOverlapOpen: 'Abrir',
   'label_looks-good': 'Se ve bien',

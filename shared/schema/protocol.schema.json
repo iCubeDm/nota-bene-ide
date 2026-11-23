@@ -136,6 +136,22 @@
       ],
       "type": "object"
     },
+    "BusSender": {
+      "description": "epic 383 2f: the agent that sent a message through the agent bus",
+      "properties": {
+        "agent": {
+          "type": "string"
+        },
+        "provider": {
+          "$ref": "#/definitions/AgentProvider"
+        }
+      },
+      "required": [
+        "agent",
+        "provider"
+      ],
+      "type": "object"
+    },
     "Capabilities": {
       "description": "What the agent behind the server can do (R-M7-15), announced in `hello`; the UI hides a control whose capability is false and the server refuses the matching client message. `modes`: the permission modes it offers (empty: no mode pill). `models`: it lists models and switches model and effort on a running session (the server refuses the `model` message otherwise).",
       "properties": {
@@ -808,7 +824,6 @@
       "type": "object"
     },
     "HeldSend": {
-      "description": "protocol 27: a send the server holds behind a pending restart or compaction (issue 499), as the feed shows it",
       "properties": {
         "id": {
           "type": "string"
@@ -1734,6 +1749,10 @@
           "properties": {
             "force": {
               "type": "boolean"
+            },
+            "from": {
+              "$ref": "#/definitions/BusSender",
+              "description": "protocol 34 (epic 383 2f): another agent's message through the agent bus, not the person's"
             },
             "historic": {
               "type": "boolean"
@@ -3985,6 +4004,7 @@
   "x-features": {
     "accessKeys": 21,
     "activity": 1,
+    "agentBus": 34,
     "agentEvents": 5,
     "attachmentAnchors": 17,
     "camera": 9,
@@ -4018,5 +4038,5 @@
     "voiceDetect": 18,
     "wholePicture": 25
   },
-  "x-protocol": 33
+  "x-protocol": 34
 }

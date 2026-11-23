@@ -1,4 +1,5 @@
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
+import { repo } from './git.ts';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -37,6 +38,7 @@ import { moveWindow, readKeptAgents, writeKeptAgents } from './windows.ts';
 import { pidAlive, samePath } from './platform.ts';
 import { controlToken, describeVersion, listWindows, readJson, systemRoutes } from './system.ts';
 import { overlapWatch } from './overlap.ts';
+import { agentBus, type BusAgent } from './bus.ts';
 import { RESTART, restartGate } from './restartGate.ts';
 import { compactOrder } from './compactOrder.ts';
 import { TurnMarks, changesWork } from './turnMarks.ts';
@@ -176,6 +178,9 @@ type Shared = {
   othersBusy: (id: string) => boolean;
   /** epic 383 2e: the agents' edits and turns, for the warning when two edit one file at once */
   overlap: ReturnType<typeof overlapWatch>;
+  /** epic 383 2f: the agent bus, and the bearer an agent calls it with (null: a server without an access token) */
+  bus: ReturnType<typeof agentBus>;
+  busBearer: (id: string) => string | null;
   /** POST /a/<id>/control/close, set once the server is up: 200, or 409 for the window's own agent */
   closeAgent: (id: string) => number;
   /** POST /control/open, set once the server is up */
@@ -204,12 +209,16 @@ type Agent = {
   show(id: string): void;
   restartChanged(pending: boolean): void;
   onSwitch(fn: (restart: boolean) => void): void;
+  /** epic 383 2f: the agent on the agent bus */
+  bus: BusAgent;
   /** the conversation got an id, or another one (its first, a /clear) */
   onSessionId(fn: () => void): void;
   /** a turn the exit cuts stays marked */
   freeze(): void;
   close(): Promise<void>;
 };
+
+const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 
 /** An agent of the server `s`: its session, stores, routes, socket and one-tab rule. */
 async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
@@ -245,6 +254,12 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       ...(o.idle ? { idle: o.idle } : {}),
       ...(o.idleOffInSettings ? { idleOffInSettings: o.idleOffInSettings } : {}),
       ...(o.shell ? { shell: o.shell } : {}),
+      // the agent bus: its own MCP endpoint and bearer. The window's agent starts before the server listens: the port asked
+      // for then (a server on a port the system picks has none yet, and that first start goes without the bus)
+      bus: () => {
+        const port = s.port() || o.port;
+        return port ? { url: `http://127.0.0.1:${port}/a/${a.id}/mcp`, bearer: s.busBearer(a.id) } : null;
+      },
       // a voice message whose transcript failed never reaches the agent: the comments it carried are pending again
       onDropped: (id) => { store.markPending(manager.info().id, id); broadcastComments(); },
     });
@@ -310,6 +325,14 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       everyMs: o.restartEveryMs,
     });
     undo.push(() => order.stop());
+    // epic 383 2f: this agent on the bus. A message waits for its pause (and for a pending restart or compaction)
+    const onBus: BusAgent = {
+      id: a.id, provider: agent.provider, root, hub, title: () => manager.info().title ?? null,
+      busy: () => notPaused() || order.holding(), waiting: () => manager.pending(),
+      deliver: (m) => void manager.send({ id: m.id, text: m.shown, heard: m.text, from: m.from }),
+    };
+    // a person's message starts a chain of its own
+    hub.tap((ev) => { if (ev.kind === 'user' && !ev.from && !ev.historic) s.bus.personSent(a.id); });
     order.enter(manager.archiveId()); // the start: what this session's last run left pending goes on
     manager.onSessionId(() => order.moved());
     manager.onSwitch((_id, { restart: same }) => { if (!same) order.enter(manager.archiveId()); });
@@ -934,6 +957,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
         order.check(); // cancelled: what it held goes on
       },
       onSwitch: (fn) => manager.onSwitch((_id, { restart: same }) => fn(same)),
+      bus: onBus,
       onSessionId: (fn) => manager.onSessionId(() => fn()),
       freeze: () => turnMarks.freeze(),
       close,
@@ -1047,6 +1071,19 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       agents: () => [...agents.values()].map((x) => ({ id: x.id, provider: x.provider })),
       othersBusy: (id) => [...agents.values()].some((x) => x.id !== id && x.notPaused()),
       // each of the two feeds names the file (in its own folder's terms) and the other agent
+      // the bus stays inside a project: the agents on the caller's folder and on the other worktrees of its repository
+      bus: agentBus({
+        get: (id) => agents.get(id)?.bus,
+        peers: async (id) => {
+          const me = agents.get(id);
+          if (!me) return [];
+          const trees = new Set((await repo(me.root()).catch(() => null))?.checkouts ?? []);
+          const here = realpathOr(me.root());
+          return [...agents.values()].filter((x) => x.id !== id && (samePath(realpathOr(x.root()), here) || trees.has(realpathOr(x.root())))).map((x) => x.bus);
+        },
+        bearer: (id) => s.busBearer(id),
+      }),
+      busBearer: (id) => (token === null ? null : createHmac('sha256', token).update(`nota-bene:mcp:${id}`).digest('hex')),
       overlap: overlapWatch({
         found: ({ file, agents: pair }) => {
           for (const [me, other] of [pair, [pair[1], pair[0]]] as const) {
@@ -1078,6 +1115,18 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     const reopened = (req: http.IncomingMessage) => reopening.get(agentPrefix(req.url ?? '/')?.id ?? '');
     const server = http.createServer(function serve(req, res) {
       const found = agentOf(req);
+      // the agent bus (epic 383 2f): its own bearer, from this computer only; the page's auth tiers do not apply
+      if (found && pathOf(req.url ?? '/') === '/mcp') {
+        if (!isAllowedHost(req.headers.host, allowedHosts) || !LOOPBACK.has(req.socket.remoteAddress ?? '')) {
+          res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
+          return void res.end('forbidden');
+        }
+        return void s.bus.handle(found.id, req, res).catch((e: unknown) => {
+          reportError(found.hub, 'bus', e);
+          if (!res.headersSent) res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+          res.end();
+        });
+      }
       if (found) return found.handler(req, res);
       const wait = reopened(req);
       if (wait) return void wait.then(() => serve(req, res));
@@ -1242,6 +1291,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       if (!a || a === primary) return 409;
       agents.delete(id);
       s.overlap.forget(id);
+      s.bus.forget(id);
       keep();
       void a.close();
       return 200;

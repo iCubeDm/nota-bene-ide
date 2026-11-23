@@ -1,8 +1,9 @@
-import type { AgentEffort as EffortLevel, IdleCompact, ImageRef, Voice, AgentMode as Mode, ModelOption, SlashCommand, Stats } from '@nota-bene/shared';
+import type { AgentEffort as EffortLevel, BusSender, IdleCompact, ImageRef, Voice, AgentMode as Mode, ModelOption, SlashCommand, Stats } from '@nota-bene/shared';
 
 export type SessionManager = {
   /** Returns the reason for a send refused (nothing sent or emitted; the server tells the asking socket): 'switching' during a switch, 'busy' for a /compact or /clear typed while the agent is busy; else null. */
-  send(m: { id: string; text: string; force?: boolean; images?: ImageRef[]; voice?: Voice; lang?: string; detect?: true }): 'switching' | 'busy' | null;
+  /** `from` (epic 383 2f): another agent's message through the bus, which the agent hears as `heard` */
+  send(m: { id: string; text: string; force?: boolean; images?: ImageRef[]; voice?: Voice; lang?: string; detect?: true; from?: BusSender; heard?: string }): 'switching' | 'busy' | null;
   /** What `send` would answer for this text right now, without sending (the server asks before it marks comments sent). */
   refusal(text: string): 'switching' | 'busy' | null;
   interrupt(): void;
