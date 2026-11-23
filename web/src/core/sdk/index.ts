@@ -3,7 +3,7 @@
 
 // translations and toasts
 export { t, tIn, useT, getLang, setLang, chooseLang, LANGS, type Lang } from '../i18n/index.ts';
-export { toast } from '../shell/toast.ts';
+export { dismissToast, toast } from '../shell/toast.ts';
 
 // storage
 export { storage, useStored, bool, string, json, oneOf, type Codec, type Stored, type Pref, type SharedPrefs, type Sounds } from './storage.ts';

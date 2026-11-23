@@ -136,7 +136,7 @@ sequenceDiagram
   none runs, then show the last open agent or the starter.
   - `nota-bene shortcut` installs the icon: an app bundle in `~/Applications` on macOS, a Start menu entry on Windows,
     a `.desktop` file on Linux. It runs the installed launcher, so no terminal is needed after the first install.
-  - While no icon is installed, the tab shows a one-line notice "Add Nota Bene to your apps" with **Add** (the server
+  - While no icon is installed, the tab shows a notification "Add Nota Bene to your apps" with **Add** (the server
     installs the icon, as `nota-bene shortcut` would) and **Not now** (hidden for 30 days); it never shows again once
     the icon exists. Strings in every UI language.
   - No installable web app: it cannot start a stopped server, so it adds nothing to the icon. A desktop shell later
