@@ -3,6 +3,8 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { fileURLToPath } from 'node:url';
 import type { AgentProvider } from '@nota-bene/shared';
 import { agentBus, framed, type BusAgent } from './bus.ts';
 import { EventHub } from './hub.ts';
@@ -59,7 +61,7 @@ async function setup(agents: Fake[], o: { idleMs?: number; bearer?: (id: string)
     await c.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/a/${id}/mcp`), bearer ? { requestInit: { headers: { authorization: `Bearer ${bearer}` } } } : {}));
     return c;
   };
-  return { bus, connect };
+  return { bus, connect, port };
 }
 const text = (r: unknown) => ((r as { content: { text: string }[] }).content[0]!.text);
 
@@ -120,4 +122,19 @@ describe('the agent bus', () => {
     const ok = await connect(a.id, 'secret-claude-aaaaaa');
     expect((await ok.listTools()).tools).toHaveLength(3);
   });
+});
+
+describe('nota-bene mcp: the stdio shim for an agent without MCP over HTTP', () => {
+  it('relays to the endpoint with the bearer from its environment', async () => {
+    const a = fake('omp-aaaaaa', 'omp'), b = fake('claude-bbbbbb', 'claude');
+    const { port } = await setup([a, b], { bearer: (id) => `secret-${id}` });
+    const c = new Client({ name: 'test', version: '1' });
+    clients.push(c);
+    await c.connect(new StdioClientTransport({
+      command: process.execPath, args: [fileURLToPath(new URL('../../bin/nota-bene.mjs', import.meta.url)), 'mcp', '--url', `http://127.0.0.1:${port}/a/${a.id}/mcp`],
+      env: { ...process.env, NOTA_BENE_BUS_BEARER: `secret-${a.id}` } as Record<string, string>,
+    }));
+    expect(JSON.parse(text(await c.callTool({ name: 'agents', arguments: {} }))).map((x: { id: string }) => x.id)).toEqual([b.id]);
+    expect(text(await c.callTool({ name: 'ask', arguments: { to: b.id, text: 'hi' } }))).toBe('claude-bbbbbb read: hi');
+  }, 30_000);
 });

@@ -258,7 +258,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       // for then (a server on a port the system picks has none yet, and that first start goes without the bus)
       bus: () => {
         const port = s.port() || o.port;
-        return port ? { url: `http://127.0.0.1:${port}/a/${a.id}/mcp`, bearer: s.busBearer(a.id) } : null;
+        return port ? { url: `http://127.0.0.1:${port}/a/${a.id}/mcp`, bearer: s.busBearer(a.id), launcher: path.join(repoDir, 'bin', 'nota-bene.mjs') } : null;
       },
       // a voice message whose transcript failed never reaches the agent: the comments it carried are pending again
       onDropped: (id) => { store.markPending(manager.info().id, id); broadcastComments(); },
