@@ -201,6 +201,8 @@ type Agent = {
   show(id: string): void;
   restartChanged(pending: boolean): void;
   onSwitch(fn: (restart: boolean) => void): void;
+  /** the conversation got an id, or another one (its first, a /clear) */
+  onSessionId(fn: () => void): void;
   /** a turn the exit cuts stays marked */
   freeze(): void;
   close(): Promise<void>;
@@ -921,6 +923,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
         order.check(); // cancelled: what it held goes on
       },
       onSwitch: (fn) => manager.onSwitch((_id, { restart: same }) => fn(same)),
+      onSessionId: (fn) => manager.onSessionId(() => fn()),
       freeze: () => turnMarks.freeze(),
       close,
     };
@@ -1150,7 +1153,10 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     const keep = () => {
       if (!o.keep) return;
       try {
-        const extra = [...agents.values()].filter((a) => a !== primary).map((a) => ({ id: a.id, provider: a.provider, root: a.root() }));
+        const extra = [...agents.values()].filter((a) => a !== primary).map((a) => {
+          const session = a.session();
+          return { id: a.id, provider: a.provider, root: a.root(), ...(session ? { session } : {}) };
+        });
         writeKeptAgents(port, { ...(o.keep.launcherPid !== undefined ? { launcherPid: o.keep.launcherPid } : {}), nonce, agents: extra });
       } catch (e) {
         reportError(primary.hub, 'windows', e);
@@ -1168,6 +1174,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       }
       agents.set(id, added);
       added.onSwitch((same) => { if (!same) keep(); });
+      added.onSessionId(keep); // its own session comes back with it (two agents may share a folder)
       keep();
       return id;
     };
@@ -1228,7 +1235,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
         const provider = parseProvider(k.provider);
         if (!AGENT_ID.test(k.id) || !k.id.startsWith(`${provider}-`)) throw new Error(`not an agent id: ${k.id}`);
         if (!fs.statSync(k.root, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`the folder of agent ${k.id} is gone: ${k.root}`);
-        const target = launchTarget({ dir: k.root, native: provider !== 'claude' }, agentContext(provider).stateDir);
+        const target = launchTarget({ dir: k.root, ...(k.session ? { resume: k.session } : {}), native: provider !== 'claude' }, agentContext(provider).stateDir);
         await openAgent({ provider, cwd: k.root, backend: backends!(provider), id: k.id, ...target });
       } catch (e) {
         reportError(primary.hub, 'agents', e); // that one is dropped: its folder is gone, or its backend would not start
