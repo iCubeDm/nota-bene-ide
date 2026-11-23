@@ -110,6 +110,49 @@ void main() {
     },
   );
 
+  testWidgets(
+    'a folder\'s agents stay together; a lead\'s helpers are one chip under it, whose sheet opens one (epic 383)',
+    (t) async {
+      await hosts.add(paired(a, 'laptop'));
+      f.results.add(
+        FakeChannel([
+          window(4791, '/home/u/notes', title: 'Lead'),
+          window(4791, '/home/u/site', title: 'Site', agent: 'claude-s2s2s2'),
+          window(4791, '/home/u/notes', title: 'Second', agent: 'codex-c2c2c2'),
+          window(
+            4791,
+            '/home/u/notes',
+            title: 'Helper one',
+            agent: 'codex-h2h2h2',
+            lead: 'claude-x2x2x2',
+          ),
+          window(
+            4791,
+            '/home/u/notes',
+            title: 'Helper two',
+            agent: 'omp-h3h3h3',
+            lead: 'codex-c2c2c2',
+          ),
+        ]),
+      );
+      final opened = <String>[];
+      final links = await pump(t, opened: opened);
+      // the second agent of notes comes right after its first, before site
+      final lead = t.getTopLeft(find.text('Lead')).dy;
+      final second = t.getTopLeft(find.text('Second')).dy;
+      final site = t.getTopLeft(find.text('Site')).dy;
+      expect(lead < second && second < site, isTrue);
+      expect(find.text('Helper one'), findsNothing);
+      expect(find.text('1 helper'), findsNWidgets(2));
+      await t.tap(find.byKey(const ValueKey('helpers-codex-c2c2c2')));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Helper two'));
+      await t.pumpAndSettle();
+      expect(opened.single, startsWith('$a '));
+      links.dispose();
+    },
+  );
+
   testWidgets('tapping a window opens its chat', (t) async {
     await hosts.add(paired(a, 'laptop'));
     f.results.add(FakeChannel([window(4791, '/home/u/notes')]));

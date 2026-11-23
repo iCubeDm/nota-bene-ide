@@ -43,6 +43,7 @@
   "markRead": "Отметить прочитанным",
   "openSession": "Открыть",
   "noWindows": "Нет открытых окон",
+  "helpers": "{n, plural, =1{1 помощник} few{{n} помощника} other{{n} помощников}}",
   "justNow": "только что",
   "minutesAgo": "{n} мин назад",
   "hoursAgo": "{n, plural, one{{n} час назад} few{{n} часа назад} other{{n} часов назад}}",

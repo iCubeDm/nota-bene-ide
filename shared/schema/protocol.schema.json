@@ -908,6 +908,10 @@
             }
           ]
         },
+        "lead": {
+          "description": "epic 383 2g: a helper's lead (an agent id of the same server; the window's own when no row has it as `agent`)",
+          "type": "string"
+        },
         "model": {
           "type": [
             "string",
@@ -4016,6 +4020,7 @@
     "fireLabel": 3,
     "heldSends": 27,
     "hostAgents": 31,
+    "hostLeads": 35,
     "imagesAlone": 26,
     "mediaAnchors": 4,
     "modeAck": 2,
@@ -4038,5 +4043,5 @@
     "voiceDetect": 18,
     "wholePicture": 25
   },
-  "x-protocol": 34
+  "x-protocol": 35
 }
