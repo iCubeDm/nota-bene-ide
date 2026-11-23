@@ -58,7 +58,7 @@ object Notices {
 
     fun serviceNotification(ctx: Context, title: String, text: String): Notification =
         NotificationCompat.Builder(ctx, SERVICE_CHANNEL)
-            .setSmallIcon(R.drawable.ic_launcher_monochrome)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)
             .setOngoing(true)
@@ -75,11 +75,11 @@ object Notices {
         val tag = a["tag"] as String
         val publicTitle = a["publicTitle"] as String
         val public = NotificationCompat.Builder(ctx, EVENTS_CHANNEL)
-            .setSmallIcon(R.drawable.ic_launcher_monochrome)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(publicTitle)
             .build()
         val n = NotificationCompat.Builder(ctx, EVENTS_CHANNEL)
-            .setSmallIcon(R.drawable.ic_launcher_monochrome)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(a["title"] as String)
             .setContentText(a["text"] as String?)
             .setStyle((a["text"] as String?)?.let { NotificationCompat.BigTextStyle().bigText(it) })
