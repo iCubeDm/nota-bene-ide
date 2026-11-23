@@ -5,7 +5,7 @@ import type { ProjectState } from './api.ts';
 import { initials, type Badge } from './rows.ts';
 
 export const folderOf = (root: string) => root.split(/[\\/]/).filter(Boolean).pop() ?? root;
-const DOT: Record<ProjectState, string> = {
+export const DOT: Record<ProjectState, string> = {
   working: 'animate-pulse bg-nb-accent', waiting: 'bg-warn', idle: 'bg-success', restarting: 'bg-muted-foreground/30', silent: 'bg-destructive/60',
 };
 export const STATE_KEY = { working: 'projWorking', waiting: 'projWaiting', idle: 'projIdle', restarting: 'projRestarting', silent: 'projSilent' } as const;

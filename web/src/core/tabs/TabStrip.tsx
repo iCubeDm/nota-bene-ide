@@ -1,5 +1,5 @@
 import { useT, useStored } from '@/sdk';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { shallowEqual } from 'react-redux';
 import { useAppDispatch, useAppSelector, useMedia, useRegistry } from '@/core/store/store.ts';
 import { tabLabel, tabView } from '@/sdk/registry.ts';
@@ -8,6 +8,7 @@ import { activate, closeAll, closeOthers, closeRight, closeTab, selectTabs, type
 import { TabsMenu } from './TabsMenu.tsx';
 import { ICONS, Svg } from '../components/icons.tsx';
 import { focusTab } from './focus.ts';
+import { Slots } from '../shell/Slots.tsx';
 
 /** A tab's icon: its view's (a file its type's), else its kind's. */
 export function TabIcon({ tab }: { tab: Tab }) {
@@ -122,7 +123,10 @@ export function TabStrip() {
       >
         {open.map((tab, i) => (
           // the dot marks a background tab that still plays; the active tab shows its own player
-          <TabItem key={tab.id} tab={tab} label={names[i]!} active={tab.id === active} last={i === open.length - 1} playing={tab.id === playing && tab.id !== active} />
+          <Fragment key={tab.id}>
+            <TabItem tab={tab} label={names[i]!} active={tab.id === active} last={i === open.length - 1} playing={tab.id === playing && tab.id !== active} />
+            {tab.kind === 'chat' && <Slots at="tabs.chat" />}
+          </Fragment>
         ))}
       </div>
       <TabsMenu strip={strip} labels={labels} />

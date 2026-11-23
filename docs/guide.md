@@ -420,6 +420,8 @@ A badge says what needs you: **!** when it waits (a permission, question or plan
 
 The **projects rail** on the window's left edge shows the same running folders as tiles, sorted by name so they stay put, each with its state dot and badge. Click one to switch; this project's is outlined, a dimmed one has no live window (its state is in the tooltip). **+** opens a folder. Turn it off in Settings → Defaults → **Projects rail** (for every window of this agent); narrow windows hide it.
 
+**Several agents in one project.** The project's other agents (another session of the same agent, or another agent on the same folder) are tabs right after the chat's tab, each with its state dot, agent, session title and badge; click one to move this tab to it. **+** after them starts another agent on this folder (pick Claude, Codex or omp) and moves there; it is not shown on another computer's page.
+
 - Choose a project to move this tab to its window, logged in. The arrow lists its sessions of every agent; **+ New session** asks which agent. Hover a session of this window to rename or archive it.
 - **⏻** on a row stops that project's windows (not this one's).
 - **Recent**: folders not running; **✕** removes one.

@@ -1,6 +1,7 @@
 import { AGENT_ID, type AgentProvider } from '@nota-bene/shared';
 import type { WithSlice } from '@reduxjs/toolkit';
 import { definePlugin, serverEvent } from '@/sdk';
+import { AgentTabs } from './AgentTabs.tsx';
 import { AppIcon, shortcutResource } from './AppIcon.tsx';
 import { ProjectTitle } from './ProjectSwitcher.tsx';
 import { ProjectRail } from './ProjectRail.tsx';
@@ -25,6 +26,8 @@ export const projectsPlugin = definePlugin({
   slices: [projectsSlice],
   slots: [
     { slot: 'header.title', order: 10, render: ProjectTitle },
+    // epic 383 2e: the folder's other agents beside the chat's tab, and + to add one
+    { slot: 'tabs.chat', order: 10, render: AgentTabs },
     // the open projects, outermost: a stopgap before one server for every project (issue 419)
     { slot: 'panel.left', order: 10, render: ProjectRail },
     { slot: 'overlay', order: 50, render: Starter },

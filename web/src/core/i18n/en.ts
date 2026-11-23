@@ -414,6 +414,7 @@ export const en: Dict = {
   projThis: 'this window',
   projWorking: 'working',
   projWaiting: 'waiting for you',
+  agentAdd: 'Add an agent to this project',
   projIdle: 'idle',
   projRestarting: 'restarting',
   projSilent: 'not answering',
