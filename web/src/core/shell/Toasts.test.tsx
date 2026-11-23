@@ -6,7 +6,7 @@ import { setLang } from '@/core/i18n/index.ts';
 import { makeStore } from '@/core/testing';
 import { Header } from './Header.tsx';
 import { Toasts } from './Toasts.tsx';
-import { resetToasts, toast } from './toast.ts';
+import { dismissToast, resetToasts, toast } from './toast.ts';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 
@@ -74,6 +74,26 @@ it('the close button (with an aria-label) closes it', () => {
   fireEvent.click(screen.getAllByRole('button', { name: 'Close' })[0]);
   expect(items()).toHaveLength(1);
   expect(items()[0]).toHaveTextContent('U');
+});
+
+it('an offer (a toast with actions) stays until answered; an action runs and closes it', () => {
+  setup();
+  const add = vi.fn();
+  act(() => { toast('Offer', 'why', { actions: [{ label: 'Add', run: add }, { label: 'Later', run: () => {} }] }); });
+  act(() => { vi.advanceTimersByTime(60_000); });
+  expect(items()).toHaveLength(1);
+  expect(items()[0]).not.toHaveClass('border-destructive/40');
+  fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+  expect(add).toHaveBeenCalledOnce();
+  expect(items()).toHaveLength(0);
+});
+
+it('toast returns its id: the caller can take it back', () => {
+  setup();
+  let id = 0;
+  act(() => { id = toast('T', 'm'); });
+  act(() => { dismissToast(id); });
+  expect(items()).toHaveLength(0);
 });
 
 it('at most 5 toasts: the oldest drops', () => {

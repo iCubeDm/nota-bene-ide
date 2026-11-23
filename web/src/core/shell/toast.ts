@@ -3,7 +3,9 @@
  * a dispatch or a store in reach, and a toast is transient UI that is never persisted or replayed. A module singleton
  * with `subscribe` (read by <Toasts> through useStored) is the smallest thing that does that.
  */
-type ToastItem = { id: number; title: string; msg: string; count: number };
+/** A button on the toast: runs, then the toast closes. */
+export type ToastAction = { label: string; run: () => void };
+type ToastItem = { id: number; title: string; msg: string; count: number; actions?: readonly ToastAction[] };
 
 const TIMEOUT_MS = 15_000;
 const MAX = 5;
@@ -35,19 +37,25 @@ export function dismissToast(id: number): void {
   emit();
 }
 
-/** The same title and message again bumps ×N and restarts the timer (prototype: dedup key `title\nmsg`). */
-export function toast(title: string, msg: string): void {
+/**
+ * The same title and message again bumps ×N and restarts the timer (prototype: dedup key `title\nmsg`). With actions it is an
+ * offer, not an error: it waits for an answer, no timer. Returns the id, for dismissToast.
+ */
+export function toast(title: string, msg: string, opts?: { actions?: readonly ToastAction[] }): number {
   const same = list.find((x) => x.title === title && x.msg === msg);
+  let id: number;
   if (same) {
+    id = same.id;
     list = list.map((x) => (x === same ? { ...x, count: x.count + 1 } : x));
-    resumeToast(same.id);
+    if (!same.actions) resumeToast(id);
   } else {
-    const item: ToastItem = { id: ++seq, title, msg, count: 1 };
+    const item: ToastItem = { id: (id = ++seq), title, msg, count: 1, actions: opts?.actions };
     list = [...list, item];
-    resumeToast(item.id);
+    if (!item.actions) resumeToast(id);
     while (list.length > MAX) dismissToast(list[0].id);
   }
   emit();
+  return id;
 }
 
 /** Tests: drop everything and every timer. */

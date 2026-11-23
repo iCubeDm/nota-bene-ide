@@ -4,6 +4,8 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setLang } from '@/core/i18n/index.ts';
 import { testStore } from '@/core/testing';
+import { Toasts } from '@/core/shell/Toasts.tsx';
+import { resetToasts } from '@/core/shell/toast.ts';
 import { AppIcon } from './AppIcon.tsx';
 
 let local = true;
@@ -11,11 +13,13 @@ vi.mock('@/core/net/local.ts', async (orig) => ({ ...(await orig<typeof import('
 
 let answer: { can: boolean; installed: boolean };
 let store: ReturnType<typeof testStore>['store'];
-const render = () => rtlRender(<Provider store={store}><AppIcon /></Provider>);
+const render = () => rtlRender(<Provider store={store}><AppIcon /><Toasts /></Provider>);
+const toasts = () => screen.queryAllByTestId('toast');
 const DAY = 86_400_000;
 beforeEach(() => {
   setLang('en');
   localStorage.clear();
+  resetToasts();
   local = true;
   ({ store } = testStore());
   answer = { can: true, installed: false };
@@ -33,9 +37,13 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const offer = () => screen.findByText('Add Nota Bene to your apps');
+const offer = async () => {
+  const el = await screen.findByTestId('toast');
+  expect(el).toHaveTextContent('Add Nota Bene to your apps');
+  expect(el).toHaveTextContent('A click opens your last project');
+};
 
-it('no icon yet: the offer; Add installs it and the offer goes', async () => {
+it('no icon yet: the offer is a notification; Add installs it and the offer goes', async () => {
   render();
   await offer();
   await userEvent.click(screen.getByRole('button', { name: 'Add' }));
@@ -47,12 +55,12 @@ it('an icon already there, or a computer that cannot have one: nothing', async (
   answer = { can: true, installed: true };
   const a = render();
   await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
-  expect(a.container).toBeEmptyDOMElement();
+  expect(toasts()).toHaveLength(0);
   a.unmount();
   answer = { can: false, installed: false };
-  const b = render();
+  render();
   await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
-  expect(b.container).toBeEmptyDOMElement();
+  expect(toasts()).toHaveLength(0);
 });
 
 it('Not now hides it for 30 days', async () => {
@@ -65,7 +73,7 @@ it('Not now hides it for 30 days', async () => {
   vi.spyOn(Date, 'now').mockReturnValue(now + 29 * DAY);
   const b = render();
   await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
-  expect(b.container).toBeEmptyDOMElement();
+  expect(toasts()).toHaveLength(0);
   b.unmount();
   vi.spyOn(Date, 'now').mockReturnValue(now + 31 * DAY);
   render();
@@ -74,8 +82,15 @@ it('Not now hides it for 30 days', async () => {
 
 it('a page from another device (the phone, a paired computer) never offers it: the icon would go on this computer', async () => {
   local = false;
-  const { container } = render();
+  render();
   await new Promise((r) => setTimeout(r, 20));
   expect(fetch).not.toHaveBeenCalled();
-  expect(container).toBeEmptyDOMElement();
+  expect(toasts()).toHaveLength(0);
+});
+
+it('the window goes (another agent, a closed tab): its offer goes with it', async () => {
+  const a = render();
+  await offer();
+  a.rerender(<Provider store={store}><Toasts /></Provider>);
+  expect(toasts()).toHaveLength(0);
 });
