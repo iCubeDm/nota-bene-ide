@@ -268,8 +268,8 @@ export class RemoteKeeper extends EventEmitter {
   }
 
   /** A desktop proxy of that window of a paired computer (proxy.ts): the URL that logs a tab in there, or why not. */
-  async openWindow(host: string, port: number): Promise<{ url: string } | { error: string }> {
-    const r = await this.#ask({ op: 'open', host, port });
+  async openWindow(host: string, port: number, agent?: string): Promise<{ url: string } | { error: string }> {
+    const r = await this.#ask({ op: 'open', host, port, ...(agent ? { agent } : {}) });
     if (!r) throw new NotRunning();
     return typeof r.url === 'string' ? { url: r.url } : { error: typeof r.error === 'string' ? r.error : 'no such window' };
   }

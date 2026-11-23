@@ -3977,6 +3977,7 @@
     "projectIcon": 15,
     "providerModes": 12,
     "remote": 20,
+    "remoteAgents": 32,
     "remoteHosts": 28,
     "remoteProjects": 29,
     "restartPending": 22,
@@ -3988,5 +3989,5 @@
     "voiceDetect": 18,
     "wholePicture": 25
   },
-  "x-protocol": 31
+  "x-protocol": 32
 }
