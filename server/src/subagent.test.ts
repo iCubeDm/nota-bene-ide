@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { SubagentView } from '@nota-bene/shared';
 import { fakeBackend, type FakeSubagent } from './agent/fake.ts';
-import { startServer } from './server.ts';
+import { agentServer } from './testing.ts';
 
 let home: string;
 let dist: string;
@@ -37,7 +37,7 @@ const subagents: FakeSubagent[] = [
 ];
 
 async function boot() {
-  const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }], { subagents }), webDist: dist, oneTab: false, resume: 'fake-session' });
+  const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }], { subagents }), webDist: dist, oneTab: false, resume: 'fake-session' });
   closers.push(s.close);
   return s;
 }
@@ -76,6 +76,6 @@ describe('GET /subagent', () => {
     for (const q of ['session=..%2Fx&tool=toolu_done', 'session=fake-session&tool=..%2F..%2Fetc', 'session=fake-session&tool=a%2Fb', 'session=fake-session', 'tool=toolu_done', 'session=fake-session&tool=']) {
       expect((await get(s, q)).status, q).toBe(400);
     }
-    expect((await fetch(`${s.url}/subagent?session=fake-session&tool=toolu_done`, { method: 'POST', headers: { origin: s.url } })).status).toBe(405);
+    expect((await fetch(`${s.url}/subagent?session=fake-session&tool=toolu_done`, { method: 'POST', headers: { origin: s.server } })).status).toBe(405);
   });
 });

@@ -192,10 +192,11 @@ it('a read-only install runs: --find / --last answer, a window serves /info and 
     const token = fs.readFileSync(path.join(home, 'token'), 'utf8').trim();
     const auth = { headers: { authorization: `Bearer ${token}` } };
     expect((await fetch(`${url}/info`)).status).toBe(401); // the packaged server wants the token too
-    const info = await (await fetch(`${url}/info`, auth)).json() as { codeChanged: boolean };
+    const info = await (await fetch(`${url}/info`, auth)).json() as { codeChanged: boolean; agents: { id: string }[] };
     expect(info.codeChanged).toBe(false);
+    const at = `${url}/a/${info.agents[0]!.id}`; // its agent's routes (issue 639: the top is the server's home)
     expect(await (await fetch(`${url}/`)).text()).toContain('Nota Bene');
-    const about = await (await fetch(`${url}/system/about`, auth)).json() as { version: string };
+    const about = await (await fetch(`${at}/system/about`, auth)).json() as { version: string };
     expect(about.version).toBe(JSON.parse(fs.readFileSync(path.join(pkg, 'package.json'), 'utf8')).version);
     let found = run(['--find', project]);
     for (let n = 0; n < 50 && found.status !== 0; n++) { // the registry entry is written just after the listen
@@ -207,14 +208,14 @@ it('a read-only install runs: --find / --last answer, a window serves /info and 
 
     // a dictation: the packaged server finds host.js beside its own bundle (hostEntryFile), starts it, and the stub model answers
     // (a non-GET request carries the window's own Origin)
-    const spoken = await fetch(`${url}/dictation/transcribe?lang=en`, { method: 'POST', headers: { ...auth.headers, origin: new URL(url).origin, 'content-type': 'audio/wav' }, body: new Uint8Array(makeWav()) });
+    const spoken = await fetch(`${at}/dictation/transcribe?lang=en`, { method: 'POST', headers: { ...auth.headers, origin: new URL(url).origin, 'content-type': 'audio/wav' }, body: new Uint8Array(makeWav()) });
     expect([spoken.status, await spoken.json()]).toEqual([200, { text: 'heard 8000', lang: 'en' }]);
     const log = fs.readFileSync(path.join(home, 'whisper-host', 'host.log'), 'utf8');
     const pid = Number(/whisper-host (\d+): listening/.exec(log)?.[1]);
     expect(pid).toBeGreaterThan(1);
     hostPids.push(pid);
     expect(isPackagedHost(pid)).toBe(true); // the process that served it runs the package's host.js, not a checkout's hostEntry.ts
-    const state = await (await fetch(`${url}/dictation`, auth)).json() as { host: unknown };
+    const state = await (await fetch(`${at}/dictation`, auth)).json() as { host: unknown };
     expect(state.host).toEqual({ loaded: true, queued: 0, running: false }); // and GET /dictation sees it
     process.kill(pid, 'SIGTERM'); // its own idle exit is 3 s away: this one asks it to go now (it is ours: its log, its home)
     for (let n = 0; n < 200 && alive(pid); n++) await new Promise((r) => setTimeout(r, 50));

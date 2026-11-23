@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import type { ServerEvent } from '@nota-bene/shared';
 import { fakeBackend } from './agent/fake.ts';
-import { startServer } from './server.ts';
+import { agentServer } from './testing.ts';
 
 let home: string;
 let dist: string;
@@ -26,7 +26,7 @@ afterEach(async () => {
 });
 
 async function boot(o: { grace?: number; heartbeat?: number; turns?: Parameters<typeof fakeBackend>[0] } = {}) {
-  const s = await startServer({ insecureNoAuth: true,
+  const s = await agentServer({ insecureNoAuth: true,
     cwd: '/proj', port: 0, backend: fakeBackend(o.turns ?? [{ text: 'hello' }]), webDist: dist,
     takeoverGraceMs: o.grace ?? 60, ...(o.heartbeat ? { heartbeatMs: o.heartbeat } : {}),
   });
@@ -290,7 +290,7 @@ describe('one tab', () => {
   });
 
   it('oneTab: false lets every socket in', async () => {
-    const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([]), webDist: dist, oneTab: false });
+    const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([]), webDist: dist, oneTab: false });
     closers.push(s.close);
     const a = await connect(s.url);
     const b = await connect(s.url);

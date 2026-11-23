@@ -426,7 +426,7 @@ The **projects rail** on the window's left edge shows the same running folders a
 
 **Helpers.** An agent may start helpers for part of its work: `spawn` opens a new agent of the project (Claude, Codex or omp, in its folder or another worktree of the repository) that runs the task as its first turn, and returns its answer; `close` ends one. The agent that started a helper leads it: only it talks to the helper first, and the helper reaches its lead, its own helpers and whoever asked it. A lead's helpers are one group after its tab (their count and state dots; the group's menu opens one). A helper folds up when its lead closes it, when the lead is closed, or after 15 minutes idle; its session stays in Sessions. **Keep** on a helper's tab makes it an agent of the project. On the phone a folder's agents are listed together and a lead's helpers are one chip under it (**N helpers**), which opens them. At most 4 live helpers per lead and 8 per project.
 
-- A project with several agents lists them first when expanded (state, agent, title, *helper*): choose one to move there; **✕** closes an agent beside the window after a confirm (its session stays).
+- A project with several agents lists them first when expanded (state, agent, title, *helper*): choose one to move there; **✕** closes an agent after a confirm (its session stays), the first one too; the server's last agent stays open.
 - Choose a project to move this tab to its window, logged in. The arrow lists its sessions of every agent; **+ New session** asks which agent. Hover a session of this window to rename or archive it.
 - **⏻** on a row stops that project's windows (not this one's).
 - **Recent**: folders not running; **✕** removes one.

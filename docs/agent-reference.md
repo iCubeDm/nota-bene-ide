@@ -210,9 +210,11 @@ The canonical security model. Nothing on the machine reaches the API or the sock
 - **Public:** `/`, static assets, `POST /auth` (own Origin only) and `GET /hello`. A non-GET request needs an allowlisted
   Origin **even with a Bearer**; `/ws` accepts an unset Origin only with valid auth. `/control/` uses `control-token`
   and refuses any Origin, so only a server reaches it. Compare secrets in constant time.
-- **The agent's prefix.** `/a/<id>/…` (`id` = `<provider>-<6 base32>`, from the launch nonce; `/info` names it) is the
-  route below it: `stripAgent` (`server/src/http.ts`) takes the prefix off before any rule reads the path, and the
-  remote channel's `goodPath` and the desktop proxy check the path below it too. Another id is 404.
+- **The agent's prefix.** `/a/<id>/…` (`id` = `<provider>-<6 base32>`; its `/info` names it) is the route below it:
+  `stripAgent` (`server/src/http.ts`) takes the prefix off before any rule reads the path, and the remote channel's
+  `goodPath` and the desktop proxy check the path below it too. Another id is 404. Every agent lives there only: the
+  top is the server's **home** (#639): the app shell, `/auth`, `/hello`, `/info` (`root`, the server's project folder,
+  and `agents`) and `/control/*`, under the same rules. A page opened at the top goes to the first agent's.
 - **Prove before sending.** A helper first asks `GET /hello?c=<challenge>` and sends no derived value to a port until its
   listener proved it holds the token (`proveListener`, `verifiedBearer`). Every probe goes through it: `--find`, the
   launcher's checks, Settings → Windows, the project switcher, the remote connector, `--url` and `--front`.

@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { fakeBackend } from '../agent/fake.ts';
-import { startServer } from '../server.ts';
+import { agentServer } from '../testing.ts';
 import { registerWindow } from '../windows.ts';
 import { remoteMain } from './cli.ts';
 import { Connector } from './connector.ts';
@@ -127,7 +127,7 @@ describe('connector', () => {
   });
 
   it('revoke cuts a phone mid-download at once', async () => {
-    const s = await startServer({ cwd: path.join(tmp, 'proj'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'), exit: () => {} });
+    const s = await agentServer({ cwd: path.join(tmp, 'proj'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'), exit: () => {} });
     closers.push(() => s.close());
     const port = Number(new URL(s.url).port);
     registerWindow(port, path.join(tmp, 'proj'), process.pid);
@@ -137,7 +137,7 @@ describe('connector', () => {
     const p = present(code.uri);
     await p.phone.ready;
     const { device } = (await cl.next((m) => m.t === 'paired')) as { device: { id: string } };
-    const st = p.phone.open({ kind: 'http', port, method: 'GET', path: '/file?path=big.bin' });
+    const st = p.phone.open({ kind: 'http', port, method: 'GET', path: `/a/${s.agent}/file?path=big.bin` });
     st.end();
     // a slow reader: one chunk every 20 ms
     st.ondata = () => new Promise((r) => setTimeout(r, 20));
