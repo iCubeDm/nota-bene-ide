@@ -49,7 +49,7 @@ import { envAgentContext, lastSession, serverStateDir, stateBaseDir } from '../s
 import { defaultChoice, detectAgents, lastAgent, menu, parseChoice, rememberAgent } from '../server/src/agent/choice.ts';
 import { attachAgent } from '../server/src/attach.ts';
 import { readRecent, recordRecent } from '../server/src/recent.ts';
-import { installShortcut } from '../server/src/shortcut.ts';
+import { hostNow, installShortcut } from '../server/src/shortcut.ts';
 import { parentPluginVersion, pluginInstallVersion } from '../server/src/pluginOrigin.ts';
 import { parseProvider } from '../server/src/agent/provider.ts';
 import { RELEASE, isNewer } from '../server/src/update.ts';
@@ -1073,7 +1073,7 @@ export async function main(argv) {
   if (!INNER) process.env.NOTA_BENE_LAUNCHER = SELF;
   if (argv[0] === 'shortcut' && argv.length === 1) {
     try {
-      process.stdout.write(`nota-bene: app icon installed: ${installShortcut()}\n`);
+      process.stdout.write(`nota-bene: app icon installed: ${installShortcut(hostNow({ root: REPO, launcher: SELF }))}\n`);
       return 0;
     } catch (e) {
       say(`the app icon could not be installed: ${e.message}`);

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { installShortcut, shortcutInstalled, shortcutPath, type ShortcutHost } from './shortcut.ts';
+import { hostNow, installShortcut, shortcutInstalled, shortcutPath, type ShortcutHost } from './shortcut.ts';
 
 // the smallest PNG: what the installer copies or wraps is opaque to it
 const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
@@ -72,6 +72,25 @@ describe('shortcut', () => {
 
   it('Windows: a PowerShell failure is an error', () => {
     expect(() => installShortcut(host('win32', { APPDATA: dir }), () => ({ status: 1 }))).toThrow(/shortcut/);
+  });
+
+  it('macOS: a bundle whose Info.plist is missing (a write that failed) does not count as installed', () => {
+    const h = host('darwin');
+    fs.unlinkSync(path.join(installShortcut(h), 'Contents/Info.plist'));
+    expect(shortcutInstalled(h)).toBe(false);
+  });
+
+  it('Linux: a backslash and a % in a path survive the .desktop file\'s two unescapings', () => {
+    const h = { ...host('linux'), launcher: '/opt/a\\b%c/nota-bene.mjs' };
+    expect(fs.readFileSync(installShortcut(h), 'utf8')).toContain('"/opt/a\\\\\\\\b%%c/nota-bene.mjs" --app');
+  });
+
+  it('the package root is given (the published launcher is one bundled file in bin/): its launcher and web/dist icon', () => {
+    const root = path.join(dir, 'pkg');
+    fs.mkdirSync(path.join(root, 'web/dist'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'web/dist/icon-512.png'), PNG);
+    const h = hostNow({ root, launcher: path.join(root, 'bin/nota-bene.mjs') });
+    expect(h).toMatchObject({ launcher: path.join(root, 'bin/nota-bene.mjs'), icon: path.join(root, 'web/dist/icon-512.png') });
   });
 
   it('another platform has none', () => {

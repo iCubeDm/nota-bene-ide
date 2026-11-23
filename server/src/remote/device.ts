@@ -34,7 +34,7 @@ export const unprefixed = (p: string): string => agentPrefix(p)?.rest ?? p;
 
 const goodRoute = (p: string): boolean => !p.startsWith('//') && !/^\/(control|remote)(\/|\?|$)/i.test(p)
   && !/^\/system\/(projects|folders|agents|remote)(\/|\?|$)/i.test(p) // issue 297: `remote` opens proxies to other computers
-  && !/^\/os(\/|\?|$)/i.test(p); // issue 461: Show in Finder / Open act on this computer's desktop
+  && !/^\/(os|system\/shortcut)(\/|\?|$)/i.test(p); // issue 461: Show in Finder / Open, and the app icon, act on this computer's desktop
 
 /** A name to show and save: control and bidi-override characters dropped, at most 64 characters; none when nothing is left. */
 export function cleanName(raw: string): string | undefined {

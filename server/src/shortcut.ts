@@ -24,13 +24,19 @@ type Run = (cmd: string, args: string[], o: { env: NodeJS.ProcessEnv; windowsHid
 
 const ROOT = path.resolve(import.meta.dirname, '..', '..');
 
-/** This computer; the launcher is the one that started this window (its outer part, NOTA_BENE_LAUNCHER), else this package's. */
-export const hostNow = (): ShortcutHost => ({
-  platform: process.platform, home: os.homedir(), env: process.env, state: stateBaseDir(), node: process.execPath,
-  launcher: process.env.NOTA_BENE_LAUNCHER || path.join(ROOT, 'bin', 'nota-bene.mjs'),
-  // the package ships web/dist; a checkout not built yet has the source
-  icon: ['dist', 'public'].map((d) => path.join(ROOT, 'web', d, 'icon-512.png')).find((f) => fs.existsSync(f)) ?? path.join(ROOT, 'web', 'dist', 'icon-512.png'),
-});
+/**
+ * This computer. `root`: the package (this file's, for the server; the launcher passes its own, as the published one is
+ * a single bundled file in bin/). `launcher`: the one that started this window (its outer part, NOTA_BENE_LAUNCHER).
+ */
+export const hostNow = (o: { root?: string; launcher?: string } = {}): ShortcutHost => {
+  const root = o.root ?? ROOT;
+  return {
+    platform: process.platform, home: os.homedir(), env: process.env, state: stateBaseDir(), node: process.execPath,
+    launcher: o.launcher ?? (process.env.NOTA_BENE_LAUNCHER || path.join(root, 'bin', 'nota-bene.mjs')),
+    // the package ships web/dist; a checkout not built yet has the source
+    icon: ['dist', 'public'].map((d) => path.join(root, 'web', d, 'icon-512.png')).find((f) => fs.existsSync(f)) ?? path.join(root, 'web', 'dist', 'icon-512.png'),
+  };
+};
 
 /** Where the icon goes, or null on a platform without one. */
 export function shortcutPath(h: ShortcutHost = hostNow()): string | null {
@@ -42,9 +48,10 @@ export function shortcutPath(h: ShortcutHost = hostNow()): string | null {
   return null;
 }
 
+/** A bundle counts once its Info.plist, written last, is there. */
 export const shortcutInstalled = (h: ShortcutHost = hostNow()): boolean => {
   const p = shortcutPath(h);
-  return p !== null && fs.existsSync(p);
+  return p !== null && fs.existsSync(h.platform === 'darwin' ? path.join(p, 'Contents', 'Info.plist') : p);
 };
 
 /** writeAtomic into a folder made first */
@@ -105,7 +112,8 @@ export function installShortcut(h: ShortcutHost = hostNow(), run: Run = spawnSyn
   if (h.platform === 'linux') {
     const icon = path.join(h.state, 'icon.png');
     put(icon, png);
-    const q = (s: string) => `"${s.replace(/["`$\\]/g, '\\$&')}"`;
+    // Exec's quoting (a backslash before " ` $ \\), then the file's own escaping of a backslash, and %% for a %
+    const q = (s: string) => `"${s.replace(/["`$\\]/g, '\\$&')}"`.replaceAll('\\', '\\\\').replaceAll('%', '%%');
     put(at, `[Desktop Entry]\nType=Application\nName=Nota Bene\nExec=${q(h.node)} ${q(h.launcher)} --app\nIcon=${icon}\nTerminal=false\nCategories=Development;\n`);
     return at;
   }

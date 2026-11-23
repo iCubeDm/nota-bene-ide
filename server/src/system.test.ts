@@ -503,8 +503,8 @@ describe('update routes', () => {
 });
 
 describe('app icon routes', () => {
-  async function serve(shortcut: { path: () => string | null; installed: () => boolean; install: () => string }) {
-    const routes = systemRoutes({ hub: new EventHub(), root: () => proj, stateDir: serverStateDir(), port: () => 0, repoDir: proj, shortcut,
+  async function serve(shortcut: { path: () => string | null; installed: () => boolean; install: () => string } | undefined) {
+    const routes = systemRoutes({ hub: new EventHub(), root: () => proj, stateDir: serverStateDir(), port: () => 0, repoDir: proj, ...(shortcut ? { shortcut } : {}),
       updater: {} as Updater, control: { supervised: () => false, exiting: () => false, restartAgent() {}, restartServer() {}, stop() {} } });
     const srv = http.createServer((req, res) => routes[new URL(req.url!, 'http://x').pathname]!(req, res));
     await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
@@ -523,9 +523,18 @@ describe('app icon routes', () => {
     expect(await (await fetch(url)).json()).toEqual({ can: true, installed: true });
   });
 
-  it('a platform without one: can is false; a failed install is a 500', async () => {
+  it('a window of another state dir (NOTA_BENE_HOME: the dev launcher, a test) never offers it: its icon would replace the real one', async () => {
+    expect(process.env.NOTA_BENE_HOME).toBeTruthy(); // every test here has its own
+    const url = await serve(undefined);
+    expect(await (await fetch(url)).json()).toEqual({ can: false, installed: false });
+    expect((await fetch(`${url}/install`, { method: 'POST' })).status).toBe(409);
+  });
+
+  it('a platform without one: can is false and install is a 409; a failed install is a 500', async () => {
     const url = await serve({ path: () => null, installed: () => false, install: () => { throw new Error('no app icon on aix'); } });
     expect(await (await fetch(url)).json()).toEqual({ can: false, installed: false });
-    expect((await fetch(`${url}/install`, { method: 'POST' })).status).toBe(500);
+    expect((await fetch(`${url}/install`, { method: 'POST' })).status).toBe(409);
+    const broken = await serve({ path: () => '/apps/Nota Bene.app', installed: () => false, install: () => { throw new Error('disk full'); } });
+    expect((await fetch(`${broken}/install`, { method: 'POST' })).status).toBe(500);
   });
 });

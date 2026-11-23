@@ -321,7 +321,9 @@ export function systemRoutes(o: {
     if (!res.headersSent) text(res, 500, 'internal error');
   };
 
-  const shortcut = o.shortcut ?? { path: () => shortcutPath(), installed: () => shortcutInstalled(), install: () => installShortcut() };
+  // a window of another state dir (the dev launcher's, a test's) offers none: its icon would replace the real one, open
+  // that state dir's projects and run that checkout
+  const shortcut = o.shortcut ?? { path: () => (process.env.NOTA_BENE_HOME ? null : shortcutPath()), installed: () => shortcutInstalled(), install: () => installShortcut() };
   const newer = o.newer ?? updateCheck();
   const changes = o.changes ?? changelog();
   return {
@@ -374,10 +376,12 @@ export function systemRoutes(o: {
     // the tab's "Add Nota Bene to your apps" (epic 383): shown while this computer can have the icon and has none
     '/system/shortcut': (req, res) => {
       if (!only('GET', req, res)) return;
-      json(res, 200, { can: shortcut.path() !== null, installed: shortcut.installed() });
+      const can = shortcut.path() !== null;
+      json(res, 200, { can, installed: can && shortcut.installed() });
     },
     '/system/shortcut/install': (req, res) => {
       if (!only('POST', req, res)) return;
+      if (shortcut.path() === null) return text(res, 409, 'no app icon here');
       try {
         json(res, 200, { path: shortcut.install() });
       } catch (e) {
