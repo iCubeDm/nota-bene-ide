@@ -14,6 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fakeBackend } from '../agent/fake.ts';
 import { accessToken, loginCredential, newNonce } from '../auth.ts';
 import { startServer } from '../server.ts';
+import { launchAgentId } from '../state.ts';
 import { registerWindow } from '../windows.ts';
 import { Connector } from './connector.ts';
 import { type Msg } from './control.ts';
@@ -84,6 +85,7 @@ describe('another computer\'s window through this one', () => {
     const aw = await startServer({ cwd: aRoot, port: 0, backend: fakeBackend([{ text: 'a' }]), webDist: path.join(tmp, 'a-dist'), exit: () => {}, remote: keeper, nonce: aNonce });
     closers.push(() => aw.close());
     const aPort = Number(new URL(aw.url).port);
+    const aAt = `/a/${launchAgentId('claude', aNonce)}`; // A's page is its launch agent's (issue 639)
     registerWindow(aPort, aRoot, process.pid);
 
     ask({ op: 'pair' });
@@ -103,15 +105,16 @@ describe('another computer\'s window through this one', () => {
     const aPage = { cookie: aCookie, 'x-nota-bene-key': aKey, origin: `http://127.0.0.1:${aPort}`, 'content-type': 'application/json' };
 
     // A's switcher lists B's window as remote, beside A's own
-    const list = JSON.parse((await req(aPort, '/system/projects', { host: `127.0.0.1:${aPort}`, headers: aPage })).body) as { running: Msg[] };
+    const list = JSON.parse((await req(aPort, `${aAt}/system/projects`, { host: `127.0.0.1:${aPort}`, headers: aPage })).body) as { running: Msg[] };
     expect(list.running).toContainEqual(expect.objectContaining({ port: aPort, current: true }));
     const row = list.running.find((r) => r.remote)!;
+    const bAt = `/a/${String(row.agent)}`; // B's agent, under its prefix there too (issue 639)
     expect(row).toMatchObject({ port: ready.port, root: ready.root, provider: 'claude', state: 'idle', current: false, remote: { host: host.id, name: host.name } });
     // A's own window has no such route: its page gets the app shell there, which is no `{host, name}`
-    expect((await req(aPort, '/system/remote/page', { host: `127.0.0.1:${aPort}`, headers: aPage })).body).toBe('<h1>a</h1>');
+    expect((await req(aPort, `${aAt}/system/remote/page`, { host: `127.0.0.1:${aPort}`, headers: aPage })).body).toBe('<h1>a</h1>');
 
     // opening it: a listener on localhost, with a login of its own
-    const opened = await req(aPort, '/system/remote/open', { method: 'POST', host: `127.0.0.1:${aPort}`, headers: aPage, body: JSON.stringify({ host: host.id, port: ready.port }) });
+    const opened = await req(aPort, `${aAt}/system/remote/open`, { method: 'POST', host: `127.0.0.1:${aPort}`, headers: aPage, body: JSON.stringify({ host: host.id, port: ready.port, agent: row.agent }) });
     expect(opened.status).toBe(200);
     const url = new URL((JSON.parse(opened.body) as { url: string }).url);
     expect(url.hostname).toBe('localhost');
@@ -143,7 +146,7 @@ describe('another computer\'s window through this one', () => {
     expect(info.status).toBe(200);
     expect(JSON.parse(info.body)).toMatchObject({ root: ready.root });
     expect((await req(port, '/info', { headers: { cookie } })).status).toBe(401);
-    const file = await req(port, '/file?path=notes.md', { headers: { cookie } });
+    const file = await req(port, `${bAt}/file?path=notes.md`, { headers: { cookie } });
     expect(file.body).toContain('remote-cross-content');
     expect(JSON.parse((await req(port, '/system/remote/page', { headers: page })).body)).toEqual({ host: host.id, name: host.name });
     const there = JSON.parse((await req(port, '/system/projects', { headers: page })).body) as { running: Msg[]; recent: unknown[] };
@@ -151,7 +154,7 @@ describe('another computer\'s window through this one', () => {
     expect(there.running).toContainEqual(expect.objectContaining({ port: ready.port, current: true, remote: { host: host.id, name: host.name } }));
     expect(there.running).toContainEqual(expect.objectContaining({ port: aPort, root: aRoot, current: false }));
     // A's rows carry what the switcher lists and moves with, nothing of their content
-    expect(there.running.find((r) => r.port === aPort)).toEqual({ provider: 'claude', port: aPort, root: aRoot, title: null, session: null, state: expect.any(String), current: false, clients: 0, unseen: 0, last: null, id: expect.stringMatching(/^claude-/) });
+    expect(there.running.find((r) => r.port === aPort)).toEqual({ provider: 'claude', port: aPort, root: aRoot, title: null, session: null, state: expect.any(String), current: false, clients: 0, unseen: 0, last: null, agent: expect.stringMatching(/^claude-/), id: expect.stringMatching(/^claude-/) });
 
     // what a paired device may not reach is refused here, logged in or not
     const write = { ...page, origin, 'content-type': 'application/json' };
@@ -176,7 +179,7 @@ describe('another computer\'s window through this one', () => {
 
     // the socket: only the page's own (origin, cookie and key), then B's window both ways
     const socket = (headers: Record<string, string>, protocols: string[] = []) =>
-      new WebSocket(`ws://127.0.0.1:${port}/ws?tab=desk1`, protocols, { headers: { host: `localhost:${port}`, ...headers } });
+      new WebSocket(`ws://127.0.0.1:${port}${bAt}/ws?tab=desk1`, protocols, { headers: { host: `localhost:${port}`, ...headers } });
     const refused = (ws: WebSocket) => new Promise<number>((r) => ws.on('unexpected-response', (_q, res) => r(res.statusCode ?? 0)));
     expect(await refused(socket({ origin: `http://127.0.0.1:${aPort}`, cookie }, [`nb.${key}`]))).toBe(403);
     expect(await refused(socket({ origin, cookie }))).toBe(401);
@@ -209,7 +212,7 @@ describe('another computer\'s window through this one', () => {
     expect([gone.status, gone.headers.location]).toEqual([303, '/?enter=no-window']);
     const nowhere = await req(port, `/system/remote/enter?host=nope&port=1`, { headers: nav });
     expect([nowhere.status, nowhere.headers.location]).toEqual([303, '/?enter=not-connected']);
-    const other = await req(port, `/system/remote/enter?host=${host.id}&port=${ready.port}`, { headers: nav });
+    const other = await req(port, `/system/remote/enter?host=${host.id}&port=${ready.port}&agent=${String(row.agent)}`, { headers: nav });
     expect(other.status).toBe(303);
     const otherUrl = new URL(other.headers.location!);
     expect(otherUrl.hostname).toBe('localhost');

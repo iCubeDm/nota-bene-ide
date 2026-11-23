@@ -148,6 +148,8 @@ The `OPEN` body names what the stream is:
   `id` is its folder's, so a window that moves into a server keeps it. Apart
   from `windows` so that a client before them, which would open the server's
   first agent for such a row, does not list them; a host before them sends none.
+  A `windows` row names its agent too (#639: every agent is under its prefix,
+  the server's top is no agent's): the server's first; an older host's has none.
   when the stream opens and again whenever the list or a field changes (it
   checks every 5 s while the stream is open). The phone sends nothing on it.
   The phone ignores fields it does not know and treats every field but `port`,

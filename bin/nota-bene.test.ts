@@ -230,14 +230,17 @@ async function stopWindow(port: number): Promise<void> {
   expect(r.status).toBe(200);
 }
 
-async function info(port: number): Promise<{ root: string; supervised: boolean } | null> {
+async function info(port: number): Promise<{ root: string; supervised: boolean; agents: { id: string }[] } | null> {
   try {
     const r = await fetch(`http://127.0.0.1:${port}/info`, { headers: authHeaders(), signal: AbortSignal.timeout(500) });
-    return r.ok ? ((await r.json()) as { root: string; supervised: boolean }) : null;
+    return r.ok ? ((await r.json()) as { root: string; supervised: boolean; agents: { id: string }[] }) : null;
   } catch {
     return null;
   }
 }
+
+/** The base URL of the server's first agent (issue 639: the top is the server's home; a page is an agent's). */
+const agentAt = async (port: number) => `http://127.0.0.1:${port}/a/${(await waitFor(() => info(port)))!.agents[0]!.id}`;
 
 /** Windows has no ps: the process table through CIM (PowerShell), one `pid<TAB>ppid<TAB>command line` row per process. */
 const winProcs = (): { pid: number; ppid: number; cmd: string }[] =>
@@ -300,7 +303,7 @@ describe('nota-bene launcher', () => {
     launch(['--port', '4792', '--new']);
     const first = await waitFor(() => windows()['4792']);
     expect(argsOf(first.pid)).toContain('--new');
-    const res = await fetch('http://127.0.0.1:4792/restart-server', {
+    const res = await fetch(`${await agentAt(4792)}/restart-server`, {
       method: 'POST',
       headers: { origin: 'http://127.0.0.1:4792', ...authHeaders() },
     });
@@ -448,7 +451,7 @@ describe('nota-bene launcher', () => {
     }));
     launch(['--port', '4792'], {}, fake);
     const first = await waitFor(() => windows()['4792']);
-    const ws = new WebSocket('ws://127.0.0.1:4792/ws', { headers: authHeaders() });
+    const ws = new WebSocket(`${(await agentAt(4792)).replace('http', 'ws')}/ws`, { headers: authHeaders() });
     await new Promise((res, rej) => {
       ws.onopen = res;
       ws.onerror = rej;
@@ -457,7 +460,7 @@ describe('nota-bene launcher', () => {
     // the supervised server re-registers itself with the new root
     await waitFor(async () => (await info(4792))?.root === projB && windows()['4792']?.root === projB);
     ws.close();
-    const res = await fetch('http://127.0.0.1:4792/restart-server', {
+    const res = await fetch(`${await agentAt(4792)}/restart-server`, {
       method: 'POST',
       headers: { origin: 'http://127.0.0.1:4792', ...authHeaders() },
     });
@@ -1412,8 +1415,12 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
     const r = await fetch(`${origin}/auth`, { method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify({ login: await loginOf(port) }) });
     return { cookie: r.headers.get('set-cookie')!.split(';')[0]!, key: ((await r.json()) as { key: string }).key, origin };
   };
-  const socket = (port: number, headers: Record<string, string>, protocols: string[] = []) => new Promise<{ ok: boolean; env?: string }>((resolve) => {
-    const ws = new WS(`ws://127.0.0.1:${port}/ws`, protocols, { headers });
+  const socket = async (port: number, headers: Record<string, string>, protocols: string[] = []) => {
+    const url = `${(await agentAt(port)).replace('http', 'ws')}/ws`;
+    return socketAt(url, headers, protocols);
+  };
+  const socketAt = (url: string, headers: Record<string, string>, protocols: string[]) => new Promise<{ ok: boolean; env?: string }>((resolve) => {
+    const ws = new WS(url, protocols, { headers });
     ws.on('message', () => resolve({ ok: true }));
     ws.on('unexpected-response', () => resolve({ ok: false }));
     ws.on('error', () => resolve({ ok: false }));
@@ -1428,7 +1435,7 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
     const login = await loginAt(4791);
     expect((await socket(4791, { cookie: login.cookie, origin: login.origin }, [`nb.${login.key}`])).ok).toBe(true);
     expect((await socket(4791, { cookie: login.cookie, origin: login.origin })).ok).toBe(false); // the cookie alone: no socket
-    const res = await fetch('http://127.0.0.1:4791/restart-server', { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
+    const res = await fetch(`${await agentAt(4791)}/restart-server`, { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
     expect(res.status).toBe(200);
     await waitFor(() => { const w = windows()['4791']; return w && w.pid !== first.pid ? w : null; });
     await waitFor(async () => (await info(4791)) !== null);
@@ -1464,7 +1471,7 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
     const restart = async (port: number) => {
       const first = await waitFor(() => windows()[String(port)]);
       const login = await loginAt(port);
-      const res = await fetch(`http://127.0.0.1:${port}/restart-server`, { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
+      const res = await fetch(`${await agentAt(port)}/restart-server`, { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
       expect(res.status).toBe(200);
       await waitFor(() => { const w = windows()[String(port)]; return w && w.pid !== first.pid ? w : null; });
       await waitFor(async () => (await info(port)) !== null);
@@ -1525,7 +1532,7 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
       const r = launch(['--port', '4792'], setup(`${lines(1)} || { ps -o pgid= -p $$ | tr -d ' ' > '${tmp}/buildgroup'; sh -c "trap '' TERM; exec sleep 600" & wait; }`));
       await waitFor(() => windows()['4792']);
       const login = await loginAt(4792);
-      const res = await fetch('http://127.0.0.1:4792/restart-server', { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
+      const res = await fetch(`${await agentAt(4792)}/restart-server`, { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
       expect(res.status).toBe(200);
       await waitFor(() => builds() === 2); // the slow build is running
       const buildGroup = Number(await waitFor(() => (fs.existsSync(`${tmp}/buildgroup`) ? fs.readFileSync(`${tmp}/buildgroup`, 'utf8').trim() : '')));
@@ -1543,7 +1550,7 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
       launch(['--port', '4793'], setup(`${lines(1)} || { while [ ! -e '${gate}' ]; do sleep 0.1; done; }`));
       await waitFor(() => windows()['4793']);
       const login = await loginAt(4793);
-      await fetch('http://127.0.0.1:4793/restart-server', { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
+      await fetch(`${await agentAt(4793)}/restart-server`, { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
       await waitFor(() => windows()['4793']?.building);
       const second = launch([], { NOTA_BENE_TEST_RESTART_WAIT_MS: '1000' }); // the same folder, in the gap; 10 s for real
       await waitFor(() => /waiting for a rebuild/.test(second.err()));
@@ -1590,8 +1597,9 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
     launch(['--port', '4791']);
     await waitFor(() => windows()['4791']);
     const n = await helloN(4791);
+    const at = (await agentAt(4791)).replace('http', 'ws');
     const out = await new Promise<string>((resolve) => {
-      const ws = new WS('ws://127.0.0.1:4791/ws', { headers: authHeaders() });
+      const ws = new WS(`${at}/ws`, { headers: authHeaders() });
       ws.on('open', () => ws.send(JSON.stringify({ type: 'shell-run', id: 'e', cmd: 'env' })));
       ws.on('message', (d) => { const e = JSON.parse(String(d)); if (e.kind === 'shell-end') { ws.close(); resolve(String(e.output)); } });
       setTimeout(() => resolve('timeout'), 8000).unref();

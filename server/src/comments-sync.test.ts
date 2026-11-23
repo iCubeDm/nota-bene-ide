@@ -8,7 +8,7 @@ import { fakeBackend } from './agent/fake.ts';
 import type { ProviderBackend as AgentBackend } from './agent/types.ts';
 import { CommentStore } from './comments.ts';
 import { AttachmentStore } from './attachments.ts';
-import { startServer } from './server.ts';
+import { agentServer } from './testing.ts';
 import { serverStateDir } from './state.ts';
 
 let home: string;
@@ -58,7 +58,7 @@ function unwritable(sessionId: string): void {
 }
 
 async function boot(o: { resume?: string; backend?: AgentBackend } = {}) {
-  const s = await startServer({ insecureNoAuth: true,
+  const s = await agentServer({ insecureNoAuth: true,
     cwd: '/proj', port: 0, backend: o.backend ?? fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false,
     ...(o.resume ? { resume: o.resume } : {}),
   });
@@ -312,7 +312,7 @@ describe('mark files follow their comment', () => {
   it('a media comment dropped from the set loses its folder in the project; a kept one and the merge stand', async () => {
     const proj = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-csync-proj-')));
     closers.push(async () => fs.rmSync(proj, { recursive: true, force: true }));
-    const s = await startServer({ insecureNoAuth: true, cwd: proj, port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false });
+    const s = await agentServer({ insecureNoAuth: true, cwd: proj, port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false });
     closers.push(s.close);
     const A = '0f8b2c4e-1a2b-4c3d-9e8f-0123456789ab';
     const B = '1f8b2c4e-1a2b-4c3d-9e8f-0123456789ab';
@@ -338,7 +338,7 @@ describe('mark files follow their comment', () => {
     closers.push(async () => { fs.rmSync(proj, { recursive: true, force: true }); fs.rmSync(out, { recursive: true, force: true }); });
     fs.mkdirSync(path.join(out, 'marks', '0f8b2c4e-1a2b-4c3d-9e8f-0123456789ab'), { recursive: true });
     fs.symlinkSync(out, path.join(proj, '.nota-bene'));
-    const s = await startServer({ insecureNoAuth: true, cwd: proj, port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false });
+    const s = await agentServer({ insecureNoAuth: true, cwd: proj, port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false });
     closers.push(s.close);
     const A = '0f8b2c4e-1a2b-4c3d-9e8f-0123456789ab';
     const media = c(A, {
@@ -369,7 +369,7 @@ describe('sent comments keep their mark files', () => {
       fs.mkdirSync(path.join(proj, '.nota-bene', 'marks', id), { recursive: true });
       fs.writeFileSync(path.join(proj, '.nota-bene', 'marks', id, 'frame.jpg'), 'x');
     }
-    const s = await startServer({ insecureNoAuth: true, cwd: proj, port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false, resume: 'sess-m' });
+    const s = await agentServer({ insecureNoAuth: true, cwd: proj, port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false, resume: 'sess-m' });
     closers.push(s.close);
     const cl = await connect(s.url);
     await until(() => lastComments(cl)?.length === 2);
@@ -378,8 +378,7 @@ describe('sent comments keep their mark files', () => {
     await until(() => !fs.existsSync(path.join(proj, '.nota-bene', 'marks', B)), 10_000); // the pending one goes
     expect(lastComments(cl)!.map((x) => [x.id, x.status])).toEqual([[A, 'sent']]);
     expect(fs.existsSync(path.join(proj, '.nota-bene', 'marks', A, 'frame.jpg'))).toBe(true);
-    const origin = s.url.replace(/\/$/, '');
-    const d = await fetch(`${origin}/marks/${A}`, { method: 'DELETE', headers: { origin } });
+    const d = await fetch(`${s.url}/marks/${A}`, { method: 'DELETE', headers: { origin: s.server } });
     expect(d.status).toBe(409);
     expect(fs.existsSync(path.join(proj, '.nota-bene', 'marks', A, 'frame.jpg'))).toBe(true);
   });

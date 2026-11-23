@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBackend } from './agent/fake.ts';
 import { accessToken } from './auth.ts';
 import { clearSourceCache } from './git.ts';
-import { startServer } from './server.ts';
+import { agentServer } from './testing.ts';
 
 // B1: a window whose root contains the state folder must not serve, list or search the access token, by any route or source.
 
@@ -29,7 +29,7 @@ afterEach(async () => {
 });
 
 async function boot(root: string) {
-  const s = await startServer({ insecureNoAuth: true, cwd: root, port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist') });
+  const s = await agentServer({ insecureNoAuth: true, cwd: root, port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist') });
   closers.push(s.close);
   return s.url;
 }

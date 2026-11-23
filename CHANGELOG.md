@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **A server's first agent closes like the others.** Its row in the switcher closes it alone while another agent of the server is open; the server and the other agents go on. The server's last agent still stays open.
 - **Phone: a project's agents together.** The phone keeps a folder's agents next to each other and shows a lead's helpers as one chip under it.
 - **Moving between a project's agents.** Alt+[ and Alt+] go to the previous and next agent; the switcher lists a project's agents and closes one.
 - **Agents start helpers.** An agent can start another agent of the project for part of its task, get its answer and close it; helpers group under their lead and fold up when idle. **Keep** turns one into an agent of the project.

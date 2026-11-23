@@ -295,14 +295,7 @@ export function systemRoutes(o: {
   newer?: (current: string) => Promise<string | null>;
   /** the CHANGELOG sections between two versions, or null (tests stub it) */
   changes?: (current: string, latest: string) => Promise<string | null>;
-  /** run after the reply is out; `supervised` says whether restart-server can be caught by a launcher */
-  control: {
-    supervised(): boolean; exiting(): boolean; restartAgent(): void; restartServer(): void; restartServerNow?(): void; cancelRestart?(): void; stop(): void;
-    /** POST /control/open (epic 383): the server's agent for a folder, opened if needed; the answer's status and body */
-    open?(body: unknown): Promise<{ status: number; body: unknown }>;
-    /** POST /control/close (epic 383): this agent closes, the server and its other agents go on; the answer's status */
-    close?(): number;
-  };
+  control: Control;
   probe?: (port: number) => Promise<WindowInfo | null>;
   /** the app icon (server/src/shortcut.ts; tests stub it) */
   shortcut?: { path(): string | null; installed(): boolean; install(): string };
@@ -494,34 +487,53 @@ export function systemRoutes(o: {
       }).catch((e: unknown) => (e instanceof SyntaxError || (e instanceof Error && e.message === 'body too large') ? text(res, 400, 'bad request') : fail(res, '/system/windows/action', e)));
     },
 
-    // reached only with the control token (http.ts lets /control/ through without an Origin when the token matches)
-    '/control/': (req, res) => {
-      if (!only('POST', req, res)) return;
-      const action = (req.url ?? '').split('?')[0]!.slice('/control/'.length) as ControlAction;
-      const open = action === ('open' as string) ? o.control.open : undefined;
-      const close = action === ('close' as string) ? o.control.close : undefined;
-      if (!CONTROL_ACTIONS.includes(action) && !open && !close) return text(res, 404, 'not found');
-      if (o.control.exiting()) return text(res, 409, 'exiting'); // a stop or restart is already under way
-      if (close) {
-        const status = close();
-        return status === 200 ? json(res, 200, { ok: true }) : text(res, status, 'the window\'s own agent stops with its window');
-      }
-      if (open) {
-        return void readJson(req).then(open).then(
-          (r) => (typeof r.body === 'string' ? text(res, r.status, r.body) : json(res, r.status, r.body)),
-          (e: unknown) => (e instanceof SyntaxError || (e instanceof Error && e.message === 'body too large') ? text(res, 400, 'bad request') : fail(res, '/control/open', e)),
-        );
-      }
-      if ((action === 'restart-server' || action === 'restart-server-now') && !o.control.supervised()) return text(res, 409, 'not supervised');
-      // answer first: a restart or stop must not cut the reply
-      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
-      res.end('{"ok":true}', () => {
-        if (action === 'restart-agent') o.control.restartAgent();
-        else if (action === 'restart-server') o.control.restartServer();
-        else if (action === 'restart-server-now') (o.control.restartServerNow ?? o.control.restartServer)();
-        else if (action === 'restart-server-cancel') o.control.cancelRestart?.();
-        else o.control.stop();
-      });
-    },
+    '/control/': controlRoute({ hub: o.hub, control: o.control }),
+  };
+}
+
+export type Control = {
+  /** run after the reply is out; `supervised` says whether restart-server can be caught by a launcher */
+  supervised(): boolean; exiting(): boolean; restartServer(): void; restartServerNow?(): void; cancelRestart?(): void; stop(): void;
+  /** an agent's (home has none: issue 639) */
+  restartAgent?(): void;
+  /** POST /control/open (epic 383): the server's agent for a folder, opened if needed; the answer's status and body */
+  open?(body: unknown): Promise<{ status: number; body: unknown }>;
+  /** POST /control/close (epic 383): this agent closes, the server and its other agents go on; the answer's status */
+  close?(): number;
+};
+
+/** POST /control/<action>: reached only with the control token (http.ts lets /control/ through without an Origin when the token matches). */
+export function controlRoute(o: { hub: EventHub; control: Control }): RequestListener {
+  const fail = (res: ServerResponse, where: string, e: unknown) => {
+    reportError(o.hub, where, e);
+    if (!res.headersSent) text(res, 500, 'internal error');
+  };
+  return (req, res) => {
+    if (!only('POST', req, res)) return;
+    const action = (req.url ?? '').split('?')[0]!.slice('/control/'.length) as ControlAction;
+    const open = action === ('open' as string) ? o.control.open : undefined;
+    const close = action === ('close' as string) ? o.control.close : undefined;
+    if (!(CONTROL_ACTIONS.includes(action) && (action !== 'restart-agent' || o.control.restartAgent)) && !open && !close) return text(res, 404, 'not found');
+    if (o.control.exiting()) return text(res, 409, 'exiting'); // a stop or restart is already under way
+    if (close) {
+      const status = close();
+      return status === 200 ? json(res, 200, { ok: true }) : text(res, status, 'the server\'s last agent');
+    }
+    if (open) {
+      return void readJson(req).then(open).then(
+        (r) => (typeof r.body === 'string' ? text(res, r.status, r.body) : json(res, r.status, r.body)),
+        (e: unknown) => (e instanceof SyntaxError || (e instanceof Error && e.message === 'body too large') ? text(res, 400, 'bad request') : fail(res, '/control/open', e)),
+      );
+    }
+    if ((action === 'restart-server' || action === 'restart-server-now') && !o.control.supervised()) return text(res, 409, 'not supervised');
+    // answer first: a restart or stop must not cut the reply
+    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+    res.end('{"ok":true}', () => {
+      if (action === 'restart-agent') o.control.restartAgent?.();
+      else if (action === 'restart-server') o.control.restartServer();
+      else if (action === 'restart-server-now') (o.control.restartServerNow ?? o.control.restartServer)();
+      else if (action === 'restart-server-cancel') o.control.cancelRestart?.();
+      else o.control.stop();
+    });
   };
 }

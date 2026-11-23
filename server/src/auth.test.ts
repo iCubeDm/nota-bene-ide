@@ -290,8 +290,11 @@ async function boot(o: { allowedOrigins?: string[]; oneTab?: boolean; nonce?: st
   const port = Number(new URL(s.url).port);
   const token = accessToken();
   const nonce = o.nonce ?? '';
+  // the launch agent's prefix (issue 639: the top is the server's home; most routes are an agent's)
+  const bearer = o.nonce ? `Bearer ${helperCredential(token, port, o.nonce)}` : (await verifiedBearer(port, 2000))!;
+  const at = `/a/${JSON.parse((await req(port, '/info', { headers: { authorization: bearer } })).body).agents[0].id}`;
   return {
-    ...s, port, token, nonce, origin: `http://127.0.0.1:${port}`,
+    ...s, url: `${s.url}${at}`, server: s.url, at, port, token, nonce, origin: `http://127.0.0.1:${port}`,
     cookie: `${cookieName(port)}=${cookieCredential(token, port, nonce)}`,
     key: keyCredential(token, port, nonce),
     helper: helperCredential(token, port, nonce),
@@ -379,7 +382,7 @@ describe('the route matrix: each route x no credentials, cookie, cookie plus key
   it('no credentials: 401 everywhere; the cookie: open only for the cookie routes; cookie plus key: never 401', async () => {
     const s = await boot({ nonce: N1 });
     const call = (m: { method: string; path: string }, headers: Record<string, string>) =>
-      req(s.port, m.path, { method: m.method, headers: { origin: s.origin, 'content-type': 'application/json', ...headers }, body: m.method === 'POST' ? '{}' : undefined });
+      req(s.port, s.at + m.path, { method: m.method, headers: { origin: s.origin, 'content-type': 'application/json', ...headers }, body: m.method === 'POST' ? '{}' : undefined });
     for (const m of MATRIX) {
       const label = `${m.method} ${m.path}`;
       expect((await call(m, {})).status, `${label}: no credentials`).toBe(401);
@@ -396,7 +399,7 @@ describe('the route matrix: each route x no credentials, cookie, cookie plus key
   it('POST /stop: refused without credentials, with the cookie alone and with a wrong key; cookie + key stops', async () => {
     const codes: number[] = [];
     const s = await boot({ nonce: N1, exit: (c) => { codes.push(c); } });
-    const call = (headers: Record<string, string>) => req(s.port, '/stop', { method: 'POST', headers: { origin: s.origin, ...headers }, body: '{}' });
+    const call = (headers: Record<string, string>) => req(s.port, s.at + '/stop', { method: 'POST', headers: { origin: s.origin, ...headers }, body: '{}' });
     expect((await call({})).status).toBe(401);
     expect((await call({ cookie: s.cookie })).status).toBe(401);
     expect((await call({ cookie: s.cookie, 'x-nota-bene-key': 'f'.repeat(64) })).status).toBe(401);
@@ -415,44 +418,44 @@ describe('the route matrix: each route x no credentials, cookie, cookie plus key
 
   it('public: the shell, assets, /auth (POST), /hello; everything else is in the table above', async () => {
     const s = await boot({ nonce: N1 });
-    for (const p of ['/', '/app.js', '/some/deep/link']) expect((await req(s.port, p)).status, p).toBe(200);
-    expect((await req(s.port, `/hello?c=${'ab'.repeat(16)}`)).status).toBe(200);
-    expect((await req(s.port, '/auth', { method: 'POST', headers: { origin: s.origin }, body: '{}' })).status).toBe(401);
+    for (const p of ['/', '/app.js', '/some/deep/link']) expect((await req(s.port, s.at + p)).status, p).toBe(200);
+    expect((await req(s.port, s.at + `/hello?c=${'ab'.repeat(16)}`)).status).toBe(200);
+    expect((await req(s.port, s.at + '/auth', { method: 'POST', headers: { origin: s.origin }, body: '{}' })).status).toBe(401);
   });
 
   it('the cookie reads project files with Range; the Host check still comes first', async () => {
     const s = await boot({ nonce: N1 });
-    expect((await req(s.port, '/file?path=a.txt', { headers: { cookie: s.cookie } })).body).toBe('project file');
-    expect((await req(s.port, '/file?path=a.txt', { headers: { cookie: s.cookie, range: 'bytes=0-6' } })).status).toBe(206);
-    expect((await req(s.port, '/info', { headers: { host: 'evil.example:1', authorization: `Bearer ${s.helper}` } })).status).toBe(403);
+    expect((await req(s.port, s.at + '/file?path=a.txt', { headers: { cookie: s.cookie } })).body).toBe('project file');
+    expect((await req(s.port, s.at + '/file?path=a.txt', { headers: { cookie: s.cookie, range: 'bytes=0-6' } })).status).toBe(206);
+    expect((await req(s.port, s.at + '/info', { headers: { host: 'evil.example:1', authorization: `Bearer ${s.helper}` } })).status).toBe(403);
   });
 
   it('another port\'s or launch\'s credentials open nothing', async () => {
     const s = await boot({ nonce: N1 });
     for (const p of ['/info', '/file?path=a.txt']) {
-      expect((await req(s.port, p, { headers: { authorization: 'Bearer ' + 'f'.repeat(64) } })).status, p).toBe(401);
-      expect((await req(s.port, p, { headers: { authorization: `Bearer ${helperCredential(s.token, s.port, N2)}` } })).status, p).toBe(401);
-      expect((await req(s.port, p, { headers: { cookie: `${cookieName(s.port)}=${cookieCredential(s.token, s.port, N2)}` } })).status, p).toBe(401);
-      expect((await req(s.port, p, { headers: { cookie: `${cookieName(s.port + 1)}=${cookieCredential(s.token, s.port + 1, N1)}` } })).status, p).toBe(401);
+      expect((await req(s.port, s.at + p, { headers: { authorization: 'Bearer ' + 'f'.repeat(64) } })).status, p).toBe(401);
+      expect((await req(s.port, s.at + p, { headers: { authorization: `Bearer ${helperCredential(s.token, s.port, N2)}` } })).status, p).toBe(401);
+      expect((await req(s.port, s.at + p, { headers: { cookie: `${cookieName(s.port)}=${cookieCredential(s.token, s.port, N2)}` } })).status, p).toBe(401);
+      expect((await req(s.port, s.at + p, { headers: { cookie: `${cookieName(s.port + 1)}=${cookieCredential(s.token, s.port + 1, N1)}` } })).status, p).toBe(401);
     }
   });
 
   it('a cookie with a forged allowed Origin still cannot write, and a write with the key reaches its route', async () => {
     const s = await boot({ nonce: N1 });
     const h = { cookie: s.cookie, origin: s.origin };
-    expect((await req(s.port, '/restart-server', { method: 'POST', headers: h })).status).toBe(401);
-    expect((await req(s.port, '/restart-server', { method: 'POST', headers: { ...h, 'x-nota-bene-key': s.key } })).status).toBe(409); // not supervised
+    expect((await req(s.port, s.at + '/restart-server', { method: 'POST', headers: h })).status).toBe(401);
+    expect((await req(s.port, s.at + '/restart-server', { method: 'POST', headers: { ...h, 'x-nota-bene-key': s.key } })).status).toBe(409); // not supervised
     for (const key of [keyCredential(s.token, s.port + 1, N1), keyCredential(s.token, s.port, N2), s.cookie.split('=')[1]!, s.helper]) {
-      expect((await req(s.port, '/restart-server', { method: 'POST', headers: { ...h, 'x-nota-bene-key': key } })).status).toBe(401);
+      expect((await req(s.port, s.at + '/restart-server', { method: 'POST', headers: { ...h, 'x-nota-bene-key': key } })).status).toBe(401);
     }
   });
 
   it('a Bearer POST needs no key but still needs an allowed Origin: a foreign one and none at all are 403', async () => {
     const s = await boot({ nonce: N1 });
     const auth = { authorization: `Bearer ${s.helper}` };
-    expect((await req(s.port, '/restart-server', { method: 'POST', headers: { ...auth, origin: s.origin } })).status).toBe(409);
-    expect((await req(s.port, '/restart-server', { method: 'POST', headers: { ...auth, origin: 'https://evil.example' } })).status).toBe(403);
-    expect((await req(s.port, '/restart-server', { method: 'POST', headers: auth })).status).toBe(403); // no Origin on a non-GET: refused
+    expect((await req(s.port, s.at + '/restart-server', { method: 'POST', headers: { ...auth, origin: s.origin } })).status).toBe(409);
+    expect((await req(s.port, s.at + '/restart-server', { method: 'POST', headers: { ...auth, origin: 'https://evil.example' } })).status).toBe(403);
+    expect((await req(s.port, s.at + '/restart-server', { method: 'POST', headers: auth })).status).toBe(403); // no Origin on a non-GET: refused
   });
 });
 
@@ -481,11 +484,12 @@ describe('the agent prefix (epic 383): /a/<id>/… is the route below it, every 
     const id = launchAgentId('claude', N1);
     const keyed = { cookie: s.cookie, 'x-nota-bene-key': s.key };
     expect(JSON.parse((await req(s.port, `/a/${id}/info`, { headers: keyed })).body).agent).toBe(id);
-    expect(JSON.parse((await req(s.port, '/info', { headers: keyed })).body).agent).toBe(id);
+    const home = JSON.parse((await req(s.port, '/info', { headers: keyed })).body); // the server's (issue 639)
+    expect([home.agent, home.agents[0].id]).toEqual([undefined, id]);
     for (const p of [`/a/${id}`, `/a/${id}/`, `/a/${id}/app.js`]) expect((await req(s.port, p)).status, p).toBe(200);
-    expect((await wsTry(`${s.url}/a/${id}`, { cookie: s.cookie, origin: s.origin }, [`nb.${s.key}`])).frame).toBeDefined();
-    expect((await wsTry(`${s.url}/a/${id}`, { cookie: s.cookie, origin: s.origin })).status).toBe(401);
-    expect((await wsTry(`${s.url}/a/${launchAgentId('claude', N2)}`, { authorization: `Bearer ${s.helper}` })).status).toBe(404);
+    expect((await wsTry(`${s.server}/a/${id}`, { cookie: s.cookie, origin: s.origin }, [`nb.${s.key}`])).frame).toBeDefined();
+    expect((await wsTry(`${s.server}/a/${id}`, { cookie: s.cookie, origin: s.origin })).status).toBe(401);
+    expect((await wsTry(`${s.server}/a/${launchAgentId('claude', N2)}`, { authorization: `Bearer ${s.helper}` })).status).toBe(404);
     // an upgrade is /ws exactly, at the top or under the prefix: a path a URL parser would choke on or normalise is no socket
     for (const p of ['//[/ws', `/a/${id}//%/ws`, '/x/../ws', `/a/${id}/x/../ws`, '//evil/ws']) {
       const status = await new Promise<number>((resolve, reject) => {
@@ -495,7 +499,7 @@ describe('the agent prefix (epic 383): /a/<id>/… is the route below it, every 
         r.on('error', reject);
         r.end();
       });
-      expect(status, p).toBe(400);
+      expect(status, p).toBe(p.startsWith(`/a/`) ? 400 : 404); // the top has no socket (issue 639)
     }
     // /control/ takes only the control token and never an Origin, under the prefix as at the top
     const control = { 'x-nota-bene-control': controlToken() };
@@ -506,7 +510,7 @@ describe('the agent prefix (epic 383): /a/<id>/… is the route below it, every 
 
 describe('/auth', () => {
   const login = (s: Booted, value: string, headers: Record<string, string> = {}) =>
-    req(s.port, '/auth', { method: 'POST', headers: { origin: s.origin, 'content-type': 'application/json', ...headers }, body: JSON.stringify({ login: value }) });
+    req(s.port, s.at + '/auth', { method: 'POST', headers: { origin: s.origin, 'content-type': 'application/json', ...headers }, body: JSON.stringify({ login: value }) });
   const loginOf = (s: Booted, nonce = s.nonce, port = s.port) => loginCredential(s.token, port, nonce);
 
   it('this launch\'s login value sets the cookie and returns the key; together they open the socket', async () => {
@@ -532,9 +536,9 @@ describe('/auth', () => {
       expect(r.status, v).toBe(401);
       expect(r.headers['set-cookie']).toBeUndefined();
     }
-    const raw = await req(s.port, '/auth', { method: 'POST', headers: { origin: s.origin }, body: JSON.stringify({ token: s.token }) });
+    const raw = await req(s.port, s.at + '/auth', { method: 'POST', headers: { origin: s.origin }, body: JSON.stringify({ token: s.token }) });
     expect(raw.status).toBe(401); // the old field is not understood
-    expect((await req(s.port, '/auth', { method: 'POST', headers: { origin: s.origin }, body: 'not json' })).status).toBe(400);
+    expect((await req(s.port, s.at + '/auth', { method: 'POST', headers: { origin: s.origin }, body: 'not json' })).status).toBe(400);
   });
 
   it('a login value that leaked from an earlier launch is dead at the next', async () => {
@@ -550,11 +554,11 @@ describe('/auth', () => {
 
   it('is a same-origin POST only: no Origin and a foreign Origin are refused even with the right value', async () => {
     const s = await boot({ nonce: N1 });
-    const none = await req(s.port, '/auth', { method: 'POST', body: JSON.stringify({ login: loginOf(s) }) });
+    const none = await req(s.port, s.at + '/auth', { method: 'POST', body: JSON.stringify({ login: loginOf(s) }) });
     expect(none.status).toBe(403);
     expect(none.headers['set-cookie']).toBeUndefined();
     expect((await login(s, loginOf(s), { origin: 'https://evil.example' })).status).toBe(403);
-    expect((await req(s.port, '/auth')).status).toBe(405);
+    expect((await req(s.port, s.at + '/auth')).status).toBe(405);
   });
 });
 
@@ -647,7 +651,7 @@ describe('a launch is a boundary: values from an earlier one are dead', () => {
     closers.pop();
     const later = await boot({ nonce: N2, port });
     expect(later.port).toBe(port);
-    for (const p of ['/info', '/file?path=a.txt']) {
+    for (const p of ['/info', `${later.at}/info`, `${later.at}/file?path=a.txt`]) {
       expect((await req(port, p, { headers: { cookie, 'x-nota-bene-key': key } })).status, p).toBe(401);
       expect((await req(port, p, { headers: { authorization: `Bearer ${helper}` } })).status, p).toBe(401);
     }
@@ -790,7 +794,7 @@ describe('the token and the nonce stay out of what the window runs and prints', 
       if (!done) await new Promise((r) => setTimeout(r, 20));
     }
     expect(done).toBeDefined();
-    const info = (await req(s.port, '/info', { headers: { authorization: `Bearer ${s.helper}` } })).body;
+    const info = (await req(s.port, s.at + '/info', { headers: { authorization: `Bearer ${s.helper}` } })).body;
     for (const secret of [s.token, s.helper, s.key, s.cookie.split('=')[1]!]) {
       expect(done!.output).not.toContain(secret);
       expect(JSON.stringify(process.env)).not.toContain(secret);
@@ -807,7 +811,7 @@ describe('small closings', () => {
     expect(fs.existsSync(path.join(home, 'control-token'))).toBe(true);
     fs.rmSync(path.join(home, 'control-token'));
     for (const headers of [{}, { 'x-nota-bene-control': 'f'.repeat(64) }, { authorization: `Bearer ${s.helper}` }] as Record<string, string>[]) {
-      expect((await req(s.port, '/control/stop', { method: 'POST', headers })).status).toBe(403);
+      expect((await req(s.port, s.at + '/control/stop', { method: 'POST', headers })).status).toBe(403);
     }
     expect(fs.existsSync(path.join(home, 'control-token'))).toBe(false);
   });
