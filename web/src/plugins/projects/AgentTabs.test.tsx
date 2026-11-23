@@ -8,6 +8,7 @@ import { page } from '@/core/net/local.ts';
 import type { ProjectsList } from './api.ts';
 import { nav } from './api.ts';
 import { AgentTabs } from './AgentTabs.tsx';
+import { resetSources, setSources } from '@/core/refs/sources.ts';
 
 const URL_OK = `http://127.0.0.1:4791/a/codex-k3f7qz/#t=${'a'.repeat(64)}`;
 const STUDIO = { host: 'h1', name: 'Studio' };
@@ -41,7 +42,7 @@ beforeEach(() => {
   vi.spyOn(document, 'hasFocus').mockReturnValue(true);
   vi.spyOn(nav, 'go').mockImplementation(() => {});
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); page.remote = null; });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); page.remote = null; resetSources(); });
 
 const setup = () => render(<Provider store={makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) })}><TooltipProvider><AgentTabs /></TooltipProvider></Provider>);
 const tabs = () => screen.queryAllByRole('tab');
@@ -79,4 +80,18 @@ it('on another computer\'s page: that computer\'s agents of the folder, no +', a
   await waitFor(() => expect(tabs()).toHaveLength(1));
   expect(tabs()[0]!.textContent).toBe('ClaudeFar');
   expect(screen.queryByRole('button', { name: t('agentAdd') })).toBeNull();
+});
+
+it('issue 620: an agent in another worktree of the repository is a tab too, with its branch; + starts one there', async () => {
+  setSources([{ id: 'wt:x', kind: 'worktree', label: 'feature/x', ref: 'feature/x', dir: '/w/site-x' }]);
+  list = { ...LIST, running: [...LIST.running, { provider: 'codex', port: 4791, root: '/w/site-x', title: 'Try the fix', session: 's6', state: 'idle', current: false, clients: 0, unseen: 0, last: null, agent: 'codex-x2y3z4' }] };
+  setup();
+  await waitFor(() => expect(tabs()).toHaveLength(3));
+  expect(tabs()[2]!.getAttribute('aria-label')).toBe('Codex · feature/x · Try the fix · ' + t('projIdle'));
+  fireEvent.pointerDown(screen.getByRole('button', { name: t('agentAdd') }), { button: 0, pointerType: 'mouse' });
+  const sub = await screen.findByRole('menuitem', { name: 'feature/x' });
+  fireEvent.keyDown(sub, { key: 'ArrowRight' });
+  const items = await screen.findAllByRole('menuitem', { name: 'Codex' });
+  fireEvent.click(items.at(-1)!);
+  await waitFor(() => expect(calls.find((c) => c.url === '/system/projects/open')!.body).toEqual({ dir: '/w/site-x', provider: 'codex', new: true }));
 });
