@@ -10,7 +10,7 @@
 import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import type net from 'node:net';
-import { PROTOCOL, type HostWindow } from '@nota-bene/shared';
+import { AGENT_ID, PROTOCOL, type HostWindow } from '@nota-bene/shared';
 import { DeviceChannel } from './device.ts';
 import { Windows } from './discover.ts';
 import { closeControl, running, serveControl, write, type Msg } from './control.ts';
@@ -192,23 +192,22 @@ export class Connector extends EventEmitter {
       .map((l) => ({ id: l.host.id, name: l.host.name ?? fingerprint(fromB64u(l.host.pub, 32)), windows: l.link.windows }));
   }
 
-  /** A desktop proxy for that window of a paired computer (proxy.ts): its login URL, or why not. */
-  async openProxy(host: string, port: number): Promise<{ url: string } | { error: string }> {
+  /** A desktop proxy for that window of a paired computer, or with `agent` (epic 383) that agent of its server (proxy.ts): its login URL, or why not. */
+  async openProxy(host: string, port: number, agent?: string): Promise<{ url: string } | { error: string }> {
     const l = this.#links.get(host);
     if (!l || l.link.state !== 'online') return { error: 'not connected' };
-    if (!l.link.windows.some((w) => w.port === port)) return { error: 'no such window' };
+    if (!l.link.windows.some((w) => w.port === port && w.agent === agent)) return { error: 'no such window' };
     const computer = { host, name: l.host.name ?? fingerprint(fromB64u(l.host.pub, 32)) };
     const p: WindowProxy = new WindowProxy({
       lang: () => { try { return readPrefs().lang; } catch { return undefined; } },
       // the computer's link of the moment (one paired again, or on a new relay, has a new one)
-      open: (o) => this.#links.get(host)?.link.open(o) ?? null, port, computer,
+      open: (o) => this.#links.get(host)?.link.open(o) ?? null, port, ...(agent ? { agent } : {}), computer,
       projects: async () => {
-        // this computer's windows (none current: the page is the other one's) and the paired ones'; no Recent, which
-        // would open folders here. Only that computer's own rows say more than what lists and moves. An agent beside a
-        // window's (epic 383) is not among them yet: the move from there names a window, as the host stream does
+        // this computer's windows and agents (none current: the page is the other one's) and the paired ones'; no Recent,
+        // which would open folders here. Only that computer's own rows say more than what lists and moves
         const own = await listProjects({ port: 0, provider: 'claude' });
-        const rows = remoteRows(this.computers(), { host, port });
-        return { running: [...own.running.filter((r) => !r.agent).map(bareRow), ...rows.map((r) => (r.remote?.host === host ? r : bareRow(r)))], recent: [], hidden: [] };
+        const rows = remoteRows(this.computers(), { host, port, ...(agent ? { agent } : {}) });
+        return { running: [...own.running.map(bareRow), ...rows.map((r) => (r.remote?.host === host ? r : bareRow(r)))], recent: [], hidden: [] };
       },
       enter: (to) => this.#enter(to),
       onClose: () => {
@@ -219,14 +218,14 @@ export class Connector extends EventEmitter {
     });
     await p.start();
     this.#proxies.add(p);
-    this.#log(`computer ${host}: window ${port} on localhost:${p.port}`);
+    this.#log(`computer ${host}: window ${port}${agent ? ` agent ${agent}` : ''} on localhost:${p.port}`);
     return { url: p.url };
   }
 
   async #enter(to: EnterTarget): Promise<{ url: string } | { error: string }> {
-    if ('host' in to) return this.openProxy(to.host, to.port);
+    if ('host' in to) return this.openProxy(to.host, to.port, to.agent);
     if (!(PROVIDERS as string[]).includes(to.provider)) return { error: 'no such window' };
-    return enterUrl({ provider: to.provider as AgentProvider, port: to.port, root: to.root });
+    return enterUrl({ provider: to.provider as AgentProvider, port: to.port, root: to.root, ...(to.agent ? { agent: to.agent } : {}) });
   }
 
   #hostView(h: Host): Msg {
@@ -409,8 +408,8 @@ export class Connector extends EventEmitter {
       case 'computers':
         return write(sock, { computers: this.computers() });
       case 'open':
-        if (typeof m.host !== 'string' || !Number.isInteger(m.port)) return write(sock, { error: 'bad request' });
-        return void this.openProxy(m.host, m.port as number).then((r) => write(sock, r), (e: Error) => write(sock, { error: e.message }));
+        if (typeof m.host !== 'string' || !Number.isInteger(m.port) || (m.agent !== undefined && (typeof m.agent !== 'string' || !AGENT_ID.test(m.agent)))) return write(sock, { error: 'bad request' });
+        return void this.openProxy(m.host, m.port as number, m.agent as string | undefined).then((r) => write(sock, r), (e: Error) => write(sock, { error: e.message }));
       case 'pair': {
         this.#pairClients.add(sock);
         sock.once('close', () => {

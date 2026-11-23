@@ -136,12 +136,13 @@ export async function forgetRecent(root: string): Promise<string | null> {
  */
 export async function enterProject(row: RunningRow, session?: string): Promise<boolean> {
   if (remotePage()) {
-    nav.go(routes.systemRemoteEnter(row.remote ? { host: row.remote.host, port: String(row.port) } : { provider: row.provider, port: String(row.port), root: row.root }));
+    const at: Record<string, string> = row.agent ? { agent: row.agent } : {};
+    nav.go(routes.systemRemoteEnter(row.remote ? { host: row.remote.host, port: String(row.port), ...at } : { provider: row.provider, port: String(row.port), root: row.root, ...at }));
     return true;
   }
   try {
     const r = row.remote
-      ? await send(routes.systemRemoteOpen(), { host: row.remote.host, port: row.port })
+      ? await send(routes.systemRemoteOpen(), { host: row.remote.host, port: row.port, ...(row.agent ? { agent: row.agent } : {}) })
       : await send(routes.systemProjects('enter'), { ...rowRef(row), ...(session ? { session } : {}) });
     // the remote routes say why as JSON `{error}`, the switcher's as text
     if (!r.ok) {

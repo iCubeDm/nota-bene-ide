@@ -580,7 +580,7 @@ The connector stops a minute after the last window closes (and the last tab of a
 
 ### Working in another computer's projects
 
-Once this computer is paired with another, the project switcher and the rail list that computer's running windows beside this one's: a laptop on the tile and the computer's name in the row (the tooltip in the rail). A computer that is offline drops out of the list until it is back. Choosing one opens it in the same tab with the full interface (chat, files, editor, comments, video, voice, shell), served by that computer through the relay and this computer's connector, end-to-end encrypted. The switcher there still lists both computers and moves to either.
+Once this computer is paired with another, the project switcher and the rail list that computer's running projects and their agents beside this one's: a laptop on the tile and the computer's name in the row (the tooltip in the rail). A computer that is offline drops out of the list until it is back. Choosing one opens it in the same tab with the full interface (chat, files, editor, comments, video, voice, shell), served by that computer through the relay and this computer's connector, end-to-end encrypted. The switcher there still lists both computers and moves to either.
 
 It is a tab of that window like any other: it takes the window over from the other computer's tab and its phone, and **Work here** takes it back. What is not there:
 

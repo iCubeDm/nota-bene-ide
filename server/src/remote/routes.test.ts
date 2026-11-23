@@ -31,7 +31,7 @@ function fake(over: Partial<RemoteKeeperApi> = {}) {
     revoke: async (id) => { calls.push(id); return { ok: true }; },
     connect: async (code) => { calls.push(code); return HOST; },
     forget: async (id) => { calls.push(`forget ${id}`); return { ok: true }; },
-    openWindow: async (host, port) => { calls.push(`open ${host} ${port}`); return host === 'wxyz' ? { url: 'http://localhost:1/#t=x' } : { error: 'no such window' }; },
+    openWindow: async (host, port, agent) => { calls.push(`open ${host} ${port}${agent ? ` ${agent}` : ''}`); return host === 'wxyz' ? { url: 'http://localhost:1/#t=x' } : { error: 'no such window' }; },
     ...over,
   };
   return { k, calls };
@@ -53,6 +53,9 @@ describe('remote routes', () => {
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ url: 'http://localhost:1/#t=x' });
     expect(calls).toEqual(['open wxyz 4777']);
+    expect((await post(base, '/system/remote/open', { host: 'wxyz', port: 4777, agent: 'codex-k3f7qz' })).status).toBe(200);
+    expect(calls).toEqual(['open wxyz 4777', 'open wxyz 4777 codex-k3f7qz']);
+    expect((await post(base, '/system/remote/open', { host: 'wxyz', port: 4777, agent: '../x' })).status).toBe(400);
     expect((await post(base, '/system/remote/open', { host: 'nope', port: 4777 })).status).toBe(404);
     expect((await post(base, '/system/remote/open', { host: 'wxyz', port: 'x' })).status).toBe(400);
     expect((await fetch(`${base}/system/remote/open`)).status).toBe(405);

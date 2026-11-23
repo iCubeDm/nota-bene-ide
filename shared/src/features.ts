@@ -130,6 +130,11 @@ export const FEATURES = {
    * what replaces a managed connector started before it, which never sends them
    */
   hostAgents: 31,
+  /**
+   * another computer's switcher lists and opens its server's agents (epic 383): the connector's `open` takes an `agent`.
+   * Also what replaces a managed connector started before it, which drops them
+   */
+  remoteAgents: 32,
 } as const;
 
 export type Feature = keyof typeof FEATURES;

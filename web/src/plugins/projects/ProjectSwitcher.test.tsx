@@ -404,6 +404,19 @@ it('issue 297: on another computer\'s page, a move is a navigation to its proxy;
   expect(calls.some((c) => c.url === '/system/projects/enter' || c.url === '/system/remote/open')).toBe(false);
 });
 
+it('epic 383: another computer\'s agent opens by its id, through the connector or, from its page, the proxy', async () => {
+  const far: RunningRow = { ...REMOTE, root: '/w/far', agent: 'codex-k3f7qz', provider: 'codex' };
+  list = { ...LIST, running: [...LIST.running, far] };
+  await openMenu();
+  fireEvent.click(await screen.findByRole('button', { name: /^far ·/ }));
+  await waitFor(() => expect(nav.go).toHaveBeenCalledWith(URL_REMOTE));
+  expect(calls.find((c) => c.url === '/system/remote/open')!.body).toEqual({ host: 'h1', port: 4791, agent: 'codex-k3f7qz' });
+  page.remote = STUDIO;
+  act(() => void current.dispatch(setProjectsMenu(true)));
+  fireEvent.click(await screen.findByRole('button', { name: /^far ·/ }));
+  expect(nav.go).toHaveBeenCalledWith('/system/remote/enter?host=h1&port=4791&agent=codex-k3f7qz');
+});
+
 it('issue 297: the connector\'s refusals are said in words, never its raw text', async () => {
   list = { ...LIST, running: [...LIST.running, { ...REMOTE, root: '/w/three', remote: { host: 'h3', name: 'Three' } }, { ...REMOTE, root: '/w/four', remote: { host: 'h4', name: 'Four' } }] };
   await openMenu();
