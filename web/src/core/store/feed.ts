@@ -1,11 +1,12 @@
 import { createAction } from '@reduxjs/toolkit';
-import { SHELL_OUTPUT_CAP, cutTail, type AgentProvider, type Interaction, type ImageRef, type ServerEvent, type ShellStop, type Voice, type VoiceError, type WireAgentEvent } from '@nota-bene/shared';
+import { SHELL_OUTPUT_CAP, cutTail, type AgentProvider, type BusSender, type Interaction, type ImageRef, type ServerEvent, type ShellStop, type Voice, type VoiceError, type WireAgentEvent } from '@nota-bene/shared';
 
 export type FeedItem =
   /** idle: the server's own /compact after a quiet stretch, shown as a line, not as the user's message */
   | { kind: 'user'; id: string; text: string; ts: number; force?: boolean; duringWork?: boolean; images?: ImageRef[]; idle?: boolean;
       /** a voice message (protocol 14): `text` is '' until the `voice-text` event puts the transcript in `voiceText`, or says why there is none in `voiceError` */
-      voice?: Voice; voiceText?: string; voiceError?: VoiceError; /** the language the transcript was made in (protocol 18) */ voiceLang?: string }
+      voice?: Voice; voiceText?: string; voiceError?: VoiceError; /** the language the transcript was made in (protocol 18) */ voiceLang?: string;
+      /** protocol 34 (epic 383 2f): another agent's message through the agent bus */ from?: BusSender }
   // `${uuid}:${blockIndex}`; while streaming `stream:${n}`. `ts`: when it began (its stream's start); 0 = not known
   | { kind: 'assistant'; id: string; text: string; final: boolean; ts: number }
   | {
@@ -277,6 +278,7 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
         ...(ev.idle ? { idle: true } : {}),
         ...(ev.voice ? { voice: ev.voice } : {}),
         ...(ev.voice && ev.voiceLang ? { voiceLang: ev.voiceLang } : {}),
+        ...(ev.from ? { from: ev.from } : {}),
         ...(!ev.historic && s.busy ? { duringWork: true } : {}),
       };
       return {

@@ -122,6 +122,7 @@ export const ru = {
   agentNoComment: 'Комментировать здесь можно после перезапуска сервера (код обновлён).',
   batchHead: BATCH_HEADS.ru,
   resumed: (id: string) => `↻ продолжение сессии ${id}`,
+  fromAgent: (agent: string, id: string) => `от ${agent} · ${id}`,
   editOverlap: (agent: string, file: string) => `⚠ ${agent} тоже правит ${file} в ходе, идущем одновременно с этим; изменения не закоммичены.`,
   editOverlapOpen: 'Открыть',
   // quick labels (M1-08)

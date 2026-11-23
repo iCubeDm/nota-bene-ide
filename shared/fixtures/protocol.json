@@ -1226,6 +1226,16 @@
       "ts": 1700000000000
     },
     {
+      "kind": "user",
+      "id": "bus-1",
+      "text": "review x.ts",
+      "ts": 1700000000000,
+      "from": {
+        "agent": "codex-abcdef",
+        "provider": "codex"
+      }
+    },
+    {
       "kind": "compact-pending",
       "pending": true,
       "held": [

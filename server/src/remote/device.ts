@@ -32,7 +32,8 @@ export const goodPath = (p: unknown): p is string =>
 /** epic 383: the path below an agent's prefix (`/a/<id>`), which the window answers as if it came at the top (http.ts agentPrefix) */
 export const unprefixed = (p: string): string => agentPrefix(p)?.rest ?? p;
 
-const goodRoute = (p: string): boolean => !p.startsWith('//') && !/^\/(control|remote)(\/|\?|$)/i.test(p)
+// `mcp`: the agent bus (epic 383 2f) serves this computer's agents only
+const goodRoute = (p: string): boolean => !p.startsWith('//') && !/^\/(control|remote|mcp)(\/|\?|$)/i.test(p)
   && !/^\/system\/(projects|folders|agents|remote)(\/|\?|$)/i.test(p) // issue 297: `remote` opens proxies to other computers
   && !/^\/(os|system\/shortcut)(\/|\?|$)/i.test(p); // issue 461: Show in Finder / Open, and the app icon, act on this computer's desktop
 

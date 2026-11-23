@@ -147,12 +147,15 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 
 export { FEATURES, has, type Feature } from './features.ts';
 /** The protocol this server speaks, announced in `hello`: the largest entry of `FEATURES`, where each number's additions are. */
-export const PROTOCOL = 33;
+export const PROTOCOL = 34;
 
 /** The form of an agent id (epic 383): `<provider>-<6 base32>`, as in `/a/<id>/`. */
 export const AGENT_ID = /^[a-z]+-[a-z2-7]{6}$/;
 
 /** protocol 27: a send the server holds behind a pending restart or compaction (issue 499), as the feed shows it */
+/** epic 383 2f: the agent that sent a message through the agent bus */
+export type BusSender = { agent: string; provider: AgentProvider };
+
 export type HeldSend = { id: string; text: string; ts: number; images?: ImageRef[]; voice?: Voice };
 
 /** A paired device (a phone or another computer) as the Remote tab lists it (protocol 20). */
@@ -342,7 +345,8 @@ export type ServerEvent =
   | { kind: 'agent'; e: WireAgentEvent; ts: number }
   /** `idle`: a `/compact` the server sent itself after the session sat idle */
   /** `voice`: a voice message; its `text` is '' until the `voice-text` event (a replayed history has the transcript in it) */
-  | { kind: 'user'; id: string; text: string; ts: number; force?: boolean; historic?: boolean; images?: ImageRef[]; idle?: boolean; voice?: Voice; /** protocol 18: the language a replayed voice message was transcribed in, when known */ voiceLang?: string }
+  | { kind: 'user'; id: string; text: string; ts: number; force?: boolean; historic?: boolean; images?: ImageRef[]; idle?: boolean; voice?: Voice; /** protocol 18: the language a replayed voice message was transcribed in, when known */ voiceLang?: string;
+      /** protocol 34 (epic 383 2f): another agent's message through the agent bus, not the person's */ from?: BusSender }
   /** protocol 14, stored: the transcript of the voice message `id`, or why there is none (then the agent got nothing) */
   | { kind: 'voice-text'; id: string; text?: string; error?: VoiceError; /** protocol 18: the language the transcript was made in (the detected one with `send.detect`) */ lang?: string; ts: number }
   | { kind: 'permission'; id: string; toolName: string; input: Record<string, unknown>; prompt?: Interaction; ts: number }

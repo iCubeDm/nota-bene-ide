@@ -60,6 +60,14 @@ it('user meta shows "while working"', () => {
   expect(second!.firstElementChild!.textContent).toContain(' · while working');
 });
 
+it('epic 383 2f: a message from another agent names it, a link to its tab, instead of "you"', () => {
+  const { store, view } = setup();
+  act(() => { store.dispatch(serverEvent({ kind: 'user', id: 'u1', text: 'review x.ts', ts: Date.now(), from: { agent: 'codex-k3f7qz', provider: 'codex' } })); });
+  const head = view.container.querySelector('[data-kind="user"]')!.firstElementChild!;
+  expect(head.textContent).toMatch(/^from Codex · codex-k3f7qz · \d/);
+  expect(head.querySelector('a')).toHaveAttribute('href', '/a/codex-k3f7qz/');
+});
+
 it('permission buttons dispatch answerPermission and the card shows the answer', () => {
   const { store, sent } = setup();
   act(() => {

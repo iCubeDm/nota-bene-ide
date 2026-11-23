@@ -6,7 +6,8 @@ export type SendImage = { mediaType: ImageType; data: string /* base64 */; label
 export type PermissionAsk = (toolName: string, input: Record<string, unknown>, signal: AbortSignal) => Promise<boolean>;
 
 export type InteractAsk = (prompt: Interaction, input: Record<string, unknown>, signal: AbortSignal) => Promise<InteractionAnswer | null>;
-export type StartOptions<M = Mode, E = EffortLevel> = { cwd: string; resume?: string; fork?: boolean; permissionMode: M; model?: string; effort?: E; ask: PermissionAsk; interact?: InteractAsk };
+/** `bus` (epic 383 2f): the Nota Bene agent bus, an MCP server over Streamable HTTP; a null bearer sends none */
+export type StartOptions<M = Mode, E = EffortLevel> = { cwd: string; resume?: string; fork?: boolean; permissionMode: M; model?: string; effort?: E; ask: PermissionAsk; interact?: InteractAsk; bus?: { url: string; bearer: string | null } };
 
 export interface AgentSession<M = Mode, E = EffortLevel> {
   /** What the agent says, already mapped (R-M7-13: no SDK shapes past the backend); ends after close(). */

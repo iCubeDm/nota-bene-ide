@@ -121,6 +121,7 @@ export const ptBR: Dict = {
   agentNoComment: 'Comentar aqui exige reiniciar o servidor (código atualizado).',
   batchHead: BATCH_HEADS['pt-BR'],
   resumed: (id) => `↻ sessão ${id} retomada`,
+  fromAgent: (agent: string, id: string) => `de ${agent} · ${id}`,
   editOverlap: (agent: string, file: string) => `⚠ ${agent} também está editando ${file}, em um turno ao mesmo tempo que este; as alterações não foram commitadas.`,
   editOverlapOpen: 'Abrir',
   'label_looks-good': 'Parece bom',

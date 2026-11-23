@@ -13,6 +13,8 @@ import { agentOfCall, findSubagentMeta, hitFresh, hitGet, hitSet, isRunning, noM
 import { defaultProjectsDir } from '../../sessions.ts';
 import { UsageUnavailableError, mapContextUsage, mapUsage } from '../../stats.ts';
 
+/** above the agent bus's 30 minutes without progress (bus.ts ASK_IDLE_MS): the CLI must not cut a waiting ask first */
+const BUS_TOOL_TIMEOUT_MS = 40 * 60_000;
 const APPEND = `
 You are running inside a browser-based chat window that renders GitHub-flavored markdown.
 - Draw diagrams as \`\`\`mermaid code blocks (or \`\`\`svg blocks with a complete <svg> element). Never draw ASCII-art diagrams.
@@ -97,6 +99,11 @@ class SdkSession implements AgentSession {
         // the tasks drawer stops a background agent on its own (stopTask), so Stop ends only the turn and spares them
         perTaskStopAffordance: true,
         systemPrompt: { type: 'preset', preset: 'claude_code', append: APPEND },
+        // epic 383 2f: the agent bus; an ask waits up to 30 minutes without progress, so the CLI's own tool timeout is above it
+        ...(o.bus ? {
+          mcpServers: { 'nota-bene': { type: 'http' as const, url: o.bus.url, ...(o.bus.bearer ? { headers: { authorization: `Bearer ${o.bus.bearer}` } } : {}) } },
+          env: { ...process.env, MCP_TOOL_TIMEOUT: String(BUS_TOOL_TIMEOUT_MS) },
+        } : {}),
         canUseTool: async (toolName, input, { signal }) => {
           const { interact } = o;
           // the questions go through the structured prompt, with no JSON body (the prompt carries them)

@@ -122,7 +122,7 @@ describe('device channel', () => {
   it('a phone reaches no remote-access route: it would pair, revoke or switch access off unseen', () => {
     for (const p of ['/remote', '/remote/pair', '/remote/config', '/remote?x=1', '/REMOTE/revoke', '/control']) expect(goodPath(p)).toBe(false);
     // the project switcher's routes start windows and hand out other windows' logins: the desktop only, until phase 2
-    for (const p of ['/system/projects', '/system/projects/open', '/system/projects/create', '/system/projects/enter', '/system/projects/sessions', '/system/folders', '/system/agents', '/system/remote/open', '/System/Remote']) expect(goodPath(p)).toBe(false);
+    for (const p of ['/system/projects', '/system/projects/open', '/system/projects/create', '/system/projects/enter', '/system/projects/sessions', '/system/folders', '/system/agents', '/system/remote/open', '/System/Remote', '/mcp', '/a/claude-abcdef/mcp']) expect(goodPath(p)).toBe(false);
     // issue 461: Show in Finder / Open act on this computer's desktop: never from the phone
     for (const p of ['/os/reveal', '/os/open', '/OS/open', '/os?x']) expect(goodPath(p)).toBe(false);
     expect(goodPath('/osx.md')).toBe(true);
