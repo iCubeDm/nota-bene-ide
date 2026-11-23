@@ -450,3 +450,17 @@ it('issue 297: on another computer\'s page this folder\'s sessions ask nothing t
   fireEvent.click(screen.getByRole('button', { name: t('projNewSess') }));
   expect(await screen.findByRole('radio', { name: 'Claude' })).toBeChecked();
 });
+
+it('phase 3: an expanded project with several agents lists them; one beside the window closes after a confirm, its session staying', async () => {
+  const notes = LIST.running.find((r) => r.root === '/w/notes')!;
+  const helper: RunningRow = { ...notes, provider: 'claude', current: false, title: 'Count the files', session: S3, agent: 'claude-h2h2h2', id: 'claude-h2h2h2', lead: 'x' };
+  list = { ...LIST, running: [...LIST.running, helper] };
+  await openMenu();
+  await screen.findByRole('group', { name: t('projSessionsOf', 'notes') }); // this project's starts expanded
+  const agents = screen.getByRole('list', { name: t('projAgentsOf', 'notes') });
+  expect(within(agents).getAllByRole('listitem')).toHaveLength(2);
+  expect(within(agents).getByText(t('helperTag'))).toBeInTheDocument();
+  fireEvent.click(within(agents).getByRole('button', { name: `${t('agentClose')}: Claude · Count the files` }));
+  fireEvent.click(await screen.findByRole('button', { name: t('agentClose') }));
+  await waitFor(() => expect(calls.filter((c) => c.url === '/system/projects/stop').map((c) => c.body)).toEqual([{ provider: 'claude', port: notes.port, root: '/w/notes', agent: 'claude-h2h2h2' }]));
+});
