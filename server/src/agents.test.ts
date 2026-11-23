@@ -244,6 +244,24 @@ describe('kept agents (2c-2): a relaunch of the same launch reopens the extra ag
     }
   });
 
+  it('two agents of one folder each come back with their own session (epic 383 2e)', async () => {
+    const S1 = '11111111-1111-4111-8111-111111111111', S2 = '22222222-2222-4222-8222-222222222222';
+    const s = await start(0, N1, 111);
+    const port = Number(new URL(s.url).port);
+    const b = path.join(tmp, 'b');
+    await s.open({ provider: 'codex', cwd: b, backend: fakeBackend([]), resume: S1 });
+    await s.open({ provider: 'codex', cwd: b, backend: fakeBackend([]), resume: S2 });
+    await until(() => readKeptAgents(port)?.agents.filter((k) => k.session).length === 2);
+    await s.close();
+    const shared = fakeBackend([]);
+    const again = await startServer({
+      insecureNoAuth: true, cwd: path.join(tmp, 'a'), port, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'),
+      nonce: N1, keep: { launcherPid: 111 }, backends: () => shared,
+    });
+    closers.push(again.close);
+    expect(shared.starts.map((x) => x.resume).sort()).toEqual([S1, S2]);
+  });
+
   it('a kept agent whose folder is gone is dropped, not kept for good', async () => {
     const s = await start(0, N1, 111);
     const port = Number(new URL(s.url).port);
