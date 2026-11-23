@@ -526,6 +526,29 @@ describe('server', () => {
       expect(rec).toMatchObject({ compact: '/compact', held: [{ id: 'u2', text: 'after' }] });
     });
 
+    it('another agent of the server, idle, is not held behind a restart waiting for this one: its sends go', async () => {
+      const codes: number[] = [];
+      const { s } = await working(codes, '?held=1');
+      expect(await (await post(s.url, s.url)).json()).toEqual({ ok: true, pending: true });
+      fs.mkdirSync(path.join(home, 'b'), { recursive: true });
+      const b = await s.open({ provider: 'claude', cwd: path.join(home, 'b'), backend: fakeBackend([]) });
+      const other = await connect(`${s.url}/a/${b}`, '?held=1');
+      other.ws.send(JSON.stringify({ type: 'send', id: 'b1', text: 'hello' }));
+      await until(() => users(other).length === 1);
+      expect(other.events.some((e) => e.kind === 'send-held')).toBe(false);
+      expect(codes).toEqual([]);
+    });
+
+    it('the busy one alone in the way (the other agents idle): its own sends are held, as in a lone window', async () => {
+      const codes: number[] = [];
+      const { s, c } = await working(codes, '?held=1');
+      fs.mkdirSync(path.join(home, 'b'), { recursive: true });
+      await s.open({ provider: 'claude', cwd: path.join(home, 'b'), backend: fakeBackend([]) });
+      expect(await (await post(s.url, s.url)).json()).toEqual({ ok: true, pending: true });
+      c.ws.send(JSON.stringify({ type: 'send', id: 'u2', text: 'after' }));
+      await until(() => c.events.some((e) => e.kind === 'send-held'));
+    });
+
     it('a typed /compact with instructions while working keeps them', async () => {
       const codes: number[] = [];
       const { c } = await working(codes, '?pause=1&held=1');

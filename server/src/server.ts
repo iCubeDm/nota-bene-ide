@@ -171,6 +171,8 @@ type Shared = {
   /** the window's agent's id, and every agent's (their /info lists them: the switcher's rows, projects.ts) */
   primaryId: string;
   agents: () => { id: string; provider: AgentProvider }[];
+  /** some agent but this one is not in a pause */
+  othersBusy: (id: string) => boolean;
   /** POST /a/<id>/control/close, set once the server is up: 200, or 409 for the window's own agent */
   closeAgent: (id: string) => number;
   /** POST /control/open, set once the server is up */
@@ -285,7 +287,8 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       session: () => manager.archiveId(),
       busy: notPaused,
       switching: () => manager.switching(),
-      restartPending: () => restart.pending(),
+      // only while this agent is the one in the way (no other is working): an idle project never waits for another's turn
+      restartPending: () => restart.pending() && !s.othersBusy(a.id),
       // the user's /compact, with the instructions typed after it, as a typed one goes in a pause
       compact: (text) => void manager.send({ id: randomUUID(), text }),
       send: (m) => void manager.send(m),
@@ -1028,6 +1031,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       closeAgent: () => 409,
       primaryId: launchAgentId(agent.provider, nonce),
       agents: () => [...agents.values()].map((x) => ({ id: x.id, provider: x.provider })),
+      othersBusy: (id) => [...agents.values()].some((x) => x.id !== id && x.notPaused()),
     };
     // the first agent: the window's, addressed as /a/<id>/ and at the top (the phone and older pages)
     const primary = await startAgent(s, {
