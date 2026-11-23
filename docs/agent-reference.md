@@ -28,7 +28,8 @@ Ports: windows 4777-4799 except 4780 and 4790-4795; dev 4780 and 5173; tests onl
 **Checkout command.** `ln -s "$PWD/bin/nota-bene-dev.mjs" ~/.local/bin/nota-bene-dev` (Windows: a `nota-bene-dev.cmd`
 shim holding `@node "<checkout>\bin\nota-bene-dev.mjs" %*`). It is the ordinary launcher of this checkout with every
 argument, state in `~/.nota-bene-dev` (`NOTA_BENE_DEV_HOME` overrides; an inherited `NOTA_BENE_HOME` is ignored). It
-follows the checkout's branch and is not shipped.
+follows the checkout's branch and is not shipped. A checkout's app icon (`nota-bene shortcut`, the tab's Add) is **Nota Bene Dev**,
+beside the published package's Nota Bene.
 
 **Launcher** (`bin/nota-bene.mjs [dir] [--port N] [--resume ID [--fork]] [--new] [--detach] [--no-open]`). It rebuilds a
 stale `web/dist` at launch and before a restart, opens the browser and supervises the server. One server (epic 383):
