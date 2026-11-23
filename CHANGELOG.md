@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Moving between a project's agents.** Alt+[ and Alt+] go to the previous and next agent; the switcher lists a project's agents and closes one.
 - **Agents start helpers.** An agent can start another agent of the project for part of its task, get its answer and close it; helpers group under their lead and fold up when idle. **Keep** turns one into an agent of the project.
 - **Agents of a project ask each other.** A Claude, Codex or omp agent can list the project's other agents, ask one and get its answer, or tell it something; the message shows in the other's feed as from it.
 - **A warning when two agents edit one file.** Agents of one project that edit the same uncommitted file at the same time each get a line in the feed naming the other.

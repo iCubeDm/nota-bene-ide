@@ -7,7 +7,7 @@ import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import { page } from '@/core/net/local.ts';
 import type { ProjectsList } from './api.ts';
 import { nav } from './api.ts';
-import { AgentTabs } from './AgentTabs.tsx';
+import { AgentTabs, cycleAgent } from './AgentTabs.tsx';
 import { resetSources, setSources } from '@/core/refs/sources.ts';
 
 const URL_OK = `http://127.0.0.1:4791/a/codex-k3f7qz/#t=${'a'.repeat(64)}`;
@@ -120,4 +120,15 @@ describe('helpers (epic 383 2g)', () => {
     fireEvent.click(screen.getByRole('button', { name: t('helperKeep') }));
     await waitFor(() => expect(calls.some((c) => c.url === '/agent/keep')).toBe(true));
   });
+});
+
+it('phase 3: Alt+] and Alt+[ go to the next and previous agent of the strip, wrapping', async () => {
+  setup();
+  await waitFor(() => expect(tabs()).toHaveLength(2));
+  cycleAgent(1);
+  await waitFor(() => expect(calls.filter((c) => c.url === '/system/projects/enter')).toHaveLength(1));
+  expect(calls.find((c) => c.url === '/system/projects/enter')!.body).toMatchObject({ agent: 'codex-k3f7qz' });
+  cycleAgent(-1);
+  await waitFor(() => expect(calls.filter((c) => c.url === '/system/projects/enter')).toHaveLength(2));
+  expect(calls.filter((c) => c.url === '/system/projects/enter')[1]!.body).toMatchObject({ agent: 'claude-a2b3c4' });
 });

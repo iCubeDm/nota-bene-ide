@@ -72,7 +72,7 @@ it('a command id two plugins declare fails the build, and so does one order take
 // the order of the ? help and of matching: today's BINDINGS, the core's and the plugins' interleaved by `order`
 it('the commands come in the help\'s order, core and plugins alike', () => {
   expect(buildRegistry(PLUGINS, CORE_COMMANDS).commands.map((c) => c.id)).toEqual([
-    'hk_closeTab', 'hk_reopenTab', 'hk_prevTab', 'hk_nextTab', 'hk_tabN', 'hk_recent', 'hk_projects', 'hk_promptHistory',
+    'hk_closeTab', 'hk_reopenTab', 'hk_prevTab', 'hk_nextTab', 'hk_tabN', 'hk_recent', 'hk_projects', 'hk_agentPrev', 'hk_agentNext', 'hk_promptHistory',
     'hk_promptOlder', 'hk_promptNewer', 'hk_files', 'hk_comments', 'hk_tasks', 'hk_voice', 'hk_wrap', 'hk_scaleUp',
     'hk_scaleDown', 'hk_scaleReset', 'hk_reveal', 'hk_composer',
   ]);

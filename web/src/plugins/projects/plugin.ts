@@ -1,7 +1,7 @@
 import { AGENT_ID, type AgentProvider } from '@nota-bene/shared';
 import type { WithSlice } from '@reduxjs/toolkit';
 import { definePlugin, serverEvent } from '@/sdk';
-import { AgentTabs } from './AgentTabs.tsx';
+import { AgentTabs, cycleAgent } from './AgentTabs.tsx';
 import { AppIcon, shortcutResource } from './AppIcon.tsx';
 import { ProjectTitle } from './ProjectSwitcher.tsx';
 import { ProjectRail } from './ProjectRail.tsx';
@@ -36,7 +36,12 @@ export const projectsPlugin = definePlugin({
     { slot: 'overlay', order: 70, render: Seen },
   ],
   // Alt+P, in a field too (also on a Mac, where Option+P types π): the project switcher in the header
-  commands: [{ id: 'hk_projects', codes: ['KeyP'], mods: { alt: true }, inFields: true, order: 70, run: ({ store }) => void store.dispatch(setProjectsMenu(!selectProjectsMenu(store.getState()))) }],
+  commands: [
+    { id: 'hk_projects', codes: ['KeyP'], mods: { alt: true }, inFields: true, order: 70, run: ({ store }) => void store.dispatch(setProjectsMenu(!selectProjectsMenu(store.getState()))) },
+    // phase 3: the project's agents in the tab strip's order; in a field too, but on a Mac, where Option+[ types a character
+    { id: 'hk_agentPrev', codes: ['BracketLeft'], mods: { alt: true }, inFields: 'notMac', order: 71, run: () => cycleAgent(-1) },
+    { id: 'hk_agentNext', codes: ['BracketRight'], mods: { alt: true }, inFields: 'notMac', order: 72, run: () => cycleAgent(1) },
+  ],
   settings: projectsSettings,
   resources: [projectsResource, shortcutResource],
   // epic 383: `nota-bene` or `/nb` opened another agent of this tab's server: the tab moves to it (same origin, logged in)

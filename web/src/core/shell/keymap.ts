@@ -115,7 +115,7 @@ export function keysLabel(b: Command): string {
   if (b.mods.mod) parts.push(modKey());
   if (b.mods.alt) parts.push(mac ? '⌥' : 'Alt+');
   if (b.mods.shift) parts.push(mac ? '⇧' : 'Shift+');
-  const key = (c: string) => ({ ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Slash: '/', Escape: 'Esc', Equal: '=', Minus: '−' } as Record<string, string>)[c] ?? c.replace(/^(Key|Digit)/, '');
+  const key = (c: string) => ({ ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Slash: '/', Escape: 'Esc', Equal: '=', Minus: '−', BracketLeft: '[', BracketRight: ']' } as Record<string, string>)[c] ?? c.replace(/^(Key|Digit)/, '');
   // the numpad twins are not listed: the help names a key once
   const keys = b.id === 'hk_tabN' ? '1…9' : b.codes.filter((c) => !c.startsWith('Numpad')).map(key).join(', ');
   return parts.join('') + keys;

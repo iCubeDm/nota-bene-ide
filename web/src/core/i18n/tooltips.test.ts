@@ -38,6 +38,7 @@ const NOT_TOOLTIP: Record<string, string> = {
   projStopQ: "a confirm dialog's heading (its `title` prop)",
   compacting: 'the compaction line: shown as text, its aria-label repeats it',
   projSessionsOf: "a group's accessible name, never shown",
+  projAgentsOf: "a list's accessible name, never shown",
 };
 
 /**

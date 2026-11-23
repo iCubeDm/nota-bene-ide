@@ -7,7 +7,8 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { useT, connections, routes, toast, useAppDispatch, switchSession, remotePage, REFUSED, archiveSession, renameSession, ago, send } from '@/sdk';
 import { ConfirmDialog, ArchiveIcon } from '@/sdk/ui';
-import { enterProject, openFolder, PROVIDER_LABEL, reasonText, rowRef, type Provider, type RunningRow } from './api.ts';
+import { enterProject, openFolder, PROVIDER_LABEL, reasonText, rowRef, stopProject, type Provider, type RunningRow } from './api.ts';
+import { DOT } from './Tile.tsx';
 
 export type LocalSession = { id: string; title: string; at: number; cwd: string; archived?: true };
 type Item = { id: string; title: string; at: number; window: RunningRow; mine?: true };
@@ -25,6 +26,7 @@ export function ProjectSessions({ root, windows, local, setLocal, onDone }: {
   const [agents, setAgents] = useState<Provider[]>([]);
   const [all, setAll] = useState(false);
   const [ask, setAsk] = useState<{ id: string | null; title: string } | null>(null);
+  const [closing, setClosing] = useState<RunningRow | null>(null);
   const [edit, setEdit] = useState<{ id: string; text: string } | null>(null);
   const folder = root.split(/[\\/]/).filter(Boolean).pop() ?? root;
   const live = windows.filter((w) => LIVE.has(w.state));
@@ -97,8 +99,37 @@ export function ProjectSessions({ root, windows, local, setLocal, onDone }: {
     if (why) toast(t('startFailed', reasonText(why)), root);
   };
 
+  const agentName = (w: RunningRow) => [PROVIDER_LABEL[w.provider], w.title].filter(Boolean).join(' · ');
+  const close = async (w: RunningRow) => {
+    setClosing(null);
+    const why = await stopProject(w);
+    if (why) toast(t('agentClose'), reasonText(why));
+  };
+
   return (
     <div role="group" aria-label={t('projSessionsOf', folder)} className="pb-1 pl-12">
+      {/* phase 3: the folder's agents, when there are several: move to one, or close one beside the window */}
+      {live.length > 1 && (
+        <div role="list" aria-label={t('projAgentsOf', folder)} className="mb-1 border-b border-border-soft pb-1">
+          {live.map((w) => (
+            <div role="listitem" key={`${w.port}/${w.agent ?? w.provider}`} className="group/agent relative">
+              <button type="button" disabled={w.current} onClick={() => { onDone(); void enterProject(w); }} className={`${rowCls} ${w.current ? 'bg-primary/10' : ''}`}>
+                <span aria-hidden className={`size-1.5 flex-none rounded-full ${DOT[w.state]}`} />
+                <span className="min-w-0 flex-1 truncate text-foreground">{agentName(w)}</span>
+                {w.lead && <span className="flex-none text-[0.6875rem] text-muted-foreground">{t('helperTag')}</span>}
+              </button>
+              {w.agent && !w.current && !w.remote && !remotePage() && (
+                <button type="button" aria-label={`${t('agentClose')}: ${agentName(w)}`} title={t('agentClose')} onClick={() => setClosing(w)}
+                  className={`absolute inset-y-0 right-1 my-auto h-5 opacity-0 group-focus-within/agent:opacity-100 group-hover/agent:opacity-100 ${ACTION}`}>✕</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {closing && (
+        <ConfirmDialog title={t('agentCloseQ')} body={t('agentCloseBody', agentName(closing))} confirm={t('agentClose')} danger
+          onConfirm={() => void close(closing)} onCancel={() => setClosing(null)} />
+      )}
       {shown.map((x) => {
         const open = x.id === x.window.session;
         const unseen = open && !x.window.current ? x.window.unseen : 0;

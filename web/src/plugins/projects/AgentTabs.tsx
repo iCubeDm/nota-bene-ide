@@ -11,6 +11,15 @@ import { enterProject, openFolder, PROVIDER_LABEL, reasonText, useProjects, type
 import { badgeOf } from './rows.ts';
 import { BadgeView, DOT, LIVE, STATE_KEY } from './Tile.tsx';
 
+/** the strip's agents as last drawn, this tab's first: what Alt+[ / Alt+] go through (phase 3) */
+let order: RunningRow[] = [];
+
+/** Moves this tab `step` agents along the strip's order (wrapping); nothing with one agent. */
+export function cycleAgent(step: 1 | -1): void {
+  if (order.length < 2) return;
+  void enterProject(order[(order.length + step) % order.length]!);
+}
+
 export function AgentTabs() {
   const t = useT();
   const { data } = useProjects(false);
@@ -27,13 +36,14 @@ export function AgentTabs() {
     return () => { gone = true; };
   }, [remote]);
   const here = data?.running.find((r) => r.current);
-  if (!here) return null;
+  if (!here) { order = []; return null; }
   const same = (r: RunningRow) => (r.root === here.root || (!here.remote && trees.has(r.root))) && r.remote?.host === here.remote?.host;
   const others = data!.running.filter((r) => !r.current && same(r) && LIVE.has(r.state));
   // a helper whose lead is here (this agent or a tab) goes in its lead's group
   const ids = new Set([here.id, ...others.map((r) => r.id)].filter(Boolean));
   const grouped = (r: RunningRow) => !!r.lead && ids.has(r.lead);
   const helpersOf = (id: string | undefined) => (id ? others.filter((r) => r.lead === id) : []);
+  order = [here, ...others.filter((r) => !grouped(r))];
   const keep = async () => {
     const r = await send('/agent/keep', {}).catch(() => null);
     if (!r?.ok) toast(t('helperKeep'), t('whyBadRequest'));
