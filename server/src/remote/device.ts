@@ -4,7 +4,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import http from 'node:http';
 import os from 'node:os';
-import { HOST_WINDOW_INFO, type HostStreamMessage, type HostWindow } from '@nota-bene/shared';
+import { AGENT_ID, HOST_WINDOW_INFO, type AgentProvider, type HostStreamMessage, type HostWindow } from '@nota-bene/shared';
 import WebSocket from 'ws';
 import { agentPrefix } from '../http.ts';
 import { windowKey } from '../windows.ts';
@@ -45,6 +45,15 @@ export function cleanName(raw: string): string | undefined {
 /** What this computer calls itself, for the phone's host label: `os.hostname()` without a trailing `.local`, cleaned. */
 export function computerName(raw: string = os.hostname()): string | undefined {
   return cleanName(cleanName(raw)?.replace(/\.local$/i, '') ?? '');
+}
+
+/** A server's agents but its first (its /info's `agents` and `agent`), well formed only. */
+function otherAgents(info: Record<string, unknown> | null): { id: string; provider: AgentProvider }[] {
+  if (!info || !Array.isArray(info.agents)) return [];
+  return info.agents.flatMap((x: unknown) => {
+    const { id, provider } = (x ?? {}) as { id?: unknown; provider?: unknown };
+    return typeof id === 'string' && AGENT_ID.test(id) && id !== info.agent && (provider === 'claude' || provider === 'codex' || provider === 'omp') ? [{ id, provider }] : [];
+  });
 }
 
 /**
@@ -220,14 +229,17 @@ export class DeviceChannel {
     const push = async () => {
       const list = this.#o.windows.list();
       const infos = await Promise.all(list.map((w) => windowInfo(w)));
+      // epic 383: each server's other agents, by its /info's `agents`, read under their prefix
+      const more = await Promise.all(list.map((w, i) => Promise.all(otherAgents(infos[i]).map(async (a) => ({ a, info: await windowInfo(w, fetch, `/a/${a.id}`) })))));
       if (s.closed) return;
       const ids = windowIds(list);
-      const windows = list.map((w, i): HostWindow => {
-        const info = infos[i] ?? {};
-        const extra = Object.fromEntries(HOST_WINDOW_INFO.filter((k) => info[k] !== undefined).map((k) => [k, info[k]]));
-        return { id: ids[i]!, port: w.port, provider: w.provider, root: w.root, ...extra };
-      });
-      const m = JSON.stringify({ t: 'windows', windows } satisfies HostStreamMessage);
+      const fields = (info: Record<string, unknown>) => Object.fromEntries(HOST_WINDOW_INFO.filter((k) => info[k] !== undefined).map((k) => [k, info[k]]));
+      const windows = list.map((w, i): HostWindow => ({ id: ids[i]!, port: w.port, provider: w.provider, root: w.root, ...fields(infos[i] ?? {}) }));
+      const agents = list.flatMap((w, i) => more[i]!.flatMap(({ a, info }): HostWindow[] => {
+        // an agent that went between the two reads, or answers no folder, is left out until the next look
+        return info && typeof info.root === 'string' ? [{ id: windowKey(a.provider, info.root), port: w.port, agent: a.id, provider: a.provider, root: info.root, ...fields(info) }] : [];
+      }));
+      const m = JSON.stringify({ t: 'windows', windows, ...(agents.length ? { agents } : {}) } satisfies HostStreamMessage);
       if (m === last) return;
       last = m;
       s.write(Buffer.from(m));

@@ -137,7 +137,7 @@ Future<Written> fetchSound(
     final r = await ch.httpStream(
       tab.connection.port,
       'GET',
-      '/file?path=${Uri.encodeQueryComponent(rel)}',
+      tab.connection.at('/file?path=${Uri.encodeQueryComponent(rel)}'),
     );
     final bad = fetchFailOf(r.status);
     final length = int.tryParse(r.headers['content-length'] ?? '');

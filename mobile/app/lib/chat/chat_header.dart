@@ -88,6 +88,7 @@ class ChatHeader extends StatelessWidget {
                       icons: tab.stores.icons,
                       link: tab.connection.link,
                       port: tab.connection.port,
+                      agent: tab.connection.window?.agent,
                       icon: tab.connection.window?.icon,
                       size: 28,
                       semanticLabel: providerName(

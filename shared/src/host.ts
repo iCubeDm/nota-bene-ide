@@ -43,10 +43,18 @@ export type HostWindow = {
   replies?: number;
   /** the version (a hash) of the picture of the window's project folder; null when it has none */
   icon?: string | null;
+  /**
+   * Epic 383: one of the server's other agents (`HostStreamMessage.agents`), its streams under `/a/<agent>`. Absent for
+   * the server's first agent, which `windows` lists.
+   */
+  agent?: string;
 };
 
-/** What the host stream sends: the whole list on open and on every change. */
-export type HostStreamMessage = { t: 'windows'; windows: HostWindow[] };
+/**
+ * What the host stream sends: the whole list on open and on every change. `agents`: the servers' other agents (epic 383),
+ * kept apart from `windows` so a client before them, which would open a server's first agent for them, does not list them.
+ */
+export type HostStreamMessage = { t: 'windows'; windows: HostWindow[]; agents?: HostWindow[] };
 
 /** The fields of a window's /info the host stream passes on. */
 export const HOST_WINDOW_INFO = ['title', 'session', 'model', 'busy', 'supervised', 'pending', 'last', 'replies', 'icon'] as const satisfies readonly (keyof HostWindow)[];

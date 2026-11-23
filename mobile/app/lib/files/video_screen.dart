@@ -83,7 +83,9 @@ class _VideoScreenState extends State<VideoScreen> {
     final a = await ch.httpStream(
       widget.tab.connection.port,
       method,
-      '/file?path=${Uri.encodeQueryComponent(widget.path)}',
+      widget.tab.connection.at(
+        '/file?path=${Uri.encodeQueryComponent(widget.path)}',
+      ),
       headers: headers,
     );
     final etag = a.headers['etag'];

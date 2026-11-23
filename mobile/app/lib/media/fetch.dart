@@ -38,7 +38,11 @@ Future<Fetched> fetchMedia(
   var gone = false;
   abandoned?.then((_) => gone = true);
   try {
-    final r = await ch.httpStream(tab.connection.port, 'GET', url);
+    final r = await ch.httpStream(
+      tab.connection.port,
+      'GET',
+      tab.connection.at(url),
+    );
     final length = int.tryParse(r.headers['content-length'] ?? '');
     final bad = fetchFailOf(r.status);
     if (gone || bad != null || (length != null && length > max)) {
@@ -84,7 +88,11 @@ Future<({FetchFail? fail, String? etag})> headMedia(
   final ch = tab.connection.link.channel;
   if (ch == null) return (fail: FetchFail.unreadable, etag: null);
   try {
-    final r = await ch.httpStream(tab.connection.port, 'HEAD', url);
+    final r = await ch.httpStream(
+      tab.connection.port,
+      'HEAD',
+      tab.connection.at(url),
+    );
     r.cancel();
     return (fail: fetchFailOf(r.status), etag: r.headers['etag']);
   } on Object {

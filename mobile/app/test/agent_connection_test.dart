@@ -58,6 +58,23 @@ void main() {
     link.dispose();
   });
 
+  test(
+    'one of a server\'s other agents: its socket and requests go under /a/<agent> on the server\'s port (epic 383)',
+    () async {
+      final w = window(4791, '/q', id: 'claude:q', agent: 'claude-abcdef');
+      ch.push([window(4791, '/p'), w]);
+      await settle();
+      final a = AgentConnection(link, w, onEvent: (_) {}, retry: (_) async {})
+        ..start();
+      addTearDown(a.dispose);
+      await settle();
+      expect(ch.wsOpens.last, containsPair('port', 4791));
+      expect(ch.wsOpens.last['path'], startsWith('/a/claude-abcdef/ws?tab='));
+      expect(a.at('/file?path=a.md'), '/a/claude-abcdef/file?path=a.md');
+      expect(c.at('/file?path=a.md'), '/file?path=a.md');
+    },
+  );
+
   test('opens nothing until started', () async {
     expect(ch.wsOpens, isEmpty);
     c.start();

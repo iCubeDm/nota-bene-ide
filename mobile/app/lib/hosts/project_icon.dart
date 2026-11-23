@@ -98,6 +98,7 @@ class ProjectIconAvatar extends StatefulWidget {
     super.key,
     required this.link,
     required this.port,
+    this.agent,
     required this.icon,
     required this.size,
     required this.fallback,
@@ -108,6 +109,9 @@ class ProjectIconAvatar extends StatefulWidget {
 
   final HostLink link;
   final int port;
+
+  /// One of a server's other agents (epic 383): its picture is under `/a/<agent>`.
+  final String? agent;
 
   /// The version the window list names; null: no picture.
   final String? icon;
@@ -166,8 +170,9 @@ class _ProjectIconAvatarState extends State<ProjectIconAvatar> {
     final ch = widget.link.channel;
     if (ch == null) return null;
     final port = widget.port;
+    final under = widget.agent == null ? '' : '/a/${widget.agent}';
     return (method, path, {headers, body}) =>
-        ch.http(port, method, path, headers: headers, body: body);
+        ch.http(port, method, '$under$path', headers: headers, body: body);
   }
 
   void _load() {
