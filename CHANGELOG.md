@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Agent tabs keep their place; tabs move by drag.** Moving to another agent no longer puts it first: a project's agents keep one order on every page. Drag any tab to reorder it.
 - **Close an agent from its tab.** **✕** on another agent's tab closes it after a confirm; its session stays.
 - **Phone: a project's agents together.** The phone keeps a folder's agents next to each other and shows a lead's helpers as one chip under it.
 - **Moving between a project's agents.** Alt+[ and Alt+] go to the previous and next agent; the switcher lists a project's agents and closes one.

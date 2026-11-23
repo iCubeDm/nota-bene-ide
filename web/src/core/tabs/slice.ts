@@ -152,6 +152,15 @@ export const tabsSlice = createSlice({
     activate: (s, a: PayloadAction<Tab['id']>) => {
       if (idx(s, a.payload) >= 0) s.active = a.payload;
     },
+    /** A drag in the strip (issue 638): tab `id` goes before or after tab `to`; neither is the chat, though one may go right after it. */
+    moveTab: (s, a: PayloadAction<{ id: Tab['id']; to: Tab['id']; after: boolean }>) => {
+      const { id, to, after } = a.payload;
+      const i = idx(s, id);
+      const j = idx(s, to);
+      if (i <= 0 || j < 0 || id === to || (j === 0 && !after)) return;
+      const [tab] = s.open.splice(i, 1);
+      s.open.splice(idx(s, to) + (after ? 1 : 0), 0, tab!);
+    },
     closeTab: (s, a: PayloadAction<Tab['id']>) => {
       const i = idx(s, a.payload);
       if (i <= 0) return; // unknown, or the chat
@@ -215,7 +224,7 @@ function restore(s: TabsState, saved: SavedTabs, merge: boolean): void {
   if (idx(s, saved.active) >= 0) s.active = saved.active as Tab['id'];
 }
 
-export const { openFile, openSettings, openUsage, openRemote, openChanges, openLog, openDiagram, openAgent, openShell, setAgentTitle, activate, closeTab, closeOthers, closeRight, closeAll, reopenClosed, restoreTabs } = tabsSlice.actions;
+export const { openFile, openSettings, openUsage, openRemote, openChanges, openLog, openDiagram, openAgent, openShell, setAgentTitle, activate, moveTab, closeTab, closeOthers, closeRight, closeAll, reopenClosed, restoreTabs } = tabsSlice.actions;
 
 export const selectTabs = (s: RootState): TabsState => s.tabs;
 export const selectActiveTab = (s: RootState): Tab => s.tabs.open.find((t) => t.id === s.tabs.active) ?? CHAT;

@@ -24,6 +24,8 @@ export { useAutosize } from '../lib/autosize.ts';
 export { placeListFor, revealSelected } from '../lib/placeList.ts';
 export { useNote, REFUSED } from '../lib/useNote.ts';
 export { PATHS_MIME, draggedPaths, hasFiles, downloadUrl } from '../lib/drag.ts';
+export { useDragOrder, DROP_MARK } from '../lib/dragOrder.ts';
+export { useChatTab } from '../tabs/chatTab.ts';
 export { prepareImage, uploadImage, encodeImage, mediaTypeOf } from '../lib/image.ts';
 export { useFocusWithin } from '../shell/focusWithin.ts';
 export { makeAnchor } from '../anchors/resolve.ts';
