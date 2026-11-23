@@ -6,7 +6,7 @@
 - **A pending server restart no longer stalls every project.** While one project works, the others keep sending and compacting; only the project the restart waits for holds its messages.
 - **Phone: the projects of one server.** Folders opened in a running Nota Bene (its other agents) are listed on the phone again and open there; before, it showed only the server's first project. A phone app before this release still shows only that one.
 - **An app icon.** `nota-bene shortcut` adds Nota Bene to your apps (macOS `~/Applications`, the Windows Start menu, a Linux `.desktop` file); a click opens your most recent project, starting Nota Bene if needed. Until it is there, a tab on this computer offers it in a notification: **Add** or **Not now** (30 days). Also `nota-bene --app`.
-- **Phone: a readable notification icon.** The status bar showed Nota Bene's notifications as a dot; it now shows NB in a circle, as the browser tab does.
+- **Phone: a readable notification icon.** The status bar showed Nota Bene's notifications as a dot; it now shows the speech bubble.
 - **Remote access: an outdated connector is replaced after an update from a checkout.** A window replaced the shared connector only when the package version was older, and a checkout keeps its version between releases, so after pulling a window kept a connector started on older code (with one from before 2.2.0, another computer's windows did not appear). Now a connector speaking an older protocol is replaced as well.
 
 ## 2.2.0 — 2026-11-21
