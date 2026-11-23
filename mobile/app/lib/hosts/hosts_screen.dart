@@ -105,12 +105,16 @@ class HostsList extends StatelessWidget {
             ),
           );
         }
-        for (final w in l.windows) {
+        for (final e in groupWindows(l.windows)) {
+          final w = e.window;
           rows.add(
             _SessionRow(
               icons: icons,
               link: l,
               window: w,
+              nested: e.nested,
+              helpers: e.helpers,
+              onOpenHelper: (h) => onOpen(l, h),
               online: l.state == LinkState.online,
               unread: seen.unread(l.host.id, w),
               now: clock(),
@@ -143,6 +147,48 @@ class HostsList extends StatelessWidget {
         ? list
         : RefreshIndicator(onRefresh: refresh, child: list);
   }
+}
+
+/// A host's row as the list shows it (epic 383 phase 3): `nested` for a folder's later agents, kept under its first;
+/// `helpers` the agents this one started, which have no row of their own.
+typedef WindowEntry = ({
+  HostWindow window,
+  bool nested,
+  List<HostWindow> helpers,
+});
+
+/// A folder's agents together, in the order the first of each came; a helper under its lead (the row with its agent
+/// id, else the window on its port, whose own id the host stream does not name).
+List<WindowEntry> groupWindows(List<HostWindow> ws) {
+  HostWindow? leadOf(HostWindow h) {
+    final id = h.lead;
+    if (id == null) return null;
+    return ws.where((x) => x.agent == id).firstOrNull ??
+        ws.where((x) => x.agent == null && x.port == h.port).firstOrNull;
+  }
+
+  final helperOf = <HostWindow, HostWindow>{for (final h in ws) h: ?leadOf(h)};
+  final top = ws.where((w) => !helperOf.containsKey(w)).toList();
+  final placed = <HostWindow>{};
+  final out = <WindowEntry>[];
+  for (final w in top) {
+    if (placed.contains(w)) continue;
+    final same = top
+        .where((x) => x.root == w.root && !placed.contains(x))
+        .toList();
+    for (final (i, x) in same.indexed) {
+      placed.add(x);
+      out.add((
+        window: x,
+        nested: i > 0,
+        helpers: [
+          for (final e in helperOf.entries)
+            if (e.value == x) e.key,
+        ],
+      ));
+    }
+  }
+  return out;
 }
 
 /// A grey placeholder for a window of a host that is still connecting.
@@ -195,6 +241,9 @@ class _SessionRow extends StatelessWidget {
     required this.now,
     required this.onOpen,
     required this.onMarkRead,
+    required this.onOpenHelper,
+    this.nested = false,
+    this.helpers = const [],
     this.onSetIcon,
     this.onRemoveIcon,
   });
@@ -203,10 +252,38 @@ class _SessionRow extends StatelessWidget {
   final ProjectIcons icons;
   final HostWindow window;
   final bool online;
+
+  /// a folder's later agent, under its first
+  final bool nested;
+
+  /// the agents this one started (epic 383 2g): a chip that opens them
+  final List<HostWindow> helpers;
+  final void Function(HostWindow helper) onOpenHelper;
   final int unread;
   final DateTime now;
   final VoidCallback onOpen, onMarkRead;
   final VoidCallback? onSetIcon, onRemoveIcon;
+
+  /// the agents this one started: one opens
+  Future<void> _helpers(BuildContext context) => showModalBottomSheet<void>(
+    context: context,
+    builder: (sheet) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final h in helpers)
+            ListTile(
+              title: Text(h.title ?? AppLocalizations.of(context).untitled),
+              subtitle: Text(providerName(h.provider)),
+              onTap: () {
+                Navigator.pop(sheet);
+                onOpenHelper(h);
+              },
+            ),
+        ],
+      ),
+    ),
+  );
 
   Future<void> _menu(BuildContext context) {
     final t = AppLocalizations.of(context);
@@ -268,7 +345,7 @@ class _SessionRow extends StatelessWidget {
         onTap: online ? onOpen : null,
         onLongPress: () => _menu(context),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          padding: EdgeInsets.fromLTRB(nested ? 40 : 16, 10, 16, 10),
           child: Row(
             children: [
               SizedBox.square(
@@ -385,6 +462,44 @@ class _SessionRow extends StatelessWidget {
                           _Badge('$unread', c.primary, c.primaryFg),
                       ],
                     ),
+                    if (helpers.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: InkWell(
+                          key: ValueKey('helpers-${w.agent ?? w.port}'),
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: online ? () => _helpers(context) : null,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  t.helpers(helpers.length),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: c.mutedFg,
+                                  ),
+                                ),
+                                for (final h in helpers)
+                                  Container(
+                                    margin: const EdgeInsets.only(left: 4),
+                                    width: 7,
+                                    height: 7,
+                                    decoration: BoxDecoration(
+                                      color: h.pending == true
+                                          ? c.accent
+                                          : h.busy == true
+                                          ? c.primary
+                                          : c.success,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),

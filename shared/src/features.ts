@@ -139,6 +139,8 @@ export const FEATURES = {
   editOverlap: 33,
   /** the agent bus (epic 383 2f): a `user` event may carry `from`, another agent's message */
   agentBus: 34,
+  /** the host stream's rows carry a helper's `lead` (epic 383 phase 3); also what replaces a managed connector before it */
+  hostLeads: 35,
 } as const;
 
 export type Feature = keyof typeof FEATURES;
