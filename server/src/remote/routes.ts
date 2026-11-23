@@ -7,6 +7,7 @@ import type { EventHub } from '../hub.ts';
 import { reportError } from '../errors.ts';
 import { LegacyConnector, NotRunning, type RemoteKeeper } from './keeper.ts';
 import { Refusal } from './store.ts';
+import { AGENT_ID } from '@nota-bene/shared';
 
 const MAX_BODY = 16 * 1024;
 
@@ -76,8 +77,8 @@ export function remoteRoutes(o: { hub: EventHub; keeper: RemoteKeeperApi | undef
     }),
     '/system/remote/open': route('POST', async (k, req, res) => {
       const b = await readBody(req);
-      if (typeof b.host !== 'string' || !b.host || !Number.isInteger(b.port)) return json(res, 400, { error: 'bad request' });
-      const r = await k.openWindow(b.host, b.port as number);
+      if (typeof b.host !== 'string' || !b.host || !Number.isInteger(b.port) || (b.agent !== undefined && (typeof b.agent !== 'string' || !AGENT_ID.test(b.agent)))) return json(res, 400, { error: 'bad request' });
+      const r = await k.openWindow(b.host, b.port as number, b.agent as string | undefined);
       if ('url' in r) return json(res, 200, r);
       json(res, r.error === 'no such window' ? 404 : 409, r);
     }),

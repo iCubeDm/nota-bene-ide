@@ -294,6 +294,15 @@ it('issue 297: a paired computer\'s windows as rows, the state from its host str
   ]);
 });
 
+it('epic 383: a paired computer\'s agents beside its windows, each with its id; current is that agent only', () => {
+  const rows = remoteRows([{ id: 'h1', name: 'Studio', windows: [
+    { port: 4777, provider: 'claude', root: '/p/a' },
+    { port: 4777, provider: 'codex', root: '/p/b', agent: 'codex-k3f7qz' },
+  ] }], { host: 'h1', port: 4777, agent: 'codex-k3f7qz' });
+  expect(rows.map((r) => [r.agent, r.current])).toEqual([[undefined, false], ['codex-k3f7qz', true]]);
+  expect(remoteRows([{ id: 'h1', name: 'Studio', windows: [{ port: 4777, provider: 'claude', root: '/p/a' }] }], { host: 'h1', port: 4777 })[0]!.current).toBe(true);
+});
+
 it('issue 297: a row for another computer\'s page keeps what lists and moves, none of its content', () => {
   const row = { provider: 'claude' as const, port: 4777, root: '/p/a', title: 'T', session: 's1', state: 'waiting' as const, current: false, clients: 2, unseen: 3, last: { role: 'user' as const, text: 'secret', at: 1 }, remote: { host: 'h', name: 'N' } };
   expect(bareRow(row)).toEqual({ provider: 'claude', port: 4777, root: '/p/a', title: null, session: null, state: 'waiting', current: false, clients: 0, unseen: 0, last: null, remote: { host: 'h', name: 'N' } });

@@ -170,6 +170,20 @@ const FINAL = new Set([4401, 4403, 4409, 4413]);
  * `name(string)`: what the computer calls itself, on every connection. `connecting` until a channel is up and after it
  * dropped, `failing` after an attempt that did not get one, `revoked` when the computer refused this one (no retry).
  */
+const isWindow = (w: Partial<HostWindow> | null): w is HostWindow =>
+  typeof w?.port === 'number' && typeof w.provider === 'string' && typeof w.root === 'string';
+
+/**
+ * What a host stream message lists, the parse boundary's shape check (CHANNEL.md: every other field is optional): its
+ * windows, then its server's other agents (epic 383), each with its agent id. Null for any other message.
+ */
+export function hostStreamWindows(m: unknown): HostWindow[] | null {
+  const h = m as Partial<HostStreamMessage> | null;
+  if (h?.t !== 'windows' || !Array.isArray(h.windows)) return null;
+  const agents = Array.isArray(h.agents) ? h.agents.filter((w) => isWindow(w) && typeof w.agent === 'string') : [];
+  return [...h.windows.filter(isWindow), ...agents];
+}
+
 export class HostLink extends EventEmitter {
   state: RemoteHostState = 'connecting';
   windows: HostWindow[] = [];
@@ -226,10 +240,9 @@ export class HostLink extends EventEmitter {
       collect(sock.end.open({ kind: 'host' }), (data) => {
         if (this.#sock !== sock) return;
         try {
-          const m = JSON.parse(data.toString('utf8')) as Partial<HostStreamMessage> | null;
-          if (m?.t !== 'windows' || !Array.isArray(m.windows)) return;
-          // the shape check of the parse boundary: what the rest relies on (CHANNEL.md: every other field is optional)
-          this.windows = m.windows.filter((w) => typeof w?.port === 'number' && typeof w.provider === 'string' && typeof w.root === 'string');
+          const windows = hostStreamWindows(JSON.parse(data.toString('utf8')));
+          if (!windows) return;
+          this.windows = windows;
           this.emit('windows', this.windows);
         } catch { /* not JSON: ignored, as an unknown message */ }
       });

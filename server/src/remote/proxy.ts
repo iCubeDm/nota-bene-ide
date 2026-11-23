@@ -11,7 +11,7 @@ import { randomBytes } from 'node:crypto';
 import http from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { isUiLang, type UiLang } from '@nota-bene/shared';
+import { AGENT_ID, isUiLang, type UiLang } from '@nota-bene/shared';
 import { authenticated, cookieRoute, KEY_PROTOCOL, loginCredential, loginRoute, newNonce } from '../auth.ts';
 import { FORWARDED, goodPath, MAX_BODY, unprefixed } from './device.ts';
 import { CLOSED, collect, TOO_LARGE, UNREACHABLE, type Stream } from './mux.ts';
@@ -20,13 +20,15 @@ import { CLOSED, collect, TOO_LARGE, UNREACHABLE, type Stream } from './mux.ts';
 export const LINGER_MS = 60_000;
 
 /** Where `/system/remote/enter` goes: another window of a paired computer, or one of this computer's. */
-export type EnterTarget = { host: string; port: number } | { provider: string; port: number; root: string };
+export type EnterTarget = ({ host: string; port: number } | { provider: string; port: number; root: string }) & { /** epic 383: one of that server's agents */ agent?: string };
 
 export type ProxyOptions = {
   /** a stream to the paired computer, null while its channel is down */
   open: (o: unknown) => Stream | null;
   /** the window's port on that computer */
   port: number;
+  /** epic 383: the agent of that server the page opens on (its prefix); none: the server's first */
+  agent?: string;
   computer: { host: string; name: string };
   /** this computer's projects list with the paired computers' windows (projects.ts), this one current */
   projects: () => Promise<unknown>;
@@ -112,7 +114,7 @@ export class WindowProxy {
 
   /** The address that logs a tab in (its fragment is the login of this listener only). */
   get url(): string {
-    return `${this.#origin}/#t=${loginCredential(this.#token, this.#port, this.#nonce)}`;
+    return `${this.#origin}${this.#o.agent ? `/a/${this.#o.agent}` : ''}/#t=${loginCredential(this.#token, this.#port, this.#nonce)}`;
   }
 
   /**
@@ -214,9 +216,10 @@ export class WindowProxy {
     if (!this.#authed(req, false)) return back('login');
     const q = new URL(raw, this.#origin).searchParams;
     const port = Number(q.get('port'));
-    const host = q.get('host'), provider = q.get('provider'), root = q.get('root');
-    const to: EnterTarget | null = !Number.isInteger(port) || port <= 0 ? null
-      : host ? { host, port } : provider && root ? { provider, port, root } : null;
+    const host = q.get('host'), provider = q.get('provider'), root = q.get('root'), agent = q.get('agent');
+    const at = agent ? { agent } : {};
+    const to: EnterTarget | null = !Number.isInteger(port) || port <= 0 || (agent !== null && !AGENT_ID.test(agent)) ? null
+      : host ? { host, port, ...at } : provider && root ? { provider, port, root, ...at } : null;
     if (!to) return back('failed');
     void this.#o.enter(to).then((r) => {
       if ('error' in r) return back(ENTER_CODES[r.error] ?? 'failed');
