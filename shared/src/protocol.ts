@@ -147,7 +147,7 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 
 export { FEATURES, has, type Feature } from './features.ts';
 /** The protocol this server speaks, announced in `hello`: the largest entry of `FEATURES`, where each number's additions are. */
-export const PROTOCOL = 32;
+export const PROTOCOL = 33;
 
 /** The form of an agent id (epic 383): `<provider>-<6 base32>`, as in `/a/<id>/`. */
 export const AGENT_ID = /^[a-z]+-[a-z2-7]{6}$/;
@@ -387,6 +387,11 @@ export type ServerEvent =
   /** protocol 27, to the asking socket only, never stored: its send is held (see `compact-pending`), or its typed `/compact` became the pending compaction; a `user` event follows when the send goes */
   | { kind: 'send-held'; id: string }
   | { kind: 'server-error'; where: string; message: string }
+  /**
+   * protocol 33 (epic 383 2e), stored: another agent of this server (`agent`, of `provider`) edited `file` (this agent's
+   * folder's relative path, else absolute) in a turn that overlaps this agent's, and the file has uncommitted changes
+   */
+  | { kind: 'edit-overlap'; file: string; agent: string; provider: AgentProvider; ts: number }
   /** to the asking socket only, never stored: a `send` the server did not take (the web side clears its pending state) */
   | { kind: 'send-refused'; id: string; reason: 'busy' | 'switching' | 'detached' }
   /** a `! cmd` run began (protocol 11); stored, so a reload shows the block */

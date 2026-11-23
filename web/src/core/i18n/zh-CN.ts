@@ -121,6 +121,8 @@ export const zhCN: Dict = {
   agentNoComment: '要在此处评论，需要重启服务器（代码已更新）。',
   batchHead: BATCH_HEADS['zh-CN'],
   resumed: (id) => `↻ 已恢复会话 ${id}`,
+  editOverlap: (agent: string, file: string) => `⚠ ${agent} 也在与本轮同时进行的一轮中编辑 ${file}；这些更改尚未提交。`,
+  editOverlapOpen: '打开',
   'label_looks-good': '看起来不错',
   label_fire: '太棒了！',
   label_clarify: '请说明一下',

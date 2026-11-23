@@ -135,6 +135,8 @@ export const FEATURES = {
    * Also what replaces a managed connector started before it, which drops them
    */
   remoteAgents: 32,
+  /** the `edit-overlap` event: two agents of one server edit one file in overlapping turns (epic 383 2e) */
+  editOverlap: 33,
 } as const;
 
 export type Feature = keyof typeof FEATURES;

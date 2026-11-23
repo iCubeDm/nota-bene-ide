@@ -97,7 +97,7 @@ it('every command\'s tooltip key resolves through withKey and keysFor, and every
 });
 
 it('every kind of feed item but actions is drawn by one plugin, and a kind drawn twice fails the build', () => {
-  const kinds: Record<FeedKind, true> = { user: true, assistant: true, done: true, permission: true, shell: true, marker: true, notice: true };
+  const kinds: Record<FeedKind, true> = { user: true, assistant: true, done: true, permission: true, shell: true, marker: true, notice: true, overlap: true };
   expect([...buildRegistry(PLUGINS).feed.keys()].sort()).toEqual(Object.keys(kinds).sort());
   const notice = (id: string): Plugin => ({ id, feed: [{ kind: 'notice', render: () => null }] });
   expect(() => buildRegistry([notice('a'), notice('b')])).toThrow('the feed item kind "notice" is drawn twice');

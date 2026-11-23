@@ -36,6 +36,7 @@ import { AuditLog } from './audit.ts';
 import { moveWindow, readKeptAgents, writeKeptAgents } from './windows.ts';
 import { pidAlive, samePath } from './platform.ts';
 import { controlToken, describeVersion, listWindows, readJson, systemRoutes } from './system.ts';
+import { overlapWatch } from './overlap.ts';
 import { RESTART, restartGate } from './restartGate.ts';
 import { compactOrder } from './compactOrder.ts';
 import { TurnMarks, changesWork } from './turnMarks.ts';
@@ -173,6 +174,8 @@ type Shared = {
   agents: () => { id: string; provider: AgentProvider }[];
   /** some agent but this one is not in a pause */
   othersBusy: (id: string) => boolean;
+  /** epic 383 2e: the agents' edits and turns, for the warning when two edit one file at once */
+  overlap: ReturnType<typeof overlapWatch>;
   /** POST /a/<id>/control/close, set once the server is up: 200, or 409 for the window's own agent */
   closeAgent: (id: string) => number;
   /** POST /control/open, set once the server is up */
@@ -277,6 +280,14 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     });
     // the one source of the project root: a switch changes it, so every route reads it per request
     const root = () => manager.info().root;
+    // its turns and edits, for the warning when another agent edits the same file in an overlapping turn
+    hub.tap((ev) => {
+      if (ev.kind === 'user') s.overlap.turn(a.id, true);
+      else if (ev.kind !== 'agent') return;
+      else if (ev.e.t === 'turn-start') s.overlap.turn(a.id, true);
+      else if (ev.e.t === 'turn-end') s.overlap.turn(a.id, false);
+      else void s.overlap.event(a.id, root(), ev.e).catch((e: unknown) => reportError(hub, 'overlap', e));
+    });
     // not a pause: a turn, a waiting question or approval, a switch, a `! cmd` run or a task of the agent still running.
     // The update's hand-over (77) and a pending restart (75) wait for the same pause
     const notPaused = () => manager.busy() || manager.shellRunning() || hub.tasksRunning() > 0 || hub.reportDue();
@@ -1032,6 +1043,17 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       primaryId: launchAgentId(agent.provider, nonce),
       agents: () => [...agents.values()].map((x) => ({ id: x.id, provider: x.provider })),
       othersBusy: (id) => [...agents.values()].some((x) => x.id !== id && x.notPaused()),
+      // each of the two feeds names the file (in its own folder's terms) and the other agent
+      overlap: overlapWatch({
+        found: ({ file, agents: pair }) => {
+          for (const [me, other] of [pair, [pair[1], pair[0]]] as const) {
+            const x = agents.get(me), y = agents.get(other);
+            if (!x || !y) continue;
+            const rel = path.relative(x.root(), file);
+            x.hub.emit({ kind: 'edit-overlap', file: rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? rel : file, agent: y.id, provider: y.provider });
+          }
+        },
+      }),
     };
     // the first agent: the window's, addressed as /a/<id>/ and at the top (the phone and older pages)
     const primary = await startAgent(s, {
@@ -1212,6 +1234,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       const a = agents.get(id);
       if (!a || a === primary) return 409;
       agents.delete(id);
+      s.overlap.forget(id);
       keep();
       void a.close();
       return 200;

@@ -100,6 +100,23 @@ it('a second agent has its own folder, socket, session and tab; the top stays th
   await expect(s.open({ provider: 'claude', cwd: path.join(tmp, 'b'), backend: fakeBackend([]) })).rejects.toThrow(/stopping/);
 });
 
+it('two agents of one folder edit one file in overlapping turns: a warning in each feed, naming the other (epic 383 2e)', async () => {
+  const a = path.join(tmp, 'a');
+  const file = path.join(a, 'x.ts');
+  const turn = { text: 'edited', delayMs: 400, tools: [{ name: 'Edit', input: { file_path: file } }] };
+  const s = await startServer({ insecureNoAuth: true, cwd: a, port: 0, backend: fakeBackend([turn]), webDist: path.join(tmp, 'dist') });
+  closers.push(s.close);
+  const b = await s.open({ provider: 'codex', cwd: a, backend: fakeBackend([turn]) });
+  const top = await json(`${s.url}/info`);
+  const sa = await socket(s.url);
+  const sb = await socket(`${s.url}/a/${b}`);
+  sa.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'edit x' }));
+  sb.ws.send(JSON.stringify({ type: 'send', id: 'u2', text: 'edit x too' }));
+  await until(() => sa.events.some((e) => e.kind === 'edit-overlap') && sb.events.some((e) => e.kind === 'edit-overlap'));
+  expect(sa.events.find((e) => e.kind === 'edit-overlap')).toMatchObject({ file: 'x.ts', agent: b, provider: 'codex' });
+  expect(sb.events.find((e) => e.kind === 'edit-overlap')).toMatchObject({ file: 'x.ts', agent: top.agent, provider: 'claude' });
+});
+
 it('/control/open: an agent for a folder and provider, the one already open, or a new session as another', async () => {
   const made: string[] = [];
   const a = path.join(tmp, 'a');

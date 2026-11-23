@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import type { AnyFeedRenderer, FeedItem, Held } from '@/sdk';
-import { DoneLine, IdleCompactLine, MarkerLine, NoticeLine } from './DoneLine.tsx';
+import { DoneLine, IdleCompactLine, MarkerLine, NoticeLine, OverlapLine } from './DoneLine.tsx';
 import { MsgTime } from './MsgTime.tsx';
 import { PermissionCard } from './PermissionCard.tsx';
 import { PlanCard } from './PlanCard.tsx';
@@ -38,4 +38,5 @@ export const FEED_RENDERERS: AnyFeedRenderer[] = [
   { kind: 'permission', render: Permission },
   { kind: 'marker', render: MarkerLine },
   { kind: 'notice', render: NoticeLine },
+  { kind: 'overlap', render: OverlapLine },
 ];

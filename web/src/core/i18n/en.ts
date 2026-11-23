@@ -123,6 +123,8 @@ export const en: Dict = {
   agentNoComment: 'Commenting here needs a server restart (code updated).',
   batchHead: BATCH_HEADS.en,
   resumed: (id) => `↻ resumed session ${id}`,
+  editOverlap: (agent: string, file: string) => `⚠ ${agent} is editing ${file} too, in a turn alongside this one; the changes are not committed.`,
+  editOverlapOpen: 'Open it',
   // quick labels (M1-08)
   'label_looks-good': 'Looks good',
   label_fire: 'Love it!',
