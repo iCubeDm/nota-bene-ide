@@ -29,6 +29,9 @@ extension HostWindowKey on HostWindow {
   /// in the app reads `id` or `port` for identity; `port` only opens the window's streams.
   String get key => id ?? 'port:$port';
 
+  /// A path of this window's streams: one of a server's other agents (epic 383) answers under `/a/<agent>`.
+  String at(String path) => agent == null ? path : '/a/$agent$path';
+
   /// This window with another picture version.
   HostWindow withIcon(String? icon) => HostWindow(
     id: id,
@@ -44,6 +47,7 @@ extension HostWindowKey on HostWindow {
     last: last,
     replies: replies,
     icon: icon,
+    agent: agent,
   );
 }
 
@@ -54,6 +58,13 @@ extension LastMessageTime on LastMessage {
     _ => null,
   };
 }
+
+/// The rows of a host stream `windows` message: its windows, then the servers' other agents (epic 383; listed apart
+/// so a phone before them does not open a server's first agent for them).
+List<Object?> hostRows(Map<Object?, Object?> j) => [
+  ...j['windows'] as List,
+  if (j['agents'] case final List agents) ...agents,
+];
 
 /// The windows of a host stream `windows` message. A window that does not parse is left out, the others kept. A
 /// window listed without `icon` (the host could not read its /info that time) keeps the picture it had in [before],
@@ -323,7 +334,7 @@ class Channel {
         return;
       }
       if (j is Map && j['t'] == 'windows' && j['windows'] is List) {
-        final raw = j['windows'] as List;
+        final raw = hostRows(j);
         // a host that knows project pictures lists `icon` (null or a version); an older one never does
         _icons = _icons || raw.any((w) => w is Map && w.containsKey('icon'));
         final list = parseWindows(raw, _last);

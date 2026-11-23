@@ -36,7 +36,9 @@ class AgentConnection extends ChangeNotifier {
     Future<void> Function(Duration)? retry,
   }) : _key = w.key,
        root = w.root,
+       provider = w.provider,
        _port = w.port,
+       _agent = w.agent,
        _retry = retry ?? ((d) => Future<void>.delayed(d));
 
   final HostLink link;
@@ -54,19 +56,27 @@ class AgentConnection extends ChangeNotifier {
   String get key => _key;
   String _key;
   final String root;
+
+  /// The agent the window runs: a server may hold the folder under two (epic 383), on one port.
+  final AgentProvider provider;
   int _port;
+  String? _agent;
 
   /// The window as its host lists it now; null while it is not listed. The one on the tab's port first: a second
   /// window of the folder and agent on a lower port takes the bare id (issue 511), and the chat must not move to it.
-  /// By key only once that port is gone (a restart on another port). The folder too: a host before ids keys by port.
+  /// By key only once that port is gone (a restart on another port). The folder and its agent too: a host before ids
+  /// keys by port, and one server may hold the folder under two agents on that port (epic 383).
   HostWindow? get window {
-    final same = link.windows.where((w) => w.root == root);
+    final same = link.windows.where(
+      (w) => w.root == root && w.provider == provider,
+    );
     final w =
         same.where((w) => w.port == _port).firstOrNull ??
         same.where((w) => w.key == _key).firstOrNull;
     if (w != null) {
       _port = w.port;
       _key = w.key;
+      _agent = w.agent;
     }
     return w;
   }
@@ -75,6 +85,13 @@ class AgentConnection extends ChangeNotifier {
   int get port {
     window;
     return _port;
+  }
+
+  /// A path of the window's streams, as it was last listed: one of a server's other agents (epic 383) answers under
+  /// `/a/<agent>`, and a folder that moved into a server keeps its chat there.
+  String at(String path) {
+    window;
+    return _agent == null ? path : '/a/$_agent$path';
   }
 
   final Future<void> Function(Duration) _retry;
@@ -93,7 +110,7 @@ class AgentConnection extends ChangeNotifier {
     final ch = link.channel;
     if (ch == null) return null;
     return (method, path, {headers, body}) =>
-        ch.http(port, method, path, headers: headers, body: body);
+        ch.http(port, method, at(path), headers: headers, body: body);
   }
 
   TabState _state = TabState.connecting;
@@ -155,7 +172,7 @@ class AgentConnection extends ChangeNotifier {
     final s = _stream = ch.ws(
       port,
       // held=1 (issue 499): the phone knows `send-held`, so its messages may wait behind a pending restart or compaction
-      '/ws?tab=$tabId&held=1${_passive ? '&passive=1' : ''}',
+      at('/ws?tab=$tabId&held=1${_passive ? '&passive=1' : ''}'),
     );
     _set(TabState.connecting);
     s.messages.listen((m) {

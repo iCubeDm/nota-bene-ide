@@ -279,6 +279,7 @@ class _SessionRow extends StatelessWidget {
                       icons: icons,
                       link: link,
                       port: w.port,
+                      agent: w.agent,
                       icon: w.icon,
                       size: 54,
                       semanticLabel: providerName(w.provider),

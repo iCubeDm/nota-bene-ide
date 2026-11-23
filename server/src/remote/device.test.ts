@@ -7,6 +7,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeBackend } from '../agent/fake.ts';
 import { startServer } from '../server.ts';
+import { CONTROL_HEADER, controlToken } from '../system.ts';
 import { HOST_WINDOW_INFO } from '@nota-bene/shared';
 import { registerWindow, windowKey } from '../windows.ts';
 import { cleanName, computerName, DeviceChannel, goodPath } from './device.ts';
@@ -47,7 +48,7 @@ const until = async (cond: () => boolean, ms = 5000) => {
 };
 
 async function window(port = 0) {
-  const s = await startServer({ cwd: path.join(tmp, 'proj'), port, backend: fakeBackend([{ text: 'hello' }]), webDist: path.join(tmp, 'dist'), takeoverGraceMs: 40, exit: () => {} });
+  const s = await startServer({ cwd: path.join(tmp, 'proj'), port, backend: fakeBackend([{ text: 'hello' }]), backends: () => fakeBackend([]), webDist: path.join(tmp, 'dist'), takeoverGraceMs: 40, exit: () => {} });
   const p = Number(new URL(s.url).port);
   registerWindow(p, path.join(tmp, 'proj'), process.pid);
   let open = true;
@@ -181,6 +182,24 @@ describe('device channel', () => {
     const h = l.phone.host();
     await until(() => h.lists.length > 0);
     expect(h.lists[0]).toEqual([expect.objectContaining({ port: a.port, provider: 'claude', root: path.join(tmp, 'proj') })]);
+  });
+
+  it('the host stream lists a server\'s other agents apart, each with its agent id and its folder\'s id (epic 383)', async () => {
+    const a = await window();
+    const other = path.join(tmp, 'other');
+    fs.mkdirSync(other);
+    const opened = await fetch(`http://127.0.0.1:${a.port}/control/open`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() }, body: JSON.stringify({ root: other }) });
+    const { agent } = await opened.json() as { agent: string };
+    const l = await paired(await windows());
+    const h = l.phone.host();
+    await until(() => h.agents.some((x) => x.length > 0));
+    const i = h.agents.findIndex((x) => x.length > 0);
+    expect(h.lists[i]).toEqual([expect.objectContaining({ port: a.port, root: path.join(tmp, 'proj') })]);
+    expect(h.lists[i]![0]).not.toHaveProperty('agent');
+    expect(h.agents[i]).toEqual([expect.objectContaining({ id: windowKey('claude', other), port: a.port, agent, provider: 'claude', root: other, replies: 0 })]);
+    // its streams go under its prefix
+    const info = await l.phone.http(a.port, 'GET', `/a/${agent}/info`);
+    expect(JSON.parse(info.body.toString())).toMatchObject({ agent, root: other });
   });
 
   it('the host stream gives each window its stable id and only the /info fields of the host stream (issue 511)', async () => {

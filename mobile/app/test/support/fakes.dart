@@ -223,6 +223,7 @@ HostWindow window(
   String? title,
   String? model,
   String? icon,
+  String? agent,
 }) => HostWindow(
   id: id,
   port: port,
@@ -232,6 +233,7 @@ HostWindow window(
   title: title,
   model: model,
   icon: icon,
+  agent: agent,
 );
 
 /// The Android side of `nb/background`, recorded: [calls] holds each method with its arguments.

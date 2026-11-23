@@ -115,10 +115,10 @@ export class Windows extends EventEmitter {
   }
 }
 
-/** GET /info of a window with its bearer: the window's fields, or null. */
-export async function windowInfo(w: ProvedWindow, fetchFn: typeof fetch = fetch): Promise<Record<string, unknown> | null> {
+/** GET /info of a window with its bearer (of one of its agents under `prefix`, `/a/<id>`): its fields, or null. */
+export async function windowInfo(w: ProvedWindow, fetchFn: typeof fetch = fetch, prefix = ''): Promise<Record<string, unknown> | null> {
   try {
-    const r = await fetchFn(`http://127.0.0.1:${w.port}/info`, { headers: { authorization: w.bearer }, signal: AbortSignal.timeout(2000), redirect: 'error' });
+    const r = await fetchFn(`http://127.0.0.1:${w.port}${prefix}/info`, { headers: { authorization: w.bearer }, signal: AbortSignal.timeout(2000), redirect: 'error' });
     if (!r.ok) return null;
     const j: unknown = await r.json();
     return j && typeof j === 'object' && !Array.isArray(j) ? (j as Record<string, unknown>) : null;

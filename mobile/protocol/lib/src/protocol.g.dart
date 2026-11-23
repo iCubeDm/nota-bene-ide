@@ -1154,21 +1154,31 @@ final class HeldSend implements _Json {
 }
 
 final class HostStreamMessage implements _Json {
-  const HostStreamMessage({required this.t, required this.windows});
+  const HostStreamMessage({
+    required this.t,
+    required this.windows,
+    this.agents,
+  });
 
   factory HostStreamMessage.fromJson(Map<String, Object?> json) {
     return HostStreamMessage(
       t: json['t'] as String,
       windows: _list(json['windows'], _obj(HostWindow.fromJson)),
+      agents: _listOrNull(json['agents'], _obj(HostWindow.fromJson)),
     );
   }
 
   final String t;
   final List<HostWindow> windows;
+  final List<HostWindow>? agents;
 
   @override
   Map<String, Object?> toJson() {
-    return {'t': t, 'windows': _jsonList(windows)};
+    return {
+      't': t,
+      'windows': _jsonList(windows),
+      if (agents != null) 'agents': _jsonList(agents),
+    };
   }
 }
 
@@ -1187,6 +1197,7 @@ final class HostWindow implements _Json {
     this.last,
     this.replies,
     this.icon,
+    this.agent,
   });
 
   factory HostWindow.fromJson(Map<String, Object?> json) {
@@ -1204,6 +1215,7 @@ final class HostWindow implements _Json {
       last: _opt(json['last'], _obj(LastMessage.fromJson)),
       replies: json['replies'] as int?,
       icon: json['icon'] as String?,
+      agent: json['agent'] as String?,
     );
   }
 
@@ -1220,6 +1232,7 @@ final class HostWindow implements _Json {
   final LastMessage? last;
   final int? replies;
   final String? icon;
+  final String? agent;
 
   @override
   Map<String, Object?> toJson() {
@@ -1237,6 +1250,7 @@ final class HostWindow implements _Json {
       if (last != null) 'last': last!.toJson(),
       if (replies != null) 'replies': replies,
       if (icon != null) 'icon': icon,
+      if (agent != null) 'agent': agent,
     };
   }
 }

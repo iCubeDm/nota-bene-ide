@@ -48,15 +48,19 @@ export class Phone extends DeviceEnd {
     return { stream: s, events, closed, send: (m: unknown) => s.write(Buffer.from(JSON.stringify(m))) };
   }
 
-  /** The host stream: every `windows` message the host sent, newest last. */
+  /** The host stream: every `windows` message the host sent (its windows and its agents), newest last. */
   host() {
     const s = this.open({ kind: 'host' });
     const lists: { port: number; provider: string; root: string; [k: string]: unknown }[][] = [];
+    /** each message's `agents` (epic 383), [] when it had none */
+    const agents: (typeof lists)[number][] = [];
     collect(s, (data) => {
-      const m = JSON.parse(data.toString('utf8')) as { t: string; windows: (typeof lists)[number] };
-      if (m.t === 'windows') lists.push(m.windows);
+      const m = JSON.parse(data.toString('utf8')) as { t: string; windows: (typeof lists)[number]; agents?: (typeof lists)[number] };
+      if (m.t !== 'windows') return;
+      lists.push(m.windows);
+      agents.push(m.agents ?? []);
     });
-    return { stream: s, lists };
+    return { stream: s, lists, agents };
   }
 }
 

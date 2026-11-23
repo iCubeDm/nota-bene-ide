@@ -837,8 +837,14 @@
       "type": "object"
     },
     "HostStreamMessage": {
-      "description": "What the host stream sends: the whole list on open and on every change.",
+      "description": "What the host stream sends: the whole list on open and on every change. `agents`: the servers' other agents (epic 383), kept apart from `windows` so a client before them, which would open a server's first agent for them, does not list them.",
       "properties": {
+        "agents": {
+          "items": {
+            "$ref": "#/definitions/HostWindow"
+          },
+          "type": "array"
+        },
         "t": {
           "const": "windows",
           "type": "string"
@@ -859,6 +865,10 @@
     "HostWindow": {
       "description": "One window as the host stream lists it. `port`, `provider` and `root` are always there; every other field may be missing (the host could not read the window's /info that time, or an older host).",
       "properties": {
+        "agent": {
+          "description": "Epic 383: one of the server's other agents (`HostStreamMessage.agents`), its streams under `/a/<agent>`. Absent for the server's first agent, which `windows` lists.",
+          "type": "string"
+        },
         "busy": {
           "type": "boolean"
         },

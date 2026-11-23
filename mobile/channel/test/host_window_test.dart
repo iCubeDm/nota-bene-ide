@@ -69,6 +69,53 @@ void main() {
     },
   );
 
+  test(
+    'an agent row keeps its agent through withIcon; at puts its paths under /a/<agent>',
+    () {
+      final w = HostWindow.fromJson(raw({'agent': 'claude-abcdef'}));
+      expect(w.withIcon('v1').agent, 'claude-abcdef');
+      expect(w.at('/ws?tab=1'), '/a/claude-abcdef/ws?tab=1');
+      expect(HostWindow.fromJson(raw()).at('/info'), '/info');
+    },
+  );
+
+  test(
+    'hostRows: a server\'s other agents follow its windows, each with its agent id (epic 383)',
+    () {
+      final list = parseWindows(
+        hostRows({
+          't': 'windows',
+          'windows': [
+            raw({'id': 'claude:a'}),
+          ],
+          'agents': [
+            raw({'id': 'claude:b', 'root': '/other', 'agent': 'claude-abcdef'}),
+          ],
+        }),
+        null,
+      );
+      expect(list.map((w) => (w.key, w.agent)), [
+        ('claude:a', null),
+        ('claude:b', 'claude-abcdef'),
+      ]);
+      expect(
+        hostRows({
+          't': 'windows',
+          'windows': [raw()],
+        }),
+        hasLength(1),
+      );
+      expect(
+        hostRows({
+          't': 'windows',
+          'windows': [raw()],
+          'agents': 'x',
+        }),
+        hasLength(1),
+      );
+    },
+  );
+
   test('parseWindows: an unknown agent is kept, as unknown', () {
     final list = parseWindows([
       raw({'provider': 'gemini'}),
