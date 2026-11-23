@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import 'agent_connection.dart' show AgentConnection;
 import '../media/fetch.dart';
 import '../theme.dart';
 import '../usage/format.dart' show byteSize;
@@ -122,6 +123,10 @@ String _hash(String key) {
 
 /// [rel] of [tab]'s project read into a file of [files]: its path, or why there is none. Never throws. Once
 /// [abandoned] completes the read stops and gives nothing.
+/// A clip's identity: its host, its window (by key: two agents of one server share a port, epic 383) and its path.
+String clipKey(AgentConnection c, String rel) =>
+    '${c.link.host.id}|${c.key}|$rel';
+
 Future<Written> fetchSound(
   WindowTab tab,
   String rel, {
@@ -146,8 +151,7 @@ Future<Written> fetchSound(
       return failed(bad ?? FetchFail.tooLarge);
     }
     final ext = soundPath.firstMatch(rel)![0]!.toLowerCase();
-    final name =
-        '${_hash('${tab.connection.link.host.id}|${tab.connection.port}|$rel')}$ext';
+    final name = '${_hash(clipKey(tab.connection, rel))}$ext';
     final got = await (files ?? ClipFiles.shared).write(
       name,
       r.body,
@@ -188,7 +192,7 @@ class _AudioClipState extends State<AudioClip> {
     final shownName = embedName(widget.src);
     final id = tab == null || rel == null
         ? null
-        : 'clip|${tab.connection.link.host.id}|${tab.connection.port}|$rel';
+        : 'clip|${clipKey(tab.connection, rel)}';
     Future<String?> open(Future<void> abandoned) async {
       final got = await fetchSound(tab!, rel!, abandoned: abandoned);
       _readFail = got.fail;

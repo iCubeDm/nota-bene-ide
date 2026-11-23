@@ -36,6 +36,7 @@ class AgentConnection extends ChangeNotifier {
     Future<void> Function(Duration)? retry,
   }) : _key = w.key,
        root = w.root,
+       provider = w.provider,
        _port = w.port,
        _agent = w.agent,
        _retry = retry ?? ((d) => Future<void>.delayed(d));
@@ -55,14 +56,20 @@ class AgentConnection extends ChangeNotifier {
   String get key => _key;
   String _key;
   final String root;
+
+  /// The agent the window runs: a server may hold the folder under two (epic 383), on one port.
+  final AgentProvider provider;
   int _port;
   String? _agent;
 
   /// The window as its host lists it now; null while it is not listed. The one on the tab's port first: a second
   /// window of the folder and agent on a lower port takes the bare id (issue 511), and the chat must not move to it.
-  /// By key only once that port is gone (a restart on another port). The folder too: a host before ids keys by port.
+  /// By key only once that port is gone (a restart on another port). The folder and its agent too: a host before ids
+  /// keys by port, and one server may hold the folder under two agents on that port (epic 383).
   HostWindow? get window {
-    final same = link.windows.where((w) => w.root == root);
+    final same = link.windows.where(
+      (w) => w.root == root && w.provider == provider,
+    );
     final w =
         same.where((w) => w.port == _port).firstOrNull ??
         same.where((w) => w.key == _key).firstOrNull;

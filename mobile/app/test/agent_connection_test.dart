@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/agent_connection.dart';
+import 'package:nb_app/chat/audio_clip.dart' show clipKey;
 import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/vault.dart';
@@ -72,6 +73,32 @@ void main() {
       expect(ch.wsOpens.last['path'], startsWith('/a/claude-abcdef/ws?tab='));
       expect(a.at('/file?path=a.md'), '/a/claude-abcdef/file?path=a.md');
       expect(c.at('/file?path=a.md'), '/file?path=a.md');
+      // two agents of one server, the same file: two clips, not one
+      expect(clipKey(a, 'out/voice.m4a'), isNot(clipKey(c, 'out/voice.m4a')));
+    },
+  );
+
+  test(
+    'a folder open in one server under two agents (Claude first, Codex beside it): the Codex tab stays on its agent',
+    () async {
+      final codex = window(
+        4791,
+        '/p',
+        id: 'codex:p',
+        provider: AgentProvider.codex,
+        agent: 'codex-abcdef',
+      );
+      ch.push([window(4791, '/p', id: 'claude:p'), codex]);
+      await settle();
+      final a = AgentConnection(
+        link,
+        codex,
+        onEvent: (_) {},
+        retry: (_) async {},
+      );
+      addTearDown(a.dispose);
+      expect(a.window?.agent, 'codex-abcdef');
+      expect(a.at('/ws'), '/a/codex-abcdef/ws');
     },
   );
 
