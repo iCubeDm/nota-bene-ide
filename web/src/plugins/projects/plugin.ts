@@ -27,9 +27,9 @@ export const projectsPlugin = definePlugin({
     { slot: 'header.title', order: 10, render: ProjectTitle },
     // the open projects, outermost: a stopgap before one server for every project (issue 419)
     { slot: 'panel.left', order: 10, render: ProjectRail },
-    // epic 383: the app icon's offer, beside the update notice (20)
-    { slot: 'header.end', order: 15, render: AppIcon },
     { slot: 'overlay', order: 50, render: Starter },
+    // epic 383: the app icon's offer, a notification
+    { slot: 'overlay', order: 75, render: AppIcon },
     { slot: 'overlay', order: 70, render: Seen },
   ],
   // Alt+P, in a field too (also on a Mac, where Option+P types π): the project switcher in the header

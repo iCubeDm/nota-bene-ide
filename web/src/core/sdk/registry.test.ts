@@ -41,7 +41,7 @@ it('each slot lists the plugins\' parts in the frame\'s order', () => {
   expect(slots).toEqual({
     'header.title': ['10 ProjectTitle'],
     'header.center': ['10 GitBranch'],
-    'header.end': ['10 ConnNote', '15 AppIcon', '20 UpdateNotice', '30 CompactPending', '40 RestartMenu', '50 ModelPill', '80 StopButton'],
+    'header.end': ['10 ConnNote', '20 UpdateNotice', '30 CompactPending', '40 RestartMenu', '50 ModelPill', '80 StopButton'],
     'header.menu': ['10 RemoteMenuRow'],
     'header.badge': ['10 RemoteDot'],
     'strip.left': ['10 FilesToggle', '20 VcsToggles'],
@@ -51,7 +51,7 @@ it('each slot lists the plugins\' parts in the frame\'s order', () => {
     chat: ['10 ChatFeed', '20 HighlightLayer'],
     panes: ['10 TasksDrawer'],
     footer: ['10 TasksIndicator', '20 Composer'],
-    overlay: ['10 SelectionComment', '20 CommentCardPopover', '40 RecentFiles', '50 Starter', '60 Activity', '70 Seen'],
+    overlay: ['10 SelectionComment', '20 CommentCardPopover', '40 RecentFiles', '50 Starter', '60 Activity', '70 Seen', '75 AppIcon'],
     // the composer's (issue 545); the pickers serve the comment popup's field as well
     'composer.status': ['10 CtxNudge'],
     'composer.tools': ['10 ModePill'],
