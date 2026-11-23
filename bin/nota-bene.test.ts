@@ -702,10 +702,10 @@ describe('nota-bene launcher', () => {
     expect(windows()['4793']!.root).toBe(project);
   }, 30000);
 
-  it.skipIf(WIN)('shortcut installs the app icon and prints where', () => {
+  it.skipIf(WIN)('shortcut installs the app icon and prints where (this checkout\'s: Nota Bene Dev)', () => {
     const r = bin(['shortcut'], { HOME: tmp, XDG_DATA_HOME: path.join(tmp, 'data') });
     expect(r.status, r.stderr).toBe(0);
-    const at = process.platform === 'darwin' ? path.join(tmp, 'Applications', 'Nota Bene.app') : path.join(tmp, 'data', 'applications', 'nota-bene.desktop');
+    const at = process.platform === 'darwin' ? path.join(tmp, 'Applications', 'Nota Bene Dev.app') : path.join(tmp, 'data', 'applications', 'nota-bene-dev.desktop');
     expect(r.stdout).toBe(`nota-bene: app icon installed: ${at}\n`);
     expect(fs.existsSync(at)).toBe(true);
   });

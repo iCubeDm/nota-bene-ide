@@ -1,6 +1,7 @@
 // The app icon (epic 383, "start by click"): `nota-bene shortcut` and the tab's Add install one that runs `nota-bene --app`
 // (the most recent project). macOS: an app bundle in ~/Applications; Windows: a Start menu shortcut; Linux: a .desktop file.
 // It runs the launcher that installed it, the one a later update hands over from, so it keeps working across updates.
+// "Nota Bene" is the published package's; a checkout's is "Nota Bene Dev", beside it.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -18,6 +19,8 @@ export type ShortcutHost = {
   launcher: string;
   /** a 512 px PNG */
   icon: string;
+  /** the launcher is a checkout's: Nota Bene Dev */
+  dev: boolean;
 };
 
 type Run = (cmd: string, args: string[], o: { env: NodeJS.ProcessEnv; windowsHide: boolean }) => { status: number | null };
@@ -30,20 +33,25 @@ const ROOT = path.resolve(import.meta.dirname, '..', '..');
  */
 export const hostNow = (o: { root?: string; launcher?: string } = {}): ShortcutHost => {
   const root = o.root ?? ROOT;
+  const launcher = o.launcher ?? (process.env.NOTA_BENE_LAUNCHER || path.join(root, 'bin', 'nota-bene.mjs'));
   return {
-    platform: process.platform, home: os.homedir(), env: process.env, state: stateBaseDir(), node: process.execPath,
-    launcher: o.launcher ?? (process.env.NOTA_BENE_LAUNCHER || path.join(root, 'bin', 'nota-bene.mjs')),
+    platform: process.platform, home: os.homedir(), env: process.env, state: stateBaseDir(), node: process.execPath, launcher,
+    dev: fs.existsSync(path.join(launcher, '..', '..', '.git')),
     // the package ships web/dist; a checkout not built yet has the source
     icon: ['dist', 'public'].map((d) => path.join(root, 'web', d, 'icon-512.png')).find((f) => fs.existsSync(f)) ?? path.join(root, 'web', 'dist', 'icon-512.png'),
   };
 };
 
+const appName = (h: ShortcutHost) => (h.dev ? 'Nota Bene Dev' : 'Nota Bene');
+
 /** Where the icon goes, or null on a platform without one. */
 export function shortcutPath(h: ShortcutHost = hostNow()): string | null {
-  if (h.platform === 'darwin') return path.join(h.home, 'Applications', 'Nota Bene.app');
-  if (h.platform === 'linux') return path.join(h.env.XDG_DATA_HOME || path.join(h.home, '.local', 'share'), 'applications', 'nota-bene.desktop');
+  if (h.platform === 'darwin') return path.join(h.home, 'Applications', `${appName(h)}.app`);
+  if (h.platform === 'linux') {
+    return path.join(h.env.XDG_DATA_HOME || path.join(h.home, '.local', 'share'), 'applications', h.dev ? 'nota-bene-dev.desktop' : 'nota-bene.desktop');
+  }
   if (h.platform === 'win32') {
-    return path.join(h.env.APPDATA || path.join(h.home, 'AppData', 'Roaming'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Nota Bene.lnk');
+    return path.join(h.env.APPDATA || path.join(h.home, 'AppData', 'Roaming'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', `${appName(h)}.lnk`);
   }
   return null;
 }
@@ -84,11 +92,11 @@ function ico(png: Buffer): Buffer {
   return Buffer.concat([head, png]);
 }
 
-const PLIST = `<?xml version="1.0" encoding="UTF-8"?>
+const plist = (h: ShortcutHost) => `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>CFBundleName</key><string>Nota Bene</string>
-<key>CFBundleIdentifier</key><string>dev.notabene.launcher</string>
+<key>CFBundleName</key><string>${appName(h)}</string>
+<key>CFBundleIdentifier</key><string>dev.notabene.launcher${h.dev ? '.dev' : ''}</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleExecutable</key><string>nota-bene</string>
 <key>CFBundleIconFile</key><string>icon</string>
@@ -106,7 +114,7 @@ export function installShortcut(h: ShortcutHost = hostNow(), run: Run = spawnSyn
     put(path.join(at, 'Contents', 'MacOS', 'nota-bene'),
       `#!/bin/zsh -li\nn=${sh(h.node)}\n[ -x "$n" ] || n=node\nexec "$n" ${sh(h.launcher)} --app\n`, 0o755);
     put(path.join(at, 'Contents', 'Resources', 'icon.icns'), icns(png));
-    put(path.join(at, 'Contents', 'Info.plist'), PLIST); // last: the bundle counts as installed once it is complete
+    put(path.join(at, 'Contents', 'Info.plist'), plist(h)); // last: the bundle counts as installed once it is complete
     return at;
   }
   if (h.platform === 'linux') {
@@ -114,7 +122,7 @@ export function installShortcut(h: ShortcutHost = hostNow(), run: Run = spawnSyn
     put(icon, png);
     // Exec's quoting (a backslash before " ` $ \\), then the file's own escaping of a backslash, and %% for a %
     const q = (s: string) => `"${s.replace(/["`$\\]/g, '\\$&')}"`.replaceAll('\\', '\\\\').replaceAll('%', '%%');
-    put(at, `[Desktop Entry]\nType=Application\nName=Nota Bene\nExec=${q(h.node)} ${q(h.launcher)} --app\nIcon=${icon}\nTerminal=false\nCategories=Development;\n`);
+    put(at, `[Desktop Entry]\nType=Application\nName=${appName(h)}\nExec=${q(h.node)} ${q(h.launcher)} --app\nIcon=${icon}\nTerminal=false\nCategories=Development;\n`);
     return at;
   }
   const icon = path.join(h.state, 'icon.ico');

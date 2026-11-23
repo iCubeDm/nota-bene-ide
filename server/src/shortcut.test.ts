@@ -13,7 +13,7 @@ beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-shortcut-'));
   fs.writeFileSync(path.join(dir, 'icon.png'), PNG);
   host = (platform, env = {}) => ({ platform, env, home: path.join(dir, 'home'), state: path.join(dir, 'state'),
-    node: '/opt/node/bin/node', launcher: '/opt/nb dir/bin/nota-bene.mjs', icon: path.join(dir, 'icon.png') });
+    node: '/opt/node/bin/node', launcher: '/opt/nb dir/bin/nota-bene.mjs', icon: path.join(dir, 'icon.png'), dev: false });
 });
 afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
 
@@ -90,7 +90,25 @@ describe('shortcut', () => {
     fs.mkdirSync(path.join(root, 'web/dist'), { recursive: true });
     fs.writeFileSync(path.join(root, 'web/dist/icon-512.png'), PNG);
     const h = hostNow({ root, launcher: path.join(root, 'bin/nota-bene.mjs') });
-    expect(h).toMatchObject({ launcher: path.join(root, 'bin/nota-bene.mjs'), icon: path.join(root, 'web/dist/icon-512.png') });
+    expect(h).toMatchObject({ launcher: path.join(root, 'bin/nota-bene.mjs'), icon: path.join(root, 'web/dist/icon-512.png'), dev: false });
+  });
+
+  it('a launcher of a checkout (a .git beside its bin/) makes Nota Bene Dev, beside the published package\'s Nota Bene', () => {
+    const root = path.join(dir, 'repo');
+    fs.mkdirSync(path.join(root, '.git'), { recursive: true });
+    expect(hostNow({ root, launcher: path.join(root, 'bin/nota-bene.mjs') }).dev).toBe(true);
+    const dev = (platform: NodeJS.Platform, env?: NodeJS.ProcessEnv) => ({ ...host(platform, env), dev: true });
+    const app = installShortcut(dev('darwin'));
+    expect(app).toBe(path.join(dir, 'home/Applications/Nota Bene Dev.app'));
+    const plist = fs.readFileSync(path.join(app, 'Contents/Info.plist'), 'utf8');
+    expect(plist).toContain('<key>CFBundleName</key><string>Nota Bene Dev</string>');
+    expect(plist).toContain('<key>CFBundleIdentifier</key><string>dev.notabene.launcher.dev</string>');
+    expect(shortcutInstalled(dev('darwin'))).toBe(true);
+    expect(shortcutInstalled(host('darwin'))).toBe(false);
+    const desktop = installShortcut(dev('linux'));
+    expect(desktop).toBe(path.join(dir, 'home/.local/share/applications/nota-bene-dev.desktop'));
+    expect(fs.readFileSync(desktop, 'utf8')).toContain('\nName=Nota Bene Dev\n');
+    expect(shortcutPath(dev('win32', { APPDATA: dir }))).toBe(path.join(dir, 'Microsoft/Windows/Start Menu/Programs/Nota Bene Dev.lnk'));
   });
 
   it('another platform has none', () => {

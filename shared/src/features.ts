@@ -125,6 +125,11 @@ export const FEATURES = {
    * last such page attached when `/control/open` opens an agent no such page shows. A server of an older protocol never sends it
    */
   openAgent: 30,
+  /**
+   * a server's other agents on the phone (epic 383): the channel's host stream may carry `agents`, rows with `agent`. Also
+   * what replaces a managed connector started before it, which never sends them
+   */
+  hostAgents: 31,
 } as const;
 
 export type Feature = keyof typeof FEATURES;
