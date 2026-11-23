@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Close an agent from its tab.** **✕** on another agent's tab closes it after a confirm; its session stays.
 - **Phone: a project's agents together.** The phone keeps a folder's agents next to each other and shows a lead's helpers as one chip under it.
 - **Moving between a project's agents.** Alt+[ and Alt+] go to the previous and next agent; the switcher lists a project's agents and closes one.
 - **Agents start helpers.** An agent can start another agent of the project for part of its task, get its answer and close it; helpers group under their lead and fold up when idle. **Keep** turns one into an agent of the project.
