@@ -21,6 +21,7 @@ import { winShells } from './session/shell.ts';
 import { auditDir } from './audit.ts';
 import { defaultProjectsDir } from './sessions.ts';
 import { HIDDEN, renameRetry } from './platform.ts';
+import { installShortcut, shortcutInstalled, shortcutPath } from './shortcut.ts';
 import { changelog, isNewer, RELEASE, updateCheck, updateCheckForcedOff } from './update.ts';
 import type { Updater } from './updater.ts';
 import { readVersion } from './version.ts';
@@ -303,6 +304,8 @@ export function systemRoutes(o: {
     close?(): number;
   };
   probe?: (port: number) => Promise<WindowInfo | null>;
+  /** the app icon (server/src/shortcut.ts; tests stub it) */
+  shortcut?: { path(): string | null; installed(): boolean; install(): string };
   relay?: (port: number, action: ControlAction, token: string) => Promise<number>;
 }): Record<string, RequestListener> {
   const probe = o.probe ?? probeWindow;
@@ -318,6 +321,9 @@ export function systemRoutes(o: {
     if (!res.headersSent) text(res, 500, 'internal error');
   };
 
+  // a window of another state dir (the dev launcher's, a test's) offers none: its icon would replace the real one, open
+  // that state dir's projects and run that checkout
+  const shortcut = o.shortcut ?? { path: () => (process.env.NOTA_BENE_HOME ? null : shortcutPath()), installed: () => shortcutInstalled(), install: () => installShortcut() };
   const newer = o.newer ?? updateCheck();
   const changes = o.changes ?? changelog();
   return {
@@ -366,6 +372,21 @@ export function systemRoutes(o: {
         const latest = await newer(current);
         json(res, 200, { text: latest ? await changes(current, latest) : null });
       }).catch((e: unknown) => fail(res, '/system/update/changes', e));
+    },
+    // the tab's "Add Nota Bene to your apps" (epic 383): shown while this computer can have the icon and has none
+    '/system/shortcut': (req, res) => {
+      if (!only('GET', req, res)) return;
+      const can = shortcut.path() !== null;
+      json(res, 200, { can, installed: can && shortcut.installed() });
+    },
+    '/system/shortcut/install': (req, res) => {
+      if (!only('POST', req, res)) return;
+      if (shortcut.path() === null) return text(res, 409, 'no app icon here');
+      try {
+        json(res, 200, { path: shortcut.install() });
+      } catch (e) {
+        fail(res, '/system/shortcut/install', e);
+      }
     },
     '/system/about': (req, res) => {
       if (!only('GET', req, res)) return;

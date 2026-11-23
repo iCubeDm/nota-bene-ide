@@ -689,6 +689,27 @@ describe('nota-bene launcher', () => {
     }
   });
 
+  it('--app opens the most recent project that still exists, detached; with none it says to open one first', async () => {
+    const none = bin(['--app', '--no-open']);
+    expect(none.status).toBe(1);
+    expect(none.stderr).toMatch(/no recent project — open one once with `nota-bene <folder>`/);
+    const gone = path.join(tmp, 'gone');
+    fs.writeFileSync(path.join(home, 'recent.json'), JSON.stringify([
+      { root: gone, provider: 'claude', at: 2 }, { root: project, provider: 'claude', at: 1 }]));
+    const r = spawnSync(process.execPath, [BIN, '--app', '--port', '4793', '--fake', FAKE, '--no-open'], { env: env(), encoding: 'utf8', timeout: 25000 });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toBe(`opened ${await loginUrlOf(4793)}\n`);
+    expect(windows()['4793']!.root).toBe(project);
+  }, 30000);
+
+  it.skipIf(WIN)('shortcut installs the app icon and prints where', () => {
+    const r = bin(['shortcut'], { HOME: tmp, XDG_DATA_HOME: path.join(tmp, 'data') });
+    expect(r.status, r.stderr).toBe(0);
+    const at = process.platform === 'darwin' ? path.join(tmp, 'Applications', 'Nota Bene.app') : path.join(tmp, 'data', 'applications', 'nota-bene.desktop');
+    expect(r.stdout).toBe(`nota-bene: app icon installed: ${at}\n`);
+    expect(fs.existsSync(at)).toBe(true);
+  });
+
   it('--last prints the saved session only while its transcript exists', () => {
     const id = '0123abcd-0000-4000-8000-000000000000';
     fs.writeFileSync(path.join(home, 'sessions.json'), JSON.stringify({ [project]: id }));

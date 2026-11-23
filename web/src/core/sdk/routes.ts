@@ -74,6 +74,7 @@ export const routes = {
   // the machine: every window, prefs, updates
   systemPrefs: () => '/system/prefs',
   systemAbout: () => '/system/about',
+  systemShortcut: (action?: 'install') => (action ? `/system/shortcut/${action}` : '/system/shortcut'),
   systemStorage: () => '/system/storage',
   systemStorageClean: () => '/system/storage/clean',
   systemWindows: () => '/system/windows',

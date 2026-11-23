@@ -41,7 +41,7 @@ it('each slot lists the plugins\' parts in the frame\'s order', () => {
   expect(slots).toEqual({
     'header.title': ['10 ProjectTitle'],
     'header.center': ['10 GitBranch'],
-    'header.end': ['10 ConnNote', '20 UpdateNotice', '30 CompactPending', '40 RestartMenu', '50 ModelPill', '80 StopButton'],
+    'header.end': ['10 ConnNote', '15 AppIcon', '20 UpdateNotice', '30 CompactPending', '40 RestartMenu', '50 ModelPill', '80 StopButton'],
     'header.menu': ['10 RemoteMenuRow'],
     'header.badge': ['10 RemoteDot'],
     'strip.left': ['10 FilesToggle', '20 VcsToggles'],
@@ -156,7 +156,7 @@ it('the Settings sections and rows come in today\'s order; one id twice, or one 
 });
 
 it('the plugins\' resources are registered by id; a registered one needs an id, and one id twice fails the build', () => {
-  expect([...buildRegistry(PLUGINS).resources.keys()].sort()).toEqual(['controls.info', 'cut.export', 'projects.list', 'settings.about', 'settings.storage', 'settings.windows', 'update.auto', 'update.status', 'usage.report', 'vcs.branches', 'vcs.commit', 'vcs.diff', 'vcs.log', 'vcs.patch', 'voice.dictation']);
+  expect([...buildRegistry(PLUGINS).resources.keys()].sort()).toEqual(['controls.info', 'cut.export', 'projects.list', 'projects.shortcut', 'settings.about', 'settings.storage', 'settings.windows', 'update.auto', 'update.status', 'usage.report', 'vcs.branches', 'vcs.commit', 'vcs.diff', 'vcs.log', 'vcs.patch', 'voice.dictation']);
   const res = (id: string | undefined) => ({ ...(id ? { id } : {}), key: () => '', route: () => '/x' });
   expect(() => buildRegistry([{ id: 'a', resources: [res(undefined)] }])).toThrow('a registered resource needs an id');
   expect(() => buildRegistry([{ id: 'a', resources: [res('r')] }, { id: 'b', resources: [res('r')] }])).toThrow('the resource "r" is declared twice');

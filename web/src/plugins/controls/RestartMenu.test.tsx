@@ -104,7 +104,7 @@ describe('the "code updated" button', () => {
   function mockInfo(info: () => object) {
     const calls: string[] = [];
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url !== '/system/update' && url !== '/system/projects') calls.push(url); // the header's project switcher polls too
+      if (!['/system/update', '/system/projects', '/system/shortcut'].includes(url)) calls.push(url); // the header's other parts ask too
       return url === '/info' ? new Response(JSON.stringify(info())) : new Response('');
     }));
     return calls;

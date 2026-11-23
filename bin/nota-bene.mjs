@@ -48,7 +48,8 @@ import { transcriptExists } from '../server/src/sessions.ts';
 import { envAgentContext, lastSession, serverStateDir, stateBaseDir } from '../server/src/state.ts';
 import { defaultChoice, detectAgents, lastAgent, menu, parseChoice, rememberAgent } from '../server/src/agent/choice.ts';
 import { attachAgent } from '../server/src/attach.ts';
-import { recordRecent } from '../server/src/recent.ts';
+import { readRecent, recordRecent } from '../server/src/recent.ts';
+import { hostNow, installShortcut } from '../server/src/shortcut.ts';
 import { parentPluginVersion, pluginInstallVersion } from '../server/src/pluginOrigin.ts';
 import { parseProvider } from '../server/src/agent/provider.ts';
 import { RELEASE, isNewer } from '../server/src/update.ts';
@@ -65,6 +66,7 @@ const MAIN = path.join(REPO, fs.existsSync(path.join(REPO, 'server/src/main.js')
 // `nota-bene remote`: its own bundle in the package, loaded only for that command (it needs ws and uqr, the launcher does not)
 const REMOTE = path.join(REPO, fs.existsSync(path.join(REPO, 'server/src/remote/cli.js')) ? 'server/src/remote/cli.js' : 'server/src/remote/cli.ts');
 const USAGE = 'Usage: nota-bene [dir] [--agent claude|codex|omp] [--port N] [--resume ID [--fork]] [--new] [--detach] [--no-open]\n'
+  + '       nota-bene --app   (the most recent project, as the app icon opens it) | nota-bene shortcut   (install the app icon)\n'
   + '       nota-bene --find DIR [--scan] | --last DIR | --url PORT | --front PORT\n'
   + '       nota-bene remote [pair | devices | revoke ID | status | key | --relay URL]   (remote access, see nota-bene remote --help)\n'
   + '       nota-bene --help | --version';
@@ -121,7 +123,7 @@ const realDir = (d) => fs.realpathSync.native(path.resolve(d));
 export function parseArgs(argv) {
   const o = { dir: undefined, port: undefined, resume: undefined, fork: false, new: false, continue: false,
     detach: false, open: true, help: false, version: false, fake: undefined, allowOrigins: [], find: undefined, last: undefined,
-    scan: false, url: undefined, front: undefined };
+    scan: false, url: undefined, front: undefined, app: false };
   const value = (i) => {
     if (argv[i] === undefined) throw new Error(`${USAGE}\nMissing value for ${argv[i - 1]}`);
     return argv[i];
@@ -138,6 +140,7 @@ export function parseArgs(argv) {
     else if (a === '--new') o.new = true;
     else if (a === '--continue') o.continue = true;
     else if (a === '--detach') o.detach = true;
+    else if (a === '--app') o.app = true;
     else if (a === '--no-open') o.open = false;
     else if (a === '--fake') o.fake = path.resolve(value(++i));
     else if (a === '--allow-origin') o.allowOrigins.push(value(++i));
@@ -154,6 +157,7 @@ export function parseArgs(argv) {
   }
   if (o.fork && o.resume === undefined) throw new Error(`${USAGE}\n--fork needs --resume`);
   if (o.new && o.resume !== undefined) throw new Error(`${USAGE}\n--new cannot be combined with --resume`);
+  if (o.app && o.dir !== undefined) throw new Error(`${USAGE}\n--app opens the most recent project, not a folder`);
   return o;
 }
 
@@ -1065,6 +1069,17 @@ async function supervise(o, autoPort, release, state) {
 export async function main(argv) {
   // a command of its own, with its own arguments (server/src/remote/cli.ts): before the window options are parsed
   if (argv[0] === 'remote') return (await import(pathToFileURL(REMOTE).href)).remoteMain(argv.slice(1));
+  // the app icon runs this launcher (server/src/shortcut.ts), the one later updates hand over from; an inner one keeps its outer's
+  if (!INNER) process.env.NOTA_BENE_LAUNCHER = SELF;
+  if (argv[0] === 'shortcut' && argv.length === 1) {
+    try {
+      process.stdout.write(`nota-bene: app icon installed: ${installShortcut(hostNow({ root: REPO, launcher: SELF }))}\n`);
+      return 0;
+    } catch (e) {
+      say(`the app icon could not be installed: ${e.message}`);
+      return 1;
+    }
+  }
   let o;
   try {
     o = parseArgs(argv);
@@ -1079,6 +1094,22 @@ export async function main(argv) {
   if (o.version) {
     process.stdout.write(`${packageVersion()}\n`);
     return 0;
+  }
+  if (o.app) {
+    // the app icon: the most recent project that is still there, detached (no terminal to keep), as a plain launch of it would
+    const hit = readRecent(stateBaseDir()).find((e) => {
+      try {
+        return !refuse(realDir(e.root));
+      } catch {
+        return false;
+      }
+    });
+    if (!hit) {
+      say('no recent project — open one once with `nota-bene <folder>`');
+      return 1;
+    }
+    argv = [hit.root, '--agent', hit.provider, '--detach', ...argv.filter((a) => a !== '--app' && a !== '--detach')];
+    o = parseArgs(argv);
   }
   // a bare launch in a terminal asks which agent when more than one can start; anything else (a script, a skill, the detached
   // or inner launcher this one starts) gets Claude unless --agent says otherwise, as before
