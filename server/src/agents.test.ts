@@ -143,6 +143,53 @@ it('the agent bus: an agent asks another of its folder at /a/<id>/mcp; the targe
   }
 });
 
+it('helpers: spawn opens one led by the caller, Keep frees it, closing a lead closes its helpers, an idle helper folds up (epic 383 2g)', async () => {
+  const a = path.join(tmp, 'a');
+  const s = await startServer({
+    insecureNoAuth: true, cwd: a, port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'), keep: { launcherPid: 111 },
+    backends: () => fakeBackend([{ text: 'counted 3' }]), helperIdleMs: 400,
+  });
+  closers.push(s.close);
+  const port = Number(new URL(s.url).port);
+  const lead = await s.open({ provider: 'codex', cwd: a, backend: fakeBackend([]) });
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js');
+  const c = new Client({ name: 'test', version: '1' });
+  await c.connect(new StreamableHTTPClientTransport(new URL(`${s.url}/a/${lead}/mcp`)));
+  const gone = async (id: string, ms = 5000) => {
+    const end = Date.now() + ms;
+    while ((await fetch(`${s.url}/a/${id}/info`)).status !== 404) {
+      if (Date.now() > end) throw new Error(`${id} is still there`);
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  };
+  const spawnOne = async () => {
+    const r = (await c.callTool({ name: 'spawn', arguments: { provider: 'claude', task: 'count the files' } }) as { content: { text: string }[] }).content[0]!.text;
+    expect(r).toMatch(/counted 3$/);
+    return /^Helper (claude-[a-z2-7]{6}) \(claude\) started\./.exec(r)![1]!;
+  };
+  try {
+    const h1 = await spawnOne();
+    expect(await json(`${s.url}/a/${h1}/info`)).toMatchObject({ lead, root: a });
+    expect(readKeptAgents(port)?.agents.find((k) => k.id === h1)).toMatchObject({ lead });
+    // Keep: no lead any more, kept so
+    expect((await fetch(`${s.url}/a/${h1}/agent/keep`, { method: 'POST', headers: { origin: s.url } })).status).toBe(200);
+    expect((await json(`${s.url}/a/${h1}/info`) as { lead?: string }).lead).toBeUndefined();
+    expect((await fetch(`${s.url}/a/${h1}/agent/keep`, { method: 'POST', headers: { origin: s.url } })).status).toBe(409);
+    // an idle helper folds up
+    const h2 = await spawnOne();
+    await gone(h2);
+    expect((await fetch(`${s.url}/a/${h1}/info`)).status).toBe(200); // a kept one stays
+    // a lead's close takes its helpers along
+    const h3 = await spawnOne();
+    const close = await fetch(`${s.url}/a/${lead}/control/close`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() } });
+    expect(close.status).toBe(200);
+    await gone(h3);
+  } finally {
+    await c.close().catch(() => {});
+  }
+});
+
 it('/control/open: an agent for a folder and provider, the one already open, or a new session as another', async () => {
   const made: string[] = [];
   const a = path.join(tmp, 'a');

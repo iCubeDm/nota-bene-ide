@@ -151,7 +151,7 @@ describe('another computer\'s window through this one', () => {
     expect(there.running).toContainEqual(expect.objectContaining({ port: ready.port, current: true, remote: { host: host.id, name: host.name } }));
     expect(there.running).toContainEqual(expect.objectContaining({ port: aPort, root: aRoot, current: false }));
     // A's rows carry what the switcher lists and moves with, nothing of their content
-    expect(there.running.find((r) => r.port === aPort)).toEqual({ provider: 'claude', port: aPort, root: aRoot, title: null, session: null, state: expect.any(String), current: false, clients: 0, unseen: 0, last: null });
+    expect(there.running.find((r) => r.port === aPort)).toEqual({ provider: 'claude', port: aPort, root: aRoot, title: null, session: null, state: expect.any(String), current: false, clients: 0, unseen: 0, last: null, id: expect.stringMatching(/^claude-/) });
 
     // what a paired device may not reach is refused here, logged in or not
     const write = { ...page, origin, 'content-type': 'application/json' };

@@ -16,6 +16,9 @@ export type RunningRow = {
   remote?: { host: string; name: string };
   /** epic 383: an agent the server on `port` opened beside its window's (`provider` is that agent's) */
   agent?: string;
+  /** epic 383 2g: its agent id (the window's own too), and a helper's lead */
+  id?: string;
+  lead?: string;
 };
 /** A row as the switcher's routes take it back: a window, or a server's agent by its id. */
 export const rowRef = (w: RunningRow): { provider: Provider; port: number; root: string; agent?: string } =>

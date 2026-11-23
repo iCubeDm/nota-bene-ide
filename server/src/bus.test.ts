@@ -9,13 +9,13 @@ import type { AgentProvider } from '@nota-bene/shared';
 import { agentBus, framed, type BusAgent } from './bus.ts';
 import { EventHub } from './hub.ts';
 
-type Fake = BusAgent & { heard: string[]; answer: (text: string) => string; stop?: boolean };
+type Fake = BusAgent & { heard: string[]; answer: (text: string) => string; stop?: boolean; led: string | null };
 
 function fake(id: string, provider: AgentProvider, root = '/p'): Fake {
   const hub = new EventHub();
   let busy = false;
   const a: Fake = {
-    id, provider, hub, heard: [], answer: (t) => `${id} read: ${t.split('\n\n').pop()}`,
+    id, provider, hub, heard: [], answer: (t) => `${id} read: ${t.split('\n\n').pop()}`, led: null, lead: () => a.led,
     root: () => root, title: () => `${id} title`, busy: () => busy, waiting: () => false,
     deliver(m) {
       a.heard.push(m.text);
@@ -41,10 +41,21 @@ afterEach(async () => {
 
 async function setup(agents: Fake[], o: { idleMs?: number; bearer?: (id: string) => string | null } = {}) {
   const map = new Map(agents.map((a) => [a.id, a]));
+  let n = 0;
+  const closed: string[] = [];
   const bus = agentBus({
     get: (id) => map.get(id),
-    peers: async (id) => agents.filter((a) => a.id !== id && a.root() === map.get(id)!.root()),
+    peers: async (id) => [...map.values()].filter((a) => a.id !== id && a.root() === map.get(id)!.root()),
     bearer: o.bearer ?? (() => null),
+    spawn: async (lead, provider, cwd) => {
+      if (cwd !== lead.root()) throw new Error('not a folder of this project');
+      const h = fake(`${provider}-h${'abcdefgh'[n++]}h2h2h`.slice(0, provider.length + 7), provider as AgentProvider, cwd);
+      h.led = lead.id;
+      map.set(h.id, h);
+      agents.push(h);
+      return h;
+    },
+    close: (id) => { closed.push(id); map.delete(id); },
     ...(o.idleMs ? { idleMs: o.idleMs } : {}),
   });
   const server = http.createServer((req, res) => {
@@ -61,7 +72,7 @@ async function setup(agents: Fake[], o: { idleMs?: number; bearer?: (id: string)
     await c.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/a/${id}/mcp`), bearer ? { requestInit: { headers: { authorization: `Bearer ${bearer}` } } } : {}));
     return c;
   };
-  return { bus, connect, port };
+  return { bus, connect, port, map, closed };
 }
 const text = (r: unknown) => ((r as { content: { text: string }[] }).content[0]!.text);
 
@@ -70,7 +81,7 @@ describe('the agent bus', () => {
     const a = fake('claude-aaaaaa', 'claude'), b = fake('codex-bbbbbb', 'codex'), far = fake('omp-cccccc', 'omp', '/elsewhere');
     const { connect } = await setup([a, b, far]);
     const c = await connect(a.id);
-    expect((await c.listTools()).tools.map((t) => t.name)).toEqual(['agents', 'ask', 'tell']);
+    expect((await c.listTools()).tools.map((t) => t.name)).toEqual(['agents', 'ask', 'tell', 'spawn', 'close']);
     expect(JSON.parse(text(await c.callTool({ name: 'agents', arguments: {} })))).toEqual([{ id: b.id, provider: 'codex', folder: '/p', state: 'idle', title: 'codex-bbbbbb title' }]);
   });
 
@@ -120,7 +131,7 @@ describe('the agent bus', () => {
     await expect(connect(a.id, 'secret-codex-bbbbbb')).rejects.toThrow();
     await expect(connect(a.id)).rejects.toThrow();
     const ok = await connect(a.id, 'secret-claude-aaaaaa');
-    expect((await ok.listTools()).tools).toHaveLength(3);
+    expect((await ok.listTools()).tools).toHaveLength(5);
   });
 });
 
@@ -137,4 +148,44 @@ describe('nota-bene mcp: the stdio shim for an agent without MCP over HTTP', () 
     expect(JSON.parse(text(await c.callTool({ name: 'agents', arguments: {} }))).map((x: { id: string }) => x.id)).toEqual([b.id]);
     expect(text(await c.callTool({ name: 'ask', arguments: { to: b.id, text: 'hi' } }))).toBe('claude-bbbbbb read: hi');
   }, 30_000);
+});
+
+describe('helpers (epic 383 2g)', () => {
+  it('spawn starts one in the project, runs the task as its first turn and returns its id and answer; close ends it', async () => {
+    const a = fake('claude-aaaaaa', 'claude');
+    const { connect, map, closed } = await setup([a]);
+    const c = await connect(a.id);
+    const r = text(await c.callTool({ name: 'spawn', arguments: { provider: 'codex', task: 'count the files' } }));
+    const id = /^Helper (\S+) \(codex\) started\./.exec(r)![1]!;
+    expect(r).toContain(`${id} read: count the files`);
+    expect(map.get(id)!.lead()).toBe(a.id);
+    expect(JSON.parse(text(await c.callTool({ name: 'agents', arguments: {} })))).toEqual([expect.objectContaining({ id, lead: a.id })]);
+    const elsewhere = await c.callTool({ name: 'spawn', arguments: { provider: 'codex', task: 'x', cwd: '/other' } });
+    expect([elsewhere.isError, text(elsewhere)]).toEqual([true, 'The helper did not start: not a folder of this project']);
+    expect(text(await c.callTool({ name: 'close', arguments: { id } }))).toBe(`Closed ${id}.`);
+    expect(closed).toEqual([id]);
+  });
+
+  it('only its lead talks to a helper first; a helper reaches its lead, not the others', async () => {
+    const a = fake('claude-aaaaaa', 'claude'), b = fake('codex-bbbbbb', 'codex'), h = fake('omp-hhhhhh', 'omp');
+    h.led = a.id;
+    const { connect } = await setup([a, b, h]);
+    const cb = await connect(b.id);
+    expect(text(await cb.callTool({ name: 'ask', arguments: { to: h.id, text: 'hi' } }))).toBe(`Refused: ${h.id} is a helper of ${a.id}; only it talks to its helpers.`);
+    expect((await cb.callTool({ name: 'close', arguments: { id: h.id } })).isError).toBe(true);
+    const ch = await connect(h.id);
+    expect(text(await ch.callTool({ name: 'ask', arguments: { to: b.id, text: 'hi' } }))).toMatch(/^Refused: a helper reaches its lead/);
+    expect(text(await ch.callTool({ name: 'tell', arguments: { to: a.id, text: 'done' } }))).toBe(`Delivered to ${a.id}.`);
+    const ca = await connect(a.id);
+    expect(text(await ca.callTool({ name: 'ask', arguments: { to: h.id, text: 'status?' } }))).toBe('omp-hhhhhh read: status?');
+  });
+
+  it('at most 4 live helpers per lead', async () => {
+    const a = fake('claude-aaaaaa', 'claude');
+    const { connect } = await setup([a]);
+    const c = await connect(a.id);
+    for (let i = 0; i < 4; i++) expect((await c.callTool({ name: 'spawn', arguments: { provider: 'codex', task: `t${i}` } })).isError).toBeFalsy();
+    const fifth = await c.callTool({ name: 'spawn', arguments: { provider: 'codex', task: 't4' } });
+    expect([fifth.isError, text(fifth)]).toEqual([true, 'Refused: you lead 4 live helpers already; close one first.']);
+  });
 });
