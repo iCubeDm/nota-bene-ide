@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
-import { TranscriptTooLargeError } from '../types.ts';
 
 const SAFE_ID = /^[\w-]{1,100}$/;
 /** the CLI cuts a longer folder name and appends a hash of the path: such a cwd is found by the scan */
@@ -35,12 +34,12 @@ function lineTime(l: string): [string, number] | null {
   } catch { return null; } // a torn or foreign line: no time for it
 }
 
-/** Reads `file` line by line (a transcript can be gigabytes); null when it cannot be opened. */
-async function readTimes(file: string): Promise<Map<string, number> | null> {
+/** Reads `file` line by line from byte `from` (a transcript can be gigabytes); null when it cannot be opened. */
+async function readTimes(file: string, from = 0): Promise<Map<string, number> | null> {
   let fd: fs.promises.FileHandle;
   try { fd = await fs.promises.open(file, 'r'); } catch { return null; }
   const times = new Map<string, number>();
-  const lines = readline.createInterface({ input: fd.createReadStream({ encoding: 'utf8' }), crlfDelay: Infinity });
+  const lines = readline.createInterface({ input: fd.createReadStream({ encoding: 'utf8', start: from }), crlfDelay: Infinity });
   try {
     for await (const l of lines) {
       const hit = lineTime(l);
@@ -71,19 +70,24 @@ async function* folders(projectsDir: string, cwd: string | undefined): AsyncGene
 
 /**
  * Past V8's string limit (~512 MiB) the SDK's `getSessionMessages` stalls the event loop for minutes and takes gigabytes
- * (issue 669: a 2.1 GB transcript, 6 GB and 90 s+, while 411 MB read in 0.65 s), freezing every agent of the server.
+ * (issue 669: 6 GB and 90 s+ on a 2.1 GB transcript), freezing every agent of the server. It gets only the part since
+ * the last compaction (tail.ts); this caps that part.
  */
 export const HISTORY_MAX_BYTES = 512 * 2 ** 20;
 
-/** Throws TranscriptTooLargeError when the session's transcript is past `max`; a missing one is the SDK's to report. */
-export async function assertReplayable(projectsDir: string, sessionId: string, cwd?: string, max = HISTORY_MAX_BYTES): Promise<void> {
-  if (!SAFE_ID.test(sessionId)) return;
+/** The session's transcript: the cwd's folder when it holds it, else any project's; null when none does. */
+export async function transcriptFile(projectsDir: string, sessionId: string, cwd?: string): Promise<string | null> {
+  if (!SAFE_ID.test(sessionId)) return null;
   for await (const f of folders(projectsDir, cwd)) {
-    let size: number;
-    try { size = (await fs.promises.stat(path.join(projectsDir, f, `${sessionId}.jsonl`))).size; } catch { continue; }
-    if (size > max) throw new TranscriptTooLargeError(size);
-    return;
+    const file = path.join(projectsDir, f, `${sessionId}.jsonl`);
+    try { if ((await fs.promises.stat(file)).isFile()) return file; } catch { /* not in this folder */ }
   }
+  return null;
+}
+
+/** The record times of `file` from byte `from` on (see transcriptTimes). */
+export async function fileTimes(file: string, from = 0): Promise<Map<string, number>> {
+  return (await readTimes(file, from)) ?? new Map();
 }
 
 /**
