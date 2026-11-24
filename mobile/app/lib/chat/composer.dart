@@ -292,13 +292,15 @@ class _ComposerState extends State<Composer> {
       final open = widget.tab.connection.state == TabState.open;
       final c = Theme.of(context).extension<NbColors>()!;
       final uploading = _uploading;
-      // pending comments are not content here: they go from the Comments tab, or ride along with a recording
       final hasContent = _text.text.trim().isNotEmpty || _drafts.isNotEmpty;
-      final canSend = open && !uploading && !_failed && hasContent;
+      // issue 655: pending comments are sent by Send alone too, or ride along with a recording
+      final pending = widget.tab.comments.sendable.isNotEmpty;
+      final canSend = open && !uploading && !_failed && (hasContent || pending);
       final recording = _session.active;
-      // the mic while the field is empty (and no image waits), Send otherwise; a window older than protocol 14 has no voice: its mic
-      // is greyed and says why on a tap, not missing
+      // the mic while the field is empty (and no image waits), Send otherwise, both while comments wait; a window older than
+      // protocol 14 has no voice: its mic is greyed and says why on a tap, not missing
       final mic = !hasContent || recording;
+      final send = hasContent || (pending && !recording);
       return PopScope(
         // a recording is never dropped by a back press: it is asked about
         canPop: !recording,
@@ -318,6 +320,7 @@ class _ComposerState extends State<Composer> {
                 open: open,
                 recording: recording,
                 mic: mic,
+                send: send,
                 canSend: canSend,
                 uploading: uploading,
               ),
@@ -335,6 +338,7 @@ class _ComposerState extends State<Composer> {
     required bool open,
     required bool recording,
     required bool mic,
+    required bool send,
     required bool canSend,
     required bool uploading,
   }) => MessageField(
@@ -347,7 +351,7 @@ class _ComposerState extends State<Composer> {
     whisperAvailable: transcribes(widget.tab),
     onWhisperMissing: () => showWhisperSheet(context, widget.tab),
     showMic: mic,
-    showSend: !mic,
+    showSend: send,
     canSend: canSend,
     sending: uploading,
     onSend: _send,

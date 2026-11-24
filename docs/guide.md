@@ -305,7 +305,7 @@ With Whisper on ([Settings](#settings)), an empty message field shows a micropho
 
 <details><summary>More</summary>
 
-Audio is 16 kHz mono 16-bit (about 1.9 MB a minute), kept as `attachments/<sha256>.wav`. Comments are taken when the upload leaves. An image alone does not hide the microphone; comments do not count as text. One voice plays at a time. **Clean unreferenced files** trashes unused recordings over a day old. Comments alone: **Send** in the Comments panel, or Enter in the empty field.
+Audio is 16 kHz mono 16-bit (about 1.9 MB a minute), kept as `attachments/<sha256>.wav`. Comments are taken when the upload leaves. An image alone does not hide the microphone; comments do not count as text. One voice plays at a time. **Clean unreferenced files** trashes unused recordings over a day old. Comments alone: **Send** in the Comments panel, or Enter in the empty field. On the phone, **Send** sits beside the microphone while comments wait.
 
 </details>
 
