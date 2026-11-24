@@ -18,7 +18,7 @@ Chosen from three HTML mockups (cards with an activity feed; an inbox; tabs with
 - **Left panel: Projects.** A tree: project → its agents (provider mark, state dot, unseen count), then Recent. A click
   on an agent moves to it; on a Recent project, opens it. It is a panel of the left strip, so it can be closed.
 - **Centre: Inbox**, one column, grouped by what the agent needs from the person, in this order:
-  1. Waiting for you: the agent's open request in full (the command, the file, a question's fields).
+  1. Waiting for you: each of the agent's open requests in full (the command, the file, a question's fields).
   2. Done, unread: the last reply's text.
   3. Working: the title or last line.
   4. Idle.
@@ -59,10 +59,11 @@ Chosen from three HTML mockups (cards with an activity feed; an inbox; tabs with
 
 ## Decisions
 
-- **The open request in `/info`.** Each agent's `/info` gets `ask`: its oldest open request, as the chat's
-  `permission` event carries it (`id`, `toolName`, `input`, `prompt`). The field is absent when nothing is open.
-  `input` is the agent's own tool input, and `/info` already needs the agent's bearer. The projects row passes `ask`
-  through for rows of this server only.
+- **The open requests in `/info`.** Each agent's `/info` gets `asks`: all its open requests, oldest first, as the chat's
+  `permission` event carries each (`id`, `toolName`, `input`, `prompt`). Parallel tool calls and subagents can open
+  several at once, and each holds the agent, so the inbox shows them all, stacked under that agent. The field is absent
+  when nothing is open. `input` is the agent's own tool input, and `/info` already needs the agent's bearer. The
+  projects row passes `asks` through for rows of this server only.
 - **The answer route.** `POST /a/<id>/permission` (the window's own agent at `/permission`) takes
   `{ id, allow, response? }`, validated as the client message `permission` is. It calls the same `answer`, behind the
   same auth as the agent's other routes. An unknown or settled id is a 409; the page refreshes the list.
@@ -83,7 +84,7 @@ Chosen from three HTML mockups (cards with an activity feed; an inbox; tabs with
 - The exact names of the slot opt-in and of the inbox component.
 - Whether Home on agent pages is the rail's first tile or an entry of the switcher: the rail tile is the mockup's.
 - How a long command is clipped in the inbox. The card already caps its height.
-- Tests: route (answer, wrong id, auth); `/info` and the projects row carry `ask`; inbox grouping and order; the
+- Tests: route (answer, wrong id, auth); `/info` and the projects row carry `asks` (two open at once); inbox grouping and order; the
   card answers through the route; agent plugins absent on the home page.
 
 Mockups: `.superpowers/design/dashboard-variants.html` (not committed), variant B.
