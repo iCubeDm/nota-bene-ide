@@ -1,6 +1,7 @@
 // The server's home page's inbox (issue 651): every agent of the projects list, by what it needs from the person (waiting
 // for an answer, done and unread, working, idle), each group with its count. An agent of this server that waits shows its
 // open asks, oldest first, answered here (answerAsk); one of another server or computer has none and offers to open it.
+import { useState } from 'react';
 import type { InteractionAnswer } from '@nota-bene/shared';
 import { useT, ago, toast } from '@/sdk';
 import { AgentIcon, PermissionCard } from '@/sdk/ui';
@@ -19,9 +20,17 @@ const btn = 'cursor-pointer rounded-md px-2.5 py-1 text-xs';
 export function Inbox() {
   const t = useT();
   const { data, reload } = useProjects(true);
-  const running = data?.running ?? [];
+  // the asks answered from here: gone at once, not when the next list comes (a second click would find them settled)
+  const [sent, setSent] = useState<ReadonlySet<string>>(new Set());
+  const running = (data?.running ?? []).map((r) => (r.asks ? { ...r, asks: r.asks.filter((a) => !sent.has(a.id)) } : r));
   const answer = async (r: RunningRow, id: string, allow: boolean, response?: InteractionAnswer) => {
-    if (!(await answerAsk(r, id, allow, response))) toast(t('askGone'), folderOf(r.root));
+    if (sent.has(id)) return;
+    setSent((s) => new Set(s).add(id));
+    if (!(await answerAsk(r, id, allow, response))) {
+      // not taken: shown again if it is still open
+      setSent((s) => { const n = new Set(s); n.delete(id); return n; });
+      toast(t('askGone'), folderOf(r.root));
+    }
     reload();
   };
   return (

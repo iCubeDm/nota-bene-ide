@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EmitInput } from '../hub.ts';
-import { PermissionBroker } from './permissions.ts';
+import { clipAsk, PermissionBroker } from './permissions.ts';
 
 function make() {
   const events: EmitInput[] = [];
@@ -9,6 +9,12 @@ function make() {
   return { b, events, gen: () => gen, bump: () => { gen++; } };
 }
 const idOf = (events: EmitInput[]) => (events.find((e) => e.kind === 'permission') as { id: string }).id;
+
+it('clipAsk clips every string of the input, nested ones too, and leaves the rest', () => {
+  const long = 'x'.repeat(5000);
+  const c = clipAsk({ id: 'p', toolName: 'MultiEdit', input: { path: 'a', n: 3, edits: [{ new_string: long }], meta: { body: long } } });
+  expect(c.input).toEqual({ path: 'a', n: 3, edits: [{ new_string: `${'x'.repeat(2000)}…` }], meta: { body: `${'x'.repeat(2000)}…` } });
+});
 
 describe('PermissionBroker', () => {
   it('lists open asks oldest first, both kinds, and drops a settled one', () => {

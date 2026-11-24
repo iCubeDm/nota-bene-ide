@@ -10,9 +10,12 @@ export type OpenAsk = { id: string; toolName: string; input: Record<string, unkn
 
 /** At most this many characters of each string in an ask's input go to /info, which is polled; the answer needs only the id. */
 const CLIP = 2000;
-export const clipAsk = (a: OpenAsk): OpenAsk => ({
-  ...a, input: Object.fromEntries(Object.entries(a.input).map(([k, v]) => [k, typeof v === 'string' && v.length > CLIP ? `${v.slice(0, CLIP)}…` : v])),
-});
+const clip = (v: unknown): unknown =>
+  typeof v === 'string' ? (v.length > CLIP ? `${v.slice(0, CLIP)}…` : v)
+    : Array.isArray(v) ? v.map(clip)
+      : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, clip(x)])) : v;
+/** every string of its input, nested ones too (an edits array, ACP's rawInput), at most CLIP characters */
+export const clipAsk = (a: OpenAsk): OpenAsk => ({ ...a, input: clip(a.input) as Record<string, unknown> });
 
 /**
  * The agent's permission asks (R-M7-17): each is `open → answered | aborted`, and only an open ask is shown or

@@ -4,7 +4,7 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setLang, t } from '@/core/i18n/index.ts';
 import { makeStore } from '@/core/testing';
-import { getToasts } from '@/core/shell/toast.ts';
+import { getToasts, resetToasts } from '@/core/shell/toast.ts';
 import { Home } from '@/core/shell/Home.tsx';
 import type { OpenAsk, ProjectsList, RunningRow } from './api.ts';
 import { nav } from './api.ts';
@@ -20,6 +20,7 @@ let calls: { url: string; body?: unknown }[];
 beforeEach(() => {
   setLang('en');
   localStorage.clear();
+  resetToasts();
   calls = [];
   answer = () => Response.json({ ok: true });
   list = { running: [], recent: [], hidden: [] };
@@ -113,4 +114,15 @@ it('no agent part renders on the home page', async () => {
   expect(document.getElementById('tree-sheet')).toBeNull();
   // the home has no agent: no sessions of its own are asked for
   expect(calls.some((c) => c.url === '/sessions')).toBe(false);
+});
+
+it('a second click while the answer is on its way sends nothing more and toasts nothing', async () => {
+  list.running = [row('/w/a', 'claude-k3f7qz', 'waiting', { asks: [ASK] })];
+  setup();
+  const allow = await within(inbox()).findByRole('button', { name: t('allow') });
+  fireEvent.click(allow);
+  fireEvent.click(allow);
+  await waitFor(() => expect(within(inbox()).queryByRole('button', { name: t('allow') })).toBeNull());
+  expect(calls.filter((c) => c.url === '/a/claude-k3f7qz/permission')).toHaveLength(1);
+  expect(getToasts().some((x) => x.title === t('askGone'))).toBe(false);
 });
