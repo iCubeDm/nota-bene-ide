@@ -67,6 +67,21 @@ it('+ starts another agent on this folder, of the agent picked among the install
   expect(calls.find((c) => c.url === '/system/projects/open')!.body).toEqual({ dir: '/w/site', provider: 'codex', new: true });
 });
 
+it('issue 636: ✕ on an agent\'s tab closes it after a confirm, without moving there; another computer\'s agents have none', async () => {
+  setup();
+  await waitFor(() => expect(tabs()).toHaveLength(2));
+  fireEvent.click(screen.getByRole('button', { name: `${t('agentClose')}: Codex · Review the diff` }));
+  fireEvent.click(await screen.findByRole('button', { name: t('agentClose') }));
+  await waitFor(() => expect(calls.filter((c) => c.url === '/system/projects/stop').map((c) => c.body)).toEqual([{ provider: 'codex', port: 4791, root: '/w/site', agent: 'codex-k3f7qz' }]));
+  expect(nav.go).not.toHaveBeenCalled();
+  cleanup();
+  page.remote = STUDIO;
+  list = { ...LIST, running: [...LIST.running.map((r) => ({ ...r, current: false })), { ...LIST.running[5]!, port: 4777, title: 'Here', current: true, agent: 'claude-c2d3e4' }] };
+  setup();
+  await waitFor(() => expect(tabs()).toHaveLength(1));
+  expect(screen.queryByRole('button', { name: new RegExp(t('agentClose')) })).toBeNull();
+});
+
 it('alone in its folder: no tabs, the + only; none before the list is in', async () => {
   list = { ...LIST, running: LIST.running.filter((r) => r.current || r.root !== '/w/site') };
   setup();

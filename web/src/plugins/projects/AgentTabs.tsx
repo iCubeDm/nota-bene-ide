@@ -3,11 +3,11 @@
 // it, as the switcher does. + starts a new agent of an installed kind on the folder, or (issue 620) on another worktree
 // of its repository, and moves there; an agent in such a worktree is a tab of the project too, named with its branch.
 // Helpers an agent started (2g) sit under their lead as one group (a count and their state dots), not as tabs; on a
-// helper's own page, Keep makes it an agent of the project.
+// helper's own page, Keep makes it an agent of the project. ✕ on a tab closes that agent after a confirm (issue 636).
 import { useEffect, useState } from 'react';
 import { connections, remotePage, routes, send, toast, useSources, useT } from '@/sdk';
-import { AgentIcon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, Svg, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
-import { enterProject, openFolder, PROVIDER_LABEL, reasonText, useProjects, type Provider, type RunningRow } from './api.ts';
+import { AgentIcon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, ConfirmDialog, Svg, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
+import { enterProject, openFolder, PROVIDER_LABEL, reasonText, stopProject, useProjects, type Provider, type RunningRow } from './api.ts';
 import { badgeOf } from './rows.ts';
 import { BadgeView, DOT, LIVE, STATE_KEY } from './Tile.tsx';
 
@@ -24,6 +24,7 @@ export function AgentTabs() {
   const t = useT();
   const { data } = useProjects(false);
   const [kinds, setKinds] = useState<Provider[]>([]);
+  const [closing, setClosing] = useState<RunningRow | null>(null);
   const remote = remotePage();
   // the repository's other worktrees (the files' sources): folder -> branch
   const trees = new Map(useSources().flatMap((x) => (x.kind === 'worktree' && x.dir ? [[x.dir, x.label] as const] : [])));
@@ -52,6 +53,11 @@ export function AgentTabs() {
     const why = await openFolder(dir, p, undefined, undefined, true);
     if (why) toast(t('projEnterFailed', reasonText(why)), dir);
   };
+  const close = async (r: RunningRow) => {
+    setClosing(null);
+    const why = await stopProject(r);
+    if (why) toast(t('agentClose'), reasonText(why));
+  };
   const choices = (dir: string) => kinds.map((p) => <DropdownMenuItem key={p} onSelect={() => void add(dir, p)}><AgentIcon provider={p} />{PROVIDER_LABEL[p]}</DropdownMenuItem>);
   return (
     <>
@@ -63,7 +69,7 @@ export function AgentTabs() {
       <HelperGroup helpers={helpersOf(here.id)} />
       {others.filter((r) => !grouped(r)).map((r) => (
         <span key={`${r.port}/${r.agent ?? r.provider}`} className="flex flex-none items-center">
-          <AgentTab r={r} branch={r.root === here.root ? undefined : trees.get(r.root)} />
+          <AgentTab r={r} branch={r.root === here.root ? undefined : trees.get(r.root)} onClose={r.agent && !r.remote && !remote ? () => setClosing(r) : undefined} />
           <HelperGroup helpers={helpersOf(r.id)} />
         </span>
       ))}
@@ -91,9 +97,15 @@ export function AgentTabs() {
           </DropdownMenuContent>
         </DropdownMenu>
       )}
+      {closing && (
+        <ConfirmDialog title={t('agentCloseQ')} body={t('agentCloseBody', agentName(closing))} confirm={t('agentClose')} danger
+          onConfirm={() => void close(closing)} onCancel={() => setClosing(null)} />
+      )}
     </>
   );
 }
+
+const agentName = (r: RunningRow) => [PROVIDER_LABEL[r.provider], r.title].filter(Boolean).join(' · ');
 
 /** A lead's helpers: their count and state dots; its menu opens one. */
 function HelperGroup({ helpers }: { helpers: RunningRow[] }) {
@@ -121,8 +133,8 @@ function HelperGroup({ helpers }: { helpers: RunningRow[] }) {
   );
 }
 
-/** Another agent of the project, a tab of the strip's look: its state, its kind (its vendor's mark and name), its worktree's branch, its session's title, its badge. */
-function AgentTab({ r, branch }: { r: RunningRow; branch?: string | undefined }) {
+/** Another agent of the project, a tab of the strip's look: its state, its kind (its vendor's mark and name), its worktree's branch, its session's title, its badge, and ✕ when it can be closed from here. */
+function AgentTab({ r, branch, onClose }: { r: RunningRow; branch?: string | undefined; onClose?: (() => void) | undefined }) {
   const t = useT();
   const name = PROVIDER_LABEL[r.provider];
   return (
@@ -141,6 +153,13 @@ function AgentTab({ r, branch }: { r: RunningRow; branch?: string | undefined })
       {branch && <span className="rounded bg-muted px-1 text-[0.6875rem]">{branch}</span>}
       {r.title && <span className="truncate">{r.title}</span>}
       <BadgeView b={badgeOf([r])} />
+      {onClose && (
+        <button type="button" aria-label={`${t('agentClose')}: ${agentName(r)}`} title={t('agentClose')}
+          onClick={(e) => { e.stopPropagation(); onClose(); }} onKeyDown={(e) => e.stopPropagation()}
+          className="grid size-[18px] flex-none place-items-center rounded-[5px] opacity-50 hover:bg-muted hover:opacity-100">
+          <Svg size={10}><path d="M18 6 6 18M6 6l12 12" /></Svg>
+        </button>
+      )}
     </div>
   );
 }
