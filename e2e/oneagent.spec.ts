@@ -5,13 +5,13 @@ import { apiGet } from './auth.ts';
 // the chat's tab only, no tab of the folder's other agent and no +; ✕ in the chat's tab closes it and goes to the home page.
 // It closes only the agent it opened, so the fixture's own agent stays for the other specs.
 test('a page shows one agent; ✕ in the chat\'s tab closes it and goes to the server\'s home @chat', async ({ page, baseURL }) => {
-  await page.goto('/');
+  await page.goto('');
   await expect(page.locator('#composer-input')).toBeVisible();
-  const { root } = (await (await apiGet(page, '/info')).json()) as { root: string };
+  const { root } = (await (await apiGet(page, 'info')).json()) as { root: string };
   const key = await page.evaluate(() => localStorage.getItem('nb.key'));
-  const opened = await page.request.post('/system/projects/open', {
+  const opened = await page.request.post('system/projects/open', {
     data: { dir: root, provider: 'claude', new: true },
-    headers: { 'x-nota-bene-key': key!, origin: baseURL! },
+    headers: { 'x-nota-bene-key': key!, origin: new URL(baseURL!).origin },
   });
   expect(opened.ok()).toBe(true);
   const { url } = (await opened.json()) as { url: string };
@@ -28,6 +28,6 @@ test('a page shows one agent; ✕ in the chat\'s tab closes it and goes to the s
   await x.click();
   await page.getByRole('button', { name: 'Close this agent', exact: true }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe('/');
-  const { agents } = (await (await apiGet(page, '/info')).json()) as { agents: { id: string }[] };
+  const { agents } = (await (await apiGet(page, 'info')).json()) as { agents: { id: string }[] };
   expect(agents.map((a) => a.id)).not.toContain(agent);
 });
