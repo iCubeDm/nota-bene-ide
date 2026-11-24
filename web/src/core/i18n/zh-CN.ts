@@ -400,6 +400,12 @@ export const zhCN: Dict = {
   projSearch: '查找项目',
   projRecent: '最近',
   projProjects: '项目',
+  // issue 651: the server's home page
+  home: '主页',
+  homeCounts: (p: number, a: number) => `项目：${p} · 代理：${a}`,
+  homeWorking: (n: number) => `工作中：${n}`,
+  homeWaiting: (n: number) => `等你处理：${n}`,
+  homeIdle: (n: number) => `空闲：${n}`,
   projExpand: (p: string) => `${p} 的会话`,
   projSessionsOf: (p: string) => `${p} 的会话`,
   projNewSess: '+ 新会话',

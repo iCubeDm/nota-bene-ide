@@ -52,6 +52,8 @@ export const routes = {
   /** with a session: that session's stored prompts; without: the current one's, or POST one */
   prompts: (session?: string) => q('/prompts', { session }),
   seen: () => '/seen',
+  /** POST: answers an agent's open ask from the server's home page (issue 651), whose base is the top */
+  agentPermission: (agent: string) => `/a/${seg(agent)}/permission`,
   stop: () => '/stop',
   restartServer: (what?: 'pause' | 'cancel') => (what ? `/restart-server/${what}` : '/restart-server'),
   agentAccount: () => '/agent-account',

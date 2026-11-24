@@ -408,6 +408,12 @@ export const ru = {
   projSearch: 'Найти проект',
   projRecent: 'Недавние',
   projProjects: 'Проекты',
+  // issue 651: the server's home page
+  home: 'Главная',
+  homeCounts: (p: number, a: number) => `Проекты: ${p} · агенты: ${a}`,
+  homeWorking: (n: number) => `Работают: ${n}`,
+  homeWaiting: (n: number) => `Ждут тебя: ${n}`,
+  homeIdle: (n: number) => `Свободны: ${n}`,
   projExpand: (p: string) => `Сессии ${p}`,
   projSessionsOf: (p: string) => `Сессии ${p}`,
   projNewSess: '+ Новая сессия',

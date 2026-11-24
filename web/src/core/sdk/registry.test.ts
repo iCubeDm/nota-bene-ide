@@ -39,19 +39,19 @@ it('two parts at one order of a slot fail the build', () => {
 it('each slot lists the plugins\' parts in the frame\'s order', () => {
   const slots = Object.fromEntries([...buildRegistry(PLUGINS).slots].map(([k, v]) => [k, v.map((s) => `${s.order} ${s.render.name}`)]));
   expect(slots).toEqual({
-    'header.title': ['10 ProjectTitle'],
+    'header.title': ['10 ProjectTitle', '20 HomeTitle'],
     'header.center': ['10 GitBranch'],
     'header.end': ['10 ConnNote', '20 UpdateNotice', '30 CompactPending', '40 RestartMenu', '50 ModelPill', '80 StopButton'],
     'header.menu': ['10 RemoteMenuRow'],
     'header.badge': ['10 RemoteDot'],
-    'strip.left': ['10 FilesToggle', '20 VcsToggles'],
+    'strip.left': ['5 ProjectsToggle', '10 FilesToggle', '20 VcsToggles'],
     'strip.right': ['10 CommentsToggle'],
     'tabs.chat': ['10 AgentTabs'],
-    'panel.left': ['10 ProjectRail', '30 Tree', '40 ChangesPanel'],
+    'panel.left': ['10 ProjectRail', '25 ProjectsPanel', '30 Tree', '40 ChangesPanel'],
     'panel.right': ['10 Comments'],
     chat: ['10 ChatFeed', '20 HighlightLayer'],
     panes: ['10 TasksDrawer'],
-    footer: ['10 TasksIndicator', '20 Composer'],
+    footer: ['5 HomeFooter', '10 TasksIndicator', '20 Composer'],
     overlay: ['10 SelectionComment', '20 CommentCardPopover', '40 RecentFiles', '50 Starter', '60 Activity', '70 Seen', '75 AppIcon'],
     home: ['10 ProjectsHome'],
     // the composer's (issue 545); the pickers serve the comment popup's field as well

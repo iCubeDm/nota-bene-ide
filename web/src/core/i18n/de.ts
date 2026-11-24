@@ -400,6 +400,12 @@ export const de: Dict = {
   projSearch: 'Projekt suchen',
   projRecent: 'Zuletzt verwendet',
   projProjects: 'Projekte',
+  // issue 651: the server's home page
+  home: 'Start',
+  homeCounts: (p: number, a: number) => `Projekte: ${p} · Agenten: ${a}`,
+  homeWorking: (n: number) => `Arbeiten: ${n}`,
+  homeWaiting: (n: number) => `Warten auf dich: ${n}`,
+  homeIdle: (n: number) => `Frei: ${n}`,
   projExpand: (p: string) => `Sitzungen von ${p}`,
   projSessionsOf: (p: string) => `Sitzungen von ${p}`,
   projNewSess: '+ Neue Sitzung',

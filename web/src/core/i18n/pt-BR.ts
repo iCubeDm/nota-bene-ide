@@ -400,6 +400,12 @@ export const ptBR: Dict = {
   projSearch: 'Encontrar um projeto',
   projRecent: 'Recentes',
   projProjects: 'Projetos',
+  // issue 651: the server's home page
+  home: 'Início',
+  homeCounts: (p: number, a: number) => `Projetos: ${p} · agentes: ${a}`,
+  homeWorking: (n: number) => `Trabalhando: ${n}`,
+  homeWaiting: (n: number) => `Esperando por você: ${n}`,
+  homeIdle: (n: number) => `Livres: ${n}`,
   projExpand: (p: string) => `Sessões de ${p}`,
   projSessionsOf: (p: string) => `Sessões de ${p}`,
   projNewSess: '+ Nova sessão',

@@ -28,6 +28,7 @@ export { useDragOrder, DROP_MARK } from '../lib/dragOrder.ts';
 export { useChatTab } from '../tabs/chatTab.ts';
 export { prepareImage, uploadImage, encodeImage, mediaTypeOf } from '../lib/image.ts';
 export { useFocusWithin } from '../shell/focusWithin.ts';
+export { useOnHome } from '../shell/Slots.tsx';
 export { makeAnchor } from '../anchors/resolve.ts';
 export { textOf, collapsedLength, rawIndexOf, offsetsOf, rangeForAnchor } from '../anchors/text.ts';
 export { QUICK_LABELS, labelsFor, labelText, labelOf, instructionOf } from '../anchors/labels.ts';

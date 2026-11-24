@@ -24,6 +24,9 @@ export const ICONS = {
   history: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></>,
   restart: <path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5" />,
   power: <path d="M12 3v9M18.4 6.6a9 9 0 1 1-12.8 0" />,
+  // the server's home page and its Projects panel (issue 651)
+  home: <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />,
+  projects: <><path d="M12 2 2 7l10 5 10-5z" /><path d="m2 17 10 5 10-5" /><path d="m2 12 10 5 10-5" /></>,
   // another computer (issue 297): lucide's laptop
   laptop: <><path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.946 1.45H3.666a1 1 0 0 1-.946-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z" /><path d="M20.054 15.987H3.946" /></>,
   external: <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />,

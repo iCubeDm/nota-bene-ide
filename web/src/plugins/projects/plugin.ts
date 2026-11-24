@@ -6,6 +6,7 @@ import { AppIcon, shortcutResource } from './AppIcon.tsx';
 import { ProjectsHome } from './Home.tsx';
 import { ProjectTitle } from './ProjectSwitcher.tsx';
 import { ProjectRail } from './ProjectRail.tsx';
+import { HomeFooter, HomeTitle, ProjectsPanel, ProjectsToggle } from './HomeParts.tsx';
 import { Starter } from './Starter.tsx';
 import { Seen } from './seen.ts';
 import { nav, openFolder, projectsResource, projectsSlice, reasonText, selectProjectsMenu, setProjectsMenu } from './api.ts';
@@ -30,10 +31,15 @@ export const projectsPlugin = definePlugin({
     // epic 383 2e: the folder's other agents beside the chat's tab, and + to add one
     { slot: 'tabs.chat', order: 10, render: AgentTabs },
     // the open projects, outermost: a stopgap before one server for every project (issue 419)
-    { slot: 'panel.left', order: 10, render: ProjectRail },
+    { slot: 'panel.left', order: 10, render: ProjectRail, on: 'both' },
     { slot: 'overlay', order: 50, render: Starter, on: 'both' },
     // issue 639: the server's home page
     { slot: 'home', order: 10, render: ProjectsHome, on: 'home' },
+    // issue 651: the home page's title, Projects panel and counts
+    { slot: 'header.title', order: 20, render: HomeTitle, on: 'home' },
+    { slot: 'strip.left', order: 5, render: ProjectsToggle, on: 'home' },
+    { slot: 'panel.left', order: 25, render: ProjectsPanel, on: 'home' },
+    { slot: 'footer', order: 5, render: HomeFooter, on: 'home' },
     // epic 383: the app icon's offer, a notification
     { slot: 'overlay', order: 75, render: AppIcon },
     { slot: 'overlay', order: 70, render: Seen },

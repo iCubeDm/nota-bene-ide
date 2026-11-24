@@ -76,6 +76,7 @@ it('the frame keeps its order', async () => {
       "span#settingsDot",
       "button#stopWindowBtn[Stop Nota Bene]",
       "nav[Open projects]",
+      "button[Home]",
       "button[Open folder…]",
       "nav[Left tool windows]",
       "button#toggleTree[Files]",
@@ -128,6 +129,7 @@ it('the left panels keep their order with Changes open', async () => {
   expect(outline(document.querySelector('[data-center]')!.parentElement!)).toMatchInlineSnapshot(`
     [
       "nav[Open projects]",
+      "button[Home]",
       "button[Open folder…]",
       "nav[Left tool windows]",
       "button#toggleTree[Files]",

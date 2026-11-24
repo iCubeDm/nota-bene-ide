@@ -7,6 +7,8 @@ export type Own = Omit<Slot, 'slot' | 'on'>;
 
 /** True under the server's home page (issue 651): its slots show the parts that say they show there (`Slot.on`). */
 export const OnHome = createContext(false);
+/** Whether this part is on the server's home page (issue 651). */
+export const useOnHome = (): boolean => useContext(OnHome);
 
 /**
  * The plugins' parts of slot `at`, merged with the frame's `own` parts by ascending order (issue 511). A plugin's part at

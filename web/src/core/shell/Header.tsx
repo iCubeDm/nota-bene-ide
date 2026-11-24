@@ -21,6 +21,7 @@ const isMacLabel = (k: string) => `${isMac() ? '⌥' : 'Alt+'}${k}`;
 
 export function Header() {
   const t = useT();
+  const home = useContext(OnHome);
   const session = useAppSelector(selectSession);
   const headerRef = useRef<HTMLElement>(null);
   const blockRef = useRef<HTMLDivElement>(null);
@@ -35,7 +36,8 @@ export function Header() {
           keeps a short name from cutting the path to nothing; the branch moves only for a name longer than that */}
       <div ref={blockRef} data-proj-block className="flex min-w-[min(14rem,30vw)] flex-col items-start pr-6">
         <Slots at="header.title" />
-        <div className="group flex w-0 min-w-full items-center gap-0.5">
+        {/* the home page's title has its own second line (issue 651) */}
+        {!home && <div className="group flex w-0 min-w-full items-center gap-0.5">
           <span id="root-path" dir="rtl" className="min-w-0 truncate px-1 text-left font-mono text-[0.625rem] leading-3 opacity-70 group-hover:opacity-100"><span dir="ltr">{session?.root ? shortHome(session.root) : ''}</span></span>
           {/* the copy icon shows on hover of the path (issue 463) */}
           {session?.root && (
@@ -45,7 +47,7 @@ export function Header() {
               <Svg size={10}><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></Svg>
             </button>
           )}
-        </div>
+        </div>}
       </div>
       {/* over the middle column, its left edge on the first tab's (tabAlign.ts); out of the flow, so nothing else moves */}
       <div data-git-slot className="absolute inset-y-0 flex items-center" style={{ left: gitLeft ?? undefined, visibility: gitLeft === null ? 'hidden' : undefined }}>
