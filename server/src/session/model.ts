@@ -1,9 +1,9 @@
-import type { AgentEffort as EffortLevel, ModelOption } from '@nota-bene/shared';
+import type { AgentEffort as EffortLevel, AgentProvider, ModelOption } from '@nota-bene/shared';
 import type { ProviderSession as AgentSession } from '../agent/types.ts';
 import type { EmitInput } from '../hub.ts';
-import { prefsKey, readPrefs, setModelPref } from '../prefs.ts';
+import { modelKey, readPrefs, setModelPref } from '../prefs.ts';
 
-type ModelOptions = { dir: string; emit: (ev: Extract<EmitInput, { kind: 'model' | 'models' }>) => void; report: (where: string, e: unknown) => void };
+type ModelOptions = { provider: AgentProvider; dir: string; emit: (ev: Extract<EmitInput, { kind: 'model' | 'models' }>) => void; report: (where: string, e: unknown) => void };
 export type CurrentModel = { model: string | null; effort?: EffortLevel };
 const SUFFIX = /\[[^\]]*\]$/;
 type Agent = Pick<AgentSession, 'supportedModels' | 'setModel' | 'setEffort'>;
@@ -36,7 +36,7 @@ export class ModelKeeper {
 
   /** the pref, as far as the known list offers it; with no list yet it is trusted (load() corrects a bad one) */
   private startChoice(dir: string): CurrentModel {
-    const p = readPrefs().models[prefsKey(dir)];
+    const p = readPrefs().models[modelKey(this.o.provider, dir)];
     if (!p) return { model: null };
     const o = this.opts && this.find(p.model);
     if (this.opts && !o) return { model: null };
@@ -149,7 +149,7 @@ export class ModelKeeper {
     if (!still()) return; // a switch meanwhile: this was the old session's
     this.fresh = !!a && !keep && !(before && this.same(before, id));
     this.cur = { model: id, ...(next.effort && { effort: next.effort }) };
-    setModelPref(dir, this.cur as { model: string; effort?: EffortLevel });
+    setModelPref(this.o.provider, dir, this.cur as { model: string; effort?: EffortLevel });
   }
 
   private announce(): void {

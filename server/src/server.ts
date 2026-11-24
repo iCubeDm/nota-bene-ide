@@ -252,6 +252,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     });
     const manager = await createSessionManager({
       stateDir: agent.stateDir,
+      provider: agent.provider,
       hub,
       turnCut: (id) => turnMarks.take(id),
       attachments,

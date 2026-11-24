@@ -1,4 +1,4 @@
-import type { Stats } from '@nota-bene/shared';
+import type { AgentProvider, Stats } from '@nota-bene/shared';
 import type { ProviderBackend as AgentBackend } from '../agent/types.ts';
 import type { HistoryArchive } from '../archive.ts';
 import type { AttachmentStore } from '../attachments.ts';
@@ -7,8 +7,9 @@ import type { IdleConfig } from '../idle.ts';
 
 /** createSessionManager's options. */
 export type SessionOptions = {
-  /** the agent's state folder (AgentContext); default: the one NOTA_BENE_AGENT chose (tests) */
+  /** the agent's state folder and provider (AgentContext); default: the one NOTA_BENE_AGENT chose (tests) */
   stateDir?: string;
+  provider?: AgentProvider;
   /** every stats update, after the clients got it */
   onStats?: (s: Stats) => void;
   /** The SDK's rate_limit_info of every `rate-limit` event. */
