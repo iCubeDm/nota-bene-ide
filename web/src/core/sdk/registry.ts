@@ -50,6 +50,8 @@ export interface Slot {
   slot: SlotName;
   order: number;
   render: FC;
+  /** where it shows (issue 651): absent, an agent's page only; `home`, the server's home page only; `both` */
+  on?: 'home' | 'both';
 }
 
 /** A command's id: the i18n key of its line in the ? help. */

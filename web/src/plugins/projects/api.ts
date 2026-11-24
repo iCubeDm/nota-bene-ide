@@ -2,11 +2,14 @@
 // types (mirrored: the web does not import from server/), the polled list, and the move of this tab to another window.
 import { useEffect, useRef, useState } from 'react';
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import type { Interaction, InteractionAnswer } from '@nota-bene/shared';
 import { t, defineResource, routes, toast, useResource, remotePage, type RootState, send } from '@/sdk';
 
 export type Provider = 'claude' | 'codex' | 'omp';
 export type ProjectState = 'working' | 'waiting' | 'idle' | 'restarting' | 'silent';
 export type LastMessage = { role: 'user' | 'assistant'; text: string; at?: number };
+/** An agent's open ask, its input clipped (server/src/session/permissions.ts) */
+export type OpenAsk = { id: string; toolName: string; input: Record<string, unknown>; prompt?: Interaction };
 export type RunningRow = {
   provider: Provider; port: number; root: string; title: string | null; session: string | null; state: ProjectState; current: boolean; clients: number;
   /** final replies of its session the person has not seen (server/src/seen.ts) */
@@ -19,6 +22,8 @@ export type RunningRow = {
   /** epic 383 2g: its agent id (the window's own too), and a helper's lead */
   id?: string;
   lead?: string;
+  /** issue 651: its open asks, oldest first: only an agent of this page's server, which answers them (answerAsk) */
+  asks?: OpenAsk[];
 };
 /** A row as the switcher's routes take it back: a window, or a server's agent by its id. */
 export const rowRef = (w: RunningRow): { provider: Provider; port: number; root: string; agent?: string } =>
@@ -41,14 +46,18 @@ export function onPageRestore(f: () => void): () => void {
   return () => window.removeEventListener('pageshow', h);
 }
 
-/** The switcher's menu, open or closed from anywhere (Alt+P). */
+/** The switcher's menu, open or closed from anywhere (Alt+P); the home page's Projects panel (issue 651). */
 export const projectsSlice = createSlice({
   name: 'projects',
-  initialState: { menu: false },
-  reducers: { setProjectsMenu: (s, a: PayloadAction<boolean>) => void (s.menu = a.payload) },
+  initialState: { menu: false, panel: true },
+  reducers: {
+    setProjectsMenu: (s, a: PayloadAction<boolean>) => void (s.menu = a.payload),
+    setProjectsPanel: (s, a: PayloadAction<boolean>) => void (s.panel = a.payload),
+  },
 });
-export const { setProjectsMenu } = projectsSlice.actions;
+export const { setProjectsMenu, setProjectsPanel } = projectsSlice.actions;
 export const selectProjectsMenu = (s: RootState): boolean => s.projects.menu;
+export const selectProjectsPanel = (s: RootState): boolean => s.projects.panel;
 
 const isList = (v: unknown): v is ProjectsList =>
   !!v && typeof v === 'object' && Array.isArray((v as ProjectsList).running) && Array.isArray((v as ProjectsList).recent);
@@ -159,6 +168,20 @@ export async function enterProject(row: RunningRow, session?: string): Promise<b
     return true;
   } catch (e) {
     toast(t('projEnterFailed', e instanceof Error ? e.message : String(e)), row.root);
+    return false;
+  }
+}
+
+/**
+ * Answers an open ask of `row`'s agent from the home page (issue 651): POST to that agent's route on this server. False
+ * when it was settled already (another tab answered, the agent withdrew it) or the agent did not answer.
+ */
+export async function answerAsk(row: RunningRow, id: string, allow: boolean, response?: InteractionAnswer): Promise<boolean> {
+  if (!row.id) return false;
+  try {
+    const r = await send(routes.agentPermission(row.id), { id, allow, ...(response ? { response } : {}) });
+    return r.ok;
+  } catch {
     return false;
   }
 }

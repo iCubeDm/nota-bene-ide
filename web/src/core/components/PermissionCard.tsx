@@ -1,20 +1,29 @@
 import { memo, useEffect, useState } from 'react';
-import { useT, type FeedItem, useAppDispatch, chat } from '@/sdk';
+import type { Interaction, InteractionAnswer } from '@nota-bene/shared';
+import { useT } from '@/core/i18n/index.ts';
 
-export const PermissionCard = memo(function PermissionCard({ item }: { item: Extract<FeedItem, { kind: 'permission' }> }) {
+/** An agent's ask as the card shows it: the chat's `permission` item, or one of the home page's inbox (issue 651). */
+export type CardAsk = { id: string; toolName: string; input: Record<string, unknown>; prompt?: Interaction };
+
+/**
+ * An agent's ask and its answers. `answer`: how it was answered (absent while open); `archived`: an earlier run's, past
+ * answering. `onAnswer` sends the answer: the chat over the socket, the home page's inbox to the agent's route.
+ */
+export const PermissionCard = memo(function PermissionCard({ ask: item, answer, archived, onAnswer }: {
+  ask: CardAsk; answer?: boolean; archived?: boolean; onAnswer(allow: boolean, response?: InteractionAnswer): void;
+}) {
   const t = useT();
-  const dispatch = useAppDispatch();
   const [values, setValues] = useState<Record<string, string>>({});
   const prompt = item.prompt;
   // the picked options (indices) are state of their own, so an option label may hold a comma; `values` is the typed text
   const [picks, setPicks] = useState<Record<string, number[]>>({});
-  useEffect(() => { if (item.answer !== undefined) { setValues({}); setPicks({}); } }, [item.answer]);
+  useEffect(() => { if (answer !== undefined) { setValues({}); setPicks({}); } }, [answer]);
   type Field = NonNullable<NonNullable<typeof prompt>['fields']>[number];
   const valueOf = (f: Field) => [...(picks[f.id] ?? []).map((i) => f.options?.[i] ?? ''), ...(values[f.id]?.trim() ? [values[f.id].trim()] : [])].join(', ');
   const answers = () => Object.fromEntries((prompt?.fields ?? []).map((f) => [f.id, f.options?.length ? valueOf(f) : values[f.id] ?? '']));
   const choiceLabel = (label: string) => /^Approve .+ for this session$/.test(label) ? t('allowSession') : ({ accept: t('allow'), decline: t('deny'), cancel: t('cancel'), acceptForSession: t('allowSession'), 'Allow for this turn': t('allowTurn'), 'Allow for this session': t('allowSession'), 'Deny': t('deny'), 'Cancel': t('cancel'), 'Accept': t('allow'), 'Decline': t('deny'), 'Send answers': t('sendAnswers'), 'Approve': t('allow'), 'Allow once': t('allow'), 'Always allow': t('allowAlways'), 'Reject': t('deny'), 'Always reject': t('denyAlways') })[label] ?? label;
   const title = prompt?.title === 'Additional Codex permissions' ? t('codexPermissions') : prompt?.title === 'MCP request' ? t('nativeMcpRequest') : prompt?.title;
-  const resolved = item.answer !== undefined;
+  const resolved = answer !== undefined;
   const body = String(item.input.command ?? item.input.file_path ?? JSON.stringify(item.input, null, 2));
   const btn = 'rounded-lg border border-transparent px-3 py-1 text-[0.8125rem] font-medium';
   return (
@@ -22,14 +31,14 @@ export const PermissionCard = memo(function PermissionCard({ item }: { item: Ext
       data-kind="permission"
       className={
         'my-2.5 rounded-[10px] border bg-card px-3 py-2 text-[0.8125rem] break-words ' +
-        (resolved || item.archived ? 'border-border-soft opacity-60' : 'border-warn')
+        (resolved || archived ? 'border-border-soft opacity-60' : 'border-warn')
       }
     >
       <b>{title ?? t('allowQ', item.toolName)}</b>
       {Object.keys(item.input).length > 0 && <pre className="my-1.5 max-h-[200px] overflow-auto whitespace-pre-wrap font-mono text-xs">{body}</pre>}
       {resolved ? (
-        <span>{t(item.answer ? prompt?.fields ? 'answerSent' : 'allowed' : 'denied')}</span>
-      ) : item.archived ? (
+        <span>{t(answer ? prompt?.fields ? 'answerSent' : 'allowed' : 'denied')}</span>
+      ) : archived ? (
         <span data-archived>{t('askArchived')}</span>
       ) : prompt ? (
         <form onSubmit={(e) => e.preventDefault()} className="space-y-2">
@@ -52,19 +61,19 @@ export const PermissionCard = memo(function PermissionCard({ item }: { item: Ext
               </button>)}</div> : null}
             </div>;
           })}
-          <div className="flex flex-wrap gap-2">{prompt.choices.map((c) => <button key={c.id} type="button" className={`${btn} bg-muted`} disabled={!['cancel', 'decline', 'deny'].includes(c.id) && prompt.fields?.some((f) => f.required && !(f.options?.length ? valueOf(f) : values[f.id] ?? '').trim())} onClick={() => dispatch(chat.answer(item.id, true, { choice: c.id, ...(prompt.fields ? { values: answers() } : {}) }))}>{choiceLabel(c.label)}</button>)}</div>
+          <div className="flex flex-wrap gap-2">{prompt.choices.map((c) => <button key={c.id} type="button" className={`${btn} bg-muted`} disabled={!['cancel', 'decline', 'deny'].includes(c.id) && prompt.fields?.some((f) => f.required && !(f.options?.length ? valueOf(f) : values[f.id] ?? '').trim())} onClick={() => onAnswer(true, { choice: c.id, ...(prompt.fields ? { values: answers() } : {}) })}>{choiceLabel(c.label)}</button>)}</div>
         </form>
       ) : (
         <>
           <button
             className={`${btn} bg-primary text-primary-foreground hover:opacity-90`}
-            onClick={() => dispatch(chat.answer(item.id, true))}
+            onClick={() => onAnswer(true)}
           >
             {t('allow')}
           </button>{' '}
           <button
             className={`${btn} bg-muted text-muted-foreground hover:text-foreground`}
-            onClick={() => dispatch(chat.answer(item.id, false))}
+            onClick={() => onAnswer(false)}
           >
             {t('deny')}
           </button>

@@ -3,9 +3,9 @@
 // badge. A click moves this tab to that project the way the switcher does; + opens a folder. Settings can turn it off; a
 // narrow window has no room for it.
 import { useState } from 'react';
-import { useT, remotePage, useStored } from '@/sdk';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
-import { enterProject, openStarter, PROVIDER_LABEL, useProjects, type RunningRow } from './api.ts';
+import { useT, remotePage, useStored, useOnHome } from '@/sdk';
+import { ICONS, Svg, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
+import { enterProject, nav, openStarter, PROVIDER_LABEL, useProjects, type RunningRow } from './api.ts';
 import { useRailPref } from './railPref.ts';
 import { foldRows, rowTitle, type Badge, type ProjectRow } from './rows.ts';
 import { BadgeView, folderOf, LIVE, rowBadge, STATE_KEY, Tile } from './Tile.tsx';
@@ -44,6 +44,7 @@ export function ProjectRail() {
 
 function Rail() {
   const t = useT();
+  const home = useOnHome();
   const { data, reload } = useProjects(true);
   const [moving, setMoving] = useState(false);
   const move = async (w: RunningRow) => {
@@ -59,6 +60,19 @@ function Rail() {
   const rows = foldRows(data?.running ?? []).sort(byName);
   return (
     <nav aria-label={t('projRail')} data-rail className="flex w-11 flex-none flex-col items-center gap-1.5 overflow-y-auto border-r border-border-soft bg-chrome py-2">
+      {/* the server's home page, first (issue 651): current there, a way back from an agent's page; another computer's page has none */}
+      {!remotePage() && <>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button type="button" aria-label={t('home')} aria-current={home ? 'true' : undefined} onClick={() => { if (!home) nav.go('/'); }}
+              className={`relative grid flex-none place-items-center rounded-lg p-0.5 ${home ? 'cursor-default bg-primary/15 ring-1 ring-primary/50' : 'cursor-pointer hover:bg-muted'}`}>
+              <span aria-hidden className="flex size-8 items-center justify-center rounded-lg bg-muted text-foreground"><Svg size={16}>{ICONS.home}</Svg></span>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{t('home')}</TooltipContent>
+        </Tooltip>
+        <span aria-hidden className="h-px w-5 flex-none bg-border-soft" />
+      </>}
       {rows.map((r) => {
         const sib = r.current ? siblingsOf(r) : null;
         const target = sib ? sib.target : r.windows.find((w) => LIVE.has(w.state));

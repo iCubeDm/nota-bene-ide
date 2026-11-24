@@ -347,3 +347,12 @@ it('issue 297: another computer\'s folder is a tile of its own with the laptop a
   fireEvent.click(there);
   expect(nav.go).toHaveBeenCalledWith('/system/remote/enter?host=h1&port=4791');
 });
+
+it('issue 651: the Home tile comes first and goes to the server\'s home page from an agent page', async () => {
+  await setup();
+  const home = await within(rail()).findByRole('button', { name: t('home') });
+  expect(within(rail()).getAllByRole('button')[0]).toBe(home);
+  expect(home.getAttribute('aria-current')).toBeNull();
+  fireEvent.click(home);
+  expect(nav.go).toHaveBeenCalledWith('/');
+});

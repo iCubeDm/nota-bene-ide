@@ -1,9 +1,21 @@
-import type { InteractionAnswer } from '@nota-bene/shared';
+import type { Interaction, InteractionAnswer } from '@nota-bene/shared';
 import { randomUUID } from 'node:crypto';
 import type { InteractAsk, PermissionAsk } from '../agent/types.ts';
 import type { EmitInput } from '../hub.ts';
 
 type AskState = 'open' | 'answered' | 'aborted';
+
+/** An open ask as its `permission` event shows it (issue 651: the home page's inbox reads them from /info). */
+export type OpenAsk = { id: string; toolName: string; input: Record<string, unknown>; prompt?: Interaction };
+
+/** At most this many characters of each string in an ask's input go to /info, which is polled; the answer needs only the id. */
+const CLIP = 2000;
+const clip = (v: unknown): unknown =>
+  typeof v === 'string' ? (v.length > CLIP ? `${v.slice(0, CLIP)}…` : v)
+    : Array.isArray(v) ? v.map(clip)
+      : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, clip(x)])) : v;
+/** every string of its input, nested ones too (an edits array, ACP's rawInput), at most CLIP characters */
+export const clipAsk = (a: OpenAsk): OpenAsk => ({ ...a, input: clip(a.input) as Record<string, unknown> });
 
 /**
  * The agent's permission asks (R-M7-17): each is `open → answered | aborted`, and only an open ask is shown or
@@ -14,6 +26,9 @@ export class PermissionBroker {
   private open = new Map<string, (allow: boolean, to: AskState) => void>();
 
   private structured = new Map<string, { finish(answer: InteractionAnswer | null): void; validate(answer: InteractionAnswer): boolean }>();
+
+  /** every open ask, both kinds, in the order they were opened */
+  private shown = new Map<string, OpenAsk>();
 
   private readonly o: { emit: (ev: EmitInput) => void };
 
@@ -35,12 +50,14 @@ export class PermissionBroker {
         if (state !== 'open') return;
         state = to;
         this.open.delete(id);
+        this.shown.delete(id);
         signal.removeEventListener('abort', onAbort);
         if (g === gen()) this.o.emit({ kind: 'permission-done', id, allow });
         resolve(allow);
       };
       const onAbort = () => finish(false, 'aborted');
       this.open.set(id, finish);
+      this.shown.set(id, { id, toolName, input });
       signal.addEventListener('abort', onAbort, { once: true });
       this.o.emit({ kind: 'permission', id, toolName, input });
       if (signal.aborted) onAbort();
@@ -52,7 +69,7 @@ export class PermissionBroker {
       if (g !== gen() || signal.aborted) return resolve(null);
       const id = randomUUID(); let done = false;
       const finish = (answer: InteractionAnswer | null) => {
-        if (done) return; done = true; this.structured.delete(id); signal.removeEventListener('abort', abort);
+        if (done) return; done = true; this.structured.delete(id); this.shown.delete(id); signal.removeEventListener('abort', abort);
         if (g === gen()) this.o.emit({ kind: 'permission-done', id, allow: answer !== null && prompt.choices.find((c) => c.id === answer.choice)?.allow !== false && !['deny', 'decline', 'cancel'].includes(answer.choice) });
         resolve(answer);
       };
@@ -61,14 +78,26 @@ export class PermissionBroker {
         (['deny', 'decline', 'cancel'].includes(a.choice) || (prompt.fields ?? []).every((f) => !f.required || !!a.values?.[f.id]?.trim())) &&
         Object.keys(a.values ?? {}).every((k) => prompt.fields?.some((f) => f.id === k) === true) });
       signal.addEventListener('abort', abort, { once: true });
+      this.shown.set(id, { id, toolName: prompt.tool ?? prompt.title, input, prompt });
       this.o.emit({ kind: 'permission', id, toolName: prompt.tool ?? prompt.title, input, prompt });
     });
   }
 
-  answer(id: string, allow: boolean, response?: InteractionAnswer): void {
+  /** true when it settled an open ask: false for an unknown or settled id, or a structured answer it refused */
+  answer(id: string, allow: boolean, response?: InteractionAnswer): boolean {
     const ask = this.structured.get(id);
-    if (ask) { if (response && ask.validate(response)) ask.finish(response); return; }
-    this.open.get(id)?.(allow, 'answered');
+    if (ask) {
+      if (!response || !ask.validate(response)) return false;
+      ask.finish(response);
+      return true;
+    }
+    const finish = this.open.get(id);
+    finish?.(allow, 'answered');
+    return !!finish;
+  }
+
+  asks(): OpenAsk[] {
+    return [...this.shown.values()];
   }
 
   pending(): number {

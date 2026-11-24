@@ -48,7 +48,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      ...Object.fromEntries(['/agent-account', '/info', '/auth', '/hello', '/file', '/edit', '/tree', '/complete', '/attach', '/attach-file', '/os', '/voice', '/dictation', '/sources', '/git-status', '/git-switch', '/vcs-diff', '/vcs-branches', '/vcs-log', '/vcs-commit', '/vcs-file', '/vcs-commit-file', '/marks', '/sessions', '/seen', '/restart-server', '/stop', '/system', '/remote', '/usage', '/history', '/prompts', '/subagent', '/task-output', '/cut', '/tmpimage'].map((p) => [p, backend])),
+      ...Object.fromEntries(['/agent-account', '/info', '/auth', '/hello', '/file', '/edit', '/tree', '/complete', '/attach', '/attach-file', '/os', '/voice', '/dictation', '/sources', '/git-status', '/git-switch', '/vcs-diff', '/vcs-branches', '/vcs-log', '/vcs-commit', '/vcs-file', '/vcs-commit-file', '/marks', '/sessions', '/seen', '/restart-server', '/stop', '/system', '/remote', '/usage', '/history', '/prompts', '/subagent', '/task-output', '/cut', '/tmpimage', '/a/'].map((p) => [p, backend])),
       '/ws': { ...backend, ws: true },
     },
   },

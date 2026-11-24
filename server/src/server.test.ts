@@ -125,6 +125,36 @@ describe('server', () => {
     expect((await info(s.url)).pending).toBe(false);
   });
 
+  it('/info lists the open asks; POST /permission answers one; a settled id is 409', async () => {
+    const info = async (url: string) => (await (await fetch(`${url}/info`)).json()) as { asks?: { id: string }[] };
+    const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'ok', ask: { toolName: 'Bash', input: { command: 'ls' } } }]), webDist: dist, oneTab: false });
+    closers.push(s.close);
+    expect((await info(s.url)).asks).toBeUndefined();
+    const c = await connect(s.url);
+    c.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'run' }));
+    await until(() => c.events.some((e) => e.kind === 'permission'));
+    const p = c.events.find((e) => e.kind === 'permission') as Extract<ServerEvent, { kind: 'permission' }>;
+    expect((await info(s.url)).asks).toEqual([{ id: p.id, toolName: 'Bash', input: { command: 'ls' } }]);
+    const post = (body: unknown) => fetch(`${s.url}/permission`, { method: 'POST', headers: { origin: s.server, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    expect((await post({ id: 1 })).status).toBe(400);
+    expect((await fetch(`${s.url}/permission`)).status).toBe(405);
+    expect((await post({ id: p.id, allow: true })).status).toBe(200);
+    await until(() => c.events.some(isResult));
+    expect((await info(s.url)).asks).toBeUndefined();
+    expect((await post({ id: p.id, allow: true })).status).toBe(409);
+  });
+
+  it('/info clips a long input in asks', async () => {
+    const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'ok', ask: { toolName: 'Write', input: { content: 'x'.repeat(5000), n: 3 } } }]), webDist: dist, oneTab: false });
+    closers.push(s.close);
+    const c = await connect(s.url);
+    c.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'run' }));
+    await until(() => c.events.some((e) => e.kind === 'permission'));
+    const j = (await (await fetch(`${s.url}/info`)).json()) as { asks: { input: { content: string; n: number } }[] };
+    expect(j.asks[0]!.input.content).toHaveLength(2001);
+    expect(j.asks[0]!.input.n).toBe(3);
+  });
+
   it('/info tells the replies not seen; POST /seen marks the open session seen', async () => {
     const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'one' }, { text: 'two' }]), webDist: dist, oneTab: false, resume: '33333333-3333-4333-8333-333333333333' });
     closers.push(s.close);

@@ -159,7 +159,8 @@ export function ProjectsList({ onDone: close, home = false }: { onDone: () => vo
               const folder = folderOf(r.root);
               const detail = [r.remote?.name, top.title || (top.session ? t('untitled') : null), PROVIDER_LABEL[top.provider], r.state === 'idle' ? null : t(STATE_KEY[r.state]), r.current ? t('projThis') : null].filter(Boolean).join(' · ');
               const b = rowBadge(r);
-              const isOpen = expanded.has(r.key);
+              // the home page's tree (issue 651): every project open on its agents, unless closed
+              const isOpen = home ? !expanded.has(r.key) : expanded.has(r.key);
               // another window's sessions come through this computer's switcher: none of another computer's
               const sessions = r.current || (!r.remote && !here);
               return (

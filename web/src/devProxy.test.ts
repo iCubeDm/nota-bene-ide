@@ -12,7 +12,8 @@ it('the Vite dev proxy covers every server path the app fetches', () => {
   for (const m of sources['./core/sdk/routes.ts']!.matchAll(/[`'"](\/[a-z-]+)/g)) fetched.add(m[1]!);
   expect(fetched.has('/marks')).toBe(true); // the scan itself works
   const list = /\[([^\]]*)\]\.map\(\(p\) => \[p, backend\]\)/.exec(viteConfig)?.[1] ?? '';
-  const proxied = [...list.matchAll(/'(\/[a-z-]+)'/g)].map((m) => m[1]!);
+  // an agent's routes (`/a/<id>/…`, issue 651) go under `/a/`, the slash keeping `/assets` and `/attach` out of it
+  const proxied = [...list.matchAll(/'(\/[a-z-]+)\/?'/g)].map((m) => m[1]!);
   expect(proxied).toContain('/info'); // the parse itself works
   expect([...fetched].filter((p) => !proxied.includes(p)).sort()).toEqual([]);
 });

@@ -1,4 +1,4 @@
-import { Fragment, useRef } from 'react';
+import { Fragment, useContext, useRef } from 'react';
 import { getLang, chooseLang, LANGS, useT } from '@/core/i18n/index.ts';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, MENU_ROW as row } from '@/core/components/ui/dropdown-menu.tsx';
 import { selectSession, useAppDispatch, useAppSelector } from '@/core/store/store.ts';
@@ -11,7 +11,7 @@ import { isMac } from './keymap.ts';
 import { UI_SCALES } from '@nota-bene/shared';
 import { type ThemeId } from '@nota-bene/shared';
 import { Logo } from './Logo.tsx';
-import { Slots, type Own } from './Slots.tsx';
+import { OnHome, Slots, type Own } from './Slots.tsx';
 import { theme, THEME_GROUPS, THEME_NAMES, useTheme } from './theme.ts';
 import { uiScale, useUiScale } from './uiScale.ts';
 import { percent } from '@/core/lib/format.ts';
@@ -21,6 +21,7 @@ const isMacLabel = (k: string) => `${isMac() ? '⌥' : 'Alt+'}${k}`;
 
 export function Header() {
   const t = useT();
+  const home = useContext(OnHome);
   const session = useAppSelector(selectSession);
   const headerRef = useRef<HTMLElement>(null);
   const blockRef = useRef<HTMLDivElement>(null);
@@ -35,7 +36,8 @@ export function Header() {
           keeps a short name from cutting the path to nothing; the branch moves only for a name longer than that */}
       <div ref={blockRef} data-proj-block className="flex min-w-[min(14rem,30vw)] flex-col items-start pr-6">
         <Slots at="header.title" />
-        <div className="group flex w-0 min-w-full items-center gap-0.5">
+        {/* the home page's title has its own second line (issue 651) */}
+        {!home && <div className="group flex w-0 min-w-full items-center gap-0.5">
           <span id="root-path" dir="rtl" className="min-w-0 truncate px-1 text-left font-mono text-[0.625rem] leading-3 opacity-70 group-hover:opacity-100"><span dir="ltr">{session?.root ? shortHome(session.root) : ''}</span></span>
           {/* the copy icon shows on hover of the path (issue 463) */}
           {session?.root && (
@@ -45,7 +47,7 @@ export function Header() {
               <Svg size={10}><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></Svg>
             </button>
           )}
-        </div>
+        </div>}
       </div>
       {/* over the middle column, its left edge on the first tab's (tabAlign.ts); out of the flow, so nothing else moves */}
       <div data-git-slot className="absolute inset-y-0 flex items-center" style={{ left: gitLeft ?? undefined, visibility: gitLeft === null ? 'hidden' : undefined }}>
@@ -69,6 +71,8 @@ function SettingsMenu() {
   const lang = getLang();
   const scale = useUiScale();
   const themeId = useTheme();
+  // the home page has no tabs (issue 651): Usage and All settings, which open one, are an agent page's
+  const home = useContext(OnHome);
   // the settings at hand: language and scale here, the rest in the Settings tab
   return (
     <DropdownMenu>
@@ -135,15 +139,17 @@ function SettingsMenu() {
           </span>
         </div>
         <Slots at="header.menu" />
-        <DropdownMenuItem id="usageMenu" onSelect={() => d(openUsage())} className={`${row} [&>svg]:text-accent-usage`}>
-          <Svg size={15}>{ICONS.usage}</Svg>
-          <span className="flex-1">{t('usage')}</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem id="allSettings" onSelect={() => d(openSettings())} className={row}>
-          <Svg size={15}>{ICONS.settings}</Svg>
-          <span className="flex-1">{t('allSettings')}</span>
-        </DropdownMenuItem>
+        {!home && <>
+          <DropdownMenuItem id="usageMenu" onSelect={() => d(openUsage())} className={`${row} [&>svg]:text-accent-usage`}>
+            <Svg size={15}>{ICONS.usage}</Svg>
+            <span className="flex-1">{t('usage')}</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem id="allSettings" onSelect={() => d(openSettings())} className={row}>
+            <Svg size={15}>{ICONS.settings}</Svg>
+            <span className="flex-1">{t('allSettings')}</span>
+          </DropdownMenuItem>
+        </>}
       </DropdownMenuContent>
     </DropdownMenu>
   );
