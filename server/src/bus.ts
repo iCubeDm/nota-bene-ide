@@ -57,7 +57,7 @@ const TOOLS = [
   },
   {
     name: 'tell',
-    description: 'Sends a message to another agent of this project as a turn of its own and returns at once. A reply, if any, comes later as a message from it.',
+    description: 'Queues a message to another agent of this project and returns at once. It starts a turn when the target is idle, without interrupting its current work. A reply, if any, comes later as a message from it.',
     inputSchema: { type: 'object', properties: { to: { type: 'string' }, text: { type: 'string' } }, required: ['to', 'text'], additionalProperties: false },
   },
   {
@@ -107,6 +107,29 @@ export function agentBus(o: {
    */
   const chains = new Map<string, { waiting: string[]; hops: number }>();
   const chainOf = (id: string) => chains.get(id) ?? { waiting: [], hops: 0 };
+  // Accepted tells belong to the bus, not to the HTTP request that has already returned.
+  const pending = new Map<string, { timer: NodeJS.Timeout; messages: (() => void)[] }>();
+  function forgetPending(id: string): void {
+    const q = pending.get(id);
+    if (q) clearInterval(q.timer);
+    pending.delete(id);
+  }
+  function enqueue(to: BusAgent, send: () => void): void {
+    let q = pending.get(to.id);
+    if (!q) {
+      const messages: (() => void)[] = [];
+      const timer = setInterval(() => {
+        if (o.get(to.id) !== to) return forgetPending(to.id);
+        if (to.busy()) return;
+        messages.shift()?.();
+        if (!messages.length) forgetPending(to.id);
+      }, WAIT_EVERY_MS);
+      timer.unref();
+      q = { timer, messages };
+      pending.set(to.id, q);
+    }
+    q.messages.push(send);
+  }
 
   /** why `from` may not message `to` first, or null: a helper is its lead's, and a helper reaches its lead and its own */
   function unreachable(from: BusAgent, to: BusAgent): string | null {
@@ -140,12 +163,19 @@ export function agentBus(o: {
     const waiting = waits ? [...mine.waiting, from.id] : [];
     if (waits && mine.waiting.includes(to.id)) return answer(`Refused: ${to.id} is already waiting in this chain of messages (${waiting.join(' → ')}); asking it would never end.`, true);
     if (mine.hops + 1 >= MAX_HOPS) return answer(`Refused: a chain of messages may pass ${MAX_HOPS} agents at most.`, true);
-    await pause(to, signal);
     const id = randomUUID();
     const sender = { agent: from.id, provider: from.provider };
+    const dispatch = () => {
+      chains.set(to.id, { waiting, hops: mine.hops + 1 });
+      to.deliver({ id, shown: text, text: framed(sender, text, waits), from: sender });
+    };
+    if (!waits && (to.busy() || pending.has(to.id))) {
+      enqueue(to, dispatch);
+      return answer(`Queued for ${to.id}; delivery waits for its current work to finish.`);
+    }
+    await pause(to, signal);
     const done = waits ? reply(to, id, signal, progress) : null;
-    chains.set(to.id, { waiting, hops: mine.hops + 1 });
-    to.deliver({ id, shown: text, text: framed(sender, text, waits), from: sender });
+    dispatch();
     if (!done) return answer(`Delivered to ${to.id}.`);
     return done;
   }
@@ -217,6 +247,7 @@ export function agentBus(o: {
     },
     forget(id: string): void {
       chains.delete(id);
+      forgetPending(id);
     },
     /** POST (and GET/DELETE, which a stateless server refuses) `/a/<id>/mcp` of the agent `id` */
     async handle(id: string, req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
