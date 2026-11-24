@@ -447,21 +447,18 @@ void main() {
       },
     );
 
-    testWidgets(
-      'pending comments and typed text: Send alone',
-      (t) async {
-        await openVoice(t);
-        r.event(pending);
-        await t.pumpAndSettle();
-        await t.enter('x');
-        await t.pumpAndSettle();
-        expect(find.byType(RecordButton), findsNothing);
-        expect(
-          t.widget<IconButton>(find.byKey(const ValueKey('send'))).onPressed,
-          isNotNull,
-        );
-      },
-    );
+    testWidgets('pending comments and typed text: Send alone', (t) async {
+      await openVoice(t);
+      r.event(pending);
+      await t.pumpAndSettle();
+      await t.enter('x');
+      await t.pumpAndSettle();
+      expect(find.byType(RecordButton), findsNothing);
+      expect(
+        t.widget<IconButton>(find.byKey(const ValueKey('send'))).onPressed,
+        isNotNull,
+      );
+    });
 
     testWidgets(
       'a recording made with comments pending sends their ids and batch',
