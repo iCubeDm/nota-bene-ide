@@ -95,6 +95,41 @@ describe('the agent bus', () => {
     expect(b.heard[1]).toContain('it does not wait');
   });
 
+  it('tell acknowledges a busy target, then delivers in order without interrupting it', async () => {
+    const a = fake('claude-aaaaaa', 'claude'), b = fake('codex-bbbbbb', 'codex');
+    const busy = b.busy;
+    let held = true;
+    b.busy = () => held || busy();
+    const { connect } = await setup([a, b]);
+    const c = await connect(a.id);
+    let accepted = false;
+    const first = c.callTool({ name: 'tell', arguments: { to: b.id, text: 'first' } }).then(() => { accepted = true; });
+    try {
+      await expect.poll(() => accepted, { timeout: 1000 }).toBe(true);
+      await c.callTool({ name: 'tell', arguments: { to: b.id, text: 'second' } });
+      expect(b.heard).toEqual([]);
+    } finally {
+      held = false;
+      await first;
+    }
+    await expect.poll(() => b.heard.length, { timeout: 2500 }).toBe(2);
+    expect(b.heard.map((m) => m.split('\n\n').pop())).toEqual(['first', 'second']);
+  });
+
+  it('drops accepted tells when the target is closed', async () => {
+    const a = fake('claude-aaaaaa', 'claude'), b = fake('codex-bbbbbb', 'codex');
+    let held = true;
+    b.busy = () => held;
+    const { bus, connect, map } = await setup([a, b]);
+    const c = await connect(a.id);
+    await c.callTool({ name: 'tell', arguments: { to: b.id, text: 'later' } });
+    bus.forget(b.id);
+    map.delete(b.id);
+    held = false;
+    await new Promise((r) => setTimeout(r, 600));
+    expect(b.heard).toEqual([]);
+  });
+
   it('refuses an agent of another project, a loop in the chain, and asks past 8 hops', async () => {
     const a = fake('claude-aaaaaa', 'claude'), b = fake('codex-bbbbbb', 'codex'), far = fake('omp-cccccc', 'omp', '/elsewhere');
     const { connect } = await setup([a, b, far]);
