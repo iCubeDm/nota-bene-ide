@@ -10,6 +10,7 @@ import { nav } from './api.ts';
 import { AgentTabs, cycleAgent } from './AgentTabs.tsx';
 import { resetSources, setSources } from '@/core/refs/sources.ts';
 import { ChatTabContext } from '@/core/tabs/chatTab.ts';
+import type { ReactNode } from 'react';
 
 const URL_OK = `http://127.0.0.1:4791/a/codex-k3f7qz/#t=${'a'.repeat(64)}`;
 const STUDIO = { host: 'h1', name: 'Studio' };
@@ -46,7 +47,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); page.remote = null; resetSources(); });
 
-const CHAT = <div role="tab" aria-selected>chat</div>;
+const CHAT = (end?: ReactNode) => <div role="tab" aria-selected>chat{end}</div>;
 const setup = () => render(<Provider store={makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) })}><TooltipProvider><ChatTabContext.Provider value={CHAT}><AgentTabs /></ChatTabContext.Provider></TooltipProvider></Provider>);
 const all = () => screen.queryAllByRole('tab');
 const tabs = () => all().filter((b) => b.textContent !== 'chat');
@@ -170,6 +171,13 @@ describe('issue 639: this page\'s agent closes from its tab', () => {
     const stop = calls.findIndex((c) => c.url === '/system/projects/stop');
     expect(calls[stop]!.body).toEqual({ provider: 'claude', port: 4791, root: '/w/site', agent: HERE });
     expect(stop).toBeLessThan(calls.findIndex((c) => c.url === '/system/projects/enter'));
+  });
+
+  it('issue 653: its ✕ is inside the chat\'s tab, as the other tabs\' are', async () => {
+    withHere();
+    setup();
+    const x = await screen.findByRole('button', { name: `${t('agentClose')}: Claude · Fix the login form` });
+    expect(x.closest('[role="tab"]')?.textContent).toBe('chat');
   });
 
   it('the last of the strip goes to the one before it; the server\'s last goes to its home', async () => {
