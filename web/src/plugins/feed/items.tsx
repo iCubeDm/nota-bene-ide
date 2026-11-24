@@ -1,11 +1,10 @@
 import { memo } from 'react';
-import type { AnyFeedRenderer, FeedItem, Held } from '@/sdk';
+import { chat, useAppDispatch, type AnyFeedRenderer, type FeedItem, type Held } from '@/sdk';
 import { DoneLine, IdleCompactLine, MarkerLine, NoticeLine, OverlapLine } from './DoneLine.tsx';
 import { MsgTime } from './MsgTime.tsx';
-import { PermissionCard } from './PermissionCard.tsx';
 import { PlanCard } from './PlanCard.tsx';
 import { UserMessage } from './UserMessage.tsx';
-import { Markdown } from '@/sdk/ui';
+import { Markdown, PermissionCard } from '@/sdk/ui';
 
 type Of<K extends FeedItem['kind']> = Extract<FeedItem, { kind: K }>;
 
@@ -25,9 +24,15 @@ const Reply = memo(function Reply({ item: it }: { item: Of<'assistant'> }) {
   );
 });
 
+/** The chat's ask: answered over the socket. */
+function ChatPermission({ item }: { item: Of<'permission'> }) {
+  const d = useAppDispatch();
+  return <PermissionCard ask={item} answer={item.answer} archived={item.archived} onAnswer={(allow, r) => d(chat.answer(item.id, allow, r))} />;
+}
+
 /** A permission request: a plan to approve is a card of its own. */
 const Permission = memo(function Permission({ item }: { item: Of<'permission'> }) {
-  return item.toolName === 'ExitPlanMode' && typeof item.input.plan === 'string' ? <PlanCard item={item} /> : <PermissionCard item={item} />;
+  return item.toolName === 'ExitPlanMode' && typeof item.input.plan === 'string' ? <PlanCard item={item} /> : <ChatPermission item={item} />;
 });
 
 /** How the feed draws its own kinds (issue 511): every kind but actions, which `Feed` draws in runs, and `! cmd` runs, the composer's. */
