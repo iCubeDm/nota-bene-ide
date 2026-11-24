@@ -205,6 +205,19 @@ describe('device channel', () => {
     expect(JSON.parse(info.body.toString())).toMatchObject({ agent, root: other });
   });
 
+  it('issue 646: a server whose own folder\'s agent was closed is listed by the agent it shows, with that folder\'s id', async () => {
+    const a = await window();
+    const other = path.join(tmp, 'other');
+    fs.mkdirSync(other);
+    const opened = await fetch(`http://127.0.0.1:${a.port}/control/open`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() }, body: JSON.stringify({ root: other }) });
+    const { agent } = await opened.json() as { agent: string };
+    expect((await fetch(`http://127.0.0.1:${a.port}${a.at}/control/close`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() } })).ok).toBe(true);
+    const l = await paired(await windows());
+    const h = l.phone.host();
+    await until(() => h.lists.some((x) => x[0]?.agent === agent));
+    expect(h.lists.at(-1)).toEqual([expect.objectContaining({ id: windowKey('claude', other), port: a.port, agent, root: other })]);
+  });
+
   it('the host stream gives each window its stable id and only the /info fields of the host stream (issue 511)', async () => {
     const a = await window();
     const l = await paired(await windows());
