@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { EFFORT_LEVELS, ALL_MODES, isThemeId, isUiLang, isUiScale } from '@nota-bene/shared';
-import type { AgentEffort as EffortLevel, AgentMode as Mode, ModelChoice, ThemeId, UiLang, UiScale } from '@nota-bene/shared';
+import type { AgentEffort as EffortLevel, AgentMode as Mode, AgentProvider, ModelChoice, ThemeId, UiLang, UiScale } from '@nota-bene/shared';
 import { withLock, writeJsonAtomic } from './atomicFile.ts';
 import { serverStateDir } from './state.ts';
 
@@ -10,7 +10,10 @@ import { serverStateDir } from './state.ts';
 /** `updateCheck`: asking npm for a newer version (Settings → Defaults; absent = on) */
 /** `audit`: the audit log of system events (Settings → Defaults; absent = on) */
 /** `sounds`: which events a tab nobody looks at sounds for (Settings → Defaults; absent = `ask` only) */
-/** `models[root]`: the model (and effort) a project's next session starts with; absent = the agent's default */
+/**
+ * `models[modelKey(provider, root)]`: the model (and effort) a project's next session of that agent starts with; absent = the
+ * agent's default. Issue 662: an entry keyed by the folder alone (before it) is never read: it cannot say whose model it is
+ */
 /** `shell`: the shell of `! cmd` runs on Windows (Settings → Defaults; absent = auto); other systems run $SHELL whatever it says */
 /** ask: a permission, a plan or a question waits for the user; done: a turn ended (or failed). */
 export type Sounds = { ask: boolean; done: boolean };
@@ -41,6 +44,9 @@ export function prefsKey(dir: string): string {
     return path.resolve(dir);
   }
 }
+
+/** the key of `provider`'s model choice for `dir` in `models` */
+export const modelKey = (provider: AgentProvider, dir: string): string => `${provider}:${prefsKey(dir)}`;
 
 function file(): string {
   return path.join(serverStateDir(), 'prefs.json');
@@ -125,11 +131,11 @@ export function setModePref(dir: string, mode: Mode): void {
   });
 }
 
-/** the project's model choice; atomic like setModePref */
-export function setModelPref(dir: string, choice: ModelChoice): void {
+/** the project's model choice for `provider`; atomic like setModePref */
+export function setModelPref(provider: AgentProvider, dir: string, choice: ModelChoice): void {
   updateRawPrefs((raw) => {
     const m = raw.models && typeof raw.models === 'object' && !Array.isArray(raw.models) ? (raw.models as Record<string, unknown>) : {};
-    m[prefsKey(dir)] = { model: choice.model, ...(choice.effort ? { effort: choice.effort } : {}) };
+    m[modelKey(provider, dir)] = { model: choice.model, ...(choice.effort ? { effort: choice.effort } : {}) };
     raw.models = m;
   });
 }

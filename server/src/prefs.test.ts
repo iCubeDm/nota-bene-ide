@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { prefsKey, readPrefs, setIdleCompactPref, setModePref, setDictationLangPref, setModelPref, setShellPref, setThemePref } from './prefs.ts';
+import { modelKey, prefsKey, readPrefs, setIdleCompactPref, setModePref, setDictationLangPref, setModelPref, setShellPref, setThemePref } from './prefs.ts';
 
 let home: string;
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -84,10 +84,10 @@ describe('prefs', () => {
   });
   it('stores a model with its effort per project, keeps the others and the modes, drops an empty effort', () => {
     setModePref('/a', 'plan');
-    setModelPref('/a', { model: 'opus', effort: 'high' });
-    setModelPref('/b', { model: 'sonnet' });
-    setModelPref('/b', { model: 'haiku' });
-    expect(readPrefs().models).toEqual({ [prefsKey('/a')]: { model: 'opus', effort: 'high' }, [prefsKey('/b')]: { model: 'haiku' } });
+    setModelPref('claude', '/a', { model: 'opus', effort: 'high' });
+    setModelPref('claude', '/b', { model: 'sonnet' });
+    setModelPref('claude', '/b', { model: 'haiku' });
+    expect(readPrefs().models).toEqual({ [modelKey('claude', '/a')]: { model: 'opus', effort: 'high' }, [modelKey('claude', '/b')]: { model: 'haiku' } });
     expect(readPrefs().modes[prefsKey('/a')]).toBe('plan');
   });
   it('drops malformed model entries and unknown efforts on read', () => {

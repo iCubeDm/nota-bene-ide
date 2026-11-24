@@ -6,7 +6,7 @@ import type { ModelOption, ServerEvent } from '@nota-bene/shared';
 import { fakeBackend } from './agent/fake.ts';
 import type { ProviderBackend as AgentBackend } from './agent/types.ts';
 import { EventHub } from './hub.ts';
-import { prefsKey, readPrefs, setModelPref } from './prefs.ts';
+import { modelKey, readPrefs, setModelPref } from './prefs.ts';
 import { createSessionManager } from './session.ts';
 
 let home: string;
@@ -39,7 +39,7 @@ async function until(cond: () => boolean, ms = 2000): Promise<void> {
 }
 
 const modelEvents = (events: ServerEvent[]) => events.filter((e) => e.kind === 'model');
-const pref = () => readPrefs().models[prefsKey('/proj')];
+const pref = () => readPrefs().models[modelKey('claude', '/proj')];
 
 describe('model and effort', () => {
   it('setModel: setModel and the effort go to the agent, the pref is written, one event carries the ack, even while busy', async () => {
@@ -75,7 +75,7 @@ describe('model and effort', () => {
     ];
 
     it('an effort change keeps the exact id: no setModel, agent and pref stay on [1m], a restart starts on it', async () => {
-      setModelPref('/proj', { model: M1 });
+      setModelPref('claude', '/proj', { model: M1 });
       const b = fakeBackend([{ text: 'x', crash: true }, { text: 'y' }], { models: LIST });
       const { events, make } = setup(b);
       const s = await make();
@@ -97,7 +97,7 @@ describe('model and effort', () => {
     });
 
     it('1M to the alias or the bare id is a real switch: setModel and the pref follow', async () => {
-      setModelPref('/proj', { model: M1 });
+      setModelPref('claude', '/proj', { model: M1 });
       const b = fakeBackend([{ text: 'x' }], { models: LIST });
       const { make } = setup(b);
       const s = await make();

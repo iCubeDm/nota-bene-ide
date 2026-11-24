@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **A model picked for one agent stays with it.** The model chosen for a folder is kept per agent: Claude no longer starts with a model picked for Codex on the same folder (its /compact then failed). A choice made before this update is forgotten once: pick it again.
 - **Phone: Send beside the microphone while comments wait.** Pending comments go with Send alone, from the chat's empty field; the microphone still records, and the recording takes them along.
 - **The home page runs the swarm.** It keeps the app's frame: a Projects panel with each project's agents and sessions, and an Inbox that puts first the agents waiting for you and answers their requests in place. **Home** in the rail leads back to it.
 - **A home page for the server.** Its own address lists the projects (running, Recent) and opens or makes one, with no agent of its own. Closing the server's last agent goes there; the server stays up, and the phone no longer lists it.
