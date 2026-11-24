@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **An agent with a background task running shows as working.** The project switcher, the home page, the phone and Settings → Windows listed it as idle once its turn ended, though a subagent or a shell still ran; a watcher alone (Monitor) still does not count.
 - **A model picked for one agent stays with it.** The model chosen for a folder is kept per agent: Claude no longer starts with a model picked for Codex on the same folder (its /compact then failed). A choice made before this update is forgotten once: pick it again.
 - **A project image or video in a chat opens in its own tab again.** On an agent's page (`/a/<id>/`) a markdown image no longer opened its file tab, and a chat video had no player of ours.
 - **Phone: Send beside the microphone while comments wait.** Pending comments go with Send alone, from the chat's empty field; the microphone still records, and the recording takes them along.
