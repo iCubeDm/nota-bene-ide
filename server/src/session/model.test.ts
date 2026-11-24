@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AgentEffort as EffortLevel, ModelOption } from '@nota-bene/shared';
 import type { EmitInput } from '../hub.ts';
-import { prefsKey, readPrefs, setModelPref } from '../prefs.ts';
+import { modelKey, readPrefs, setModelPref } from '../prefs.ts';
 import { toModelOption } from '../agent/claude/sdk.ts';
 import { ModelKeeper } from './model.ts';
 import probe from '../../test/fixtures/model-probe.json' with { type: 'json' };
@@ -38,11 +38,11 @@ function agent(list: ModelOption[] = LIST) {
 
 function make() {
   const events: EmitInput[] = [];
-  const k = new ModelKeeper({ dir: '/p', emit: (ev) => events.push(ev), report: () => {} });
+  const k = new ModelKeeper({ provider: 'claude', dir: '/p', emit: (ev) => events.push(ev), report: () => {} });
   return { k, events };
 }
 const yes = () => true;
-const pref = () => readPrefs().models[prefsKey('/p')];
+const pref = () => readPrefs().models[modelKey('claude', '/p')];
 
 describe('ModelKeeper', () => {
   it('no pref: the agent starts without a model option', () => {
@@ -51,15 +51,23 @@ describe('ModelKeeper', () => {
     expect(k.current).toEqual({ model: null });
   });
 
+  it('issue 662: another provider\'s choice on the folder is not this one\'s', () => {
+    setModelPref('codex', '/p', { model: 'gpt-x' });
+    expect(make().k.forStart('/p')).toEqual({});
+    setModelPref('claude', '/p', { model: 'opus' });
+    expect(make().k.forStart('/p')).toEqual({ model: 'opus' });
+    expect(readPrefs().models[modelKey('codex', '/p')]).toEqual({ model: 'gpt-x' });
+  });
+
   it('starts with the pref model and effort', () => {
-    setModelPref('/p', { model: 'opus', effort: 'high' });
+    setModelPref('claude', '/p', { model: 'opus', effort: 'high' });
     const { k } = make();
     expect(k.forStart('/p')).toEqual({ model: 'opus', effort: 'high' });
     expect(k.current).toEqual({ model: 'opus', effort: 'high' });
   });
 
   it('a pref model the list does not offer: no model option at start, the pref stays', async () => {
-    setModelPref('/p', { model: 'retired', effort: 'high' });
+    setModelPref('claude', '/p', { model: 'retired', effort: 'high' });
     const { k } = make();
     await k.load(agent(), yes);
     expect(k.forStart('/p')).toEqual({});
@@ -68,14 +76,14 @@ describe('ModelKeeper', () => {
   });
 
   it('an effort the pref model does not have is not passed at start', async () => {
-    setModelPref('/p', { model: 'haiku', effort: 'high' });
+    setModelPref('claude', '/p', { model: 'haiku', effort: 'high' });
     const { k } = make();
     await k.load(agent(), yes);
     expect(k.forStart('/p')).toEqual({ model: 'haiku' });
   });
 
   it('load: a model the agent started with but does not offer goes back to its default; the pref stays', async () => {
-    setModelPref('/p', { model: 'retired' });
+    setModelPref('claude', '/p', { model: 'retired' });
     const { k, events } = make();
     const a = agent();
     await k.load(a, yes);
@@ -101,7 +109,7 @@ describe('ModelKeeper', () => {
   });
 
   it('adopt: the resolved id of the alias we asked for is no change', async () => {
-    setModelPref('/p', { model: 'opus', effort: 'high' });
+    setModelPref('claude', '/p', { model: 'opus', effort: 'high' });
     const { k, events } = make();
     k.forStart('/p');
     await k.load(agent(), yes);
@@ -112,7 +120,7 @@ describe('ModelKeeper', () => {
   });
 
   it('adopt: a model the CLI changes by itself is shown, never saved; its effort is unknown then', async () => {
-    setModelPref('/p', { model: 'opus', effort: 'high' });
+    setModelPref('claude', '/p', { model: 'opus', effort: 'high' });
     const { k, events } = make();
     k.forStart('/p');
     await k.load(agent(), yes);
@@ -125,7 +133,7 @@ describe('ModelKeeper', () => {
   });
 
   it('adopt: a first report that differs from an unoffered pref keeps the pref', () => {
-    setModelPref('/p', { model: 'retired' });
+    setModelPref('claude', '/p', { model: 'retired' });
     const { k } = make();
     k.forStart('/p');
     k.adopt('claude-sonnet-5');
@@ -147,7 +155,7 @@ describe('ModelKeeper', () => {
   });
 
   it('change: an effort alone leaves the model alone (applyFlagSettings only)', async () => {
-    setModelPref('/p', { model: 'opus', effort: 'low' });
+    setModelPref('claude', '/p', { model: 'opus', effort: 'low' });
     const { k } = make();
     await k.load(agent(), yes);
     const a = agent();
@@ -157,7 +165,7 @@ describe('ModelKeeper', () => {
   });
 
   it('change: to a model without efforts clears the effort; the same model and effort calls nothing', async () => {
-    setModelPref('/p', { model: 'opus', effort: 'low' });
+    setModelPref('claude', '/p', { model: 'opus', effort: 'low' });
     const { k } = make();
     await k.load(agent(), yes);
     const a = agent();
@@ -170,7 +178,7 @@ describe('ModelKeeper', () => {
   });
 
   it('change: a refusal by the agent leaves the choice and the pref as they were', async () => {
-    setModelPref('/p', { model: 'sonnet' });
+    setModelPref('claude', '/p', { model: 'sonnet' });
     const { k } = make();
     await k.load(agent(), yes);
     const a = { ...agent(), setModel: async () => { throw new Error('nope'); } };
@@ -201,7 +209,7 @@ describe('ModelKeeper', () => {
   it('enter: a switch takes the new dir\'s start choice without announcing it', async () => {
     const { k, events } = make();
     await k.load(agent(), yes);
-    setModelPref('/q', { model: 'opus', effort: 'low' });
+    setModelPref('claude', '/q', { model: 'opus', effort: 'low' });
     events.length = 0;
     k.enter('/q');
     expect(k.current).toEqual({ model: 'opus', effort: 'low' });
@@ -212,7 +220,7 @@ describe('ModelKeeper', () => {
     const slow = () => new Promise<void>((r) => setTimeout(r, 5));
 
     it('I1: an init reporting the old model after the change is ignored: pill and pref keep the choice', async () => {
-      setModelPref('/p', { model: 'sonnet' });
+      setModelPref('claude', '/p', { model: 'sonnet' });
       const { k, events } = make();
       k.forStart('/p');
       await k.load(agent(), yes);
@@ -228,7 +236,7 @@ describe('ModelKeeper', () => {
     });
 
     it('I1: reports during the change (the old model, the new one) neither switch the pill nor write', async () => {
-      setModelPref('/p', { model: 'sonnet' });
+      setModelPref('claude', '/p', { model: 'sonnet' });
       const { k, events } = make();
       k.forStart('/p');
       await k.load(agent(), yes);

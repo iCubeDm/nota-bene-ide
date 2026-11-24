@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **A model picked for one agent stays with it.** The model chosen for a folder is kept per agent: Claude no longer starts with a model picked for Codex on the same folder (its /compact then failed). A choice made before this update is forgotten once: pick it again.
 - **A project image or video in a chat opens in its own tab again.** On an agent's page (`/a/<id>/`) a markdown image no longer opened its file tab, and a chat video had no player of ours.
 - **Phone: Send beside the microphone while comments wait.** Pending comments go with Send alone, from the chat's empty field; the microphone still records, and the recording takes them along.
 - **The home page runs the swarm.** It keeps the app's frame: a Projects panel with each project's agents and sessions, and an Inbox that puts first the agents waiting for you and answers their requests in place. **Home** in the rail leads back to it.

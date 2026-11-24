@@ -79,7 +79,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
   // root changes only in a switch
   const who = new SessionIdentity({ root: o.cwd, stateDir, resume: o.resume, fork: o.fork, title: () => titles.title, emit: (ev) => hub.emit(ev), report });
   const modes = new ModeKeeper({ modes: backend.capabilities.modes, dir: who.root, emit: (ev) => hub.emit(ev, { store: false }), report });
-  const models = new ModelKeeper({ dir: who.root, emit: (ev) => hub.emit(ev, { store: false }), report });
+  const models = new ModelKeeper({ provider: o.provider ?? envAgentContext().provider, dir: who.root, emit: (ev) => hub.emit(ev, { store: false }), report });
   const cmds = new CommandKeeper((ev) => hub.emit(ev, { store: false }));
   const switchListeners: ((id: string | null, o: { restart: boolean }) => void)[] = [];
 
