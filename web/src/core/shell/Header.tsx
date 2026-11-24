@@ -1,4 +1,4 @@
-import { Fragment, useRef } from 'react';
+import { Fragment, useContext, useRef } from 'react';
 import { getLang, chooseLang, LANGS, useT } from '@/core/i18n/index.ts';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, MENU_ROW as row } from '@/core/components/ui/dropdown-menu.tsx';
 import { selectSession, useAppDispatch, useAppSelector } from '@/core/store/store.ts';
@@ -11,7 +11,7 @@ import { isMac } from './keymap.ts';
 import { UI_SCALES } from '@nota-bene/shared';
 import { type ThemeId } from '@nota-bene/shared';
 import { Logo } from './Logo.tsx';
-import { Slots, type Own } from './Slots.tsx';
+import { OnHome, Slots, type Own } from './Slots.tsx';
 import { theme, THEME_GROUPS, THEME_NAMES, useTheme } from './theme.ts';
 import { uiScale, useUiScale } from './uiScale.ts';
 import { percent } from '@/core/lib/format.ts';
@@ -69,6 +69,8 @@ function SettingsMenu() {
   const lang = getLang();
   const scale = useUiScale();
   const themeId = useTheme();
+  // the home page has no tabs (issue 651): Usage and All settings, which open one, are an agent page's
+  const home = useContext(OnHome);
   // the settings at hand: language and scale here, the rest in the Settings tab
   return (
     <DropdownMenu>
@@ -135,15 +137,17 @@ function SettingsMenu() {
           </span>
         </div>
         <Slots at="header.menu" />
-        <DropdownMenuItem id="usageMenu" onSelect={() => d(openUsage())} className={`${row} [&>svg]:text-accent-usage`}>
-          <Svg size={15}>{ICONS.usage}</Svg>
-          <span className="flex-1">{t('usage')}</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem id="allSettings" onSelect={() => d(openSettings())} className={row}>
-          <Svg size={15}>{ICONS.settings}</Svg>
-          <span className="flex-1">{t('allSettings')}</span>
-        </DropdownMenuItem>
+        {!home && <>
+          <DropdownMenuItem id="usageMenu" onSelect={() => d(openUsage())} className={`${row} [&>svg]:text-accent-usage`}>
+            <Svg size={15}>{ICONS.usage}</Svg>
+            <span className="flex-1">{t('usage')}</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem id="allSettings" onSelect={() => d(openSettings())} className={row}>
+            <Svg size={15}>{ICONS.settings}</Svg>
+            <span className="flex-1">{t('allSettings')}</span>
+          </DropdownMenuItem>
+        </>}
       </DropdownMenuContent>
     </DropdownMenu>
   );

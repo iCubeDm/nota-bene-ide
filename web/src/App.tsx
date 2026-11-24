@@ -2,24 +2,16 @@ import { useEffect } from 'react';
 import { useStore } from 'react-redux';
 import { selectConn, useAppSelector, type AppStore } from './core/store/store.ts';
 import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
-import { Footer } from './core/shell/Footer.tsx';
 import { Panes } from './core/tabs/Panes.tsx';
 import { TabStrip } from './core/tabs/TabStrip.tsx';
-import { Header } from './core/shell/Header.tsx';
-import { LeftStrip, RightStrip } from './core/shell/ToolStrip.tsx';
 import { LoginRequired } from './core/shell/LoginRequired.tsx';
 import { Stopped } from './core/shell/Stopped.tsx';
 import { OneTab } from './core/shell/OneTab.tsx';
-import { Toasts } from './core/shell/Toasts.tsx';
 import { useFavicon } from './core/shell/Favicon.ts';
 import { useSounds } from './core/shell/sounds.ts';
-import { Slots, type Own } from './core/shell/Slots.tsx';
+import { Slots } from './core/shell/Slots.tsx';
+import { Frame } from './core/shell/Frame.tsx';
 import { installKeymap } from './core/shell/keymap.ts';
-
-// the frame's own parts among the plugins' (issue 511): the strips by the panels, the toasts among the overlays
-const LEFT: readonly Own[] = [{ order: 20, render: LeftStrip }];
-const RIGHT: readonly Own[] = [{ order: 20, render: RightStrip }];
-const OVERLAYS: readonly Own[] = [{ order: 30, render: Toasts }];
 
 export function App() {
   const store = useStore() as AppStore;
@@ -32,24 +24,13 @@ export function App() {
   return (
     <TooltipProvider>
       <div className="contents" inert={blocked}>
-      <Header />
-      {/*
-        IntelliJ-style (R-M6-3): the strips and their panels run the full height under the header; an open panel is
-        docked and narrows the middle column (tabs, panes, composer) instead of covering it.
-      */}
-      <div className="flex min-h-0 flex-1">
-        <Slots at="panel.left" own={LEFT} />
-        <div data-center className="flex min-w-0 flex-1 flex-col">
-          <TabStrip />
-          <div className="relative flex min-h-0 flex-1 flex-col">
-            <Panes chat={<Slots at="chat" />} />
-            <Slots at="panes" />
-          </div>
-          <Footer />
+      <Frame center={<>
+        <TabStrip />
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <Panes chat={<Slots at="chat" />} />
+          <Slots at="panes" />
         </div>
-        <Slots at="panel.right" own={RIGHT} />
-      </div>
-      <Slots at="overlay" own={OVERLAYS} />
+      </>} />
       </div>
       <OneTab />
       <LoginRequired />

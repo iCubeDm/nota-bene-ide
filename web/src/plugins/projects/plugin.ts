@@ -31,9 +31,9 @@ export const projectsPlugin = definePlugin({
     { slot: 'tabs.chat', order: 10, render: AgentTabs },
     // the open projects, outermost: a stopgap before one server for every project (issue 419)
     { slot: 'panel.left', order: 10, render: ProjectRail },
-    { slot: 'overlay', order: 50, render: Starter },
+    { slot: 'overlay', order: 50, render: Starter, on: 'both' },
     // issue 639: the server's home page
-    { slot: 'home', order: 10, render: ProjectsHome },
+    { slot: 'home', order: 10, render: ProjectsHome, on: 'home' },
     // epic 383: the app icon's offer, a notification
     { slot: 'overlay', order: 75, render: AppIcon },
     { slot: 'overlay', order: 70, render: Seen },
