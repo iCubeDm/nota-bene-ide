@@ -15,7 +15,8 @@ Chosen from three HTML mockups (cards with an activity feed; an inbox; tabs with
 - The home page keeps the app's frame: header, project rail, left and right tool strips with their panels, footer,
   theme, UI scale, settings. The header has no agent controls (model, restart); the rail's first tile is Home, shown
   on agent pages too, so the person can always get back.
-- **Left panel: Projects.** A tree: project → its agents (provider mark, state dot, unseen count), then Recent. A click
+- **Left panel: Projects.** A tree: project → its agents and sessions (the switcher's list, which already reads another
+  window's sessions through `/system/projects/sessions`), then Recent. A click
   on an agent moves to it; on a Recent project, opens it. It is a panel of the left strip, so it can be closed.
 - **Centre: Inbox**, one column, grouped by what the agent needs from the person, in this order:
   1. Waiting for you: each of the agent's open requests in full (the command, the file, a question's fields).
@@ -33,8 +34,6 @@ Chosen from three HTML mockups (cards with an activity feed; an inbox; tabs with
 
 ## Non-goals
 
-- Sessions in the tree. An agent's other sessions are a later step; this needs a per-agent session list the home
-  page cannot read today.
 - A composer on the home page that starts an agent with a task (mockup C). Planned next.
 - The agent bus in a panel (M8).
 - Answering an agent of another server or another computer. Those rows show the request and "Open agent".
@@ -71,7 +70,8 @@ Chosen from three HTML mockups (cards with an activity feed; an inbox; tabs with
   works without an agent: an explicit opt-in on the slot entry. Agent plugins stay off the home page by default, so
   none of them meets a store with no agent. The home page's own parts are:
   - the header's title (Nota Bene, with the count of open projects and agents);
-  - the settings and stop buttons;
+  - the settings menu: language, theme and scale. Usage and All settings open tabs, which the home page has none of.
+    There is no Stop: it would stop every agent of the server.
   - the rail;
   - the Projects panel;
   - the inbox;
