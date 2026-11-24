@@ -11,7 +11,7 @@ async function stub(page: Page, first: Status): Promise<{ set(s: Status): void; 
   let status = first;
   const posts: string[] = [];
   await page.route('**/system/update**', async (r) => {
-    const path = new URL(r.request().url()).pathname;
+    const path = new URL(r.request().url()).pathname.replace(/^\/a\/[^/]+/, ''); // the route, without the agent's prefix
     if (r.request().method() === 'POST') {
       posts.push(path);
       if (path.endsWith('/install')) status = { ...status, phase: 'installing' };
@@ -25,7 +25,7 @@ async function stub(page: Page, first: Status): Promise<{ set(s: Status): void; 
 
 test('available → Update → installing → ready restarts in a pause @chat', async ({ page }) => {
   const s = await stub(page, { ...base, phase: 'available' });
-  await page.goto('/');
+  await page.goto('');
   await expect(composer(page)).toBeVisible();
   await page.getByRole('button', { name: '↑ 1.99.0' }).click();
   await expect(page.getByRole('checkbox', { name: en.updateAuto })).toBeVisible();
@@ -39,7 +39,7 @@ test('available → Update → installing → ready restarts in a pause @chat', 
 
 test('ready with a draft waits until the composer is empty; failed names the log @chat', async ({ page }) => {
   const s = await stub(page, { ...base, phase: 'available' });
-  await page.goto('/');
+  await page.goto('');
   await expect(composer(page)).toBeVisible();
   await composer(page).fill('half a thought');
   s.set({ ...base, phase: 'ready' });

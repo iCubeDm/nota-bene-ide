@@ -191,10 +191,13 @@ export const openRef = (path: string, el: HTMLElement, from = 'here'): AppThunk<
   el.title = t('noFile');
 };
 
-/** A rendered project media element (`/file?path=…[&src=…]`, see fileUrl): its path and source, from the URL itself. */
+/**
+ * A rendered project media element (`/file?path=…[&src=…]`, see fileUrl; under an agent's prefix `/a/<id>/file?…`, issue 663):
+ * its path and source, from the URL itself.
+ */
 export function fileOfImage(img: Element): { path: string; src: string } | null {
   const raw = img.getAttribute('src') ?? '';
-  if (!raw.startsWith('/file?')) return null;
+  if (!/^(\/a\/[^/?#]+)?\/file\?/.test(raw)) return null;
   const q = new URL(raw, 'http://x').searchParams;
   const path = q.get('path');
   return path ? { path, src: q.get('src') ?? 'here' } : null;

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **A project image or video in a chat opens in its own tab again.** On an agent's page (`/a/<id>/`) a markdown image no longer opened its file tab, and a chat video had no player of ours.
 - **Phone: Send beside the microphone while comments wait.** Pending comments go with Send alone, from the chat's empty field; the microphone still records, and the recording takes them along.
 - **The home page runs the swarm.** It keeps the app's frame: a Projects panel with each project's agents and sessions, and an Inbox that puts first the agents waiting for you and answers their requests in place. **Home** in the rail leads back to it.
 - **A home page for the server.** Its own address lists the projects (running, Recent) and opens or makes one, with no agent of its own. Closing the server's last agent goes there; the server stays up, and the phone no longer lists it.

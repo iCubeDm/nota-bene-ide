@@ -31,7 +31,7 @@ async function openPanel(page: Page) {
 test('comment on an md file: mark in its pane only, badges, jump from a closed tab, batch names the path, the sent mark survives a reload @chat', async ({ page }) => {
   const frames: string[] = [];
   page.on('websocket', (ws) => ws.on('framesent', (f) => frames.push(String(f.payload))));
-  await page.goto('/');
+  await page.goto('');
   await expect(composer(page)).toBeVisible();
   await openPanel(page);
   while ((await cards(page).count()) > 0) {
@@ -114,7 +114,7 @@ const settled = async (page: Page, text: string) => {
 };
 
 async function start(page: Page) {
-  await page.goto('/');
+  await page.goto('');
   await expect(composer(page)).toBeVisible();
 }
 
@@ -282,7 +282,7 @@ test('big.log shows the too-large note; a path through a symlink out of the proj
   await start(page);
   await openFromTree(page, 'big.log');
   await expect(page.locator('[data-pane="file:big.log"]')).toContainText(/too large|слишком большой/);
-  expect((await page.request.get('/file?path=link-out/x')).status()).toBe(403);
+  expect((await page.request.get('file?path=link-out/x')).status()).toBe(403);
 });
 
 test('edit a file by hand: a draft survives a reload, Alt+S saves, the view and the file show it, line ends kept @files', async ({ page }) => {
@@ -300,7 +300,7 @@ test('edit a file by hand: a draft survives a reload, Alt+S saves, the view and 
   await box.press('Alt+s');
   await expect(box).toBeHidden();
   await expect(pane).toContainText('changed by hand');
-  expect(await (await page.request.get('/file?path=edit-me.txt')).text()).toBe('first line\r\nchanged by hand\r\n');
+  expect(await (await page.request.get('file?path=edit-me.txt')).text()).toBe('first line\r\nchanged by hand\r\n');
 });
 
 test('@ in the composer inserts a quoted path; the mention in the bubble opens the file @files', async ({ page }) => {
@@ -324,7 +324,7 @@ test('a pasted PNG shows one thumbnail in the bubble and reaches the agent @file
   const text = uniq('paste');
   await composer(page).fill(text);
   // earlier runs on this server leave bubbles with images in the replayed history: count against that baseline
-  const thumbs = page.locator('img[src^="/attach/"]');
+  const thumbs = page.locator('img[src*="/attach/"]');
   const before = await thumbs.count();
   await composer(page).evaluate((el) => {
     const bin = atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
@@ -336,7 +336,7 @@ test('a pasted PNG shows one thumbnail in the bubble and reaches the agent @file
   await expect(thumbs).toHaveCount(before + 1); // uploaded, in the composer strip
   await composer(page).press('Enter');
   await settled(page, text);
-  await expect(bubble(page, text).locator('img[src^="/attach/"]')).toHaveCount(1);
+  await expect(bubble(page, text).locator('img[src*="/attach/"]')).toHaveCount(1);
   await expect(reply(page, text)).toContainText('images: 1');
 });
 
@@ -404,7 +404,7 @@ async function selectEnd(page: Page, n = 5) {
 }
 
 test('a card of a long path stays inside the comments panel, the path wrapped @files', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('');
   await expect(composer(page)).toBeVisible();
   await openPanel(page);
   while ((await cards(page).count()) > 0) {
@@ -584,13 +584,13 @@ async function addMarkComment(page: Page, text: string): Promise<string> {
   return (await card.getAttribute('data-comment-id'))!;
 }
 
-const projectRoot = async (page: Page): Promise<string> => ((await (await apiGet(page, '/info')).json()) as { root: string }).root;
+const projectRoot = async (page: Page): Promise<string> => ((await (await apiGet(page, 'info')).json()) as { root: string }).root;
 const markDir = (root: string, id: string) => nodePath.join(root, '.nota-bene', 'marks', id);
 
 /** Decodes a project PNG in the browser (via /file) and reads its size and the alpha at `pts` (natural px). */
 const pngAlpha = (page: Page, file: string, pts: [number, number][]) => page.evaluate(async ({ file, pts }) => {
   const img = new Image();
-  img.src = `/file?path=${encodeURIComponent(file)}`;
+  img.src = `file?path=${encodeURIComponent(file)}`;
   await img.decode();
   const c = document.createElement('canvas');
   c.width = img.naturalWidth;
@@ -701,7 +701,7 @@ test('3 marks on one image + 1 on another: the batch carries 2 images, the share
   expect(msg.images!.map((i) => i.label.replace(/^\[image \d+ · /, ''))).toEqual([expect.stringMatching(/for comments 1, 2, 3\]/), expect.stringMatching(/for comment 4\]/)]);
   expect(msg.text).toContain('(shared by comments 1, 2, 3;');
   // the composite, for a human look (the report folder is the main checkout's)
-  const png = await page.request.get(`/attach/${msg.images![0].id}`);
+  const png = await page.request.get(`attach/${msg.images![0].id}`);
   expect(png.ok()).toBe(true);
   if (process.env.NB_SAVE_COMPOSITE) fs.writeFileSync(process.env.NB_SAVE_COMPOSITE, await png.body());
 });

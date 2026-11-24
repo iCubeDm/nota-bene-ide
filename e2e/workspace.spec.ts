@@ -9,7 +9,7 @@ const strip = (page: Page) => page.getByRole('tablist');
 const activeTab = (page: Page) => strip(page).locator('[aria-selected="true"]');
 
 async function start(page: Page) {
-  await page.goto('/');
+  await page.goto('');
   await expect(composer(page)).toBeVisible();
   // a clean frame: both panels open (the default), only the chat tab
   if (await sheet(page).isHidden()) await page.locator('#toggleTree').click();

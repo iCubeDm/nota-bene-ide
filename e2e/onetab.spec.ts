@@ -11,7 +11,7 @@ const bubble = (page: Page, text: string) => page.locator('[data-kind="user"]').
 const FAV_ERROR = '#e5484d';
 
 async function open(page: Page) {
-  await page.goto('/');
+  await page.goto('');
   await expect(composer(page)).toBeVisible();
   await expect(overlay(page)).toHaveCount(0);
 }
@@ -26,7 +26,7 @@ test('«Работать здесь» moves the session; the first page shows ta
   await expect(page.locator('[data-kind="done"]').last()).toBeVisible();
 
   const second = await context.newPage();
-  await second.goto('/');
+  await second.goto('');
   await workHere(second).click();
   await expect(overlay(second)).toHaveCount(0);
   await expect(bubble(second, text)).toBeVisible(); // the replay came with the takeover
