@@ -2,8 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
-import { TranscriptTooLargeError } from '../types.ts';
-import { assertReplayable, projectFolder, transcriptTimes } from './times.ts';
+import { fileTimes, projectFolder, transcriptFile, transcriptTimes } from './times.ts';
 
 const dirs: string[] = [];
 afterAll(() => {
@@ -106,14 +105,16 @@ describe('the project folder of a cwd', () => {
   });
 });
 
-describe('assertReplayable', () => {
-  it('a transcript past the cap is refused with its size; at the cap, missing or unsafe: it passes', async () => {
+describe('transcriptFile and fileTimes', () => {
+  it('finds the session in any project folder; times from a byte offset on', async () => {
     const dir = projects();
     fs.mkdirSync(path.join(dir, '-proj'));
-    fs.writeFileSync(path.join(dir, '-proj', 's1.jsonl'), 'x'.repeat(10));
-    await expect(assertReplayable(dir, 's1', undefined, 9)).rejects.toEqual(new TranscriptTooLargeError(10));
-    await expect(assertReplayable(dir, 's1', undefined, 10)).resolves.toBeUndefined();
-    await expect(assertReplayable(dir, 'gone', undefined, 0)).resolves.toBeUndefined();
-    await expect(assertReplayable(dir, '../s1', undefined, 0)).resolves.toBeUndefined();
+    const first = line({ type: 'user', uuid: 'u1', timestamp: '2026-11-15T09:30:00.000Z' });
+    fs.writeFileSync(path.join(dir, '-proj', 's1.jsonl'), first + line({ type: 'user', uuid: 'u2', timestamp: '2026-11-15T09:31:00.000Z' }));
+    const file = await transcriptFile(dir, 's1');
+    expect(file).toBe(path.join(dir, '-proj', 's1.jsonl'));
+    expect([...(await fileTimes(file!, Buffer.byteLength(first))).keys()]).toEqual(['u2']);
+    expect(await transcriptFile(dir, 'gone')).toBeNull();
+    expect(await transcriptFile(dir, '../s1')).toBeNull();
   });
 });

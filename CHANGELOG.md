@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **A long Claude conversation opens at once.** Its history is read from the last compaction, not from the whole transcript: one of 2.1 GB now opens in a few milliseconds instead of minutes.
 - **A huge conversation no longer freezes the window.** Opening a Claude session whose transcript is past 512 MiB used to hang the server and every agent in it; now its history is not shown, the page says why, and the agent continues the conversation as usual.
 - **A model picked for one agent stays with it.** The model chosen for a folder is kept per agent: Claude no longer starts with a model picked for Codex on the same folder (its /compact then failed). A choice made before this update is forgotten once: pick it again.
 - **A project image or video in a chat opens in its own tab again.** On an agent's page (`/a/<id>/`) a markdown image no longer opened its file tab, and a chat video had no player of ours.

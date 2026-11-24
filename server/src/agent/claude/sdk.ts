@@ -1,14 +1,16 @@
+import fs from 'node:fs';
 import { askUserQuestion } from './ask-question.ts';
 import { deleteSession, getSessionInfo, getSessionMessages, getSubagentMessages, listSessions, listSubagents, query, renameSession } from '@anthropic-ai/claude-agent-sdk';
 import type { ModelInfo, SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { CLAUDE_CAPABILITIES, type AgentEvent, type EffortLevel, type Mode, type ModelOption, type SlashCommand } from '@nota-bene/shared';
 import type { AgentBackend, AgentSession, SendImage } from '../types.ts';
-import { SessionNotFoundError } from '../types.ts';
+import { SessionNotFoundError, TranscriptTooLargeError } from '../types.ts';
 import { CommandTap, offered, pickCommands, toSlash } from './commands.ts';
 import { gitBashWarning } from './gitBash.ts';
 import { mapFrames } from './map.ts';
 import { transcriptToEvents } from './transcript.ts';
-import { assertReplayable, transcriptTimes } from './times.ts';
+import { fileTimes, HISTORY_MAX_BYTES, transcriptFile, transcriptTimes } from './times.ts';
+import { replayStart, tailStore } from './tail.ts';
 import { agentOfCall, findSubagentMeta, hitFresh, hitGet, hitSet, isRunning, noMetaAdd, noMetaHas, subagentModel } from './subagents.ts';
 import { defaultProjectsDir } from '../../sessions.ts';
 import { UsageUnavailableError, mapContextUsage, mapUsage } from '../../stats.ts';
@@ -230,10 +232,14 @@ export function sdkBackend(): AgentBackend {
     deleteSession: (id) => deleteSession(id).catch((e: unknown) => {
       throw e instanceof Error && /not found/i.test(e.message) ? new SessionNotFoundError(e.message) : e;
     }),
-    // the SDK's messages carry no time: the transcript file's records do (times.ts)
+    // from the last compaction only (tail.ts); the SDK's messages carry no time: the transcript's records do (times.ts)
     history: async (sessionId, cwd, attachments, onError) => {
-      await assertReplayable(defaultProjectsDir(), sessionId, cwd);
-      const [msgs, times] = await Promise.all([getSessionMessages(sessionId, { dir: cwd }), transcriptTimes(defaultProjectsDir(), sessionId, { cwd })]);
+      const file = await transcriptFile(defaultProjectsDir(), sessionId, cwd);
+      if (!file) return []; // no project holds it: nothing to show, as the SDK would say
+      const from = await replayStart(file);
+      const size = (await fs.promises.stat(file)).size - from;
+      if (size > HISTORY_MAX_BYTES) throw new TranscriptTooLargeError(size);
+      const [msgs, times] = await Promise.all([getSessionMessages(sessionId, { dir: cwd, sessionStore: tailStore(file, from) }), fileTimes(file, from)]);
       return transcriptToEvents(msgs, attachments, onError, { times });
     },
     subagent: async (sessionId, cwd, toolUseId, attachments, onError, call) => {
