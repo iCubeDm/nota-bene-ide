@@ -427,23 +427,38 @@ void main() {
     };
 
     testWidgets(
-      'pending comments with an empty field: the mic stays, no Send',
+      'issue 655: pending comments with an empty field: Send beside the mic, and it sends them',
       (t) async {
-        await openVoice(t);
+        await openVoice(t, protocol: 16);
         r.event(pending);
         await t.pumpAndSettle();
         expect(find.text('1 comment to send'), findsOneWidget);
         expect(find.byType(RecordButton), findsOneWidget);
-        expect(find.byKey(const ValueKey('send')), findsNothing);
-        await t.enter('x');
-        await t.pumpAndSettle();
-        expect(find.byType(RecordButton), findsNothing);
         expect(
           t.widget<IconButton>(find.byKey(const ValueKey('send'))).onPressed,
           isNotNull,
         );
+        await t.tap(find.byKey(const ValueKey('send')));
+        await t.pump();
+        await t.pump();
+        final m = r.sent.single;
+        expect(m['commentIds'], ['c1']);
+        expect(m['text'], contains('rename it'));
       },
     );
+
+    testWidgets('pending comments and typed text: Send alone', (t) async {
+      await openVoice(t);
+      r.event(pending);
+      await t.pumpAndSettle();
+      await t.enter('x');
+      await t.pumpAndSettle();
+      expect(find.byType(RecordButton), findsNothing);
+      expect(
+        t.widget<IconButton>(find.byKey(const ValueKey('send'))).onPressed,
+        isNotNull,
+      );
+    });
 
     testWidgets(
       'a recording made with comments pending sends their ids and batch',

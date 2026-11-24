@@ -590,8 +590,8 @@ void main() {
       'items': [json(c('a', 'x', 'only this'))],
     });
     await t.pumpAndSettle();
-    // the mic stays: pending comments alone are not sent from the chat's field
-    expect(find.byTooltip('Send'), findsNothing);
+    // issue 655: the chat's field offers Send beside the mic too
+    expect(find.byTooltip('Send'), findsOneWidget);
     await sendFromPane(t);
     final send = r.sent.lastWhere((m) => m['type'] == 'send');
     expect(send['text'], startsWith('Comments on fragments:'));
