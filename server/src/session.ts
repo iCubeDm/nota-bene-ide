@@ -472,6 +472,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
     },
     busy,
     pending: () => permissions.pending() > 0,
+    asks: () => permissions.asks(),
     switching: () => phase.switching,
     switch: ({ id, dir }) => switchTo(id, dir, false),
     restart: () => switchTo(who.id, who.root, true),

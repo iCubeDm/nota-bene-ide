@@ -7,7 +7,8 @@ export type SessionManager = {
   /** What `send` would answer for this text right now, without sending (the server asks before it marks comments sent). */
   refusal(text: string): 'switching' | 'busy' | null;
   interrupt(): void;
-  answer(permissionId: string, allow: boolean, response?: import('@nota-bene/shared').InteractionAnswer): void;
+  /** true when it settled an open ask (issue 651: the inbox's answer says 409 otherwise) */
+  answer(permissionId: string, allow: boolean, response?: import('@nota-bene/shared').InteractionAnswer): boolean;
   mode(): Mode;
   /** Asks the agent, then persists and announces; a refusal is reported and the current mode re-announced. */
   /** answers with one `mode` event carrying `ack: id` (unless a session switch takes over, which announces its own) */
@@ -29,6 +30,8 @@ export type SessionManager = {
   busy(): boolean;
   /** A permission or interaction prompt waits for an answer in this window. */
   pending(): boolean;
+  /** the open asks, oldest first (issue 651) */
+  asks(): import('./permissions.ts').OpenAsk[];
   /** True from the start of a switch's checks to the new session's announcement. */
   switching(): boolean;
   /**

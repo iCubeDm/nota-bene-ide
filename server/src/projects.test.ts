@@ -136,6 +136,18 @@ it('rows carry the unseen replies and the last message; a window that does not a
   expect(by[4794]).toMatchObject({ unseen: 0, last: null });
 });
 
+it('issue 651: rows of this server carry the open asks, another server\'s do not', async () => {
+  const a = mk('nb-proj-a-'), b = mk('nb-proj-b-');
+  const pa = await windowOf('claude', a);
+  const pb = await windowOf('claude', b);
+  const asks = [{ id: 'p1', toolName: 'Bash', input: { command: 'ls' } }];
+  const list = await listProjects({ port: pa, provider: 'claude' }, async (port) => ({ root: port === pa ? a : b, extra: [{ root: port === pa ? a : b, pending: true, asks, agent: port === pa ? 'claude-aaaaaa' : 'claude-bbbbbb', provider: 'claude' }] }));
+  const by = Object.fromEntries(list.running.map((r) => [r.port, r]));
+  expect(by[pa]).toMatchObject({ state: 'waiting', asks });
+  expect(by[pb]!.state).toBe('waiting');
+  expect(by[pb]!.asks).toBeUndefined();
+});
+
 const S1 = '11111111-1111-4111-8111-111111111111';
 const S2 = '22222222-2222-4222-8222-222222222222';
 const S3 = '33333333-3333-4333-8333-333333333333';

@@ -34,6 +34,7 @@ import { markSeen, readSeen } from './seen.ts';
 import { codeChecker } from './codeStamp.ts';
 import { AGENT_ID, agentContext, envAgentContext, forgetSession, launchAgentId, newAgentId, stateBaseDir, type AgentContext } from './state.ts';
 import { AuditLog } from './audit.ts';
+import { clipAsk } from './session/permissions.ts';
 import { moveWindow, readKeptAgents, writeKeptAgents } from './windows.ts';
 import { pidAlive, samePath } from './platform.ts';
 import { controlRoute, controlToken, describeVersion, listWindows, readJson, systemRoutes } from './system.ts';
@@ -499,6 +500,17 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
           res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
           res.end('{"ok":true}', () => exitWith(0));
         },
+        // issue 651: the home page's inbox answers an open ask, as the socket's `permission` message does
+        '/permission': (req, res) => {
+          if (req.method !== 'POST') return void res.writeHead(405, { allow: 'POST', 'content-type': 'text/plain; charset=utf-8' }).end('method not allowed');
+          void readJson(req).then((b) => {
+            const msg = parseClientMessage(JSON.stringify({ ...(b as object), type: 'permission' }));
+            if ('error' in msg || msg.type !== 'permission') return void res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' }).end('bad request');
+            audit?.client(msg, 0);
+            if (!manager.answer(msg.id, msg.allow, msg.response)) return void res.writeHead(409, { 'content-type': 'text/plain; charset=utf-8' }).end('already answered');
+            res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' }).end('{"ok":true}');
+          }, () => void res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' }).end('bad request'));
+        },
         // epic 383 2g: the person keeps a helper: it loses its lead and stays as an agent of the project
         '/agent/keep': (req, res) => {
           if (req.method !== 'POST') return void res.writeHead(405, { 'content-type': 'text/plain; charset=utf-8' }).end('method not allowed');
@@ -532,8 +544,9 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       controlToken: () => s.control,
       info: () => {
         const { id, root, title, model } = manager.info();
+        const asks = manager.asks();
         // busy and clients: for another window's Settings → Windows; pending, last, replies: the phone's list
-        return { agent: a.id, ...(lead ? { lead } : {}), root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root), agents: s.agents() };
+        return { agent: a.id, ...(lead ? { lead } : {}), root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root), agents: s.agents(), ...(asks.length ? { asks: asks.map(clipAsk) } : {}) };
       },
     });
     const switchFailed = (e: unknown) => reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);

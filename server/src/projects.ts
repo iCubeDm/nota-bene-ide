@@ -15,6 +15,7 @@ import { providerToken } from './remote/discover.ts';
 import { AGENT_ID, stateBaseDir } from './state.ts';
 import { pidAlive, readKeptAgents, readWindows, type WindowEntry } from './windows.ts';
 import { wirePath } from './wirePath.ts';
+import type { OpenAsk } from './session/permissions.ts';
 
 export const PROVIDERS: AgentProvider[] = ['claude', 'codex', 'omp'];
 const PROBE_MS = 700;
@@ -33,11 +34,13 @@ export type RunningRow = {
   /** epic 383 2g: its agent id (the window's own too), and a helper's lead */
   id?: string;
   lead?: string;
+  /** issue 651: its open asks (clipped), for an agent of the asking page's server only: the page answers it there */
+  asks?: OpenAsk[];
 };
 export type ProjectsList = { running: RunningRow[]; recent: (RecentEntry & { running: boolean })[]; /** folders removed from Recent (recent.ts): the page drops them from its session history too */ hidden: string[] };
 export type ProbedInfo = {
   root: string; session?: string | null; title?: string | null; busy?: boolean; pending?: boolean; clients?: number;
-  unseen?: number; last?: LastMessage | null; /** epic 383: its agent id, and (2g) a helper's lead */ agent?: string; lead?: string;
+  unseen?: number; last?: LastMessage | null; /** epic 383: its agent id, and (2g) a helper's lead */ agent?: string; lead?: string; asks?: OpenAsk[];
   /** epic 383: the other agents of that server, each its own /a/<id>/info (probeWith) */
   extra?: (ProbedInfo & { agent: string; provider: AgentProvider })[];
 };
@@ -109,6 +112,7 @@ export async function listProjects(own: Own, probe: Probe = probeWith, warn: (m:
         current: port === own.port && (agent ? agent === own.agent : provider === own.provider && !own.agent), clients: i?.clients ?? 0,
         unseen: typeof i?.unseen === 'number' ? i.unseen : 0, last: i?.last ?? null, ...(agent ? { agent } : {}),
         ...(typeof i?.agent === 'string' ? { id: i.agent } : agent ? { id: agent } : {}), ...(typeof i?.lead === 'string' ? { lead: i.lead } : {}),
+        ...(port === own.port && Array.isArray(i?.asks) && i.asks.length ? { asks: i.asks } : {}),
       });
       // its agents, each its own row (issue 639: the top is the server's home): as they answer, or while it restarts the
       // ones it keeps (they come back with it). The server's own row only for a server that is not answering, or an older

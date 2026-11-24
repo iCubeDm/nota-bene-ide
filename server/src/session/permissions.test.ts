@@ -11,6 +11,23 @@ function make() {
 const idOf = (events: EmitInput[]) => (events.find((e) => e.kind === 'permission') as { id: string }).id;
 
 describe('PermissionBroker', () => {
+  it('lists open asks oldest first, both kinds, and drops a settled one', () => {
+    const { b, events, gen } = make();
+    void b.ask(gen, 0)('Bash', { command: 'ls' }, new AbortController().signal);
+    const prompt = { title: 'Question', choices: [{ id: 'accept', label: 'Accept' }] };
+    void b.interact(gen, 0)(prompt, { q: 1 }, new AbortController().signal);
+    const [first, second] = events.filter((e) => e.kind === 'permission').map((e) => (e as { id: string }).id);
+    expect(b.asks().map((a) => a.id)).toEqual([first, second]);
+    expect(b.asks()[0]).toEqual({ id: first, toolName: 'Bash', input: { command: 'ls' } });
+    expect(b.asks()[1]).toMatchObject({ id: second, toolName: 'Question', prompt });
+    expect(b.answer(first!, true)).toBe(true);
+    expect(b.asks().map((a) => a.id)).toEqual([second]);
+    expect(b.answer(first!, true)).toBe(false);
+    expect(b.answer(second!, true, { choice: 'nope' })).toBe(false);
+    expect(b.answer(second!, true, { choice: 'accept' })).toBe(true);
+    expect(b.asks()).toEqual([]);
+  });
+
   it('open → answered: the ask is shown, the answer resolves it and is announced', async () => {
     const { b, events, gen } = make();
     const p = b.ask(gen, 0)('Bash', { command: 'ls' }, new AbortController().signal);
