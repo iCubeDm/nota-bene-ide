@@ -13,7 +13,7 @@ import { selectTabs } from '@/core/tabs/slice.ts';
 import { tmpDirsOf } from '@/core/refs/tmpImages.ts';
 import { resetSources, setSources } from '@/core/refs/sources.ts';
 import { setServerSep } from '@/core/lib/paths.ts';
-import { clearRefCache, escapeMentions, markRefs, refClick, splitMentions } from './refs.ts';
+import { clearRefCache, escapeMentions, fileOfImage, markRefs, refClick, splitMentions } from './refs.ts';
 
 beforeEach(() => {
   setLang('en');
@@ -285,4 +285,11 @@ it('a reply and a user message: a temp image in code becomes a ref when the fold
   expect(container.querySelector<HTMLElement>('code.ref')?.dataset.path).toBe('/tmp/shot.png');
   const u = render(<Markdown text={escapeMentions('see [it](/tmp/b.png)')} final breaks noHtml mentions />, { wrapper });
   expect(u.container.querySelector<HTMLElement>('a.ref')?.dataset.path).toBe('/tmp/b.png');
+});
+
+it('issue 663: a project image under an agent\'s prefix (/a/<id>/file?…) is a project file too', () => {
+  const img = (src: string) => { const e = document.createElement('img'); e.setAttribute('src', src); return e; };
+  expect(fileOfImage(img('/a/claude-k3f7qz/file?path=docs%2Fpic.png'))).toEqual({ path: 'docs/pic.png', src: 'here' });
+  expect(fileOfImage(img('/file?path=docs%2Fpic.png&src=wt%3Ax'))).toEqual({ path: 'docs/pic.png', src: 'wt:x' });
+  expect(fileOfImage(img('/a/claude-k3f7qz/attach/x1'))).toBeNull();
 });

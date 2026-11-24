@@ -9,7 +9,7 @@ const uniq = (label: string) => `${label}-${Date.now().toString(36)}-${process.p
 const blockOf = (page: Page, cmd: string) => page.locator('[data-testid="shell-block"]').filter({ hasText: cmd });
 
 async function open(page: Page) {
-  await page.goto('/');
+  await page.goto('');
   await expect(composer(page)).toBeVisible();
 }
 

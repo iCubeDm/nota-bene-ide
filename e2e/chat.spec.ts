@@ -19,7 +19,7 @@ const donesAfter = (page: Page, text: string) =>
 const userBubbles = (page: Page) => page.locator('[data-kind="user"]');
 
 async function open(page: Page) {
-  await page.goto('/');
+  await page.goto('');
   await expect(composer(page)).toBeVisible();
 }
 
@@ -28,13 +28,11 @@ async function send(page: Page, text: string, key = 'Enter') {
   await composer(page).press(key);
 }
 
-test('a page opened under its agent (/a/<id>/, epic 383) chats there as at the top @chat', async ({ page }) => {
-  await open(page);
-  const { agent } = (await (await apiGet(page, '/info')).json()) as { agent: string };
+test('a page under its agent (/a/<id>/, issue 639) chats over that agent\'s socket @chat', async ({ page }) => {
   const sockets: string[] = [];
   page.on('websocket', (ws) => sockets.push(new URL(ws.url()).pathname));
-  await page.goto(`/a/${agent}/`);
-  await expect(composer(page)).toBeVisible();
+  await open(page);
+  const { agent } = (await (await apiGet(page, 'info')).json()) as { agent: string };
   const text = uniq('show me');
   await send(page, text);
   await expect(donesAfter(page, text).first()).toHaveText(DONE);

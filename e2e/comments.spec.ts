@@ -14,7 +14,7 @@ const popup = (page: Page) => page.getByRole('dialog').filter({ has: page.getByP
 const commentBox = (page: Page) => page.getByPlaceholder('Comment…');
 
 async function open(page: Page) {
-  await page.goto('/');
+  await page.goto('');
   await expect(composer(page)).toBeVisible();
 }
 
@@ -272,7 +272,7 @@ test('a second window takes over: the comment follows through the server, the fi
   // a separate context: own localStorage, so the comment can only travel through the server
   const ctx = await browser.newContext({ baseURL: testInfo.project.use.baseURL, locale: 'en-US', storageState: testInfo.project.use.storageState });
   const other = await ctx.newPage();
-  await other.goto('/');
+  await other.goto('');
   await expect(other.getByTestId('onetab')).toHaveAttribute('data-state', 'occupied');
   await other.getByRole('button', { name: 'Work here' }).click();
   await expect(other.getByTestId('onetab')).toHaveCount(0);

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 // The Usage tab in a real browser, over the transcript e2e/serve.mjs seeds: a task, its calls, a limit hit, a reset.
 test('the Usage tab reports a task and a limit hit, and a reset keeps the data under All time @chat', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('');
   await page.locator('#settingsBtn').click();
   await page.locator('#usageMenu').click();
   await expect(page.getByRole('tablist').locator('[aria-selected="true"]')).toHaveAttribute('data-tab', 'usage');

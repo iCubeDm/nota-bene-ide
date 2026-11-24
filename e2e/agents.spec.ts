@@ -19,7 +19,7 @@ function track(page: Page): { sent: Frame[] } {
 
 /** Runs the [agents] turn and waits for its cards. */
 async function launch(page: Page): Promise<void> {
-  await page.goto('/');
+  await page.goto('');
   await expect(composer(page)).toBeVisible();
   const text = `[agents] ${uniq('launch')}`;
   await composer(page).fill(text);
@@ -92,7 +92,7 @@ test('comment on a subagent reply, send: the message names the subagent and quot
 });
 
 test('a resumed agent (a second task start with the SendMessage call) opens the same tab from the drawer and from its card @controls', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('');
   await expect(composer(page)).toBeVisible();
   const text = `[resume] ${uniq('resume')}`;
   await composer(page).fill(text);
