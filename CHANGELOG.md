@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **A home page for the server.** Its own address lists the projects (running, Recent) and opens or makes one, with no agent of its own. Closing the server's last agent goes there; the server stays up.
+- **A home page for the server.** Its own address lists the projects (running, Recent) and opens or makes one, with no agent of its own. Closing the server's last agent goes there; the server stays up, and the phone no longer lists it.
 - **Close this page's agent.** **✕** beside the chat's tab closes it and moves to the next agent of the strip; a page whose agent was closed elsewhere moves to another agent instead of reconnecting forever.
 - **Phone: projects open again after the update to one Nota Bene for every folder.** A connector started before it is replaced, so tabs no longer wait for the window; a server whose folder's agent was closed is listed under the agent it shows.
 - **Agent tabs keep their place; tabs move by drag.** Moving to another agent no longer puts it first: a project's agents keep one order on every page. Drag any tab to reorder it.
