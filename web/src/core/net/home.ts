@@ -18,3 +18,17 @@ export async function agentHome(loc: Location | URL = location, fetchFn: typeof 
     return null;
   }
 }
+
+/**
+ * Where a page goes whose agent its server no longer has (closed, or not reopened by a restart): its socket is refused and
+ * `<base>/info` answers 404. The top, which goes to another agent or is the empty project. Null otherwise.
+ */
+export async function agentGone(loc: Location | URL = location, fetchFn: typeof fetch = fetch): Promise<string | null> {
+  const base = agentBase(loc);
+  if (!base) return null;
+  try {
+    return (await apiFetch(`${base}/info`, { cache: 'no-store' }, fetchFn)).status === 404 ? `/${loc.search}` : null;
+  } catch {
+    return null;
+  }
+}

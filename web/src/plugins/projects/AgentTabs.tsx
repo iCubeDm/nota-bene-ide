@@ -62,10 +62,14 @@ export function AgentTabs() {
     const why = await openFolder(dir, p, undefined, undefined, true);
     if (why) toast(t('projEnterFailed', reasonText(why)), dir);
   };
+  // issue 639: this page's own agent closes, then the page moves to its neighbour in the strip
   const close = async (r: RunningRow) => {
     setClosing(null);
+    const i = shown.indexOf(r);
+    const next = r === here ? shown[i + 1] ?? shown[i - 1] : undefined;
     const why = await stopProject(r);
-    if (why) toast(t('agentClose'), reasonText(why));
+    if (why) return toast(t('agentClose'), reasonText(why));
+    if (next) void enterProject(next);
   };
   const choices = (dir: string) => kinds.map((p) => <DropdownMenuItem key={p} onSelect={() => void add(dir, p)}><AgentIcon provider={p} />{PROVIDER_LABEL[p]}</DropdownMenuItem>);
   return (
@@ -73,6 +77,7 @@ export function AgentTabs() {
       {shown.map((r) => (
         <Place key={agentKey(r)} id={agentKey(r)} move={move}>
           {r === here ? chat : <AgentTab r={r} branch={r.root === here.root ? undefined : trees.get(r.root)} onClose={r.agent && !r.remote && !remote ? () => setClosing(r) : undefined} />}
+          {r === here && here.agent && !remote && shown.length > 1 && <CloseX r={here} onClose={() => setClosing(here)} />}
           {r === here && here.lead && !remote && (
             <button type="button" title={t('helperKeepTip')} onClick={() => void keep()} className="ml-1 h-6 flex-none rounded-md border border-border-soft px-2 text-[0.6875rem] text-muted-foreground hover:text-foreground">
               {t('helperKeep')}
@@ -166,13 +171,19 @@ function AgentTab({ r, branch, onClose }: { r: RunningRow; branch?: string | und
       {branch && <span className="rounded bg-muted px-1 text-[0.6875rem]">{branch}</span>}
       {r.title && <span className="truncate">{r.title}</span>}
       <BadgeView b={badgeOf([r])} />
-      {onClose && (
-        <button type="button" aria-label={`${t('agentClose')}: ${agentName(r)}`} title={t('agentClose')}
-          onClick={(e) => { e.stopPropagation(); onClose(); }} onKeyDown={(e) => e.stopPropagation()}
-          className="grid size-[18px] flex-none place-items-center rounded-[5px] opacity-50 hover:bg-muted hover:opacity-100">
-          <Svg size={10}><path d="M18 6 6 18M6 6l12 12" /></Svg>
-        </button>
-      )}
+      {onClose && <CloseX r={r} onClose={onClose} />}
     </div>
+  );
+}
+
+/** ✕ of an agent's tab: Enter and Space on it do not move to the agent. */
+function CloseX({ r, onClose }: { r: RunningRow; onClose: () => void }) {
+  const t = useT();
+  return (
+    <button type="button" aria-label={`${t('agentClose')}: ${agentName(r)}`} title={t('agentClose')}
+      onClick={(e) => { e.stopPropagation(); onClose(); }} onKeyDown={(e) => e.stopPropagation()}
+      className="grid size-[18px] flex-none place-items-center rounded-[5px] text-muted-foreground opacity-50 hover:bg-muted hover:opacity-100">
+      <Svg size={10}><path d="M18 6 6 18M6 6l12 12" /></Svg>
+    </button>
   );
 }

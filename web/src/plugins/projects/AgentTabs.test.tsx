@@ -155,6 +155,39 @@ describe('helpers (epic 383 2g)', () => {
   });
 });
 
+describe('issue 639: this page\'s agent closes from its tab', () => {
+  const HERE = 'claude-q2w3e4';
+  const withHere = () => { list = { ...LIST, running: LIST.running.map((r) => (r.current ? { ...r, agent: HERE } : r)) }; };
+
+  it('✕ on the chat\'s tab closes this page\'s agent after a confirm, then moves to its neighbour', async () => {
+    withHere();
+    localStorage.setItem('nb.agentOrder', JSON.stringify(['4791/claude-a2b3c4', `4791/${HERE}`, '4791/codex-k3f7qz']));
+    setup();
+    await waitFor(() => expect(all()).toHaveLength(3));
+    fireEvent.click(screen.getByRole('button', { name: `${t('agentClose')}: Claude · Fix the login form` }));
+    fireEvent.click(await screen.findByRole('button', { name: t('agentClose') }));
+    await waitFor(() => expect(calls.find((c) => c.url === '/system/projects/enter')?.body).toMatchObject({ agent: 'codex-k3f7qz' }));
+    const stop = calls.findIndex((c) => c.url === '/system/projects/stop');
+    expect(calls[stop]!.body).toEqual({ provider: 'claude', port: 4791, root: '/w/site', agent: HERE });
+    expect(stop).toBeLessThan(calls.findIndex((c) => c.url === '/system/projects/enter'));
+  });
+
+  it('the last of the strip goes to the one before it; alone, the chat\'s tab has no ✕', async () => {
+    withHere();
+    localStorage.setItem('nb.agentOrder', JSON.stringify(['4791/claude-a2b3c4', '4791/codex-k3f7qz', `4791/${HERE}`]));
+    setup();
+    await waitFor(() => expect(all()).toHaveLength(3));
+    fireEvent.click(screen.getByRole('button', { name: `${t('agentClose')}: Claude · Fix the login form` }));
+    fireEvent.click(await screen.findByRole('button', { name: t('agentClose') }));
+    await waitFor(() => expect(calls.find((c) => c.url === '/system/projects/enter')?.body).toMatchObject({ agent: 'codex-k3f7qz' }));
+    cleanup();
+    list = { ...LIST, running: [{ ...LIST.running[0]!, agent: HERE }] };
+    setup();
+    await waitFor(() => expect(calls.some((c) => c.url === '/system/projects')).toBe(true));
+    expect(screen.queryByRole('button', { name: new RegExp(t('agentClose')) })).toBeNull();
+  });
+});
+
 describe('issue 638: one order of the agents on every agent\'s page', () => {
   it('this page\'s agent (the chat\'s tab) sits in its place among them, not first', async () => {
     localStorage.setItem('nb.agentOrder', JSON.stringify(['4791/claude-a2b3c4', '4791/claude', '4791/codex-k3f7qz']));

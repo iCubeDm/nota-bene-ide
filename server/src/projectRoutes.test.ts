@@ -24,13 +24,13 @@ afterEach(async () => {
   for (const d of [tree, home]) fs.rmSync(d, { recursive: true, force: true });
 });
 
-async function serve(launch: Launch = async () => ({ code: 0, firstLine: `opened ${URL_OK}` }), agents?: () => Promise<{ agents: ('claude' | 'codex' | 'omp')[]; default: 'claude' | 'codex' | 'omp' }>) {
+async function serve(launch: Launch = async () => ({ code: 0, firstLine: `opened ${URL_OK}` }), agents?: () => Promise<{ agents: ('claude' | 'codex' | 'omp')[]; default: 'claude' | 'codex' | 'omp' }>, agent?: string) {
   const hub = new EventHub();
   const events: unknown[] = [];
   const emit = hub.emit.bind(hub);
   hub.emit = (ev, o) => { events.push(ev); return emit(ev, o); };
   const calls: { args: string[]; env: NodeJS.ProcessEnv }[] = [];
-  const routes = projectRoutes({ hub, port: () => 4791, provider: 'claude', repoDir: tree, launch: async (args, env) => { calls.push({ args, env }); return launch(args, env); }, ...(agents ? { agents } : {}) });
+  const routes = projectRoutes({ hub, port: () => 4791, provider: 'claude', repoDir: tree, launch: async (args, env) => { calls.push({ args, env }); return launch(args, env); }, ...(agents ? { agents } : {}), ...(agent ? { agent } : {}) });
   const srv = http.createServer((req, res) => routes[new URL(req.url!, 'http://x').pathname]!(req, res));
   await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
   closers.push(() => new Promise<void>((r) => srv.close(() => r())));
@@ -230,6 +230,11 @@ it('stop refuses a bad body, this window and an unknown one; stop-others with no
   expect((await s.post('/system/projects/stop', { provider: 'codex', port: 4791, root: tree, agent: 'codex-abcdef' })).status).toBe(404);
   expect((await s.post('/system/projects/stop', { provider: 'claude', port: 4794, root: tree })).status).toBe(404);
   expect(await (await s.post('/system/projects/stop-others', {})).json()).toEqual({ stopped: 0, failed: 0 });
+});
+
+it('issue 639: this page\'s own agent is stopped from its tab like the others (looked for, not refused)', async () => {
+  const s = await serve(undefined, undefined, 'claude-q2w3e4');
+  expect((await s.post('/system/projects/stop', { provider: 'claude', port: 4791, root: tree, agent: 'claude-q2w3e4' })).status).toBe(404);
 });
 
 it('forget drops a folder from Recent and lists it as hidden; a bad root is refused', async () => {

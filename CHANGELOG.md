@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Close this page's agent.** **✕** beside the chat's tab closes it and moves to the next agent of the strip; a page whose agent was closed elsewhere moves to another agent instead of reconnecting forever.
 - **Phone: projects open again after the update to one Nota Bene for every folder.** A connector started before it is replaced, so tabs no longer wait for the window; a server whose folder's agent was closed is listed under the agent it shows.
 - **Agent tabs keep their place; tabs move by drag.** Moving to another agent no longer puts it first: a project's agents keep one order on every page. Drag any tab to reorder it.
 - **Close an agent from its tab.** **✕** on another agent's tab closes it after a confirm; its session stays.

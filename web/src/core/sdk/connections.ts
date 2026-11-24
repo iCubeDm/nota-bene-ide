@@ -3,6 +3,7 @@
 import { useSelector, useStore } from 'react-redux';
 import { has, type ClientMessage, type Feature, type ServerEvent } from '@nota-bene/shared';
 import { apiFetch, refusedForAuth, socketProtocols } from '../net/auth.ts';
+import { agentGone } from '../net/home.ts';
 import { isLocalPage } from '../net/local.ts';
 import { connect as realConnect, type Connection, type SocketState } from '../net/socket.ts';
 import { coalesceChunks } from '../store/chunks.ts';
@@ -48,7 +49,13 @@ export interface ConnectionManager {
   list(): AgentConnection[];
 }
 
-const realConnectFn: Connect = (u, e, st) => realConnect(u, e, st, WebSocket, refusedForAuth, socketProtocols);
+// a socket refused for its login stops; one refused because the page's agent is gone takes the page to the top (issue 639)
+const refused = async () => {
+  const to = await agentGone();
+  if (to) location.replace(to);
+  return !to && refusedForAuth();
+};
+const realConnectFn: Connect = (u, e, st) => realConnect(u, e, st, WebSocket, refused, socketProtocols);
 
 /**
  * One agent's connection. `deliver` applies an event to the store; `mirror` puts a state change into it (one dispatch per
