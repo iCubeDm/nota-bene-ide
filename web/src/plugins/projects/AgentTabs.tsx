@@ -43,7 +43,7 @@ export function AgentTabs() {
     return () => { gone = true; };
   }, [remote]);
   const here = data?.running.find((r) => r.current);
-  if (!here) { order = []; return <>{chat}</>; }
+  if (!here) { order = []; return <>{chat()}</>; }
   const same = (r: RunningRow) => (r.root === here.root || (!here.remote && trees.has(r.root))) && r.remote?.host === here.remote?.host;
   const others = data!.running.filter((r) => !r.current && same(r) && LIVE.has(r.state));
   // a helper whose lead is here (this agent or a tab) goes in its lead's group
@@ -77,8 +77,9 @@ export function AgentTabs() {
     <>
       {shown.map((r) => (
         <Place key={agentKey(r)} id={agentKey(r)} move={move}>
-          {r === here ? chat : <AgentTab r={r} branch={r.root === here.root ? undefined : trees.get(r.root)} onClose={r.agent && !r.remote && !remote ? () => setClosing(r) : undefined} />}
-          {r === here && here.agent && !remote && <CloseX r={here} onClose={() => setClosing(here)} />}
+          {r === here
+            ? chat(here.agent && !remote && <CloseX r={here} onClose={() => setClosing(here)} />)
+            : <AgentTab r={r} branch={r.root === here.root ? undefined : trees.get(r.root)} onClose={r.agent && !r.remote && !remote ? () => setClosing(r) : undefined} />}
           {r === here && here.lead && !remote && (
             <button type="button" title={t('helperKeepTip')} onClick={() => void keep()} className="ml-1 h-6 flex-none rounded-md border border-border-soft px-2 text-[0.6875rem] text-muted-foreground hover:text-foreground">
               {t('helperKeep')}

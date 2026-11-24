@@ -1,5 +1,5 @@
 import { useT, useStored } from '@/sdk';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { shallowEqual } from 'react-redux';
 import { useAppDispatch, useAppSelector, useMedia, useRegistry } from '@/core/store/store.ts';
 import { tabLabel, tabView } from '@/sdk/registry.ts';
@@ -26,7 +26,7 @@ function useLabels(open: Tab[]): string[] {
 }
 
 /** A tab, no tooltip (issue 463): its label says it. Its view adds its own parts (a chip, a badge, a picker, an edit). */
-function TabItem({ tab, label, active, last, playing }: { tab: Tab; label: string; active: boolean; last: boolean; playing: boolean }) {
+function TabItem({ tab, label, active, last, playing, end }: { tab: Tab; label: string; active: boolean; last: boolean; playing: boolean; end?: ReactNode }) {
   const t = useT();
   const d = useAppDispatch();
   const view = tabView(useRegistry(), tab);
@@ -73,6 +73,7 @@ function TabItem({ tab, label, active, last, playing }: { tab: Tab; label: strin
               <Svg size={10}><path d="M18 6 6 18M6 6l12 12" /></Svg>
             </button>
           )}
+          {end}
         </div>
       </ContextMenuTrigger>
       {/* the menu gives the focus back when it closes: to the title being edited, if that is what was picked */}
@@ -130,7 +131,7 @@ export function TabStrip() {
           // the dot marks a background tab that still plays; the active tab shows its own player
           <Fragment key={tab.id}>
             {tab.kind === 'chat' && placed
-              ? <ChatTabContext.Provider value={<TabItem tab={tab} label={names[i]!} active={tab.id === active} last={i === open.length - 1} playing={tab.id === playing && tab.id !== active} />}><Slots at="tabs.chat" /></ChatTabContext.Provider>
+              ? <ChatTabContext.Provider value={(end) => <TabItem tab={tab} label={names[i]!} active={tab.id === active} last={i === open.length - 1} playing={tab.id === playing && tab.id !== active} end={end} />}><Slots at="tabs.chat" /></ChatTabContext.Provider>
               : <TabItem tab={tab} label={names[i]!} active={tab.id === active} last={i === open.length - 1} playing={tab.id === playing && tab.id !== active} />}
           </Fragment>
         ))}
