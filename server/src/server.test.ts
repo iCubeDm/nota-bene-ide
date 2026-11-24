@@ -6,7 +6,7 @@ import WebSocket from 'ws';
 import { CLAUDE_CAPABILITIES, PROTOCOL, type Capabilities, type ServerEvent } from '@nota-bene/shared';
 import { fakeBackend } from './agent/fake.ts';
 import { HistoryArchive } from './archive.ts';
-import { startServer } from './server.ts';
+import { agentServer } from './testing.ts';
 import { tmpDirNames } from './tmpImage.ts';
 import { whisperDir } from './dictation/install.ts';
 import { WHISPER_MODEL, WHISPER_REVISION, WHISPER_VERSION } from './dictation/whisper.ts';
@@ -31,7 +31,7 @@ afterEach(async () => {
 });
 
 async function boot(extra: { ffmpeg?: () => string | null } = {}) {
-  const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false, ffmpeg: () => null, ...extra });
+  const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false, ffmpeg: () => null, ...extra });
   closers.push(s.close);
   return s;
 }
@@ -107,7 +107,7 @@ describe('server', () => {
 
   it('/info tells pending, last and replies: fresh, after a turn, and while an ask waits', async () => {
     const info = async (url: string) => (await (await fetch(`${url}/info`)).json()) as { pending: boolean; last: { role: string; text: string; at: number } | null; replies: number };
-    const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello\n\n**world**' }, { text: 'ok', ask: { toolName: 'Bash', input: { command: 'ls' } } }]), webDist: dist, oneTab: false });
+    const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello\n\n**world**' }, { text: 'ok', ask: { toolName: 'Bash', input: { command: 'ls' } } }]), webDist: dist, oneTab: false });
     closers.push(s.close);
     expect(await info(s.url)).toMatchObject({ pending: false, last: null, replies: 0 });
     const c = await connect(s.url);
@@ -126,7 +126,7 @@ describe('server', () => {
   });
 
   it('/info tells the replies not seen; POST /seen marks the open session seen', async () => {
-    const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'one' }, { text: 'two' }]), webDist: dist, oneTab: false, resume: '33333333-3333-4333-8333-333333333333' });
+    const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'one' }, { text: 'two' }]), webDist: dist, oneTab: false, resume: '33333333-3333-4333-8333-333333333333' });
     closers.push(s.close);
     const info = async () => (await (await fetch(`${s.url}/info`)).json()) as { session: string; unseen: number };
     const c = await connect(s.url);
@@ -134,7 +134,7 @@ describe('server', () => {
     await until(() => c.events.some(isResult));
     const first = await info();
     expect(first.unseen).toBe(1);
-    const seen = await fetch(`${s.url}/seen`, { method: 'POST', headers: { origin: s.url, 'content-type': 'application/json' }, body: JSON.stringify({ session: first.session }) });
+    const seen = await fetch(`${s.url}/seen`, { method: 'POST', headers: { origin: s.server, 'content-type': 'application/json' }, body: JSON.stringify({ session: first.session }) });
     expect(seen.status).toBe(200);
     expect((await info()).unseen).toBe(0);
     c.ws.send(JSON.stringify({ type: 'send', id: 'u2', text: 'again' }));
@@ -144,7 +144,7 @@ describe('server', () => {
 
   it('a new socket gets the current stats, and stats never enter the replay', async () => {
     const hot = { used: 180000, max: 200000, pct: 90 };
-    const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello', context: hot }]), webDist: dist, oneTab: false });
+    const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello', context: hot }]), webDist: dist, oneTab: false });
     closers.push(s.close);
     const a = await connect(s.url);
     a.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'hi' }));
@@ -194,7 +194,7 @@ describe('server', () => {
   it('every new socket gets the model list and the current model; a model message is applied, answered with its ack and broadcast', async () => {
     const models = [{ value: 'sonnet', name: 'Sonnet', description: '', efforts: ['low', 'high'] }, { value: 'opus', name: 'Opus', description: '' }] as const;
     const backend = fakeBackend([{ text: 'hello' }], { models: models.map((m) => ({ ...m, efforts: 'efforts' in m ? [...m.efforts] : undefined })) as never });
-    const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend, webDist: dist, oneTab: false });
+    const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend, webDist: dist, oneTab: false });
     closers.push(s.close);
     const a = await connect(s.url);
     await until(() => a.events.some((e) => e.kind === 'models'));
@@ -217,7 +217,7 @@ describe('server', () => {
       ],
       terminalCommands: ['doctor', 'color'],
     });
-    const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend, webDist: dist, oneTab: false });
+    const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend, webDist: dist, oneTab: false });
     closers.push(s.close);
     const a = await connect(s.url);
     const want = { kind: 'commands', commands: [{ name: 'ping', description: 'p' }, { name: 'compact', description: 'c', hint: '[how]', builtin: true }] };
@@ -235,7 +235,7 @@ describe('server', () => {
     const base = fakeBackend([{ text: 'ok', ask: { toolName: 'Bash', input: { command: 'ls' } } }]);
     // the agent side: what the backend's ask resolves with is what the SDK adapter turns into updatedInput
     const backend = { ...base, start: (o: Parameters<typeof base.start>[0]) => base.start({ ...o, ask: async (...a) => { const r = await o.ask(...a); seen.push(r); return r; } }) };
-    const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend, webDist: dist, oneTab: false });
+    const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend, webDist: dist, oneTab: false });
     closers.push(s.close);
     const c = await connect(s.url);
     c.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'run' }));
@@ -290,7 +290,7 @@ describe('server', () => {
   it('a taken port rejects startServer with the listen error (instead of hanging)', async () => {
     const s = await boot();
     const port = Number(new URL(s.url).port);
-    const err = await startServer({ insecureNoAuth: true, cwd: '/proj', port, backend: fakeBackend([]), webDist: dist, oneTab: false }).then(
+    const err = await agentServer({ insecureNoAuth: true, cwd: '/proj', port, backend: fakeBackend([]), webDist: dist, oneTab: false }).then(
       () => null,
       (e: NodeJS.ErrnoException) => e,
     );
@@ -304,7 +304,7 @@ describe('server', () => {
       a.append('fake-session', [user('a')]);
       a.append('fake-session', [user('b')]);
       a.append('other-session', [user('x')]);
-      const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false, resume: 'fake-session' });
+      const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false, resume: 'fake-session' });
       closers.push(s.close);
       return s;
     }
@@ -331,7 +331,7 @@ describe('server', () => {
 
     it('409 while the conversation has no id of its own: a fork before its first turn does not serve the source\'s archive', async () => {
       new HistoryArchive({ dir: path.join(home, 'history') }).append('fake-session', [user('a')]);
-      const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false, resume: 'fake-session', fork: true });
+      const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false, resume: 'fake-session', fork: true });
       closers.push(s.close);
       expect((await get(s, 'session=fake-session&before=2')).status).toBe(409);
     });
@@ -341,7 +341,7 @@ describe('server', () => {
       for (const q of ['session=..%2Fx&before=2', 'before=2', 'session=fake-session', 'session=fake-session&before=0', 'session=fake-session&before=1.5', 'session=fake-session&before=abc']) {
         expect((await get(s, q)).status, q).toBe(400);
       }
-      expect((await fetch(`${s.url}/history?session=fake-session&before=2`, { method: 'POST', headers: { origin: s.url } })).status).toBe(405);
+      expect((await fetch(`${s.url}/history?session=fake-session&before=2`, { method: 'POST', headers: { origin: s.server } })).status).toBe(405);
     });
   });
 
@@ -353,9 +353,9 @@ describe('server', () => {
     it('409 when not supervised, and never exits', async () => {
       delete process.env.NOTA_BENE_SUPERVISED;
       const codes: number[] = [];
-      const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([]), webDist: dist, oneTab: false, exit: (c) => { codes.push(c); } });
+      const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([]), webDist: dist, oneTab: false, exit: (c) => { codes.push(c); } });
       closers.push(s.close);
-      expect((await post(s.url, s.url)).status).toBe(409);
+      expect((await post(s.url, s.server)).status).toBe(409);
       await new Promise((r) => setTimeout(r, 250));
       expect(codes).toEqual([]);
     });
@@ -363,7 +363,7 @@ describe('server', () => {
     it('403 for a foreign Origin (and for none), even when supervised', async () => {
       supervise();
       const codes: number[] = [];
-      const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([]), webDist: dist, oneTab: false, exit: (c) => { codes.push(c); } });
+      const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([]), webDist: dist, oneTab: false, exit: (c) => { codes.push(c); } });
       closers.push(s.close);
       expect((await post(s.url, 'http://evil.example')).status).toBe(403);
       expect((await post(s.url)).status).toBe(403);
@@ -374,9 +374,9 @@ describe('server', () => {
     it('supervised: answers 200, then exits with 75', async () => {
       supervise();
       const codes: number[] = [];
-      const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([]), webDist: dist, oneTab: false, exit: (c) => { codes.push(c); } });
+      const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([]), webDist: dist, oneTab: false, exit: (c) => { codes.push(c); } });
       closers.push(s.close);
-      const r = await post(s.url, s.url);
+      const r = await post(s.url, s.server);
       expect(r.status).toBe(200);
       expect(codes).toEqual([]); // the reply came first
       await until(() => codes.length === 1);
@@ -386,14 +386,14 @@ describe('server', () => {
     // gh-422: a restart while the agent works waits for the pause
     const long = () => fakeBackend([{ text: 'x'.repeat(4000), chunk: 1, delayMs: 5 }, { text: 'again' }]);
     const postJson = (url: string, p: string, body: unknown = {}) =>
-      fetch(`${url}${p}`, { method: 'POST', headers: { origin: url, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      fetch(`${url}${p}`, { method: 'POST', headers: { origin: new URL(url).origin, 'content-type': 'application/json' }, body: JSON.stringify(body) });
     // `pause=1`: a page of protocol 22+ that asks for the restart in its own pause (the phone and an older page do not)
     // a pending restart looks for a pause every EVERY ms (1 s in a real window); a wait of `quiet` outlasts several looks
     const EVERY = 100;
     const quiet = () => new Promise((r) => setTimeout(r, 3 * EVERY));
     const working = async (codes: number[], query = '?pause=1') => {
       supervise();
-      const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: long(), webDist: dist, oneTab: false, restartEveryMs: EVERY, exit: (c) => { codes.push(c); } });
+      const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: long(), webDist: dist, oneTab: false, restartEveryMs: EVERY, exit: (c) => { codes.push(c); } });
       closers.push(s.close);
       const c = await connect(s.url, query);
       c.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'work' }));
@@ -406,7 +406,7 @@ describe('server', () => {
       const codes: number[] = [];
       const { s, c } = await working(codes);
       expect(c.events.filter((e) => e.kind === 'restart-pending')).toEqual([{ kind: 'restart-pending', pending: false }]); // on attach
-      const r = await post(s.url, s.url);
+      const r = await post(s.url, s.server);
       expect(r.status).toBe(200);
       expect(await r.json()).toEqual({ ok: true, pending: true });
       await until(() => c.events.some((e) => e.kind === 'restart-pending' && e.pending));
@@ -426,7 +426,7 @@ describe('server', () => {
     it('busy with no page open: exits 75 by itself at the next pause', async () => {
       const codes: number[] = [];
       const { s, c } = await working(codes);
-      expect((await post(s.url, s.url)).status).toBe(200);
+      expect((await post(s.url, s.server)).status).toBe(200);
       c.ws.send(JSON.stringify({ type: 'interrupt' }));
       await until(() => c.events.some(isResult));
       c.ws.close();
@@ -438,7 +438,7 @@ describe('server', () => {
       it(`busy with only ${who} attached: the server's own pause rule restarts, it waits for nobody's ask`, async () => {
         const codes: number[] = [];
         const { s, c } = await working(codes, query);
-        expect(await (await post(s.url, s.url)).json()).toEqual({ ok: true, pending: true });
+        expect(await (await post(s.url, s.server)).json()).toEqual({ ok: true, pending: true });
         c.ws.send(JSON.stringify({ type: 'interrupt' }));
         await until(() => c.events.some(isResult));
         await until(() => codes.length === 1, 4000);
@@ -450,7 +450,7 @@ describe('server', () => {
       const codes: number[] = [];
       const { s, c } = await working(codes);
       const phone = await connect(s.url);
-      await post(s.url, s.url);
+      await post(s.url, s.server);
       c.ws.send(JSON.stringify({ type: 'interrupt' }));
       await until(() => c.events.some(isResult));
       await quiet();
@@ -464,7 +464,7 @@ describe('server', () => {
     it('cancel: the pause does not restart', async () => {
       const codes: number[] = [];
       const { s, c } = await working(codes);
-      await post(s.url, s.url);
+      await post(s.url, s.server);
       expect((await postJson(s.url, '/restart-server/cancel')).status).toBe(200);
       await until(() => c.events.filter((e) => e.kind === 'restart-pending').at(-1)?.kind === 'restart-pending' && !(c.events.filter((e) => e.kind === 'restart-pending').at(-1) as { pending: boolean }).pending);
       c.ws.send(JSON.stringify({ type: 'interrupt' }));
@@ -514,7 +514,7 @@ describe('server', () => {
       const codes: number[] = [];
       const { s, c } = await working(codes, '?held=1'); // no page that asks: the server goes by its own rule
       const id = ((await (await fetch(`${s.url}/info`)).json()) as { session: string }).session;
-      expect(await (await post(s.url, s.url)).json()).toEqual({ ok: true, pending: true });
+      expect(await (await post(s.url, s.server)).json()).toEqual({ ok: true, pending: true });
       c.ws.send(JSON.stringify({ type: 'command', name: 'compact' }));
       c.ws.send(JSON.stringify({ type: 'send', id: 'u2', text: 'after' }));
       await until(() => c.events.some((e) => e.kind === 'send-held'));
@@ -529,10 +529,10 @@ describe('server', () => {
     it('another agent of the server, idle, is not held behind a restart waiting for this one: its sends go', async () => {
       const codes: number[] = [];
       const { s } = await working(codes, '?held=1');
-      expect(await (await post(s.url, s.url)).json()).toEqual({ ok: true, pending: true });
+      expect(await (await post(s.url, s.server)).json()).toEqual({ ok: true, pending: true });
       fs.mkdirSync(path.join(home, 'b'), { recursive: true });
       const b = await s.open({ provider: 'claude', cwd: path.join(home, 'b'), backend: fakeBackend([]) });
-      const other = await connect(`${s.url}/a/${b}`, '?held=1');
+      const other = await connect(`${s.server}/a/${b}`, '?held=1');
       other.ws.send(JSON.stringify({ type: 'send', id: 'b1', text: 'hello' }));
       await until(() => users(other).length === 1);
       expect(other.events.some((e) => e.kind === 'send-held')).toBe(false);
@@ -544,7 +544,7 @@ describe('server', () => {
       const { s, c } = await working(codes, '?held=1');
       fs.mkdirSync(path.join(home, 'b'), { recursive: true });
       await s.open({ provider: 'claude', cwd: path.join(home, 'b'), backend: fakeBackend([]) });
-      expect(await (await post(s.url, s.url)).json()).toEqual({ ok: true, pending: true });
+      expect(await (await post(s.url, s.server)).json()).toEqual({ ok: true, pending: true });
       c.ws.send(JSON.stringify({ type: 'send', id: 'u2', text: 'after' }));
       await until(() => c.events.some((e) => e.kind === 'send-held'));
     });
@@ -562,7 +562,7 @@ describe('server', () => {
     it('a send while the ordered compaction itself runs waits for its end', async () => {
       const codes: number[] = [];
       supervise();
-      const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'x'.repeat(4000), chunk: 1, delayMs: 5, compactMs: 600 }, { text: 'again' }]), webDist: dist, oneTab: false, restartEveryMs: EVERY, exit: (code) => { codes.push(code); } });
+      const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'x'.repeat(4000), chunk: 1, delayMs: 5, compactMs: 600 }, { text: 'again' }]), webDist: dist, oneTab: false, restartEveryMs: EVERY, exit: (code) => { codes.push(code); } });
       closers.push(s.close);
       const c = await connect(s.url, '?pause=1&held=1');
       c.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'work' }));
@@ -637,9 +637,9 @@ describe('server', () => {
     it('answers 200, then exits with 0, without a supervisor too', async () => {
       delete process.env.NOTA_BENE_SUPERVISED;
       const codes: number[] = [];
-      const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([]), webDist: dist, oneTab: false, exit: (c) => { codes.push(c); } });
+      const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([]), webDist: dist, oneTab: false, exit: (c) => { codes.push(c); } });
       closers.push(s.close);
-      const r = await post(s.url, s.url);
+      const r = await post(s.url, s.server);
       expect(r.status).toBe(200);
       expect(codes).toEqual([]); // the reply came first
       await until(() => codes.length === 1);
@@ -648,7 +648,7 @@ describe('server', () => {
 
     it('403 for a foreign Origin (and for none), 405 for a GET, and never exits', async () => {
       const codes: number[] = [];
-      const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([]), webDist: dist, oneTab: false, exit: (c) => { codes.push(c); } });
+      const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([]), webDist: dist, oneTab: false, exit: (c) => { codes.push(c); } });
       closers.push(s.close);
       expect((await post(s.url, 'http://evil.example')).status).toBe(403);
       expect((await post(s.url)).status).toBe(403);
@@ -661,7 +661,7 @@ describe('server', () => {
   describe('capabilities (R-M7-15)', () => {
     const bootCaps = async (capabilities: Partial<Capabilities>) => {
       const backend = fakeBackend([{ text: 'hello' }], { capabilities });
-      const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend, webDist: dist, oneTab: false });
+      const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend, webDist: dist, oneTab: false });
       closers.push(s.close);
       return { s, backend };
     };
@@ -708,7 +708,7 @@ describe('server', () => {
     it('--fork is dropped when the agent cannot fork, kept when it can', async () => {
       for (const [fork, want] of [[false, undefined], [true, true]] as const) {
         const backend = fakeBackend([{ text: 'x' }], { capabilities: { fork } });
-        const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend, webDist: dist, oneTab: false, resume: 'abc', fork: true });
+        const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend, webDist: dist, oneTab: false, resume: 'abc', fork: true });
         closers.push(s.close);
         expect(backend.starts[0]?.fork).toBe(want);
       }
@@ -726,7 +726,7 @@ describe('server', () => {
 describe('server: tracked commands while busy', () => {
   it('a /clear typed during a turn gets send-refused busy on the asking socket; nothing reaches the feed', async () => {
     const backend = fakeBackend([{ text: 'x'.repeat(3000), chunk: 1, delayMs: 5 }]);
-    const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend, webDist: dist, oneTab: false });
+    const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend, webDist: dist, oneTab: false });
     closers.push(s.close);
     const c = await connect(s.url);
     c.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'work' }));

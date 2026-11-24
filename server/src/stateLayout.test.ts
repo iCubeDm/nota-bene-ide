@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { fakeBackend } from './agent/fake.ts';
-import { startServer } from './server.ts';
+import { agentServer } from './testing.ts';
 import { agentContext } from './state.ts';
 
 // Where a window keeps its data, per provider (epic 383, step 2a): one server will hold every agent, so this layout must
@@ -31,10 +31,10 @@ afterEach(() => {
 });
 
 /** A window that marks its open session seen and archives another, then closes. */
-async function run(extra: Partial<Parameters<typeof startServer>[0]>): Promise<void> {
-  const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false, ffmpeg: () => null, resume: SESSION, ...extra });
+async function run(extra: Partial<Parameters<typeof agentServer>[0]>): Promise<void> {
+  const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false, ffmpeg: () => null, resume: SESSION, ...extra });
   try {
-    const post = (p: string, body: unknown) => fetch(`${s.url}${p}`, { method: 'POST', headers: { origin: s.url, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const post = (p: string, body: unknown) => fetch(`${s.url}${p}`, { method: 'POST', headers: { origin: s.server, 'content-type': 'application/json' }, body: JSON.stringify(body) });
     expect((await post('/seen', { session: SESSION })).status).toBe(200);
     expect((await post('/sessions/archive', { id: OTHER, archived: true })).status).toBe(200);
   } finally {

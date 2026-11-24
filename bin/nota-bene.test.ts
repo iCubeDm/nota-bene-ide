@@ -230,14 +230,17 @@ async function stopWindow(port: number): Promise<void> {
   expect(r.status).toBe(200);
 }
 
-async function info(port: number): Promise<{ root: string; supervised: boolean } | null> {
+async function info(port: number): Promise<{ root: string; supervised: boolean; agents: { id: string; root: string }[] } | null> {
   try {
     const r = await fetch(`http://127.0.0.1:${port}/info`, { headers: authHeaders(), signal: AbortSignal.timeout(500) });
-    return r.ok ? ((await r.json()) as { root: string; supervised: boolean }) : null;
+    return r.ok ? ((await r.json()) as { root: string; supervised: boolean; agents: { id: string }[] }) : null;
   } catch {
     return null;
   }
 }
+
+/** The base URL of the server's first agent (issue 639: the top is the server's home; a page is an agent's). */
+const agentAt = async (port: number) => `http://127.0.0.1:${port}/a/${(await waitFor(() => info(port)))!.agents[0]!.id}`;
 
 /** Windows has no ps: the process table through CIM (PowerShell), one `pid<TAB>ppid<TAB>command line` row per process. */
 const winProcs = (): { pid: number; ppid: number; cmd: string }[] =>
@@ -300,7 +303,7 @@ describe('nota-bene launcher', () => {
     launch(['--port', '4792', '--new']);
     const first = await waitFor(() => windows()['4792']);
     expect(argsOf(first.pid)).toContain('--new');
-    const res = await fetch('http://127.0.0.1:4792/restart-server', {
+    const res = await fetch(`${await agentAt(4792)}/restart-server`, {
       method: 'POST',
       headers: { origin: 'http://127.0.0.1:4792', ...authHeaders() },
     });
@@ -448,7 +451,7 @@ describe('nota-bene launcher', () => {
     }));
     launch(['--port', '4792'], {}, fake);
     const first = await waitFor(() => windows()['4792']);
-    const ws = new WebSocket('ws://127.0.0.1:4792/ws', { headers: authHeaders() });
+    const ws = new WebSocket(`${(await agentAt(4792)).replace('http', 'ws')}/ws`, { headers: authHeaders() });
     await new Promise((res, rej) => {
       ws.onopen = res;
       ws.onerror = rej;
@@ -457,7 +460,7 @@ describe('nota-bene launcher', () => {
     // the supervised server re-registers itself with the new root
     await waitFor(async () => (await info(4792))?.root === projB && windows()['4792']?.root === projB);
     ws.close();
-    const res = await fetch('http://127.0.0.1:4792/restart-server', {
+    const res = await fetch(`${await agentAt(4792)}/restart-server`, {
       method: 'POST',
       headers: { origin: 'http://127.0.0.1:4792', ...authHeaders() },
     });
@@ -497,7 +500,7 @@ describe('nota-bene launcher', () => {
     await waitFor(() => !alive(first.pid));
     const r = launch([]);
     expect(await r.exited, r.err()).toBe(0);
-    expect(r.out()).toBe('nota-bene: already open at http://127.0.0.1:4792\n');
+    expect(r.out()).toBe(`nota-bene: already open at ${await agentAt(4792)}/\n`);
     expect(Object.keys(windows())).toEqual(['4792']);
   }, 20000);
 
@@ -558,10 +561,10 @@ describe('nota-bene launcher', () => {
     // a second launch on the same folder, plain and --detach, gives way to the window
     const r2 = launch([]);
     expect(await r2.exited, r2.err()).toBe(0);
-    expect(r2.out()).toBe('nota-bene: already open at http://127.0.0.1:4793\n');
+    expect(r2.out()).toBe(`nota-bene: already open at ${await agentAt(4793)}/\n`);
     const d2 = launch(['--detach']);
     expect(await d2.exited, d2.err()).toBe(0);
-    expect(d2.out()).toBe(`already-open ${await loginUrlOf(4793)}\n`);
+    expect(d2.out()).toBe(`already-open ${await agentAt(4793)}/#t=${await loginOf(4793)}\n`);
     expect(Object.keys(windows())).toEqual(['4793']);
     // a window missing from the registry (a failed registry write) is found by /info
     const other = path.join(tmp, 'project-b');
@@ -608,6 +611,26 @@ describe('nota-bene launcher', () => {
     expect(fs.readFileSync(pages()[0]!, 'utf8')).toMatch(new RegExp(`http://127\\.0\\.0\\.1:${port}/a/${m![1]}/${loginRe}`));
   }, 40000);
 
+  it('issue 642: a folder whose agent was closed opens a new agent there, not the server\'s home', async () => {
+    const a = launch(['--detach']);
+    expect(await a.exited, a.err()).toBe(0);
+    const port = Number(Object.keys(windows())[0]);
+    const other = path.join(tmp, 'project-b');
+    fs.mkdirSync(other);
+    const b = launch(['--detach'], {}, FAKE, other);
+    expect(await b.exited, b.err()).toBe(0);
+    const first = (await info(port))!.agents.find((x) => x.root === project)!.id;
+    const close = await fetch(`http://127.0.0.1:${port}/a/${first}/control/close`, { method: 'POST', headers: { 'x-nota-bene-control': fs.readFileSync(path.join(home, 'control-token'), 'utf8').trim() } });
+    expect(close.status).toBe(200);
+    expect((await info(port))!.root).toBe(project); // the server keeps the folder (issue 639)
+    const c = launch(['--detach']);
+    expect(await c.exited, c.err()).toBe(0);
+    const m = new RegExp(`^opened http://127\\.0\\.0\\.1:${port}/a/(claude-[a-z2-7]{6})/${loginRe}\\n$`).exec(c.out());
+    expect(m, c.out()).not.toBeNull();
+    expect(m![1]).not.toBe(first);
+    expect(Object.keys(windows())).toEqual([String(port)]);
+  }, 40000);
+
   it('two parallel --detach launches on one folder end with ONE window: one says opened, the other already-open', async () => {
     const [a, b] = [launch(['--detach']), launch(['--detach'])];
     expect(await a.exited, a.err()).toBe(0);
@@ -615,10 +638,13 @@ describe('nota-bene launcher', () => {
     const [verbA, urlA] = a.out().trim().split(' ');
     const [verbB, urlB] = b.out().trim().split(' ');
     expect([verbA, verbB].sort()).toEqual(['already-open', 'opened']);
-    expect(urlB).toBe(urlA);
     const entries = Object.entries(windows()).filter(([, w]) => w.root === project);
     expect(entries).toHaveLength(1);
-    expect(urlA).toBe(await loginUrlOf(Number(entries[0]![0])));
+    // the new window's home, and its agent of the folder (issue 642)
+    const port = Number(entries[0]![0]);
+    const [opened, again] = verbA === 'opened' ? [urlA, urlB] : [urlB, urlA];
+    expect(opened).toBe(await loginUrlOf(port));
+    expect(again).toBe(`${await agentAt(port)}/#t=${await loginOf(port)}`);
     const roots = [];
     for (let p = 4791; p <= 4795; p++) roots.push((await info(p))?.root);
     expect(roots.filter((r) => r === project)).toHaveLength(1);
@@ -1352,7 +1378,7 @@ describe('the access token', () => {
     groups.add(run.pid!);
     await waitFor(() => windows()['4791'] && logLines(op.log).length > 0);
     const second = spawnSync(process.execPath, [BIN, project, '--fake', FAKE], { env: env(op.env), encoding: 'utf8', timeout: 15000 });
-    expect([second.stdout, second.stderr]).toEqual(['nota-bene: already open at http://127.0.0.1:4791\n', '']); // the foreground line has no token
+    expect([second.stdout, second.stderr]).toEqual([`nota-bene: already open at ${await agentAt(4791)}/\n`, '']); // the foreground line has no token
     await waitFor(() => logLines(op.log).length === 2);
     for (const arg of logLines(op.log)) {
       expect(arg).not.toMatch(/^https?:/);
@@ -1412,8 +1438,12 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
     const r = await fetch(`${origin}/auth`, { method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify({ login: await loginOf(port) }) });
     return { cookie: r.headers.get('set-cookie')!.split(';')[0]!, key: ((await r.json()) as { key: string }).key, origin };
   };
-  const socket = (port: number, headers: Record<string, string>, protocols: string[] = []) => new Promise<{ ok: boolean; env?: string }>((resolve) => {
-    const ws = new WS(`ws://127.0.0.1:${port}/ws`, protocols, { headers });
+  const socket = async (port: number, headers: Record<string, string>, protocols: string[] = []) => {
+    const url = `${(await agentAt(port)).replace('http', 'ws')}/ws`;
+    return socketAt(url, headers, protocols);
+  };
+  const socketAt = (url: string, headers: Record<string, string>, protocols: string[]) => new Promise<{ ok: boolean; env?: string }>((resolve) => {
+    const ws = new WS(url, protocols, { headers });
     ws.on('message', () => resolve({ ok: true }));
     ws.on('unexpected-response', () => resolve({ ok: false }));
     ws.on('error', () => resolve({ ok: false }));
@@ -1428,7 +1458,7 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
     const login = await loginAt(4791);
     expect((await socket(4791, { cookie: login.cookie, origin: login.origin }, [`nb.${login.key}`])).ok).toBe(true);
     expect((await socket(4791, { cookie: login.cookie, origin: login.origin })).ok).toBe(false); // the cookie alone: no socket
-    const res = await fetch('http://127.0.0.1:4791/restart-server', { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
+    const res = await fetch(`${await agentAt(4791)}/restart-server`, { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
     expect(res.status).toBe(200);
     await waitFor(() => { const w = windows()['4791']; return w && w.pid !== first.pid ? w : null; });
     await waitFor(async () => (await info(4791)) !== null);
@@ -1464,7 +1494,7 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
     const restart = async (port: number) => {
       const first = await waitFor(() => windows()[String(port)]);
       const login = await loginAt(port);
-      const res = await fetch(`http://127.0.0.1:${port}/restart-server`, { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
+      const res = await fetch(`${await agentAt(port)}/restart-server`, { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
       expect(res.status).toBe(200);
       await waitFor(() => { const w = windows()[String(port)]; return w && w.pid !== first.pid ? w : null; });
       await waitFor(async () => (await info(port)) !== null);
@@ -1525,7 +1555,7 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
       const r = launch(['--port', '4792'], setup(`${lines(1)} || { ps -o pgid= -p $$ | tr -d ' ' > '${tmp}/buildgroup'; sh -c "trap '' TERM; exec sleep 600" & wait; }`));
       await waitFor(() => windows()['4792']);
       const login = await loginAt(4792);
-      const res = await fetch('http://127.0.0.1:4792/restart-server', { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
+      const res = await fetch(`${await agentAt(4792)}/restart-server`, { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
       expect(res.status).toBe(200);
       await waitFor(() => builds() === 2); // the slow build is running
       const buildGroup = Number(await waitFor(() => (fs.existsSync(`${tmp}/buildgroup`) ? fs.readFileSync(`${tmp}/buildgroup`, 'utf8').trim() : '')));
@@ -1543,7 +1573,7 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
       launch(['--port', '4793'], setup(`${lines(1)} || { while [ ! -e '${gate}' ]; do sleep 0.1; done; }`));
       await waitFor(() => windows()['4793']);
       const login = await loginAt(4793);
-      await fetch('http://127.0.0.1:4793/restart-server', { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
+      await fetch(`${await agentAt(4793)}/restart-server`, { method: 'POST', headers: { origin: login.origin, ...authHeaders() } });
       await waitFor(() => windows()['4793']?.building);
       const second = launch([], { NOTA_BENE_TEST_RESTART_WAIT_MS: '1000' }); // the same folder, in the gap; 10 s for real
       await waitFor(() => /waiting for a rebuild/.test(second.err()));
@@ -1551,7 +1581,7 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
       expect(second.p.exitCode).toBeNull(); // still waiting, not a second window
       fs.writeFileSync(gate, '');
       expect(await second.exited, second.err()).toBe(0);
-      expect(second.out()).toBe('nota-bene: already open at http://127.0.0.1:4793\n');
+      expect(second.out()).toBe(`nota-bene: already open at ${await agentAt(4793)}/\n`);
       expect(Object.keys(windows())).toEqual(['4793']);
       expect(windows()['4793']?.building).toBeUndefined();
     }, 60000);
@@ -1590,8 +1620,9 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
     launch(['--port', '4791']);
     await waitFor(() => windows()['4791']);
     const n = await helloN(4791);
+    const at = (await agentAt(4791)).replace('http', 'ws');
     const out = await new Promise<string>((resolve) => {
-      const ws = new WS('ws://127.0.0.1:4791/ws', { headers: authHeaders() });
+      const ws = new WS(`${at}/ws`, { headers: authHeaders() });
       ws.on('open', () => ws.send(JSON.stringify({ type: 'shell-run', id: 'e', cmd: 'env' })));
       ws.on('message', (d) => { const e = JSON.parse(String(d)); if (e.kind === 'shell-end') { ws.close(); resolve(String(e.output)); } });
       setTimeout(() => resolve('timeout'), 8000).unref();

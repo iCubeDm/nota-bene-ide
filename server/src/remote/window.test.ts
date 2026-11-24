@@ -5,7 +5,7 @@ import type { RemoteState, ServerEvent } from '@nota-bene/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { fakeBackend } from '../agent/fake.ts';
-import { startServer } from '../server.ts';
+import { agentServer } from '../testing.ts';
 import { RemoteKeeper } from './keeper.ts';
 
 let home: string;
@@ -26,7 +26,7 @@ afterEach(async () => {
 });
 
 async function boot(remote?: RemoteKeeper) {
-  const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false, ...(remote ? { remote } : {}) });
+  const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false, ...(remote ? { remote } : {}) });
   closers.push(s.close);
   return s;
 }

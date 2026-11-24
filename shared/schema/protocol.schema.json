@@ -881,7 +881,7 @@
       "description": "One window as the host stream lists it. `port`, `provider` and `root` are always there; every other field may be missing (the host could not read the window's /info that time, or an older host).",
       "properties": {
         "agent": {
-          "description": "Epic 383: one of the server's other agents (`HostStreamMessage.agents`), its streams under `/a/<agent>`. Absent for the server's first agent, which `windows` lists.",
+          "description": "Epic 383: the agent, its streams under `/a/<agent>`: a server's first in `windows` (issue 639), its others in `HostStreamMessage.agents`. Absent from an older host's `windows` (its first agent answered at the top).",
           "type": "string"
         },
         "busy": {
@@ -4010,6 +4010,7 @@
     "activity": 1,
     "agentBus": 34,
     "agentEvents": 5,
+    "agentPrefixes": 36,
     "attachmentAnchors": 17,
     "camera": 9,
     "commands": 10,
@@ -4043,5 +4044,5 @@
     "voiceDetect": 18,
     "wholePicture": 25
   },
-  "x-protocol": 35
+  "x-protocol": 36
 }

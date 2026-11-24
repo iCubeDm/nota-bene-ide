@@ -44,8 +44,8 @@ export type HostWindow = {
   /** the version (a hash) of the picture of the window's project folder; null when it has none */
   icon?: string | null;
   /**
-   * Epic 383: one of the server's other agents (`HostStreamMessage.agents`), its streams under `/a/<agent>`. Absent for
-   * the server's first agent, which `windows` lists.
+   * Epic 383: the agent, its streams under `/a/<agent>`: a server's first in `windows` (issue 639), its others in
+   * `HostStreamMessage.agents`. Absent from an older host's `windows` (its first agent answered at the top).
    */
   agent?: string;
   /** epic 383 2g: a helper's lead (an agent id of the same server; the window's own when no row has it as `agent`) */

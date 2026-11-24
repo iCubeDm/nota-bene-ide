@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import type { PromptEntry, ServerEvent } from '@nota-bene/shared';
 import { fakeBackend } from './agent/fake.ts';
-import { startServer } from './server.ts';
+import { agentServer } from './testing.ts';
 
 let home: string;
 let dist: string;
@@ -26,7 +26,7 @@ afterEach(async () => {
 });
 
 async function boot(extra: { resume?: string; fork?: boolean } = {}) {
-  const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }, { text: 'again' }]), webDist: dist, oneTab: false, ...extra });
+  const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }, { text: 'again' }]), webDist: dist, oneTab: false, ...extra });
   closers.push(s.close);
   return s;
 }
@@ -47,8 +47,8 @@ async function until(cond: () => boolean, ms = 2000): Promise<void> {
   }
 }
 const results = (c: Client) => c.events.filter((e) => e.kind === 'agent' && e.e.t === 'turn-end').length;
-const post = (s: { url: string }, body: unknown) =>
-  fetch(`${s.url}/prompts`, { method: 'POST', headers: { 'content-type': 'application/json', origin: s.url }, body: JSON.stringify(body) });
+const post = (s: { url: string; server: string }, body: unknown) =>
+  fetch(`${s.url}/prompts`, { method: 'POST', headers: { 'content-type': 'application/json', origin: s.server }, body: JSON.stringify(body) });
 const list = async (s: { url: string }) => (await (await fetch(`${s.url}/prompts`)).json()) as { session: string | null; prompts: PromptEntry[] };
 const onDisk = (id: string) => path.join(home, 'prompts', `${id}.jsonl`);
 

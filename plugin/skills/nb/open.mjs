@@ -7,24 +7,24 @@
 //     2. the npm package nota-bene-ide@<plugin version> installed under DIR/<version>/ (one install per version, about 330 MB
 //        each, not pruned yet; npm install --prefix DIR/<version>, done on the first run, never in the --plan preprocessing).
 //        Needs Node >= 22. The version is the plugin's (.claude-plugin/plugin.json); a plugin update therefore reinstalls.
-//   no arguments — a window already open on the folder is just brought to front; otherwise the folder opens, resuming its
+//   no arguments — the folder's agent already open is just brought to front; otherwise the folder opens, resuming its
 //                  last window session (if its transcript still exists), else starting one
 //   new          — always a new session
 //   fork         — carry the calling terminal conversation over: the window resumes it as a fork (new session id),
 //                  so the terminal and the window never append to one transcript
 // The folder opens as an agent of the running Nota Bene server, or in a server the launcher starts (`--detach`, epic 383):
 // either way it outlives this Claude Code session; nothing runs as its background task.
-// --plan (what the skill runs) launches nothing: after the same guards and the same "already open" check it prints
+// --plan (what the skill runs) launches nothing: after the same guards it prints
 //   NB-RUN: <this script without --plan>     the skill runs it in the foreground; it prints one NB: line
 //   NB-NOTE: <text>                           on a first install only: the run installs the package first (minutes)
-// or one NB: line (an error, a refusal, "already open"). The command is read back by Claude Code's Bash tool, which is bash
+// or one NB: line (an error, a refusal). The command is read back by Claude Code's Bash tool, which is bash
 // (Git Bash on Windows), and is built by q(): a word of safe characters stays as it is, anything else (spaces, quotes, $,
 // parentheses, non-ASCII) is single-quoted, so bash and zsh read each back exactly and Claude Code accepts the text (it refuses
 // backslash-escaped spaces and $'\320...' escapes). Paths in it use forward slashes on Windows too (C:/Users/...), which
 // node and bash both take and the allowed-tools patterns match.
 // The URL this script prints for the skill is the plain one, with no login: the skill's output enters the Claude Code transcript
 // and goes to the API. A browser logs in through the launcher, which opens a page in the state dir that redirects with the login
-// (a new folder: the launcher itself; an open one: --front). A second browser can use `nota-bene --url PORT` in a terminal.
+// (the launcher itself, for a new agent and an open one). A second browser can use `nota-bene --url PORT` in a terminal.
 // The launcher is bin/nota-bene.mjs (--find / --last / --detach). Its launch lock keeps one server, so two /nb at once end with
 // one agent for the folder; this script finds, words and relays. It ships alone in the plugin (no package.json, no imports
 // beyond Node's own) and parses on old Node versions, so the floor check below can say what is wrong.
@@ -301,17 +301,11 @@ async function main(argv) {
     exit(0);
   };
 
-  // a window already serving this folder: the registry (verified by /info, stale entries pruned), or any port of the range whose
-  // /info has this root (a lost registry write; 4780 is the dev server, never a window). The launcher asks, logged in with the
-  // port's credential: /info wants one, and a bare curl would have to put the token on a command line.
+  // a refused secret file is said at once, in --plan too. A window already serving the folder is not fronted here: a
+  // server that serves it may have no agent of it left (issue 642), so the launcher below asks it for the folder's agent
   if (!FIRST_RUN) {
     const r = find(DIR, ['--scan']);
     if (r.rc === 3) { relayErr(r.err); exit(PLAN ? 0 : 1); }
-    if (r.rc === 0 && r.port) {
-      // bring it to front through the launcher (it opens its login page; it exits non-zero when no browser could be opened)
-      if (spawnSync(process.execPath, [BIN, '--front', r.port], { stdio: 'ignore', windowsHide: true }).status === 0) FRONTED = true;
-      already(`http://127.0.0.1:${r.port}`);
-    }
   }
 
   const ARGS = ['--detach', '--agent', 'claude']; // explicit: a launcher never picks another agent for /nb

@@ -36,7 +36,7 @@ import { AGENT_ID, agentContext, envAgentContext, forgetSession, launchAgentId, 
 import { AuditLog } from './audit.ts';
 import { moveWindow, readKeptAgents, writeKeptAgents } from './windows.ts';
 import { pidAlive, samePath } from './platform.ts';
-import { controlToken, describeVersion, listWindows, readJson, systemRoutes } from './system.ts';
+import { controlRoute, controlToken, describeVersion, listWindows, readJson, systemRoutes } from './system.ts';
 import { overlapWatch } from './overlap.ts';
 import { agentBus, HELPER_IDLE_MS, type BusAgent } from './bus.ts';
 import { RESTART, restartGate } from './restartGate.ts';
@@ -175,9 +175,8 @@ type Shared = {
   requestRestart: () => boolean;
   exiting: () => boolean;
   exitWith: (code: number) => void;
-  /** the window's agent's id, and every agent's (their /info lists them: the switcher's rows, projects.ts) */
-  primaryId: string;
-  agents: () => { id: string; provider: AgentProvider }[];
+  /** every agent (their /info and home's list them: the switcher's rows, projects.ts) */
+  agents: () => { id: string; provider: AgentProvider; root: string }[];
   /** some agent but this one is not in a pause */
   othersBusy: (id: string) => boolean;
   /** epic 383 2e: the agents' edits and turns, for the warning when two edit one file at once */
@@ -189,7 +188,7 @@ type Shared = {
   spawnHelper: (lead: BusAgent, provider: string, cwd: string) => Promise<BusAgent>;
   /** an agent's lead changed (Keep): the kept agents are written again */
   leadChanged: () => void;
-  /** POST /a/<id>/control/close, set once the server is up: 200, or 409 for the window's own agent */
+  /** POST /a/<id>/control/close, set once the server is up: 200, or 409 for the server's last agent */
   closeAgent: (id: string) => number;
   /** POST /control/open, set once the server is up */
   controlOpen: (body: unknown) => Promise<{ status: number; body: unknown }>;
@@ -512,7 +511,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
         ...dictationRoutes({ hub }),
         ...cutRoutes({ hub, exporter: cutExporter, peaks: cutPeaks, reverse: cutReverse, root }),
         ...remoteRoutes({ hub, keeper: o.remote }),
-        ...projectRoutes({ hub, port: () => s.port(), provider: agent.provider, ...(a.id === s.primaryId ? {} : { agent: a.id }), repoDir, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
+        ...projectRoutes({ hub, port: () => s.port(), provider: agent.provider, agent: a.id, repoDir, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
         ...systemRoutes({
           updater: win, newer,
           hub, root, stateDir: agent.stateDir, modes: a.backend.capabilities.modes, port: () => s.port(), repoDir,
@@ -1092,8 +1091,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       port: () => ownPort, projectIcons, supervised, codeChanged, repoDir, newer, win, restart, requestRestart, exiting: () => exiting, exitWith,
       controlOpen: async () => ({ status: 503, body: 'starting' }),
       closeAgent: () => 409,
-      primaryId: launchAgentId(agent.provider, nonce),
-      agents: () => [...agents.values()].map((x) => ({ id: x.id, provider: x.provider })),
+      agents: () => [...agents.values()].map((x) => ({ id: x.id, provider: x.provider, root: x.root() })),
       othersBusy: (id) => [...agents.values()].some((x) => x.id !== id && x.notPaused()),
       // each of the two feeds names the file (in its own folder's terms) and the other agent
       // the bus stays inside a project: the agents on the caller's folder and on the other worktrees of its repository
@@ -1124,17 +1122,65 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
         },
       }),
     };
-    // the first agent: the window's, addressed as /a/<id>/ and at the top (the phone and older pages)
-    const primary = await startAgent(s, {
-      agent, id: s.primaryId, cwd: o.cwd, backend: o.backend,
+    // issue 639: the server's project folder, which its home answers with (the registry's root, the launcher's "already
+    // open"): the launch's, then wherever the agent it came from switches while no other agent is left on it
+    let folder = o.cwd;
+    const roots = new Map<string, string>(); // each agent's folder at its last look, for that move
+    /** keeps the agents in `<port>.agents.json` (o.keep), for a relaunch of the same launch; set once the port is known */
+    let keep = () => {};
+    /** an agent the server starts or reopens joins it: its folder, its session and the kept list follow it */
+    const adopt = (a: Agent) => {
+      agents.set(a.id, a);
+      roots.set(a.id, a.root());
+      a.onSwitch((same) => {
+        const was = roots.get(a.id);
+        roots.set(a.id, a.root());
+        if (same) return;
+        keep();
+        if (was !== folder || samePath(a.root(), folder) || [...agents.values()].some((x) => x !== a && samePath(x.root(), folder))) return;
+        folder = a.root();
+        if (!supervised()) return;
+        try {
+          moveWindow(ownPort, folder, process.pid, process.ppid); // keeps the release it runs: prune must not remove it
+        } catch (e) {
+          reportError(a.hub, 'windows', e);
+        }
+      });
+      a.onSessionId(keep); // its own session comes back with it (two agents may share a folder)
+    };
+    // a relaunch of the same launch reopens the agents it had (below), each resuming its own session; a fresh one starts with
+    // the launch's agent, an ordinary one under /a/<id>/ (issue 639)
+    const kept = o.keep && o.port ? readKeptAgents(o.port) : null;
+    const reopen = kept && o.backends && ((o.keep!.launcherPid !== undefined && kept.launcherPid === o.keep!.launcherPid) || kept.nonce === nonce) ? kept.agents : [];
+    const launchAgent = async () => adopt(await startAgent(s, {
+      agent, id: launchAgentId(agent.provider, nonce), cwd: o.cwd, backend: o.backend,
       ...(o.resume ? { resume: o.resume } : {}), ...(o.fork ? { fork: true } : {}),
       ...(o.onStats ? { onStats: o.onStats } : {}), ...(o.onLimit ? { onLimit: o.onLimit } : {}),
+    }));
+    if (!reopen.length) await launchAgent();
+    // issue 639: what has no agent prefix is the server's own: the app shell, the login, its folder and agents, /control/*
+    const homeHub = new EventHub();
+    const home = httpHandler({
+      hub: homeHub, open: s.open, ...(authorize ? { authorize } : {}), allowedHosts, allowedOrigins, webDist: o.webDist, controlToken: () => control,
+      info: () => ({ root: folder, agents: s.agents(), supervised: supervised(), codeChanged: codeChanged(), busy: notPaused(), restartPending: restart.pending(), clients: sum((a) => a.hub.clients()) }),
+      extra: {
+        '/control/': controlRoute({
+          hub: homeHub,
+          control: {
+            supervised, exiting: () => exiting,
+            restartServer: () => { if (requestRestart()) exitWith(RESTART); },
+            restartServerNow: () => exitWith(RESTART),
+            cancelRestart: () => void restart.cancel(),
+            stop: () => exitWith(0), // the launcher treats 0 as "stop" and unregisters the window
+            open: (b) => s.controlOpen(b),
+          },
+        }),
+      },
     });
-    agents.set(primary.id, primary);
-    /** the request's agent, its prefix taken off `req.url`; undefined: no such agent */
-    const agentOf = (req: http.IncomingMessage): Agent | undefined => {
+    /** the request's agent, its prefix taken off `req.url`; null: no prefix (home's), undefined: no such agent */
+    const agentOf = (req: http.IncomingMessage): Agent | null | undefined => {
       const p = agentPrefix(req.url ?? '/');
-      if (!p) return primary;
+      if (!p) return null;
       const found = agents.get(p.id);
       if (found) req.url = p.rest;
       return found;
@@ -1144,6 +1190,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     const reopened = (req: http.IncomingMessage) => reopening.get(agentPrefix(req.url ?? '/')?.id ?? '');
     const server = http.createServer(function serve(req, res) {
       const found = agentOf(req);
+      if (found === null) return home(req, res);
       // the agent bus (epic 383 2f): its own bearer, from this computer only; the page's auth tiers do not apply
       if (found && pathOf(req.url ?? '/') === '/mcp') {
         if (!isAllowedHost(req.headers.host, allowedHosts) || !LOOPBACK.has(req.socket.remoteAddress ?? '')) {
@@ -1185,34 +1232,26 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
         });
       });
     } catch (e) {
-      void primary.close(); // not awaited: the launcher waits for this exit (98), not for the backend's close
+      for (const a of agents.values()) void a.close(); // not awaited: the launcher waits for this exit (98), not for the backend's close
       throw e; // syscall 'listen': main exits with 98, the launcher's "port taken" code
     }
 
     // a listening server's own errors (a socket error before any request) are reported, never thrown out of its emit
     server.on('error', (e) => report('server', e));
     const port = (server.address() as AddressInfo).port;
+    const only = () => (agents.size === 1 ? [...agents.values()][0] : undefined); // fold: a window alone in its server
     const stopFold = o.fold ? startFold({
       port, everyMs: o.fold.everyMs,
-      quiet: () => agents.size === 1 && primary.hub.clients() === 0 && !primary.notPaused() && !restart.pending(),
-      what: () => { const id = primary.session(); return { root: primary.root(), provider: primary.provider, ...(id ? { session: id } : {}) }; },
+      quiet: () => agents.size === 1 && only()!.hub.clients() === 0 && !only()!.notPaused() && !restart.pending(),
+      what: () => { const a = only()!; const id = a.session(); return { root: a.root(), provider: a.provider, ...(id ? { session: id } : {}) }; },
       attach: attachAgent,
       stop: () => { audit?.write('fold'); exitWith(0); }, // as Stop: the launcher unregisters the window
     }) : () => {};
     ownPort = port;
     if (audit) {
       audit.port = port;
-      audit.write('server-start', { root: primary.root(), agent: agent.provider, node: process.version, supervised: supervised() });
+      audit.write('server-start', { root: folder, agent: agent.provider, node: process.version, supervised: supervised() });
     }
-    // a supervised window keeps its registry entry's root current, so a relaunch reopens the folder it switched to
-    primary.onSwitch((same) => {
-      if (same || !supervised()) return;
-      try {
-        moveWindow(port, primary.root(), process.pid, process.ppid); // keeps the release it runs: prune must not remove it
-      } catch (e) {
-        reportError(primary.hub, 'windows', e);
-      }
-    });
     // never `localhost`: that host name is the desktop proxies' (remote/proxy.ts), and cookies are scoped by host only
     allowedHosts.push(`127.0.0.1:${port}`);
     allowedOrigins.push(`http://127.0.0.1:${port}`);
@@ -1250,21 +1289,20 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
         server.closeAllConnections();
       })]);
     })());
-    /** another agent (epic 383): its own id, minted, under `/a/<id>/` only */
-    /** the extra agents into `<port>.agents.json` (o.keep) */
-    const keep = () => {
+    keep = () => {
       if (!o.keep) return;
       try {
-        const extra = [...agents.values()].filter((a) => a !== primary).map((a) => {
+        const all = [...agents.values()].map((a) => {
           const session = a.session();
           const lead = a.lead();
           return { id: a.id, provider: a.provider, root: a.root(), ...(session ? { session } : {}), ...(lead ? { lead } : {}) };
         });
-        writeKeptAgents(port, { ...(o.keep.launcherPid !== undefined ? { launcherPid: o.keep.launcherPid } : {}), nonce, agents: extra });
+        writeKeptAgents(port, { ...(o.keep.launcherPid !== undefined ? { launcherPid: o.keep.launcherPid } : {}), nonce, agents: all });
       } catch (e) {
-        reportError(primary.hub, 'windows', e);
+        report('windows', e);
       }
     };
+    /** another agent (epic 383): its own id, minted, under `/a/<id>/` only */
     const openAgent = async (x: { provider: AgentProvider; cwd: string; backend: AgentBackend; resume?: string; fork?: boolean; id?: string; lead?: string }): Promise<string> => {
       if (closing || exiting) throw new Error('the server is stopping');
       if (x.id !== undefined && agents.has(x.id)) throw new Error(`agent ${x.id} is open already`);
@@ -1275,9 +1313,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
         await added.close(); // the close has already gone through the map: this one would outlive it
         throw new Error('the server is stopping');
       }
-      agents.set(id, added);
-      added.onSwitch((same) => { if (!same) keep(); });
-      added.onSessionId(keep); // its own session comes back with it (two agents may share a folder)
+      adopt(added);
       keep();
       return id;
     };
@@ -1317,10 +1353,11 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       tab.show(a.id);
       return { shown: true };
     };
-    // an agent beside the window's closes alone (the switcher's Close project); its session stays, its folder under Recent
+    // an agent closes alone (the switcher's Close project, its tab's ✕); its session stays, its folder under Recent. Not the
+    // server's last one, with its helpers (issue 639: the empty project comes in its next step)
     s.closeAgent = (id) => {
       const a = agents.get(id);
-      if (!a || a === primary) return 409;
+      if (!a || [...agents.values()].every((x) => x === a || x.lead() === id)) return 409;
       agents.delete(id);
       s.overlap.forget(id);
       s.bus.forget(id);
@@ -1349,11 +1386,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       for (const h of [...agents.values()]) if (h.lead() && !h.bus.busy() && Date.now() - h.activeAt() >= (o.helperIdleMs ?? HELPER_IDLE_MS)) s.closeAgent(h.id);
     }, Math.min(60_000, o.helperIdleMs ?? HELPER_IDLE_MS));
     folding.unref();
-    // a relaunch of the same launch: the agents it had, each resuming its folder's last session; a fresh one starts with none
-    const kept = o.keep ? readKeptAgents(port) : null;
-    const same = kept && ((o.keep!.launcherPid !== undefined && kept.launcherPid === o.keep!.launcherPid) || kept.nonce === nonce);
     const backends = o.backends;
-    const reopen = same && backends ? kept.agents : [];
     const settled = new Map(reopen.map((k) => [k.id, Promise.withResolvers<void>()]));
     for (const [id, p] of settled) reopening.set(id, p.promise);
     for (const k of reopen) {
@@ -1364,12 +1397,13 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
         const target = launchTarget({ dir: k.root, ...(k.session ? { resume: k.session } : {}), native: provider !== 'claude' }, agentContext(provider).stateDir);
         await openAgent({ provider, cwd: k.root, backend: backends!(provider), id: k.id, ...(k.lead ? { lead: k.lead } : {}), ...target });
       } catch (e) {
-        reportError(primary.hub, 'agents', e); // that one is dropped: its folder is gone, or its backend would not start
+        report('agents', e); // that one is dropped: its folder is gone, or its backend would not start
       } finally {
         reopening.delete(k.id);
         settled.get(k.id)!.resolve();
       }
     }
+    if (!agents.size) await launchAgent(); // none came back: the launch's own, as a fresh launch
     keep();
     return { url: `http://127.0.0.1:${port}`, close: () => close!(), open: openAgent };
   } catch (e) {

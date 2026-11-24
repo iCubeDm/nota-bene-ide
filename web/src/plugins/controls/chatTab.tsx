@@ -1,5 +1,6 @@
 import { useState, type Ref } from 'react';
 import { selectSession, toast, useAppSelector, useT, type TabView, renameSession } from '@/sdk';
+import { AgentIcon, ICONS, Svg } from '@/sdk/ui';
 import { SessionPicker } from './SessionPicker.tsx';
 
 /** The session's title being edited. Enter saves, Esc or a click elsewhere cancels; a failed save stays open. */
@@ -36,10 +37,17 @@ function RenameInput({ ref, done }: { ref: Ref<HTMLInputElement>; done: (back: b
   );
 }
 
-/** The chat's tab: the session's title, its sessions menu, and a rename of the session from the tab's menu. */
+/** The chat's icon: its agent's vendor mark (issue 644), the chat's own icon until the hello names the agent. */
+function ChatIcon() {
+  const caps = useAppSelector((s) => s.controls.capabilities);
+  return caps ? <AgentIcon provider={caps.provider ?? 'claude'} /> : <Svg>{ICONS.chat}</Svg>; // Claude's capabilities name none
+}
+
+/** The chat's tab: its agent's mark, the session's title, its sessions menu, and a rename of the session from the tab's menu. */
 export const chatTab: TabView<'chat'> = {
   kind: 'chat',
   label: (_tab, t, s) => selectSession(s)?.title || t('chat'),
+  Icon: ChatIcon,
   Extra: () => <SessionPicker />,
   edit: { when: (s) => !!selectSession(s)?.id, label: 'renameSess', Input: ({ ref, done }) => <RenameInput ref={ref} done={done} /> },
 };

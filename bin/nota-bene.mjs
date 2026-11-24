@@ -1185,29 +1185,24 @@ export async function main(argv) {
   try {
     if (!locked) {
       const port = await servingWindow(o.dir);
-      if (port !== undefined) {
-        const url = `http://127.0.0.1:${port}`;
-        // a tab of that server on another of its agents moves back to this one (epic 383); else the browser brings it to front
-        const hit = o.open && o.port === undefined && !o.new && !o.resume
-          ? await attachAgent({ root: o.dir, provider: o.agent ?? 'claude', mode: 'resume', port }).catch(() => null) : null;
-        if (hit?.shown) {
-          process.stdout.write(o.detach ? `already-open ${hit.url}\n` : `nota-bene: already open at ${url} (in the open tab)\n`);
-          return 0;
-        }
-        if (o.open) await openBrowser(url); // bring it to front
-        process.stdout.write(o.detach ? `already-open ${(await loginTarget(url)) ?? url}\n` : `nota-bene: already open at ${url}\n`);
-        return 0;
-      }
-      // a running server opens the folder as one of its agents; an explicit --port asks for a server of its own there
-      if (o.port === undefined) {
+      // a running server opens the folder as one of its agents: the one it has, or a new one. The server serving the folder
+      // is asked too: its agent there may have been closed (issue 642). An explicit --port asks for a server of its own.
+      if (port !== undefined || o.port === undefined) {
         let hit;
         try {
-          hit = await attachAgent({ root: o.dir, provider: o.agent ?? 'claude', mode: o.new ? 'new' : 'resume', ...(o.open ? {} : { show: false }), ...(o.resume ? { session: o.resume, fork: o.fork } : {}) });
+          hit = await attachAgent({ root: o.dir, provider: o.agent ?? 'claude', mode: o.new ? 'new' : 'resume', ...(port === undefined ? {} : { port }), ...(o.open ? {} : { show: false }), ...(o.resume ? { session: o.resume, fork: o.fork } : {}) });
         } catch (e) {
           say(`the running server refused the folder: ${e.message}`);
           return 1;
         }
         if (hit) return await attached(o, hit);
+      }
+      // a window that opens no agents (an older version, or one missing from the registry) comes to front
+      if (port !== undefined) {
+        const url = `http://127.0.0.1:${port}`;
+        if (o.open) await openBrowser(url);
+        process.stdout.write(o.detach ? `already-open ${(await loginTarget(url)) ?? url}\n` : `nota-bene: already open at ${url}\n`);
+        return 0;
       }
     }
     return await launch(o, argv, buildOutput, release);

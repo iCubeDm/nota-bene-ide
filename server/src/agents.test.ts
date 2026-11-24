@@ -9,8 +9,8 @@ import { startServer } from './server.ts';
 import { CONTROL_HEADER, controlToken } from './system.ts';
 import { readKeptAgents } from './windows.ts';
 
-// Several agents in one server (epic 383, step 2c): each its own folder, session, socket and one-tab rule; the top is the
-// first one's, as a window's is today.
+// Several agents in one server (epic 383, step 2c): each its own folder, session, socket and one-tab rule, under /a/<id>/;
+// the top is the server's home (issue 639).
 
 // a reopen that takes a while, as a real agent's does (its session's history): the session manager comes late when set
 const slow = vi.hoisted(() => ({ ms: 0 }));
@@ -57,8 +57,13 @@ async function socket(url: string, query = ''): Promise<{ ws: WebSocket; events:
 }
 
 const json = async (url: string) => (await fetch(url)).json() as Promise<{ agent: string; root: string }>;
+/** the server's first agent (issue 639: home lists it, its page is under /a/<id>/) */
+const firstAgent = async (url: string) => {
+  const agent = ((await (await fetch(`${url}/info`)).json()) as { agents: { id: string }[] }).agents[0]!.id;
+  return { agent, url: `${url}/a/${agent}` };
+};
 
-it('a second agent has its own folder, socket, session and tab; the top stays the first one\'s', async () => {
+it('a second agent has its own folder, socket, session and tab', async () => {
   const one = fakeBackend([{ text: 'from a' }]);
   const two = fakeBackend([{ text: 'from b' }]);
   let closedTwo = false;
@@ -68,14 +73,13 @@ it('a second agent has its own folder, socket, session and tab; the top stays th
   const b = await s.open({ provider: 'codex', cwd: path.join(tmp, 'b'), backend: two });
   expect(b).toMatch(/^codex-[a-z2-7]{6}$/);
 
-  const top = await json(`${s.url}/info`);
-  expect(top.root).toBe(path.join(tmp, 'a'));
+  const top = await firstAgent(s.url);
   expect(await json(`${s.url}/a/${top.agent}/info`)).toMatchObject({ agent: top.agent, root: path.join(tmp, 'a') });
   expect(await json(`${s.url}/a/${b}/info`)).toMatchObject({ agent: b, root: path.join(tmp, 'b') });
   expect((await fetch(`${s.url}/a/codex-aaaaaa/info`)).status).toBe(404);
 
   // one tab per agent: a socket on each is the owner of its own
-  const sa = await socket(s.url);
+  const sa = await socket(top.url);
   const sb = await socket(`${s.url}/a/${b}`);
   expect(sa.events.map((e) => e.kind)).not.toContain('occupied');
   expect(sb.events.map((e) => e.kind)).not.toContain('occupied');
@@ -107,8 +111,8 @@ it('two agents of one folder edit one file in overlapping turns: a warning in ea
   const s = await startServer({ insecureNoAuth: true, cwd: a, port: 0, backend: fakeBackend([turn]), webDist: path.join(tmp, 'dist') });
   closers.push(s.close);
   const b = await s.open({ provider: 'codex', cwd: a, backend: fakeBackend([turn]) });
-  const top = await json(`${s.url}/info`);
-  const sa = await socket(s.url);
+  const top = await firstAgent(s.url);
+  const sa = await socket(top.url);
   const sb = await socket(`${s.url}/a/${b}`);
   sa.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'edit x' }));
   sb.ws.send(JSON.stringify({ type: 'send', id: 'u2', text: 'edit x too' }));
@@ -124,7 +128,7 @@ it('the agent bus: an agent asks another of its folder at /a/<id>/mcp; the targe
   const two = fakeBackend([{ text: 'looks fine' }]);
   const b = await s.open({ provider: 'codex', cwd: a, backend: two });
   const far = await s.open({ provider: 'omp', cwd: path.join(tmp, 'b'), backend: fakeBackend([]) });
-  const top = await json(`${s.url}/info`);
+  const top = await firstAgent(s.url);
   const sb = await socket(`${s.url}/a/${b}`);
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
   const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js');
@@ -210,7 +214,7 @@ it('/control/open: an agent for a folder and provider, the one already open, or 
   expect(await json(`${s.url}/a/${id}/info`)).toMatchObject({ root: b });
   expect((await open({ root: b, provider: 'codex' })).body).toEqual({ agent: id, opened: false });
   // the window's own agent is one of them (provider: claude when none is named)
-  const top = await json(`${s.url}/info`);
+  const top = await firstAgent(s.url);
   expect((await open({ root: a })).body).toEqual({ agent: top.agent, opened: false });
   const again = await open({ root: b, provider: 'codex', mode: 'new' });
   expect(again).toMatchObject({ status: 200, body: { opened: true } });
@@ -234,16 +238,16 @@ it('/control/open moves the tab that follows (go=1) to the agent, the last one a
   const s = await startServer({ insecureNoAuth: true, cwd: a, port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'), backends: () => fakeBackend([]) });
   closers.push(s.close);
   const open = async (body: unknown) => (await fetch(`${s.url}/control/open`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() }, body: JSON.stringify(body) })).json() as Promise<{ agent: string; opened: boolean; shown?: true }>;
-  const top = await json(`${s.url}/info`);
+  const top = await firstAgent(s.url);
   // no tab: the launcher opens the browser
   const first = await open({ root: b, provider: 'codex' });
   expect(first.shown).toBeUndefined();
   // a phone (no go=1) is not moved
-  const phone = await socket(s.url);
+  const phone = await socket(top.url);
   expect((await open({ root: b, provider: 'codex' })).shown).toBeUndefined();
   phone.ws.close();
   await until(() => phone.ws.readyState === WebSocket.CLOSED);
-  const tab = await socket(s.url, '?tab=t1&go=1');
+  const tab = await socket(top.url, '?tab=t1&go=1');
   expect(await open({ root: b, provider: 'codex' })).toEqual({ agent: first.agent, opened: false, shown: true });
   await until(() => tab.events.some((e) => e.kind === 'open-agent'));
   expect(tab.events.filter((e) => e.kind === 'open-agent')).toEqual([{ kind: 'open-agent', agent: first.agent }]);
@@ -263,7 +267,7 @@ it('/control/open with show: false moves no tab; an agent another device owns is
   const s = await startServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'), backends: () => fakeBackend([]) });
   closers.push(s.close);
   const open = async (body: unknown) => (await fetch(`${s.url}/control/open`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() }, body: JSON.stringify(body) })).json() as Promise<{ agent: string; shown?: true }>;
-  const tab = await socket(s.url, '?tab=t1&go=1');
+  const tab = await socket((await firstAgent(s.url)).url, '?tab=t1&go=1');
   const first = await open({ root: b, provider: 'codex', show: false });
   expect(first.shown).toBeUndefined();
   await socket(`${s.url}/a/${first.agent}`); // the phone holds it
@@ -272,32 +276,47 @@ it('/control/open with show: false moves no tab; an agent another device owns is
   expect(tab.events.some((e) => e.kind === 'open-agent')).toBe(false);
 });
 
-it('/a/<id>/control/close closes that agent alone; the window\'s own is not closed so', async () => {
-  let closedB = false;
-  const two = fakeBackend([]);
-  two.close = async () => { closedB = true; };
+it('issue 639: the top is the server\'s home (its folder and agents); every agent is under /a/<id>/ only', async () => {
+  const s = await startServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist') });
+  closers.push(s.close);
+  const b = await s.open({ provider: 'codex', cwd: path.join(tmp, 'b'), backend: fakeBackend([]) });
+  const top = (await (await fetch(`${s.url}/info`)).json()) as { root: string; agent?: string; agents: { id: string; provider: string; root: string }[] };
+  expect(top.root).toBe(path.join(tmp, 'a'));
+  expect(top.agent).toBeUndefined();
+  const first = top.agents[0]!.id;
+  expect(top.agents).toEqual([{ id: first, provider: 'claude', root: path.join(tmp, 'a') }, { id: b, provider: 'codex', root: path.join(tmp, 'b') }]);
+  expect(await json(`${s.url}/a/${first}/info`)).toMatchObject({ agent: first, root: path.join(tmp, 'a') });
+  expect((await fetch(`${s.url}/`)).status).toBe(200); // the app shell
+  expect(await (await fetch(`${s.url}/sessions`)).text()).toBe('<h1>x</h1>'); // the shell, not an agent's sessions
+  await expect(socket(s.url)).rejects.toThrow(/404/);
+  await socket(`${s.url}/a/${first}`);
+});
+
+it('issue 639: /a/<id>/control/close closes any agent, the first one too, but not the server\'s last; the folder stays', async () => {
+  let closedA = false;
+  const one = fakeBackend([]);
+  one.close = async () => { closedA = true; };
   const s = await startServer({
-    insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'),
+    insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, backend: one, webDist: path.join(tmp, 'dist'),
     nonce: 'c'.repeat(32), keep: { launcherPid: 111 },
   });
   closers.push(s.close);
   const port = Number(new URL(s.url).port);
-  const b = await s.open({ provider: 'codex', cwd: path.join(tmp, 'b'), backend: two });
+  const b = await s.open({ provider: 'codex', cwd: path.join(tmp, 'b'), backend: fakeBackend([]) });
   const close = (base: string) => fetch(`${s.url}${base}/control/close`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() } });
-  const top = await json(`${s.url}/info`);
-  expect((await close('')).status).toBe(409);
-  expect((await close(`/a/${top.agent}`)).status).toBe(409);
-  expect((await close(`/a/${b}`)).status).toBe(200);
-  await until(() => closedB);
-  expect((await fetch(`${s.url}/a/${b}/info`)).status).toBe(404);
-  expect(readKeptAgents(port)?.agents).toEqual([]);
-  expect((await json(`${s.url}/info`)).root).toBe(path.join(tmp, 'a'));
+  const first = ((await (await fetch(`${s.url}/info`)).json()) as { agents: { id: string }[] }).agents[0]!.id;
+  expect((await close('')).status).toBe(404);
+  expect((await close(`/a/${first}`)).status).toBe(200);
+  await until(() => closedA);
+  expect((await fetch(`${s.url}/a/${first}/info`)).status).toBe(404);
+  expect(readKeptAgents(port)?.agents.map((k) => k.id)).toEqual([b]);
+  expect(await (await fetch(`${s.url}/info`)).json()).toMatchObject({ root: path.join(tmp, 'a'), agents: [{ id: b }] });
+  expect((await close(`/a/${b}`)).status).toBe(409);
   // only with the control token, never from a page
-  const b2 = await s.open({ provider: 'codex', cwd: path.join(tmp, 'b'), backend: fakeBackend([]) });
-  expect((await fetch(`${s.url}/a/${b2}/control/close`, { method: 'POST', headers: { origin: s.url } })).status).toBe(403);
+  expect((await fetch(`${s.url}/a/${b}/control/close`, { method: 'POST', headers: { origin: s.url } })).status).toBe(403);
 });
 
-describe('kept agents (2c-2): a relaunch of the same launch reopens the extra agents under their ids', () => {
+describe('kept agents (2c-2, issue 639): a relaunch of the same launch reopens every agent under its id, the first one too', () => {
   const N1 = 'a'.repeat(32);
   const N2 = 'b'.repeat(32);
   const start = (port: number, nonce: string, launcherPid: number) => startServer({
@@ -305,15 +324,17 @@ describe('kept agents (2c-2): a relaunch of the same launch reopens the extra ag
     nonce, keep: { launcherPid }, backends: () => fakeBackend([]),
   });
   const ids = async (url: string, id: string) => (await fetch(`${url}/a/${id}/info`)).status;
+  const agents = async (url: string) => ((await (await fetch(`${url}/info`)).json()) as { agents: { id: string }[] }).agents.map((a) => a.id);
 
   it.each([['restart or update (a new inner launcher): the same nonce', N1, 222], ['crash: the same launcher, a new nonce', N2, 111]] as const)('%s', async (_, nonce, pid) => {
     const s = await start(0, N1, 111);
     const port = Number(new URL(s.url).port);
     const b = await s.open({ provider: 'codex', cwd: path.join(tmp, 'b'), backend: fakeBackend([]) });
+    const [first] = await agents(s.url);
     await s.close();
     const again = await start(port, nonce, pid);
     closers.push(again.close);
-    expect(await ids(again.url, b)).toBe(200);
+    expect(await agents(again.url)).toEqual([first, b]); // the launch's own agent is the kept one, no second
     expect(await json(`${again.url}/a/${b}/info`)).toMatchObject({ root: path.join(tmp, 'b') });
   });
 
@@ -349,7 +370,7 @@ describe('kept agents (2c-2): a relaunch of the same launch reopens the extra ag
       nonce: N1, keep: { launcherPid: 111 }, backends: () => shared,
     });
     closers.push(again.close);
-    expect(shared.starts.map((x) => x.resume).sort()).toEqual([S1, S2]);
+    expect(shared.starts.map((x) => x.resume).filter(Boolean).sort()).toEqual([S1, S2]);
   });
 
   it('a kept agent whose folder is gone is dropped, not kept for good', async () => {
@@ -358,12 +379,13 @@ describe('kept agents (2c-2): a relaunch of the same launch reopens the extra ag
     const gone = path.join(tmp, 'gone');
     fs.mkdirSync(gone);
     const b = await s.open({ provider: 'codex', cwd: gone, backend: fakeBackend([]) });
+    const [first] = await agents(s.url);
     await s.close();
     fs.rmSync(gone, { recursive: true });
     const again = await start(port, N1, 111);
     closers.push(again.close);
     expect(await ids(again.url, b)).toBe(404);
-    expect(readKeptAgents(port)?.agents).toEqual([]);
+    expect(readKeptAgents(port)?.agents.map((k) => k.id)).toEqual([first]);
   });
 
   it('a fresh launch (another launcher and nonce) ignores them and starts with its own', async () => {
@@ -374,6 +396,6 @@ describe('kept agents (2c-2): a relaunch of the same launch reopens the extra ag
     const fresh = await start(port, N2, 222);
     closers.push(fresh.close);
     expect(await ids(fresh.url, b)).toBe(404);
-    expect(readKeptAgents(port)?.agents).toEqual([]);
+    expect(readKeptAgents(port)?.agents.map((k) => k.id)).toEqual(await agents(fresh.url));
   });
 });

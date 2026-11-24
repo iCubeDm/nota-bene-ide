@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fakeBackend } from '../agent/fake.ts';
-import { startServer } from '../server.ts';
+import { agentServer } from '../testing.ts';
 import { registerWindow } from '../windows.ts';
 import { Connector } from './connector.ts';
 import { controlClient } from './control.ts';
@@ -45,7 +45,7 @@ const until = async (cond: () => boolean, ms = 10_000) => {
 
 describe('remote end to end', () => {
   it('pairs, proxies, survives a relay restart, and logs nothing private', async () => {
-    const s = await startServer({ cwd: path.join(tmp, 'proj'), port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: path.join(tmp, 'dist'), exit: () => {} });
+    const s = await agentServer({ cwd: path.join(tmp, 'proj'), port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: path.join(tmp, 'dist'), exit: () => {} });
     closers.push(() => s.close());
     const port = Number(new URL(s.url).port);
     registerWindow(port, path.join(tmp, 'proj'), process.pid);
@@ -73,12 +73,12 @@ describe('remote end to end', () => {
     await until(() => host.lists.length > 0);
     expect(host.lists.at(-1)).toEqual([expect.objectContaining({ port, provider: 'claude', root: path.join(tmp, 'proj') })]);
 
-    const tab = p.phone.ws(port, '/ws?tab=phone1');
+    const tab = p.phone.ws(port, `/a/${s.agent}/ws?tab=phone1`);
     await until(() => tab.events.some((e) => e.kind === 'hello'));
 
     const info = await p.phone.http(port, 'GET', '/info');
     expect(info.status).toBe(200);
-    const part = await p.phone.http(port, 'GET', '/file?path=notes.md', { headers: { range: 'bytes=9-33' } });
+    const part = await p.phone.http(port, 'GET', `/a/${s.agent}/file?path=notes.md`, { headers: { range: 'bytes=9-33' } });
     expect(part.status).toBe(206);
     expect(part.body.toString()).toBe(MARKER);
 

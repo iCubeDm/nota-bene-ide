@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { fakeBackend } from './agent/fake.ts';
-import { startServer } from './server.ts';
+import { agentServer } from './testing.ts';
 
 let home: string;
 let dist: string;
@@ -26,7 +26,7 @@ afterEach(async () => {
 });
 
 async function boot(allowedOrigins?: string[]) {
-  const s = await startServer({ insecureNoAuth: true,
+  const s = await agentServer({ insecureNoAuth: true,
     cwd: '/proj', port: 0, backend: fakeBackend([]), webDist: dist,
     ...(allowedOrigins ? { allowedOrigins } : {}),
   });

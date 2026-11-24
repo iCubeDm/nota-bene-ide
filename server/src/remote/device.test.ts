@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeBackend } from '../agent/fake.ts';
+import { verifiedBearer } from '../auth.ts';
 import { startServer } from '../server.ts';
 import { CONTROL_HEADER, controlToken } from '../system.ts';
 import { HOST_WINDOW_INFO } from '@nota-bene/shared';
@@ -57,7 +58,9 @@ async function window(port = 0) {
     open = false;
   };
   closers.push(close);
-  return { port: p, close };
+  // its launch agent (issue 639: the top is the server's home; the phone opens an agent under its prefix)
+  const agent = ((await (await fetch(`${s.url}/info`, { headers: { authorization: (await verifiedBearer(p, 2000))! } })).json()) as { agents: { id: string }[] }).agents[0]!.id;
+  return { port: p, close, agent, at: `/a/${agent}` };
 }
 
 async function windows() {
@@ -194,12 +197,25 @@ describe('device channel', () => {
     const h = l.phone.host();
     await until(() => h.agents.some((x) => x.length > 0));
     const i = h.agents.findIndex((x) => x.length > 0);
-    expect(h.lists[i]).toEqual([expect.objectContaining({ port: a.port, root: path.join(tmp, 'proj') })]);
-    expect(h.lists[i]![0]).not.toHaveProperty('agent');
+    // the server by its first agent, under its prefix too (issue 639)
+    expect(h.lists[i]).toEqual([expect.objectContaining({ port: a.port, root: path.join(tmp, 'proj'), agent: a.agent })]);
     expect(h.agents[i]).toEqual([expect.objectContaining({ id: windowKey('claude', other), port: a.port, agent, provider: 'claude', root: other, replies: 0 })]);
     // its streams go under its prefix
     const info = await l.phone.http(a.port, 'GET', `/a/${agent}/info`);
     expect(JSON.parse(info.body.toString())).toMatchObject({ agent, root: other });
+  });
+
+  it('issue 646: a server whose own folder\'s agent was closed is listed by the agent it shows, with that folder\'s id', async () => {
+    const a = await window();
+    const other = path.join(tmp, 'other');
+    fs.mkdirSync(other);
+    const opened = await fetch(`http://127.0.0.1:${a.port}/control/open`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() }, body: JSON.stringify({ root: other }) });
+    const { agent } = await opened.json() as { agent: string };
+    expect((await fetch(`http://127.0.0.1:${a.port}${a.at}/control/close`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() } })).ok).toBe(true);
+    const l = await paired(await windows());
+    const h = l.phone.host();
+    await until(() => h.lists.some((x) => x[0]?.agent === agent));
+    expect(h.lists.at(-1)).toEqual([expect.objectContaining({ id: windowKey('claude', other), port: a.port, agent, root: other })]);
   });
 
   it('the host stream gives each window its stable id and only the /info fields of the host stream (issue 511)', async () => {
@@ -210,7 +226,7 @@ describe('device channel', () => {
     const w = h.lists[0]![0]!;
     expect(w).toMatchObject({ id: windowKey('claude', path.join(tmp, 'proj')), port: a.port });
     // /info says more (clients, codeChanged, restartPending, unseen): for other windows, not for the phone
-    expect(Object.keys(w).filter((k) => !['id', 'port', 'provider', 'root', ...HOST_WINDOW_INFO].includes(k))).toEqual([]);
+    expect(Object.keys(w).filter((k) => !['id', 'port', 'agent', 'provider', 'root', ...HOST_WINDOW_INFO].includes(k))).toEqual([]);
   });
 
   /** Windows of stub launches whose /info fails (a 500 on an ephemeral port): what `list()` gives is all there is. */
@@ -272,7 +288,7 @@ describe('device channel', () => {
     await until(() => h.lists.length > 0);
     expect(h.lists[0]![0]).toMatchObject({ port: a.port, icon: null });
     const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('pic')]);
-    const put = await l.phone.http(a.port, 'PUT', '/project-icon', { headers: { 'content-type': 'image/png' }, body: png });
+    const put = await l.phone.http(a.port, 'PUT', `${a.at}/project-icon`, { headers: { 'content-type': 'image/png' }, body: png });
     const { icon } = JSON.parse(put.body.toString()) as { icon: string };
     expect(icon).toMatch(/^[0-9a-f]{16}$/);
     // a host stream lists the windows when it opens: a phone that asks again sees the version
@@ -285,22 +301,22 @@ describe('device channel', () => {
     const l = await paired(await windows());
     const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('pic')]);
     // the window refuses a non-GET without an allowed Origin, so a 200 shows the connector added it
-    const put = await l.phone.http(a.port, 'PUT', '/project-icon', { headers: { 'content-type': 'image/png' }, body: png });
+    const put = await l.phone.http(a.port, 'PUT', `${a.at}/project-icon`, { headers: { 'content-type': 'image/png' }, body: png });
     expect(put.status).toBe(200);
-    const got = await l.phone.http(a.port, 'GET', '/project-icon');
+    const got = await l.phone.http(a.port, 'GET', `${a.at}/project-icon`);
     expect(got.status).toBe(200);
     expect(got.body).toEqual(png);
     expect(got.headers.etag).toBe(`"${(JSON.parse(put.body.toString()) as { icon: string }).icon}"`);
-    expect((await l.phone.http(a.port, 'DELETE', '/project-icon')).status).toBe(204);
-    expect((await l.phone.http(a.port, 'GET', '/project-icon')).status).toBe(404);
+    expect((await l.phone.http(a.port, 'DELETE', `${a.at}/project-icon`)).status).toBe(204);
+    expect((await l.phone.http(a.port, 'GET', `${a.at}/project-icon`)).status).toBe(404);
   });
 
   it('a ws stream is a tab of the window, one-tab rule included', async () => {
     const a = await window();
     const l = await paired(await windows());
-    const t1 = l.phone.ws(a.port, '/ws?tab=t1');
+    const t1 = l.phone.ws(a.port, `${a.at}/ws?tab=t1`);
     await until(() => t1.events.some((e) => e.kind === 'hello'));
-    const t2 = l.phone.ws(a.port, '/ws?tab=t2');
+    const t2 = l.phone.ws(a.port, `${a.at}/ws?tab=t2`);
     await until(() => t2.events.some((e) => e.kind === 'hello'));
     expect(t2.events.map((e) => e.kind)).toContain('occupied');
     t2.send({ type: 'takeover' });
@@ -312,7 +328,7 @@ describe('device channel', () => {
   it('under the agent\'s prefix (epic 383): the same window, the same refusals', async () => {
     const a = await window();
     const l = await paired(await windows());
-    const id = (JSON.parse((await l.phone.http(a.port, 'GET', '/info')).body.toString()) as { agent: string }).agent;
+    const id = a.agent;
     expect((await l.phone.http(a.port, 'GET', `/a/${id}/info`)).status).toBe(200);
     await expect(l.phone.http(a.port, 'GET', `/a/${id}/control/stop`)).rejects.toMatchObject({ code: 4900 });
     await expect(l.phone.http(a.port, 'POST', `/a/${id}/remote/pair`)).rejects.toMatchObject({ code: 4900 });
@@ -323,37 +339,37 @@ describe('device channel', () => {
   it('http: GET, Range, a write, and refused paths', async () => {
     const a = await window();
     const l = await paired(await windows());
-    const info = await l.phone.http(a.port, 'GET', '/info');
+    const info = await l.phone.http(a.port, 'GET', `${a.at}/info`);
     expect(info.status).toBe(200);
     expect(JSON.parse(info.body.toString()).root).toBe(path.join(tmp, 'proj'));
-    const part = await l.phone.http(a.port, 'GET', '/file?path=a.txt', { headers: { range: 'bytes=0-9', cookie: 'x=1' } });
+    const part = await l.phone.http(a.port, 'GET', `${a.at}/file?path=a.txt`, { headers: { range: 'bytes=0-9', cookie: 'x=1' } });
     expect(part.status).toBe(206);
     expect(part.body.toString()).toBe('0123456789');
     // issue 461: Download through the relay saves under the file's name; Show in Finder never goes through
-    const dl = await l.phone.http(a.port, 'GET', '/file?path=a.txt&download=1');
+    const dl = await l.phone.http(a.port, 'GET', `${a.at}/file?path=a.txt&download=1`);
     expect(dl.headers['content-disposition']).toBe(`attachment; filename="a.txt"; filename*=UTF-8''a.txt`);
-    await expect(l.phone.http(a.port, 'POST', '/os/reveal', { headers: { 'content-type': 'application/json' }, body: Buffer.from('{"path":"a.txt"}') })).rejects.toMatchObject({ code: 4900 });
-    const post = await l.phone.http(a.port, 'POST', '/system/prefs', { headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify({ updateCheck: false })) });
+    await expect(l.phone.http(a.port, 'POST', `${a.at}/os/reveal`, { headers: { 'content-type': 'application/json' }, body: Buffer.from('{"path":"a.txt"}') })).rejects.toMatchObject({ code: 4900 });
+    const post = await l.phone.http(a.port, 'POST', `${a.at}/system/prefs`, { headers: { 'content-type': 'application/json' }, body: Buffer.from(JSON.stringify({ updateCheck: false })) });
     expect(post.status).toBe(200);
     expect(post.headers['set-cookie']).toBeUndefined();
     await expect(l.phone.http(a.port, 'GET', '/control/stop')).rejects.toMatchObject({ code: 4900 });
     await expect(l.phone.http(a.port, 'POST', '/remote/pair')).rejects.toMatchObject({ code: 4900 });
     await expect(l.phone.http(a.port, 'GET', '//evil.example/x')).rejects.toMatchObject({ code: 4900 });
     await expect(l.phone.http(a.port + 1, 'GET', '/info')).rejects.toMatchObject({ code: 4904 });
-    const ws = l.phone.ws(a.port, '/info');
+    const ws = l.phone.ws(a.port, `${a.at}/info`);
     expect((await ws.closed).code).toBe(4900);
   });
 
   it('a path that is not plain ASCII closes that stream, nothing more', async () => {
     const a = await window();
     const l = await paired(await windows());
-    await expect(l.phone.http(a.port, 'GET', '/file?path=заметки.md')).rejects.toMatchObject({ code: 4900 });
-    await expect(l.phone.http(a.port, 'GET', '/file?path=a\u0001.md')).rejects.toMatchObject({ code: 4900 });
-    expect((await l.phone.ws(a.port, '/ws?tab=t#x').closed).code).toBe(4900);
+    await expect(l.phone.http(a.port, 'GET', `${a.at}/file?path=заметки.md`)).rejects.toMatchObject({ code: 4900 });
+    await expect(l.phone.http(a.port, 'GET', `${a.at}/file?path=a\u0001.md`)).rejects.toMatchObject({ code: 4900 });
+    expect((await l.phone.ws(a.port, `${a.at}/ws?tab=t#x`).closed).code).toBe(4900);
     fs.writeFileSync(path.join(tmp, 'proj', 'а.txt'), 'cyrillic name');
-    expect((await l.phone.http(a.port, 'GET', '/file?path=%D0%B0.txt')).body.toString()).toBe('cyrillic name');
+    expect((await l.phone.http(a.port, 'GET', `${a.at}/file?path=%D0%B0.txt`)).body.toString()).toBe('cyrillic name');
     expect(l.dropped()).toBe(false);
-    expect((await l.phone.http(a.port, 'GET', '/info')).status).toBe(200);
+    expect((await l.phone.http(a.port, 'GET', `${a.at}/info`)).status).toBe(200);
   });
 
   it('a phone whose key is not the one the relay named is dropped', async () => {
@@ -385,12 +401,12 @@ describe('device channel', () => {
   it('a window that restarted on its port: http is re-proved, an open ws stream closes', async () => {
     const a = await window();
     const l = await paired(await windows());
-    const t1 = l.phone.ws(a.port, '/ws?tab=t1');
+    const t1 = l.phone.ws(a.port, `${a.at}/ws?tab=t1`);
     await until(() => t1.events.some((e) => e.kind === 'hello'));
     await a.close();
     expect((await t1.closed).code).toBe(4904);
-    await window(a.port);
-    const info = await l.phone.http(a.port, 'GET', '/info');
+    const b = await window(a.port); // a fresh launch: its agent is another
+    const info = await l.phone.http(a.port, 'GET', `${b.at}/info`);
     expect(info.status).toBe(200);
   });
 
@@ -398,11 +414,11 @@ describe('device channel', () => {
     const a = await window();
     const w = await windows();
     const slow = await paired(w);
-    const s = slow.phone.open({ kind: 'http', port: a.port, method: 'GET', path: '/file?path=big.bin' });
+    const s = slow.phone.open({ kind: 'http', port: a.port, method: 'GET', path: `${a.at}/file?path=big.bin` });
     s.end();
     s.ondata = () => new Promise(() => {});
     const fast = await paired(w);
-    const got = await fast.phone.http(a.port, 'GET', '/file?path=big.bin');
+    const got = await fast.phone.http(a.port, 'GET', `${a.at}/file?path=big.bin`);
     expect(got.body.length).toBe(BIG);
     expect(got.body[BIG - 1]).toBe((BIG - 1) % 251);
     await new Promise((r) => setTimeout(r, 100));
