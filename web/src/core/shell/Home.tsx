@@ -8,7 +8,7 @@ export function Home() {
   return (
     <TooltipProvider>
       <OnHome.Provider value>
-        <Frame center={<div className="flex min-h-0 flex-1 flex-col overflow-auto"><Slots at="home" /></div>} />
+        <Frame center={<div className="grid-pane flex min-h-0 flex-1 flex-col overflow-auto"><Slots at="home" /></div>} />
       </OnHome.Provider>
     </TooltipProvider>
   );
