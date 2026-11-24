@@ -147,7 +147,7 @@ export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) 
 
 export { FEATURES, has, type Feature } from './features.ts';
 /** The protocol this server speaks, announced in `hello`: the largest entry of `FEATURES`, where each number's additions are. */
-export const PROTOCOL = 35;
+export const PROTOCOL = 36;
 
 /** The form of an agent id (epic 383): `<provider>-<6 base32>`, as in `/a/<id>/`. */
 export const AGENT_ID = /^[a-z]+-[a-z2-7]{6}$/;

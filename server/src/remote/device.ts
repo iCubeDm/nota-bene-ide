@@ -48,12 +48,12 @@ export function computerName(raw: string = os.hostname()): string | undefined {
   return cleanName(cleanName(raw)?.replace(/\.local$/i, '') ?? '');
 }
 
-/** A server's agents but its first (its /info's `agents` and `agent`), well formed only. */
-function otherAgents(info: Record<string, unknown> | null): { id: string; provider: AgentProvider }[] {
+/** A server's agents (its /info's `agents`), well formed only. */
+function agentsOf(info: Record<string, unknown> | null): { id: string; provider: AgentProvider }[] {
   if (!info || !Array.isArray(info.agents)) return [];
   return info.agents.flatMap((x: unknown) => {
     const { id, provider } = (x ?? {}) as { id?: unknown; provider?: unknown };
-    return typeof id === 'string' && AGENT_ID.test(id) && id !== info.agent && (provider === 'claude' || provider === 'codex' || provider === 'omp') ? [{ id, provider }] : [];
+    return typeof id === 'string' && AGENT_ID.test(id) && (provider === 'claude' || provider === 'codex' || provider === 'omp') ? [{ id, provider }] : [];
   });
 }
 
@@ -62,7 +62,7 @@ function otherAgents(info: Record<string, unknown> | null): { id: string; provid
  * rule, not an invariant (an unlocked or inner launch, a dev server), so among windows of one key the lowest port keeps
  * the bare id and the others get `<id>:<port>`: every phone sees the same ids.
  */
-function windowIds(list: readonly ProvedWindow[]): string[] {
+function windowIds(list: readonly Pick<ProvedWindow, 'port' | 'provider' | 'root'>[]): string[] {
   const keys = list.map((w) => windowKey(w.provider, w.root));
   const lowest = new Map<string, number>();
   list.forEach((w, i) => lowest.set(keys[i]!, Math.min(w.port, lowest.get(keys[i]!) ?? Infinity)));
@@ -229,17 +229,22 @@ export class DeviceChannel {
     let last = '';
     const push = async () => {
       const list = this.#o.windows.list();
-      const infos = await Promise.all(list.map((w) => windowInfo(w)));
-      // epic 383: each server's other agents, by its /info's `agents`, read under their prefix
-      const more = await Promise.all(list.map((w, i) => Promise.all(otherAgents(infos[i]).map(async (a) => ({ a, info: await windowInfo(w, fetch, `/a/${a.id}`) })))));
+      const tops = await Promise.all(list.map((w) => windowInfo(w)));
+      // epic 383: each server's agents, by its /info's `agents`, read under their prefix (an older server's top is its first)
+      const each = await Promise.all(list.map((w, i) => Promise.all(agentsOf(tops[i]).map(async (a) => ({ a, info: a.id === tops[i]?.agent ? tops[i]! : await windowInfo(w, fetch, `/a/${a.id}`) })))));
       if (s.closed) return;
-      const ids = windowIds(list);
       const fields = (info: Record<string, unknown>) => Object.fromEntries(HOST_WINDOW_INFO.filter((k) => info[k] !== undefined).map((k) => [k, info[k]]));
-      const windows = list.map((w, i): HostWindow => ({ id: ids[i]!, port: w.port, provider: w.provider, root: w.root, ...fields(infos[i] ?? {}) }));
-      const agents = list.flatMap((w, i) => more[i]!.flatMap(({ a, info }): HostWindow[] => {
-        // an agent that went between the two reads, or answers no folder, is left out until the next look
-        return info && typeof info.root === 'string' ? [{ id: windowKey(a.provider, info.root), port: w.port, agent: a.id, provider: a.provider, root: info.root, ...fields(info) }] : [];
-      }));
+      // an agent that went between the two reads, or answers no folder, is left out until the next look
+      const answered = each.map((xs) => xs.filter(({ info }) => info && typeof info.root === 'string') as { a: { id: string; provider: AgentProvider }; info: Record<string, unknown> & { root: string } }[]);
+      // `windows`: each server by its first agent (issue 639: every one under its prefix), keyed by that agent's folder
+      // (issue 646: the server's own may be closed); `agents`: the others
+      const shown = list.map((w, i) => {
+        const first = answered[i]![0];
+        return first ? { port: w.port, agent: first.a.id, provider: first.a.provider, root: first.info.root, info: first.info } : { port: w.port, provider: w.provider, root: w.root };
+      });
+      const ids = windowIds(shown);
+      const windows = shown.map(({ info, ...w }, i): HostWindow => ({ id: ids[i]!, ...w, ...(info ? fields(info) : {}) }));
+      const agents = list.flatMap((w, i) => answered[i]!.slice(1).map(({ a, info }): HostWindow => ({ id: windowKey(a.provider, info.root), port: w.port, agent: a.id, provider: a.provider, root: info.root, ...fields(info) })));
       const m = JSON.stringify({ t: 'windows', windows, ...(agents.length ? { agents } : {}) } satisfies HostStreamMessage);
       if (m === last) return;
       last = m;

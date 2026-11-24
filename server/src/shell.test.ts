@@ -9,7 +9,7 @@ import type { ServerEvent } from '@nota-bene/shared';
 import { fakeBackend } from './agent/fake.ts';
 import type { FakeTurn } from './agent/fake.ts';
 import { accessToken } from './auth.ts';
-import { startServer } from './server.ts';
+import { agentServer } from './testing.ts';
 import { wirePath } from './wirePath.ts';
 
 // `! cmd` over the WebSocket: the one way in (protocol 11)
@@ -49,7 +49,7 @@ async function boot(o: { turns?: FakeTurn[]; oneTab?: boolean; shell?: { timeout
     historyDelayMs: o.historyDelayMs ?? 0,
     sessions: [{ id: SB, cwd: other, summary: 'B', lastModified: 2, fileSize: 20, history: [{ role: 'user', text: 'before' }] }],
   });
-  const s = await startServer({ insecureNoAuth: true, cwd: proj, port: 0, backend, webDist: path.join(tmp, 'dist'), oneTab: o.oneTab ?? false, takeoverGraceMs: 40, ...(o.shell ? { shell: o.shell } : {}) });
+  const s = await agentServer({ insecureNoAuth: true, cwd: proj, port: 0, backend, webDist: path.join(tmp, 'dist'), oneTab: o.oneTab ?? false, takeoverGraceMs: 40, ...(o.shell ? { shell: o.shell } : {}) });
   closers.push(s.close);
   return { ...s, backend };
 }
@@ -318,7 +318,7 @@ describe('it adds no way in but the owner’s socket', () => {
       const body = JSON.stringify({ id: 'r1', cmd: `touch ${marker()}` });
       const foreign = await fetch(`${s.url}${p}`, { method: 'POST', body, headers: { 'content-type': 'application/json' } }); // no Origin: refused before any route
       expect(foreign.status).toBe(403);
-      const own = await fetch(`${s.url}${p}`, { method: 'POST', body, headers: { 'content-type': 'application/json', origin: s.url } });
+      const own = await fetch(`${s.url}${p}`, { method: 'POST', body, headers: { 'content-type': 'application/json', origin: s.server } });
       expect([404, 405]).toContain(own.status);
       expect(await (await fetch(`${s.url}${p}?cmd=touch%20${marker()}`)).text()).toBe('<h1>x</h1>'); // the single-page app, as for any unknown path
     }
@@ -381,7 +381,10 @@ describe.skipIf(win)('signals that end the server', () => {
     child.stdout!.on('data', (d) => { out += String(d); });
     const exited = new Promise<number | null>((r) => child.once('exit', (code) => r(code)));
     await until(() => /Nota Bene: http:\/\/127\.0\.0\.1:\d+/.test(out));
-    const c = await connect(/Nota Bene: (http:\/\/127\.0\.0\.1:\d+)/.exec(out)![1]!, { authorization: `Bearer ${accessToken()}` }); // the real main.ts: auth on
+    const url = /Nota Bene: (http:\/\/127\.0\.0\.1:\d+)/.exec(out)![1]!;
+    const auth = { authorization: `Bearer ${accessToken()}` }; // the real main.ts: auth on
+    const first = ((await (await fetch(`${url}/info`, { headers: auth })).json()) as { agents: { id: string }[] }).agents[0]!.id;
+    const c = await connect(`${url}/a/${first}`, auth);
     const pidFile = path.join(tmp, 'pid-straggler');
     c.send({ type: 'shell-run', id: 'r1', cmd: `(trap '' TERM; touch ${tmp}/ready; while :; do sleep 0.05; done) & while [ ! -f ${tmp}/ready ]; do sleep 0.02; done; echo $! > ${pidFile}` });
     await until(() => !!endOf(c)); // the shell is gone, the block closed; the straggler ignores TERM and its KILL is 3 s away
@@ -402,7 +405,9 @@ describe.skipIf(win)('signals that end the server', () => {
       const exited = new Promise<number | null>((r) => child.once('exit', (code) => r(code)));
       await until(() => /Nota Bene: http:\/\/127\.0\.0\.1:\d+/.test(out));
       const url = /Nota Bene: (http:\/\/127\.0\.0\.1:\d+)/.exec(out)![1]!;
-      const c = await connect(url, { authorization: `Bearer ${accessToken()}` }); // the real main.ts: auth on
+      const auth = { authorization: `Bearer ${accessToken()}` }; // the real main.ts: auth on
+      const first = ((await (await fetch(`${url}/info`, { headers: auth })).json()) as { agents: { id: string }[] }).agents[0]!.id;
+      const c = await connect(`${url}/a/${first}`, auth);
       const pidFile = path.join(tmp, `pid-${sig}`);
       c.send({ type: 'shell-run', id: 'r1', cmd: `sleep 60 & ${BG_PID} > ${sh(pidFile)}; wait` });
       await until(() => fs.existsSync(pidFile) && fs.readFileSync(pidFile, 'utf8').trim() !== '');

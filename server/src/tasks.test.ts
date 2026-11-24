@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { reduceTasks, type ServerEvent, type TaskOutputView } from '@nota-bene/shared';
 import { fakeBackend, type FakeShell, type FakeTurn } from './agent/fake.ts';
-import { startServer } from './server.ts';
+import { agentServer } from './testing.ts';
 
 let home: string;
 let dist: string;
@@ -37,7 +37,7 @@ const turn: FakeTurn = {
 
 async function boot(o: { background?: boolean | 'throw'; refuseStop?: string[] } = {}) {
   const backend = fakeBackend([turn], { shells, ...o });
-  const s = await startServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend, webDist: dist, oneTab: false, resume: 'fake-session' });
+  const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend, webDist: dist, oneTab: false, resume: 'fake-session' });
   closers.push(s.close);
   const ws = new WebSocket(s.url.replace('http', 'ws') + '/ws');
   const events: ServerEvent[] = [];
@@ -145,6 +145,6 @@ describe('GET /task-output', () => {
     for (const q of ['session=..%2Fx&task=sh1', 'session=fake-session&task=..%2F..', 'session=fake-session&task=a%2Fb', 'session=fake-session', 'task=sh1', 'session=fake-session&task=']) {
       expect((await get(s, q)).status, q).toBe(400);
     }
-    expect((await fetch(`${s.url}/task-output?session=fake-session&task=sh1`, { method: 'POST', headers: { origin: s.url } })).status).toBe(405);
+    expect((await fetch(`${s.url}/task-output?session=fake-session&task=sh1`, { method: 'POST', headers: { origin: s.server } })).status).toBe(405);
   });
 });

@@ -8,6 +8,7 @@ import { providerStateDir } from './agent/provider.ts';
 import { recordRecent } from './recent.ts';
 import { bareRow, enterUrl, listProjects, remoteRows, sessionsOf, stopAt, stopOthers, type ProbedInfo } from './projects.ts';
 import { startServer } from './server.ts';
+import { agentServer } from './testing.ts';
 import { registerWindow, writeKeptAgents } from './windows.ts';
 
 let home: string;
@@ -53,9 +54,11 @@ it('lists the windows of every provider with their state', async () => {
   const states: Record<number, Partial<ProbedInfo>> = { [pa]: {}, [pb]: { busy: true }, [pc]: { busy: true, pending: true } };
   const roots: Record<number, string> = { [pa]: a, [pb]: b, [pc]: b };
   const seenTokens = new Set<string>();
-  const list = await listProjects({ port: pa, provider: 'claude' }, async (port, token) => {
+  // issue 639: a server's home lists its agents, each answering as itself
+  const list = await listProjects({ port: pa, provider: 'claude', agent: 'claude-aaaaaa' }, async (port, token) => {
     seenTokens.add(token);
-    return { root: roots[port]!, session: 's', title: null, ...states[port] };
+    const provider = port === pb ? 'codex' as const : 'claude' as const;
+    return { root: roots[port]!, extra: [{ root: roots[port]!, session: 's', title: null, ...states[port], agent: `${provider}-aaaaaa`, provider }] };
   });
   expect(list.running.map((r) => [r.provider, r.port, r.state, r.current])).toEqual(expect.arrayContaining([
     ['claude', pa, 'idle', true], ['codex', pb, 'working', false], ['claude', pc, 'waiting', false],
@@ -127,7 +130,7 @@ it('rows carry the unseen replies and the last message; a window that does not a
   const pa = await windowOf('claude', a);
   registerWindow(4794, '/x/restarting', DEAD, process.pid);
   const last = { role: 'assistant' as const, text: 'done', at: 5 };
-  const list = await listProjects({ port: pa, provider: 'claude' }, async () => ({ root: a, unseen: 2, last }));
+  const list = await listProjects({ port: pa, provider: 'claude' }, async () => ({ root: a, extra: [{ root: a, unseen: 2, last, agent: 'claude-aaaaaa', provider: 'claude' }] }));
   const by = Object.fromEntries(list.running.map((r) => [r.port, r]));
   expect(by[pa]).toMatchObject({ unseen: 2, last });
   expect(by[4794]).toMatchObject({ unseen: 0, last: null });
@@ -203,26 +206,27 @@ it('stopOthers stops every window but this one, of every provider', async () => 
   expect(ownStopped).toBe(false);
 });
 
-/** A claude window on `a` with a codex agent opened in it on `b` (epic 383): the port and the agent's id. */
+/** A claude window on `a` with a codex agent opened in it on `b` (epic 383): the port, the agent's id and the first one's. */
 async function windowWithAgent(a: string, b: string) {
-  const s = await startServer({ cwd: a, port: 0, backend: fakeBackend([{ text: 'hi' }]), webDist: dist, exit: () => {} });
+  const s = await agentServer({ cwd: a, port: 0, backend: fakeBackend([{ text: 'hi' }]), webDist: dist, exit: () => {} });
   closers.push(s.close);
   const port = Number(new URL(s.url).port);
   registerWindow(port, a, process.pid);
   const id = await s.open({ provider: 'codex', cwd: b, backend: fakeBackend([{ text: 'hi' }]) });
-  return { port, id };
+  return { port, id, first: s.agent };
 }
 
 it('epic 383: an agent the server opened is a row of its own, in its folder, with its provider and id', async () => {
   const a = mk('nb-proj-a-'), b = mk('nb-proj-b-');
-  const { port, id } = await windowWithAgent(a, b);
+  const { port, id, first } = await windowWithAgent(a, b);
   const pick = (l: Awaited<ReturnType<typeof listProjects>>) => l.running.map((r) => [r.provider, r.port, r.root, r.agent, r.state, r.current]);
-  expect(pick(await listProjects({ port, provider: 'claude' }))).toEqual(expect.arrayContaining([
-    ['claude', port, a, undefined, 'idle', true], ['codex', port, b, id, 'idle', false],
+  // issue 639: the first agent's row carries its id too
+  expect(pick(await listProjects({ port, provider: 'claude', agent: first }))).toEqual(expect.arrayContaining([
+    ['claude', port, a, first, 'idle', true], ['codex', port, b, id, 'idle', false],
   ]));
-  // the agent's own page: its row is the current one, not the window's
+  // the agent's own page: its row is the current one
   const own = await listProjects({ port, provider: 'codex', agent: id });
-  expect(pick(own)).toEqual(expect.arrayContaining([['claude', port, a, undefined, 'idle', false], ['codex', port, b, id, 'idle', true]]));
+  expect(pick(own)).toEqual(expect.arrayContaining([['claude', port, a, first, 'idle', false], ['codex', port, b, id, 'idle', true]]));
   expect(own.running).toHaveLength(2);
   expect(own.recent).toEqual([]);
 });
@@ -230,14 +234,16 @@ it('epic 383: an agent the server opened is a row of its own, in its folder, wit
 it('epic 383: a restarting server lists the agents its launcher keeps as restarting, not an earlier launch\'s', async () => {
   await windowOf('claude', mk('nb-proj-a-')); // the claude token exists
   registerWindow(4794, '/x/a', DEAD, process.pid);
-  writeKeptAgents(4794, { launcherPid: process.pid, nonce: 'n', agents: [{ id: 'codex-abcdef', provider: 'codex', root: '/x/b' }] }, providerStateDir(home, 'claude'));
+  writeKeptAgents(4794, { launcherPid: process.pid, nonce: 'n', agents: [{ id: 'claude-abcdef', provider: 'claude', root: '/x/a' }, { id: 'codex-abcdef', provider: 'codex', root: '/x/b' }] }, providerStateDir(home, 'claude'));
   // a launch before a Stop kept its own: this launcher does not reopen them
   registerWindow(4793, '/x/c', DEAD, process.pid);
   writeKeptAgents(4793, { launcherPid: DEAD, nonce: 'old', agents: [{ id: 'codex-ghostq', provider: 'codex', root: '/x/d' }] }, providerStateDir(home, 'claude'));
   const list = await listProjects({ port: 0, provider: 'claude' }, async () => null);
+  // issue 639: every one by its id; the server itself only where nothing comes back (4793)
   expect(list.running.map((r) => [r.provider, r.root, r.agent, r.state])).toEqual(expect.arrayContaining([
-    ['claude', '/x/a', undefined, 'restarting'], ['codex', '/x/b', 'codex-abcdef', 'restarting'],
+    ['claude', '/x/a', 'claude-abcdef', 'restarting'], ['codex', '/x/b', 'codex-abcdef', 'restarting'], ['claude', '/x/c', undefined, 'restarting'],
   ]));
+  expect(list.running.filter((r) => r.root === '/x/a')).toHaveLength(1);
   expect(list.running.some((r) => r.agent === 'codex-ghostq')).toBe(false);
 });
 
@@ -266,11 +272,11 @@ it('epic 383: sessionsOf asks the agent under its prefix', async () => {
 
 it('epic 383: stopAt closes an agent alone, with its server\'s control token; its window goes on', async () => {
   const a = mk('nb-proj-a-'), b = mk('nb-proj-b-');
-  const { port, id } = await windowWithAgent(a, b);
+  const { port, id, first } = await windowWithAgent(a, b);
   expect(await stopAt({ provider: 'codex', port, root: a, agent: id })).toEqual({ error: 'window not answering' });
   expect(await stopAt({ provider: 'codex', port, root: b, agent: id })).toEqual({ ok: true });
   const l = await listProjects({ port, provider: 'claude' });
-  expect(l.running.map((r) => [r.root, r.agent])).toEqual([[a, undefined]]);
+  expect(l.running.map((r) => [r.root, r.agent])).toEqual([[a, first]]);
 });
 
 it('epic 383: stopOthers from an agent\'s page leaves its own server', async () => {

@@ -8,8 +8,9 @@ import type { Comment, ServerEvent } from '@nota-bene/shared';
 import { fakeBackend } from './agent/fake.ts';
 import type { FakeTurn } from './agent/fake.ts';
 import { CommentStore } from './comments.ts';
-import { startServer } from './server.ts';
+import { agentServer } from './testing.ts';
 import { lastSession, saveSession, serverStateDir } from './state.ts';
+import { CONTROL_HEADER, controlToken } from './system.ts';
 import { wirePath } from './wirePath.ts';
 
 const SA = '11111111-1111-4111-8111-111111111111';
@@ -54,7 +55,7 @@ function backendFor(turns: FakeTurn[] = [{ text: 'hello' }]) {
 
 async function boot(o: { backend?: ReturnType<typeof fakeBackend>; resume?: string } = {}) {
   const backend = o.backend ?? backendFor();
-  const s = await startServer({ insecureNoAuth: true, cwd: A, port: 0, backend, webDist: dist, oneTab: false, ...(o.resume ? { resume: o.resume } : {}) });
+  const s = await agentServer({ insecureNoAuth: true, cwd: A, port: 0, backend, webDist: dist, oneTab: false, ...(o.resume ? { resume: o.resume } : {}) });
   closers.push(s.close);
   return { ...s, backend };
 }
@@ -116,7 +117,7 @@ describe('GET /sessions', () => {
   });
 
   const postJson = (url: string, p: string, body: unknown) =>
-    fetch(url + p, { method: 'POST', headers: { 'content-type': 'application/json', origin: url }, body: JSON.stringify(body) });
+    fetch(url + p, { method: 'POST', headers: { 'content-type': 'application/json', origin: new URL(url).origin }, body: JSON.stringify(body) });
   const listed = async (url: string) => ((await (await get(url, '/sessions')).json()) as { sessions: { id: string; archived?: true }[] }).sessions;
 
   it('an archived session is marked in the list and stays archived after a restart; restoring it clears the mark', async () => {
@@ -180,6 +181,23 @@ describe('GET /sessions', () => {
 });
 
 describe('switch', () => {
+  it('issue 639: the server\'s folder follows the switch of the agent it came from, unless another agent stays on it', async () => {
+    const s = await boot({ resume: SA });
+    const folder = async () => ((await (await fetch(`${s.server}/info`)).json()) as { root: string }).root;
+    const other = await s.open({ provider: 'claude', cwd: A, backend: backendFor() });
+    const c = await connect(s.url);
+    await until(() => lastOf(c, 'comments') !== undefined);
+    c.ws.send(JSON.stringify({ type: 'switch', id: SB, dir: B }));
+    await until(() => switched(c, SB));
+    expect(await folder()).toBe(A); // the other one is still on it
+    c.ws.send(JSON.stringify({ type: 'switch', id: SA, dir: A }));
+    await until(() => switched(c, SA));
+    expect((await fetch(`${s.server}/a/${other}/control/close`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() } })).status).toBe(200);
+    c.ws.send(JSON.stringify({ type: 'switch', id: SB, dir: B }));
+    await until(() => switched(c, SB));
+    expect(await folder()).toBe(B);
+  });
+
   it('moves to another dir: the replay resets, the new session arrives, and every route follows the new root', async () => {
     const s = await boot({ resume: SA });
     const c = await connect(s.url);

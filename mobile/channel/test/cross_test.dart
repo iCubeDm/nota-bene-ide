@@ -76,6 +76,8 @@ void main() {
   late Uri relay;
   late Uint8List hostPub;
   String? deviceId;
+  // the server's agent: its streams are under /a/<agent> (issue 639)
+  late HostWindow win;
 
   setUpAll(() async {
     home = await Directory.systemTemp.createTemp('nb-cross-home-');
@@ -110,6 +112,8 @@ void main() {
     deviceId = (await host.next('paired'))['id'] as String;
     final list = await ch.windows.firstWhere((l) => l.isNotEmpty);
     expect(list.single.port, port);
+    expect(list.single.agent, isNotNull);
+    win = list.single;
     expect(list.single.provider, AgentProvider.claude);
     // issue 511: the stable id, the hash of the folder (server/src/windows.ts windowKey)
     final hash = (await Sha1().hash(utf8.encode(root))).bytes
@@ -145,12 +149,12 @@ void main() {
     final part = await ch.http(
       port,
       'GET',
-      '/file?path=notes.md',
+      win.at('/file?path=notes.md'),
       headers: {'range': 'bytes=9-28'},
     );
     expect(part.status, 206);
     expect(utf8.decode(part.body), 'remote-cross-content');
-    final big = await ch.http(port, 'GET', '/file?path=big.bin');
+    final big = await ch.http(port, 'GET', win.at('/file?path=big.bin'));
     expect(big.status, 200);
     expect(big.body.length, 700 * 1024);
     expect(
@@ -165,7 +169,7 @@ void main() {
     final a = await ch.httpStream(
       port,
       'GET',
-      '/file?path=big.bin',
+      win.at('/file?path=big.bin'),
       headers: {'range': 'bytes=1000-599999'},
     );
     expect(a.status, 206);
@@ -188,7 +192,7 @@ void main() {
 
   test('a ws tab gets replay and hello', () async {
     final ch = await Channel.connect(relay: relay, hostPub: hostPub, key: key);
-    final s = ch.ws(port, '/ws?tab=${uuid()}');
+    final s = ch.ws(port, win.at('/ws?tab=${uuid()}'));
     final events = s.messages
         .where((m) => !m.binary)
         .map((m) => ServerEvent.fromJson(jsonDecode(utf8.decode(m.data))));

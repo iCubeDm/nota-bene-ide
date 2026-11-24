@@ -141,6 +141,8 @@ export const FEATURES = {
   agentBus: 34,
   /** the host stream's rows carry a helper's `lead` (epic 383 phase 3); also what replaces a managed connector before it */
   hostLeads: 35,
+  /** issue 639: every agent of a server under `/a/<id>/`, its top the server's own; also what replaces a managed connector before it (issue 646) */
+  agentPrefixes: 36,
 } as const;
 
 export type Feature = keyof typeof FEATURES;

@@ -29,7 +29,7 @@ extension HostWindowKey on HostWindow {
   /// in the app reads `id` or `port` for identity; `port` only opens the window's streams.
   String get key => id ?? 'port:$port';
 
-  /// A path of this window's streams: one of a server's other agents (epic 383) answers under `/a/<agent>`.
+  /// A path of this window's streams: a server's agent (epic 383, issue 639) answers under `/a/<agent>`.
   String at(String path) => agent == null ? path : '/a/$agent$path';
 
   /// This window with another picture version.

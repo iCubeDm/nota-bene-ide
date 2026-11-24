@@ -110,14 +110,15 @@ export async function listProjects(own: Own, probe: Probe = probeWith, warn: (m:
         unseen: typeof i?.unseen === 'number' ? i.unseen : 0, last: i?.last ?? null, ...(agent ? { agent } : {}),
         ...(typeof i?.agent === 'string' ? { id: i.agent } : agent ? { id: agent } : {}), ...(typeof i?.lead === 'string' ? { lead: i.lead } : {}),
       });
-      rows.push(row(provider, w.root, live, !alive ? 'restarting' : !live ? 'silent' : stateOf(live)));
-      // its other agents: as they answer, or while it restarts the ones it keeps (they come back with it)
+      // its agents, each its own row (issue 639: the top is the server's home): as they answer, or while it restarts the
+      // ones it keeps (they come back with it). The server's own row only for a server that is not answering, or an older
+      // one whose top is its first agent
+      const kept = alive ? null : readKeptAgents(port, providerStateDir(stateBaseDir(), provider));
+      // only its launcher's: the file outlives a Stop, and a later launch on this port does not reopen them
+      const back = kept && kept.launcherPid === w.launcherPid ? kept.agents : [];
+      if (live ? typeof live.agent === 'string' : !back.length) rows.push(row(provider, w.root, live, !alive ? 'restarting' : !live ? 'silent' : stateOf(live)));
       if (live) for (const x of live.extra ?? []) rows.push(row(x.provider, x.root, x, stateOf(x), x.agent));
-      else if (!alive) {
-        // only its launcher's: the file outlives a Stop, and a later launch on this port does not reopen them
-        const k = readKeptAgents(port, providerStateDir(stateBaseDir(), provider));
-        if (k && k.launcherPid === w.launcherPid) for (const x of k.agents) rows.push(row(x.provider, x.root, null, 'restarting', x.id));
-      }
+      for (const x of back) rows.push(row(x.provider, x.root, null, 'restarting', x.id));
     }));
   }));
   rows.sort((a, b) => folder(a.root).localeCompare(folder(b.root)) || a.root.localeCompare(b.root) || PROVIDERS.indexOf(a.provider) - PROVIDERS.indexOf(b.provider));

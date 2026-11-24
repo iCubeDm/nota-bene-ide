@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 import { fakeBackend } from './agent/fake.ts';
 import { readPrefs } from './prefs.ts';
-import { startServer } from './server.ts';
+import { agentServer } from './testing.ts';
 import { accessToken } from './auth.ts';
 import { EventHub } from './hub.ts';
 import type { Updater, UpdateStatus } from './updater.ts';
@@ -41,10 +41,10 @@ afterEach(async () => {
 
 async function boot(cwd = proj, auth = false) {
   const exits: number[] = [];
-  const s = await startServer({ ...(auth ? {} : { insecureNoAuth: true }), cwd, port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, exit: (c) => void exits.push(c) });
+  const s = await agentServer({ ...(auth ? {} : { insecureNoAuth: true }), cwd, port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, exit: (c) => void exits.push(c) });
   closers.push(s.close);
   const port = Number(new URL(s.url).port);
-  return { ...s, port, exits, origin: s.url };
+  return { ...s, port, exits, origin: s.server };
 }
 /** The row identity the Settings page sends with an action (the registry entry of that port). */
 const rowOf = (port: number) => {
@@ -347,7 +347,7 @@ describe('defaults and about', () => {
     try {
       fs.writeFileSync(path.join(pkg, 'package.json'), JSON.stringify({ name: 'x', version: '1.2.3' }));
       expect(await describeVersion(pkg)).toBe('1.2.3');
-      const s = await startServer({ insecureNoAuth: true, cwd: proj, port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, repoDir: pkg });
+      const s = await agentServer({ insecureNoAuth: true, cwd: proj, port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, repoDir: pkg });
       closers.push(s.close);
       const a = await (await fetch(`${s.url}/system/about`)).json() as { version: string };
       expect(a.version).toBe('1.2.3');
