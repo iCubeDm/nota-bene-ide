@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Phone: projects open again after the update to one Nota Bene for every folder.** A connector started before it is replaced, so tabs no longer wait for the window; a server whose folder's agent was closed is listed under the agent it shows.
 - **Agent tabs show their agent's mark.** The chat's tab and each other agent's tab carry Claude's, OpenAI's (Codex) or omp's mark; so do the **+** and helper menus.
 - **A server's first agent closes like the others.** Its row in the switcher closes it alone while another agent of the server is open; the server and the other agents go on. The server's last agent still stays open.
 - **Phone: a project's agents together.** The phone keeps a folder's agents next to each other and shows a lead's helpers as one chip under it.
