@@ -143,6 +143,8 @@ export const FEATURES = {
   hostLeads: 35,
   /** issue 639: every agent of a server under `/a/<id>/`, its top the server's own; also what replaces a managed connector before it (issue 646) */
   agentPrefixes: 36,
+  /** issue 639: a server with no agent is left out of the host stream; also what replaces a managed connector before it */
+  emptyServers: 37,
 } as const;
 
 export type Feature = keyof typeof FEATURES;

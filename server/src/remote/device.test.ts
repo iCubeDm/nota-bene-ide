@@ -218,6 +218,16 @@ describe('device channel', () => {
     expect(h.lists.at(-1)).toEqual([expect.objectContaining({ id: windowKey('claude', other), port: a.port, agent, root: other })]);
   });
 
+  it('issue 639: a server with no agent (its last one closed) lists nothing: the computer has nothing open', async () => {
+    const a = await window();
+    const b = await window();
+    expect((await fetch(`http://127.0.0.1:${a.port}${a.at}/control/close`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() } })).ok).toBe(true);
+    const l = await paired(await windows());
+    const h = l.phone.host();
+    await until(() => h.lists.length > 0);
+    expect(h.lists.at(-1)).toEqual([expect.objectContaining({ port: b.port, agent: b.agent })]);
+  });
+
   it('the host stream gives each window its stable id and only the /info fields of the host stream (issue 511)', async () => {
     const a = await window();
     const l = await paired(await windows());

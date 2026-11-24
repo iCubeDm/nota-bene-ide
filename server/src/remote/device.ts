@@ -238,9 +238,11 @@ export class DeviceChannel {
       const answered = each.map((xs) => xs.filter(({ info }) => info && typeof info.root === 'string') as { a: { id: string; provider: AgentProvider }; info: Record<string, unknown> & { root: string } }[]);
       // `windows`: each server by its first agent (issue 639: every one under its prefix), keyed by that agent's folder
       // (issue 646: the server's own may be closed); `agents`: the others
-      const shown = list.map((w, i) => {
+      // a server that answers with no agent (its last one closed, issue 639) has nothing open: it is left out
+      const shown = list.flatMap((w, i): (Pick<HostWindow, 'port' | 'agent' | 'provider' | 'root'> & { info?: Record<string, unknown> })[] => {
         const first = answered[i]![0];
-        return first ? { port: w.port, agent: first.a.id, provider: first.a.provider, root: first.info.root, info: first.info } : { port: w.port, provider: w.provider, root: w.root };
+        if (first) return [{ port: w.port, agent: first.a.id, provider: first.a.provider, root: first.info.root, info: first.info }];
+        return Array.isArray(tops[i]?.agents) && !(tops[i]!.agents as unknown[]).length ? [] : [{ port: w.port, provider: w.provider, root: w.root }];
       });
       const ids = windowIds(shown);
       const windows = shown.map(({ info, ...w }, i): HostWindow => ({ id: ids[i]!, ...w, ...(info ? fields(info) : {}) }));
