@@ -61,6 +61,37 @@ void main() {
     expect((m['type'], m['model'], m['effort']), ('model', 'opus', 'max'));
   });
 
+  testWidgets(
+    'issue 673: a long list scrolls; effort and Apply stay on a phone screen',
+    (t) async {
+      t.view.physicalSize = const Size(390, 844);
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.reset);
+      await r.open(t);
+      r.event({
+        'kind': 'models',
+        'models': [
+          for (var i = 0; i < 12; i++)
+            {
+              'value': 'm$i',
+              'name': 'Model $i',
+              'description':
+                  'A model with a description long enough to take two lines in the sheet',
+              'efforts': ['low', 'high'],
+            },
+        ],
+      });
+      r.event({'kind': 'model', 'model': 'm11'});
+      await t.pumpAndSettle();
+      await menu(t);
+      await t.tapText('Model and effort');
+      await t.tapText('high');
+      await t.tapText('Apply');
+      final m = r.sent.single;
+      expect((m['type'], m['model'], m['effort']), ('model', 'm11', 'high'));
+    },
+  );
+
   testWidgets('no model entry without the capability', (t) async {
     await r.open(
       t,

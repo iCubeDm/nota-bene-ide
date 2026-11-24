@@ -80,23 +80,34 @@ class _ModelSheetState extends State<ModelSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final m in widget.tab.windowState.models)
-              ListTile(
-                title: Text(m.name),
-                subtitle: Text(
-                  m.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: m.value == _model ? const Icon(Icons.check) : null,
-                onTap: () => setState(() {
-                  _model = m.value;
-                  final e = m.efforts ?? const [];
-                  if (!e.contains(_effort)) {
-                    _effort = m.defaultEffort ?? (e.isEmpty ? null : e.first);
-                  }
-                }),
+            // a long list scrolls (issue 673): effort and Apply stay on screen
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final m in widget.tab.windowState.models)
+                    ListTile(
+                      title: Text(m.name),
+                      subtitle: Text(
+                        m.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: m.value == _model
+                          ? const Icon(Icons.check)
+                          : null,
+                      onTap: () => setState(() {
+                        _model = m.value;
+                        final e = m.efforts ?? const [];
+                        if (!e.contains(_effort)) {
+                          _effort =
+                              m.defaultEffort ?? (e.isEmpty ? null : e.first);
+                        }
+                      }),
+                    ),
+                ],
               ),
+            ),
             if (efforts.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
