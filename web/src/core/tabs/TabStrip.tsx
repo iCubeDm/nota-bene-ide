@@ -4,7 +4,9 @@ import { shallowEqual } from 'react-redux';
 import { useAppDispatch, useAppSelector, useMedia, useRegistry } from '@/core/store/store.ts';
 import { tabLabel, tabView } from '@/sdk/registry.ts';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/core/components/ui/context-menu.tsx';
-import { activate, closeAll, closeOthers, closeRight, closeTab, selectTabs, type Tab } from './slice.ts';
+import { activate, closeAll, closeOthers, closeRight, closeTab, moveTab, selectTabs, type Tab } from './slice.ts';
+import { DROP_MARK, useDragOrder } from '../lib/dragOrder.ts';
+import { ChatTabContext } from './chatTab.ts';
 import { TabsMenu } from './TabsMenu.tsx';
 import { ICONS, Svg } from '../components/icons.tsx';
 import { focusTab } from './focus.ts';
@@ -34,6 +36,7 @@ function TabItem({ tab, label, active, last, playing }: { tab: Tab; label: strin
   const input = useRef<HTMLInputElement>(null);
   const isChat = tab.kind === 'chat';
   const Extra = view?.Extra;
+  const drag = useDragOrder('application/x-nb-tab', tab.id, (id, to, after) => d(moveTab({ id: id as Tab['id'], to: to as Tab['id'], after })), !isChat && !renaming);
   return (
     <ContextMenu>
       {/* off while renaming: the input keeps the browser's own menu, for a paste */}
@@ -44,6 +47,7 @@ function TabItem({ tab, label, active, last, playing }: { tab: Tab; label: strin
           aria-selected={active}
           data-tab={tab.id}
           data-playing={playing || undefined}
+          {...drag}
           onClick={() => d(activate(tab.id))}
           onAuxClick={(e) => {
             if (e.button === 1 && !isChat) { e.preventDefault(); d(closeTab(tab.id)); }
@@ -51,7 +55,7 @@ function TabItem({ tab, label, active, last, playing }: { tab: Tab; label: strin
           onKeyDown={(e) => {
             if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); d(activate(tab.id)); }
           }}
-          className={`group relative flex h-7 max-w-[260px] flex-none cursor-pointer items-center gap-1.5 rounded-lg pr-1.5 pl-2.5 text-[0.78125rem] font-medium whitespace-nowrap hover:bg-muted/50 hover:text-foreground ${active ? 'bg-tab-on-bg text-tab-on-fg after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-tab-line' : 'text-muted-foreground'}`}
+          className={`group relative flex h-7 max-w-[260px] flex-none cursor-pointer items-center gap-1.5 rounded-lg pr-1.5 pl-2.5 text-[0.78125rem] font-medium whitespace-nowrap hover:bg-muted/50 hover:text-foreground ${DROP_MARK} ${active ? 'bg-tab-on-bg text-tab-on-fg after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-tab-line' : 'text-muted-foreground'}`}
         >
           <span className="hidden size-1.5 flex-none animate-pulse rounded-full bg-primary group-data-[playing=true]:inline-block" />
           <TabIcon tab={tab} />
@@ -105,6 +109,7 @@ export function TabStrip() {
   const strip = useRef<HTMLDivElement>(null);
   const names = useLabels(open);
   const labels = new Map(open.map((tab, i) => [tab.id, names[i]!]));
+  const placed = !!useRegistry().slots.get('tabs.chat')?.length;
   // after a switch, an open or a close (not on a resize: that would undo the user's own scroll of the strip)
   useEffect(() => {
     [...(strip.current?.querySelectorAll<HTMLElement>('[data-tab]') ?? [])].find((n) => n.dataset.tab === active)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
@@ -124,8 +129,9 @@ export function TabStrip() {
         {open.map((tab, i) => (
           // the dot marks a background tab that still plays; the active tab shows its own player
           <Fragment key={tab.id}>
-            <TabItem tab={tab} label={names[i]!} active={tab.id === active} last={i === open.length - 1} playing={tab.id === playing && tab.id !== active} />
-            {tab.kind === 'chat' && <Slots at="tabs.chat" />}
+            {tab.kind === 'chat' && placed
+              ? <ChatTabContext.Provider value={<TabItem tab={tab} label={names[i]!} active={tab.id === active} last={i === open.length - 1} playing={tab.id === playing && tab.id !== active} />}><Slots at="tabs.chat" /></ChatTabContext.Provider>
+              : <TabItem tab={tab} label={names[i]!} active={tab.id === active} last={i === open.length - 1} playing={tab.id === playing && tab.id !== active} />}
           </Fragment>
         ))}
       </div>

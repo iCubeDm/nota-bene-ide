@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, createEvent, fireEvent, render, screen, within } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setLang } from '@/core/i18n/index.ts';
@@ -20,6 +20,21 @@ function setup(files: string[] = []) {
 const tab = (name: string) => screen.getByRole('tab', { name: new RegExp(name) });
 const ids = (s: ReturnType<typeof setup>) => selectTabs(s.getState()).open.map((t) => t.id);
 const menu = (el: HTMLElement) => { fireEvent.contextMenu(el); return screen.getByRole('menu'); };
+
+it('issue 638: a file tab dragged onto another lands on the side the pointer is on; the chat does not move', () => {
+  const s = setup(['a.ts', 'b.ts', 'c.ts']);
+  const data = new Map<string, string>();
+  const dataTransfer = { get types() { return [...data.keys()]; }, setData: (k: string, v: string) => void data.set(k, v), getData: (k: string) => data.get(k) ?? '', effectAllowed: '', dropEffect: '' };
+  const to = tab('a.ts');
+  vi.spyOn(to, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 100 } as DOMRect);
+  const at = (ev: Event) => (Object.defineProperty(ev, 'clientX', { value: 20 }), ev);
+  expect(tab('Chat').getAttribute('draggable')).toBeNull();
+  fireEvent.dragStart(tab('c.ts'), { dataTransfer });
+  fireEvent(to, at(createEvent.dragOver(to, { dataTransfer })));
+  expect(to.dataset.drop).toBe('before');
+  fireEvent(to, at(createEvent.drop(to, { dataTransfer })));
+  expect(ids(s)).toEqual(['chat', 'file:c.ts', 'file:a.ts', 'file:b.ts']);
+});
 
 it('the chat context menu has no Close, only Close others and Close all', () => {
   setup(['a/x.ts']);

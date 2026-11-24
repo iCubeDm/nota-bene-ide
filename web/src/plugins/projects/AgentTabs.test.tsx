@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setLang, t } from '@/core/i18n/index.ts';
@@ -9,6 +9,7 @@ import type { ProjectsList } from './api.ts';
 import { nav } from './api.ts';
 import { AgentTabs, cycleAgent } from './AgentTabs.tsx';
 import { resetSources, setSources } from '@/core/refs/sources.ts';
+import { ChatTabContext } from '@/core/tabs/chatTab.ts';
 
 const URL_OK = `http://127.0.0.1:4791/a/codex-k3f7qz/#t=${'a'.repeat(64)}`;
 const STUDIO = { host: 'h1', name: 'Studio' };
@@ -29,6 +30,7 @@ let calls: { url: string; body?: unknown }[];
 let list: ProjectsList;
 beforeEach(() => {
   setLang('en');
+  localStorage.clear();
   calls = [];
   list = LIST;
   vi.stubGlobal('fetch', vi.fn(async (u: string, init?: RequestInit) => {
@@ -44,8 +46,22 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); page.remote = null; resetSources(); });
 
-const setup = () => render(<Provider store={makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) })}><TooltipProvider><AgentTabs /></TooltipProvider></Provider>);
-const tabs = () => screen.queryAllByRole('tab');
+const CHAT = <div role="tab" aria-selected>chat</div>;
+const setup = () => render(<Provider store={makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) })}><TooltipProvider><ChatTabContext.Provider value={CHAT}><AgentTabs /></ChatTabContext.Provider></TooltipProvider></Provider>);
+const all = () => screen.queryAllByRole('tab');
+const tabs = () => all().filter((b) => b.textContent !== 'chat');
+/** a drag of `from` onto `to`, on its right half when `after` */
+function drag(from: HTMLElement, to: HTMLElement, after: boolean) {
+  const data = new Map<string, string>();
+  const dataTransfer = { get types() { return [...data.keys()]; }, setData: (k: string, v: string) => void data.set(k, v), getData: (k: string) => data.get(k) ?? '', effectAllowed: '', dropEffect: '' };
+  vi.spyOn(to, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 100 } as DOMRect);
+  // jsdom has no DragEvent: its drag events carry no clientX unless given one
+  const at = (ev: Event) => (Object.defineProperty(ev, 'clientX', { value: after ? 80 : 20 }), ev);
+  fireEvent.dragStart(from, { dataTransfer });
+  fireEvent(to, at(createEvent.dragOver(to, { dataTransfer })));
+  fireEvent(to, at(createEvent.drop(to, { dataTransfer })));
+}
+const place = (el: HTMLElement) => el.closest<HTMLElement>('[draggable]')!;
 
 it('the other live agents of this folder on this computer, each with its agent, title and badge; a click moves there', async () => {
   setup();
@@ -136,6 +152,41 @@ describe('helpers (epic 383 2g)', () => {
     expect(tabs()[0]!.textContent).toContain('Lead');
     fireEvent.click(screen.getByRole('button', { name: t('helperKeep') }));
     await waitFor(() => expect(calls.some((c) => c.url === '/agent/keep')).toBe(true));
+  });
+});
+
+describe('issue 638: one order of the agents on every agent\'s page', () => {
+  it('this page\'s agent (the chat\'s tab) sits in its place among them, not first', async () => {
+    localStorage.setItem('nb.agentOrder', JSON.stringify(['4791/claude-a2b3c4', '4791/claude', '4791/codex-k3f7qz']));
+    setup();
+    await waitFor(() => expect(all()).toHaveLength(3));
+    expect(all().map((b) => b.textContent)).toEqual(['Claude2', 'chat', 'CodexReview the diff!']);
+  });
+
+  it('with no order saved, the server\'s: this one first only when the server lists it first', async () => {
+    list = { ...LIST, running: [LIST.running[1]!, LIST.running[0]!, ...LIST.running.slice(2)] };
+    setup();
+    await waitFor(() => expect(all()).toHaveLength(3));
+    expect(all().map((b) => b.textContent)).toEqual(['CodexReview the diff!', 'chat', 'Claude2']);
+  });
+
+  it('a drag moves an agent, the chat\'s tab too, and the order is kept for the other pages', async () => {
+    setup();
+    await waitFor(() => expect(all()).toHaveLength(3));
+    drag(place(tabs()[1]!), place(all()[0]!), false);
+    await waitFor(() => expect(all().map((b) => b.textContent)).toEqual(['Claude2', 'chat', 'CodexReview the diff!']));
+    drag(place(all()[1]!), place(all()[2]!), true);
+    await waitFor(() => expect(all().map((b) => b.textContent)).toEqual(['Claude2', 'CodexReview the diff!', 'chat']));
+    expect(JSON.parse(localStorage.getItem('nb.agentOrder')!)).toEqual(['4791/claude-a2b3c4', '4791/codex-k3f7qz', '4791/claude']);
+    expect(nav.go).not.toHaveBeenCalled();
+  });
+
+  it('Alt+] from the middle goes to the next one after it', async () => {
+    localStorage.setItem('nb.agentOrder', JSON.stringify(['4791/claude-a2b3c4', '4791/claude', '4791/codex-k3f7qz']));
+    setup();
+    await waitFor(() => expect(all()).toHaveLength(3));
+    cycleAgent(1);
+    await waitFor(() => expect(calls.find((c) => c.url === '/system/projects/enter')?.body).toMatchObject({ agent: 'codex-k3f7qz' }));
   });
 });
 

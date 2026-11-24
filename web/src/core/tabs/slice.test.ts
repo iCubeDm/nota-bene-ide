@@ -6,7 +6,7 @@ import { MediaController } from '../store/mediaController.ts';
 import { setFileLoad } from '../../plugins/files/slice.ts';
 import { requestJump } from './jump.ts';
 import { setSource, toggleDir } from '../../plugins/files/treeSlice.ts';
-import { activate, CLOSED_MAX, closeAll, closeOthers, closeRight, closeTab, diagramTabId, fileTabId, openChanges, openDiagram, openFile, openLog, openRemote, openSettings, openUsage, reopenClosed, selectActiveTab, selectTabs } from './slice.ts';
+import { activate, CLOSED_MAX, closeAll, closeOthers, closeRight, closeTab, diagramTabId, moveTab, fileTabId, openChanges, openDiagram, openFile, openLog, openRemote, openSettings, openUsage, reopenClosed, selectActiveTab, selectTabs } from './slice.ts';
 
 function mk() {
   let onEvent!: (e: ServerEvent) => void;
@@ -59,6 +59,20 @@ it('the chat can never be closed', () => {
   store.dispatch(closeAll());
   expect(ids(store)).toEqual(['chat']);
   expect(selectTabs(store.getState()).active).toBe('chat');
+});
+
+it('issue 638: a drag moves a tab before or after another, right after the chat at most; the chat stays first', () => {
+  const { store } = mk();
+  ['a', 'b', 'c'].forEach((p) => store.dispatch(openFile(p)));
+  store.dispatch(moveTab({ id: fileTabId('c'), to: fileTabId('a'), after: false }));
+  expect(ids(store)).toEqual(['chat', 'file:c', 'file:a', 'file:b']);
+  store.dispatch(moveTab({ id: fileTabId('c'), to: fileTabId('b'), after: true }));
+  expect(ids(store)).toEqual(['chat', 'file:a', 'file:b', 'file:c']);
+  store.dispatch(moveTab({ id: fileTabId('b'), to: 'chat', after: false }));
+  store.dispatch(moveTab({ id: 'chat', to: fileTabId('c'), after: true }));
+  expect(ids(store)).toEqual(['chat', 'file:a', 'file:b', 'file:c']);
+  store.dispatch(moveTab({ id: fileTabId('b'), to: 'chat', after: true }));
+  expect(ids(store)).toEqual(['chat', 'file:b', 'file:a', 'file:c']);
 });
 
 it('closeOthers keeps chat and the id; closeRight drops those after it', () => {

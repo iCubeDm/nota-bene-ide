@@ -4,20 +4,24 @@
 // of its repository, and moves there; an agent in such a worktree is a tab of the project too, named with its branch.
 // Helpers an agent started (2g) sit under their lead as one group (a count and their state dots), not as tabs; on a
 // helper's own page, Keep makes it an agent of the project. ✕ on a tab closes that agent after a confirm (issue 636).
+// Issue 638: this page's agent is the chat's tab, in its place among the others (agentOrder.ts); a drag reorders them.
 import { useEffect, useState } from 'react';
-import { connections, remotePage, routes, send, toast, useSources, useT } from '@/sdk';
+import { connections, DROP_MARK, remotePage, routes, send, toast, useChatTab, useDragOrder, useSources, useT } from '@/sdk';
+import type { ReactNode } from 'react';
 import { AgentIcon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, ConfirmDialog, Svg, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { enterProject, openFolder, PROVIDER_LABEL, reasonText, stopProject, useProjects, type Provider, type RunningRow } from './api.ts';
 import { badgeOf } from './rows.ts';
+import { agentKey, moveAgent, ordered, useAgentOrder } from './agentOrder.ts';
 import { BadgeView, DOT, LIVE, STATE_KEY } from './Tile.tsx';
 
-/** the strip's agents as last drawn, this tab's first: what Alt+[ / Alt+] go through (phase 3) */
+/** the strip's agents as last drawn: what Alt+[ / Alt+] go through (phase 3) */
 let order: RunningRow[] = [];
 
 /** Moves this tab `step` agents along the strip's order (wrapping); nothing with one agent. */
 export function cycleAgent(step: 1 | -1): void {
   if (order.length < 2) return;
-  void enterProject(order[(order.length + step) % order.length]!);
+  const i = Math.max(0, order.findIndex((r) => r.current));
+  void enterProject(order[(i + order.length + step) % order.length]!);
 }
 
 export function AgentTabs() {
@@ -25,6 +29,8 @@ export function AgentTabs() {
   const { data } = useProjects(false);
   const [kinds, setKinds] = useState<Provider[]>([]);
   const [closing, setClosing] = useState<RunningRow | null>(null);
+  const saved = useAgentOrder();
+  const chat = useChatTab();
   const remote = remotePage();
   // the repository's other worktrees (the files' sources): folder -> branch
   const trees = new Map(useSources().flatMap((x) => (x.kind === 'worktree' && x.dir ? [[x.dir, x.label] as const] : [])));
@@ -37,14 +43,17 @@ export function AgentTabs() {
     return () => { gone = true; };
   }, [remote]);
   const here = data?.running.find((r) => r.current);
-  if (!here) { order = []; return null; }
+  if (!here) { order = []; return <>{chat}</>; }
   const same = (r: RunningRow) => (r.root === here.root || (!here.remote && trees.has(r.root))) && r.remote?.host === here.remote?.host;
   const others = data!.running.filter((r) => !r.current && same(r) && LIVE.has(r.state));
   // a helper whose lead is here (this agent or a tab) goes in its lead's group
   const ids = new Set([here.id, ...others.map((r) => r.id)].filter(Boolean));
   const grouped = (r: RunningRow) => !!r.lead && ids.has(r.lead);
   const helpersOf = (id: string | undefined) => (id ? others.filter((r) => r.lead === id) : []);
-  order = [here, ...others.filter((r) => !grouped(r))];
+  // in the server's order (folder, agent, start), then the saved one
+  order = ordered(data!.running.filter((r) => r === here || (others.includes(r) && !grouped(r))), saved);
+  const shown = order;
+  const move = (from: string, to: string, after: boolean) => moveAgent(shown, from, to, after);
   const keep = async () => {
     const r = await send('/agent/keep', {}).catch(() => null);
     if (!r?.ok) toast(t('helperKeep'), t('whyBadRequest'));
@@ -61,17 +70,16 @@ export function AgentTabs() {
   const choices = (dir: string) => kinds.map((p) => <DropdownMenuItem key={p} onSelect={() => void add(dir, p)}><AgentIcon provider={p} />{PROVIDER_LABEL[p]}</DropdownMenuItem>);
   return (
     <>
-      {here.lead && !remote && (
-        <button type="button" title={t('helperKeepTip')} onClick={() => void keep()} className="h-6 flex-none rounded-md border border-border-soft px-2 text-[0.6875rem] text-muted-foreground hover:text-foreground">
-          {t('helperKeep')}
-        </button>
-      )}
-      <HelperGroup helpers={helpersOf(here.id)} />
-      {others.filter((r) => !grouped(r)).map((r) => (
-        <span key={`${r.port}/${r.agent ?? r.provider}`} className="flex flex-none items-center">
-          <AgentTab r={r} branch={r.root === here.root ? undefined : trees.get(r.root)} onClose={r.agent && !r.remote && !remote ? () => setClosing(r) : undefined} />
+      {shown.map((r) => (
+        <Place key={agentKey(r)} id={agentKey(r)} move={move}>
+          {r === here ? chat : <AgentTab r={r} branch={r.root === here.root ? undefined : trees.get(r.root)} onClose={r.agent && !r.remote && !remote ? () => setClosing(r) : undefined} />}
+          {r === here && here.lead && !remote && (
+            <button type="button" title={t('helperKeepTip')} onClick={() => void keep()} className="ml-1 h-6 flex-none rounded-md border border-border-soft px-2 text-[0.6875rem] text-muted-foreground hover:text-foreground">
+              {t('helperKeep')}
+            </button>
+          )}
           <HelperGroup helpers={helpersOf(r.id)} />
-        </span>
+        </Place>
       ))}
       {!remote && kinds.length > 0 && (
         <DropdownMenu>
@@ -106,6 +114,11 @@ export function AgentTabs() {
 }
 
 const agentName = (r: RunningRow) => [PROVIDER_LABEL[r.provider], r.title].filter(Boolean).join(' · ');
+
+/** An agent's place in the strip (its tab, its helpers), which a drag moves among the others. */
+function Place({ id, move, children }: { id: string; move: (from: string, to: string, after: boolean) => void; children: ReactNode }) {
+  return <span {...useDragOrder('application/x-nb-agent', id, move)} className={`flex flex-none items-center rounded-lg ${DROP_MARK}`}>{children}</span>;
+}
 
 /** A lead's helpers: their count and state dots; its menu opens one. */
 function HelperGroup({ helpers }: { helpers: RunningRow[] }) {
