@@ -30,8 +30,10 @@ export function startFold(o: FoldOptions): () => void {
   const timer = setInterval(() => {
     if (busy) return;
     quietLooks = o.quiet() ? quietLooks + 1 : 0;
+    if (quietLooks < 2) return;
+    // asked only when quiet (issue 657): `what` reads the server's only agent
     const w = o.what();
-    if (quietLooks < 2 || !w.session) return;
+    if (!w.session) return;
     busy = true;
     o.attach({ root: w.root, provider: w.provider, mode: 'resume', session: w.session, show: false, under: o.port })
       .catch(() => null) // a refusal (the folder, the session): tried again later, maybe by another server

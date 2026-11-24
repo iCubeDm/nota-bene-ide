@@ -68,3 +68,11 @@ it('a tab that came while the folder was handed over: the window ends all the sa
   await vi.advanceTimersByTimeAsync(2000);
   expect(f.stopped()).toBe(1);
 });
+
+it('issue 657: not quiet (a server with several agents), what it has is never asked', async () => {
+  const f = fold({ what: () => { throw new Error('no only agent'); } });
+  f.st.quiet = false;
+  await vi.advanceTimersByTimeAsync(3000);
+  expect(f.asked).toEqual([]);
+  f.off();
+});
