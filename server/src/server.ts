@@ -1151,19 +1151,23 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     // a relaunch of the same launch reopens the agents it had (below), each resuming its own session; a fresh one starts with
     // the launch's agent, an ordinary one under /a/<id>/ (issue 639)
     const kept = o.keep && o.port ? readKeptAgents(o.port) : null;
-    const reopen = kept && o.backends && ((o.keep!.launcherPid !== undefined && kept.launcherPid === o.keep!.launcherPid) || kept.nonce === nonce) ? kept.agents : [];
+    // a launch whose agents were all closed comes back with none (its home, issue 639)
+    const same = !!kept && !!o.backends && ((o.keep!.launcherPid !== undefined && kept.launcherPid === o.keep!.launcherPid) || kept.nonce === nonce);
+    const reopen = same ? kept!.agents : [];
     const launchAgent = async () => adopt(await startAgent(s, {
       agent, id: launchAgentId(agent.provider, nonce), cwd: o.cwd, backend: o.backend,
       ...(o.resume ? { resume: o.resume } : {}), ...(o.fork ? { fork: true } : {}),
       ...(o.onStats ? { onStats: o.onStats } : {}), ...(o.onLimit ? { onLimit: o.onLimit } : {}),
     }));
-    if (!reopen.length) await launchAgent();
+    if (!same) await launchAgent();
     // issue 639: what has no agent prefix is the server's own: the app shell, the login, its folder and agents, /control/*
     const homeHub = new EventHub();
     const home = httpHandler({
       hub: homeHub, open: s.open, ...(authorize ? { authorize } : {}), allowedHosts, allowedOrigins, webDist: o.webDist, controlToken: () => control,
       info: () => ({ root: folder, agents: s.agents(), supervised: supervised(), codeChanged: codeChanged(), busy: notPaused(), restartPending: restart.pending(), clients: sum((a) => a.hub.clients()) }),
       extra: {
+        // the switcher's, the starter's: the home page lists the projects and opens them (issue 639)
+        ...projectRoutes({ hub: homeHub, port: () => s.port(), provider: agent.provider, repoDir, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
         '/control/': controlRoute({
           hub: homeHub,
           control: {
@@ -1353,11 +1357,11 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       tab.show(a.id);
       return { shown: true };
     };
-    // an agent closes alone (the switcher's Close project, its tab's ✕); its session stays, its folder under Recent. Not the
-    // server's last one, with its helpers (issue 639: the empty project comes in its next step)
+    // an agent closes alone (the switcher's Close project, its tab's ✕); its session stays, its folder under Recent. The
+    // server's last one too, when it opens others: its home lists the projects to open one again (issue 639)
     s.closeAgent = (id) => {
       const a = agents.get(id);
-      if (!a || [...agents.values()].every((x) => x === a || x.lead() === id)) return 409;
+      if (!a || (!o.backends && [...agents.values()].every((x) => x === a || x.lead() === id))) return 409;
       agents.delete(id);
       s.overlap.forget(id);
       s.bus.forget(id);
@@ -1403,7 +1407,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
         settled.get(k.id)!.resolve();
       }
     }
-    if (!agents.size) await launchAgent(); // none came back: the launch's own, as a fresh launch
+    if (reopen.length && !agents.size) await launchAgent(); // none came back: the launch's own, as a fresh launch
     keep();
     return { url: `http://127.0.0.1:${port}`, close: () => close!(), open: openAgent };
   } catch (e) {

@@ -3,6 +3,7 @@ import type { WithSlice } from '@reduxjs/toolkit';
 import { definePlugin, serverEvent } from '@/sdk';
 import { AgentTabs, cycleAgent } from './AgentTabs.tsx';
 import { AppIcon, shortcutResource } from './AppIcon.tsx';
+import { ProjectsHome } from './Home.tsx';
 import { ProjectTitle } from './ProjectSwitcher.tsx';
 import { ProjectRail } from './ProjectRail.tsx';
 import { Starter } from './Starter.tsx';
@@ -31,6 +32,8 @@ export const projectsPlugin = definePlugin({
     // the open projects, outermost: a stopgap before one server for every project (issue 419)
     { slot: 'panel.left', order: 10, render: ProjectRail },
     { slot: 'overlay', order: 50, render: Starter },
+    // issue 639: the server's home page
+    { slot: 'home', order: 10, render: ProjectsHome },
     // epic 383: the app icon's offer, a notification
     { slot: 'overlay', order: 75, render: AppIcon },
     { slot: 'overlay', order: 70, render: Seen },

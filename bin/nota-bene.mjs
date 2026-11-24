@@ -587,7 +587,7 @@ export function baseUrlOf(what) {
  * backend's port): the backend must prove itself directly and so must the page's port through the proxy. A program that relays
  * /hello to the real backend still passes; that is dev only, and what a proxy is.
  */
-export async function loginTarget(base) {
+export async function loginTarget(base, dir) {
   const m = /^http:\/\/(127\.0\.0\.1|localhost):(\d+)$/.exec(base);
   if (!m) return null;
   const port = Number(m[2]);
@@ -596,7 +596,9 @@ export async function loginTarget(base) {
   const n = await proveListener({ dial: bound, timeoutMs: 1500 });
   if (n === null) return null;
   if (dev && (await proveListener({ dial: port, bound, host: 'localhost', timeoutMs: 1500 })) === null) return null;
-  return `${base}/#t=${loginCredential(accessToken(), bound, n)}`;
+  // `dir`: the folder's page, its agent's (issue 639: the server's top is its home page)
+  const agent = dir === undefined || dev ? undefined : (await probeInfo(port, 1500))?.agents.find((a) => samePath(a.root, dir))?.id;
+  return `${base}${agent ? `/a/${agent}` : ''}/#t=${loginCredential(accessToken(), bound, n)}`;
 }
 
 function last(dir) {
@@ -660,10 +662,10 @@ export function writeOpenPage(url) {
  * itself gets the plain base (no login value in it): the page then says it is not logged in. Resolves when the opener has handed
  * the page over (bounded); callers that do not care just do not await it.
  */
-async function openBrowser(base) {
+async function openBrowser(base, dir) {
   let target = base;
   try {
-    const url = await loginTarget(base);
+    const url = await loginTarget(base, dir);
     if (url) target = writeOpenPage(url);
     else say(`nothing on ${base} proved it is this state dir's window; opening it without a login`);
   } catch (e) {
@@ -763,7 +765,7 @@ async function detach(o, argv, autoPort, buildOutput) {
       if (w.root !== o.dir || !(mine || (gone && exitCode === 0 && pidAlive(w.pid)))) continue;
       if ((await probeInfo(Number(key)))?.root === o.dir) {
         // ours, or the window our launcher gave way to (it lost a port race to a launcher of the same folder)
-        process.stdout.write(`${mine ? 'opened' : 'already-open'} ${(await loginTarget(`http://127.0.0.1:${key}`)) ?? `http://127.0.0.1:${key}`}\n`);
+        process.stdout.write(`${mine ? 'opened' : 'already-open'} ${(await loginTarget(`http://127.0.0.1:${key}`, o.dir)) ?? `http://127.0.0.1:${key}`}\n`);
         return 0;
       }
     }
@@ -982,7 +984,7 @@ async function supervise(o, autoPort, release, state) {
           say(`cannot register the window: ${e.message}`); // the window works without it; --find falls back
         }
         release(); // registered: a later launch on the folder finds this window
-        if ((first || crashed) && o.open && !stopping) void openBrowser(`http://127.0.0.1:${port}`).catch(() => {});
+        if ((first || crashed) && o.open && !stopping) void openBrowser(`http://127.0.0.1:${port}`, dir).catch(() => {});
         crashed = false;
         break;
       }
@@ -1008,7 +1010,7 @@ async function supervise(o, autoPort, release, state) {
       // the bind test passed, then another launcher took the port first: if it serves this folder, it is ours
       const holder = await probeInfo(port, 1000);
       if (holder?.root === dir) {
-        if (o.open) await openBrowser(`http://127.0.0.1:${port}`); // bring it to front
+        if (o.open) await openBrowser(`http://127.0.0.1:${port}`, dir); // bring it to front
         process.stdout.write(`nota-bene: already open at http://127.0.0.1:${port}\n`);
         return 0;
       }

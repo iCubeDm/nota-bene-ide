@@ -316,6 +316,23 @@ it('issue 639: /a/<id>/control/close closes any agent, the first one too, but no
   expect((await fetch(`${s.url}/a/${b}/control/close`, { method: 'POST', headers: { origin: s.url } })).status).toBe(403);
 });
 
+it('issue 639: a server that opens agents closes its last one too and stays up; its home lists the projects', async () => {
+  const s = await startServer({
+    insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'),
+    nonce: 'c'.repeat(32), keep: { launcherPid: 111 }, backends: () => fakeBackend([]),
+  });
+  closers.push(s.close);
+  const port = Number(new URL(s.url).port);
+  const first = ((await (await fetch(`${s.url}/info`)).json()) as { agents: { id: string }[] }).agents[0]!.id;
+  const close = await fetch(`${s.url}/a/${first}/control/close`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() } });
+  expect(close.status).toBe(200);
+  expect(await (await fetch(`${s.url}/info`)).json()).toMatchObject({ root: path.join(tmp, 'a'), agents: [] });
+  expect(readKeptAgents(port)?.agents).toEqual([]);
+  const list = await fetch(`${s.url}/system/projects`);
+  expect(list.status).toBe(200);
+  expect(await list.json()).toMatchObject({ running: [], recent: [] });
+});
+
 describe('kept agents (2c-2, issue 639): a relaunch of the same launch reopens every agent under its id, the first one too', () => {
   const N1 = 'a'.repeat(32);
   const N2 = 'b'.repeat(32);
@@ -386,6 +403,18 @@ describe('kept agents (2c-2, issue 639): a relaunch of the same launch reopens e
     closers.push(again.close);
     expect(await ids(again.url, b)).toBe(404);
     expect(readKeptAgents(port)?.agents.map((k) => k.id)).toEqual([first]);
+  });
+
+  it('a relaunch of a launch whose agents were all closed opens none', async () => {
+    const s = await start(0, N1, 111);
+    const port = Number(new URL(s.url).port);
+    const [first] = await agents(s.url);
+    expect((await fetch(`${s.url}/a/${first}/control/close`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() } })).status).toBe(200);
+    await s.close();
+    await new Promise((r) => setTimeout(r, 20)); // fetch's pool notices the closed keep-alive (no agent kept it busy)
+    const again = await start(port, N1, 222);
+    closers.push(again.close);
+    expect(await agents(again.url)).toEqual([]);
   });
 
   it('a fresh launch (another launcher and nonce) ignores them and starts with its own', async () => {

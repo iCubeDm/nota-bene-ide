@@ -138,15 +138,17 @@ export function readKeptAgents(port: number, base?: string): KeptAgents | null {
 export { pidAlive }; // its callers import it from here
 
 /** GET http://127.0.0.1:PORT/info → { root } or null (no answer, not ours, not JSON, not logged in). The credential goes only to a listener that proved it holds the token (GET /hello). */
-export async function probeInfo(port: number, timeoutMs = 500): Promise<{ root: string } | null> {
+export async function probeInfo(port: number, timeoutMs = 500): Promise<{ root: string; agents: { id: string; root: string }[] } | null> {
   try {
     const bearer = await verifiedBearer(port, timeoutMs);
     if (!bearer) return null;
     const r = await fetch(`http://127.0.0.1:${port}/info`, { headers: { authorization: bearer }, signal: AbortSignal.timeout(timeoutMs), redirect: 'error' });
     if (!r.ok) return null;
     const j: unknown = await r.json();
-    const root = j && typeof j === 'object' ? (j as { root?: unknown }).root : undefined;
-    return typeof root === 'string' ? { root } : null;
+    const { root, agents } = j && typeof j === 'object' ? (j as { root?: unknown; agents?: unknown }) : {};
+    // issue 639: a server's agents, each with its page under /a/<id>/
+    const own = (Array.isArray(agents) ? agents : []).filter((a): a is { id: string; root: string } => !!a && typeof a.id === 'string' && AGENT_ID.test(a.id) && typeof a.root === 'string');
+    return typeof root === 'string' ? { root, agents: own.map(({ id, root }) => ({ id, root })) } : null;
   } catch (e) {
     if (e instanceof SecretError) throw e; // not "no window": the user has to fix the token file
     return null;

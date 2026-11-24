@@ -203,7 +203,7 @@ describe('checkout dev command', () => {
       cwd, env: e, encoding: 'utf8', timeout: 20000,
     });
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(new RegExp(`^opened http://127\\.0\\.0\\.1:4793/${loginRe}\\n$`));
+    expect(r.stdout).toMatch(new RegExp(`^opened http://127\\.0\\.0\\.1:4793/a/claude-[a-z2-7]{6}/${loginRe}\\n$`)); // its agent's page, not the server's home (issue 639)
     expect(await info(4793)).toMatchObject({ root: cwd, supervised: true });
     const found = spawnSync(process.execPath, [link, '--find', cwd], { cwd, env: e, encoding: 'utf8' });
     expect(found.status).toBe(0);
@@ -221,7 +221,6 @@ async function loginOf(port: number): Promise<string> {
   const n = ((await (await fetch(`http://127.0.0.1:${port}/hello?c=${'ab'.repeat(16)}`)).json()) as { n: string }).n;
   return loginCredential(tokenOf(), port, n);
 }
-const loginUrlOf = async (port: number) => `http://127.0.0.1:${port}/#t=${await loginOf(port)}`;
 
 /** The window's own Stop (POST /stop, the header's ⏻): its server exits 0, its launcher unregisters it and exits. */
 async function stopWindow(port: number): Promise<void> {
@@ -241,6 +240,8 @@ async function info(port: number): Promise<{ root: string; supervised: boolean; 
 
 /** The base URL of the server's first agent (issue 639: the top is the server's home; a page is an agent's). */
 const agentAt = async (port: number) => `http://127.0.0.1:${port}/a/${(await waitFor(() => info(port)))!.agents[0]!.id}`;
+/** The URL a launch prints and opens: its folder's agent's page, logged in */
+const loginUrlOf = async (port: number) => `${await agentAt(port)}/#t=${await loginOf(port)}`;
 
 /** Windows has no ps: the process table through CIM (PowerShell), one `pid<TAB>ppid<TAB>command line` row per process. */
 const winProcs = (): { pid: number; ppid: number; cmd: string }[] =>
@@ -666,7 +667,7 @@ describe('nota-bene launcher', () => {
     const r = launch(['--detach']);
     expect(await r.exited, r.err()).toBe(0);
     expect(Date.now() - t0).toBeLessThan(10_000); // not the 30 s wait-then-go-unguarded
-    expect(r.out()).toMatch(new RegExp(`^opened http://127\\.0\\.0\\.1:\\d+/${loginRe}\\n$`));
+    expect(r.out()).toMatch(new RegExp(`^opened http://127\\.0\\.0\\.1:\\d+/a/[a-z]+-[a-z2-7]{6}/${loginRe}\\n$`));
     expect(fs.existsSync(launchLock())).toBe(false);
   }, 20000);
 
@@ -1305,7 +1306,7 @@ describe('the access token', () => {
       fs.symlinkSync(victim, logPath());
       const d = detachOther();
       expect(d.status, d.stderr).toBe(0);
-      expect(d.stdout).toMatch(/^opened http:\/\/127\.0\.0\.1:4793\/#t=[0-9a-f]{64}\n$/);
+      expect(d.stdout).toMatch(/^opened http:\/\/127\.0\.0\.1:4793\/a\/[a-z]+-[a-z2-7]{6}\/#t=[0-9a-f]{64}\n$/);
       expect(d.stderr).toMatch(/no log: cannot open .*nota-bene-4793\.log/);
       expect(fs.readFileSync(victim, 'utf8')).toBe('keep');
     }, 40000);
@@ -1612,7 +1613,7 @@ describe('the launch nonce and the two tiers, through the real launcher', () => 
     expect(stale.status).toBe(401);
     await waitFor(() => pages().length === 2); // the user is offered a fresh login
     const fresh = fs.readFileSync(pages()[1]!, 'utf8');
-    expect(fresh).toContain(`http://127.0.0.1:4791/#t=${await loginOf(4791)}`);
+    expect(fresh).toContain(`${await agentAt(4791)}/#t=${await loginOf(4791)}`);
     expect(fresh).not.toContain(oldLogin);
   }, 40000);
 
