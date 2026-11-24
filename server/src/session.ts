@@ -117,8 +117,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
 
   /** a new agent in the current mode, model and effort; its model list is asked for once it is up */
   function startAgent(g: number): AgentSession {
-    const bus = o.bus?.();
-    const a = backend.start({ ...who.startOptions(), ...(bus ? { bus } : {}), permissionMode: modes.mode, ...models.forStart(who.root), ask: permissions.ask(() => slot.gen, g), interact: permissions.interact(() => slot.gen, g) });
+    const a = backend.start({ ...who.startOptions(), permissionMode: modes.mode, ...models.forStart(who.root), ask: permissions.ask(() => slot.gen, g), interact: permissions.interact(() => slot.gen, g) });
     if (backend.capabilities.models) models.load(a, () => slot.isCurrent(a, g)).catch((e) => { if (g === slot.gen) report('models', e); });
     cmds.load(a, () => slot.isCurrent(a, g)).catch((e) => { if (g === slot.gen) console.error('[commands]', e); }); // optional: the menu stays closed, typing works, no toast
     return a;
@@ -392,7 +391,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
   stats.start();
 
   return {
-    send({ id, text, force, images, voice, lang, detect, from, heard }) {
+    send({ id, text, force, images, voice, lang, detect }) {
       const refusal = refused(text);
       if (refusal) return refusal;
       turns.assertNew(id); // first: a reused id is refused with no side effects
@@ -421,8 +420,8 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
       const command = trackedCommand(text, cmds.commands);
       if (command === 'clear') shell.dropQueue(); // a message right behind it must not carry the old runs into the new conversation (the reset event comes later)
       turns.sent(id, command ? { command } : {});
-      hub.emit({ kind: 'user', id, text, ...(force ? { force: true } : {}), ...(refs.length ? { images: refs } : {}), ...(from ? { from } : {}) });
-      queue.push({ id, text: heard ?? text, force, images: payload, lead: (t) => shell.takeFor(t) }); // the feed shows `text`; the agent also hears of the `! cmd` runs since its last message, taken as it is handed over // handed over in order, after a forced send's interrupt
+      hub.emit({ kind: 'user', id, text, ...(force ? { force: true } : {}), ...(refs.length ? { images: refs } : {}) });
+      queue.push({ id, text, force, images: payload, lead: (t) => shell.takeFor(t) }); // the feed shows `text`; the agent also hears of the `! cmd` runs since its last message, taken as it is handed over // handed over in order, after a forced send's interrupt
       return null;
     },
     refusal: refused,

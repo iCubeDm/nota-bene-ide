@@ -6,8 +6,6 @@ import { clockTime } from './time.ts';
 import { FeedScope } from './scope.ts';
 import { Markdown } from '@/sdk/ui';
 
-const AGENT_NAME = { claude: 'Claude', codex: 'Codex', omp: 'omp' } as const;
-
 type User = Extract<FeedItem, { kind: 'user' }>;
 
 /** A line's time in the UI language: `14:32` today, with its date on another day (see time.ts); '' for ts 0. */
@@ -27,9 +25,7 @@ export const UserMessage = memo(function UserMessage({ item, held }: { item: Use
       className={`my-2.5 rounded-[10px] border border-border-soft bg-muted/55 px-3 py-2${held ? ' border-dashed opacity-70' : ''}`}
     >
       <div data-anchor-skip className="mb-0.5 font-mono text-[0.65625rem] text-muted-foreground">
-        {item.from
-          ? <a href={`/a/${item.from.agent}/`} className="underline-offset-2 hover:text-foreground hover:underline">{t('fromAgent', AGENT_NAME[item.from.provider], item.from.agent)}</a>
-          : inAgent ? t('agentPrompt') : t('you')}
+        {inAgent ? t('agentPrompt') : t('you')}
         {/* an old replay may know no time (ts 0): then none rather than a wrong one */}
         {item.ts > 0 && <> · <MsgTime ts={item.ts} /></>}
         {mode}

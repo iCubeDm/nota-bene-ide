@@ -46,7 +46,7 @@ it('each slot lists the plugins\' parts in the frame\'s order', () => {
     'header.badge': ['10 RemoteDot'],
     'strip.left': ['5 ProjectsToggle', '10 FilesToggle', '20 VcsToggles'],
     'strip.right': ['10 CommentsToggle'],
-    'tabs.chat': ['10 AgentTabs'],
+    'tabs.chat': ['10 AgentClose'],
     'panel.left': ['10 ProjectRail', '25 ProjectsPanel', '30 Tree', '40 ChangesPanel'],
     'panel.right': ['10 Comments'],
     chat: ['10 ChatFeed', '20 HighlightLayer'],
@@ -73,7 +73,7 @@ it('a command id two plugins declare fails the build, and so does one order take
 // the order of the ? help and of matching: today's BINDINGS, the core's and the plugins' interleaved by `order`
 it('the commands come in the help\'s order, core and plugins alike', () => {
   expect(buildRegistry(PLUGINS, CORE_COMMANDS).commands.map((c) => c.id)).toEqual([
-    'hk_closeTab', 'hk_reopenTab', 'hk_prevTab', 'hk_nextTab', 'hk_tabN', 'hk_recent', 'hk_projects', 'hk_agentPrev', 'hk_agentNext', 'hk_promptHistory',
+    'hk_closeTab', 'hk_reopenTab', 'hk_prevTab', 'hk_nextTab', 'hk_tabN', 'hk_recent', 'hk_projects', 'hk_promptHistory',
     'hk_promptOlder', 'hk_promptNewer', 'hk_files', 'hk_comments', 'hk_tasks', 'hk_voice', 'hk_wrap', 'hk_scaleUp',
     'hk_scaleDown', 'hk_scaleReset', 'hk_reveal', 'hk_composer',
   ]);
@@ -98,7 +98,7 @@ it('every command\'s tooltip key resolves through withKey and keysFor, and every
 });
 
 it('every kind of feed item but actions is drawn by one plugin, and a kind drawn twice fails the build', () => {
-  const kinds: Record<FeedKind, true> = { user: true, assistant: true, done: true, permission: true, shell: true, marker: true, notice: true, overlap: true };
+  const kinds: Record<FeedKind, true> = { user: true, assistant: true, done: true, permission: true, shell: true, marker: true, notice: true };
   expect([...buildRegistry(PLUGINS).feed.keys()].sort()).toEqual(Object.keys(kinds).sort());
   const notice = (id: string): Plugin => ({ id, feed: [{ kind: 'notice', render: () => null }] });
   expect(() => buildRegistry([notice('a'), notice('b')])).toThrow('the feed item kind "notice" is drawn twice');

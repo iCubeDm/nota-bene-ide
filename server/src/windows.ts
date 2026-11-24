@@ -113,7 +113,7 @@ export function unregisterWindow(port: number, pid: number): void {
 
 /** An extra agent of a server (epic 383), kept so a relaunch of the same launch reopens it under its id. */
 /** `session`: the agent's own conversation, resumed on the relaunch; none yet: the folder's last */
-export type KeptAgent = { id: string; provider: AgentProvider; root: string; session?: string; /** epic 383 2g: a helper's lead */ lead?: string };
+export type KeptAgent = { id: string; provider: AgentProvider; root: string; session?: string };
 export type KeptAgents = { launcherPid?: number; nonce: string; agents: KeptAgent[] };
 const keptFile = (port: number, base?: string) => path.join(dir(base), `${port}.agents.json`);
 
@@ -129,7 +129,7 @@ export function readKeptAgents(port: number, base?: string): KeptAgents | null {
     const k = JSON.parse(fs.readFileSync(keptFile(port, base), 'utf8')) as KeptAgents;
     const good = (a: KeptAgent) => !!a && typeof a.id === 'string' && typeof a.provider === 'string' && typeof a.root === 'string';
     if (!k || typeof k.nonce !== 'string' || !Array.isArray(k.agents) || !k.agents.every(good)) return null;
-    return { ...(typeof k.launcherPid === 'number' ? { launcherPid: k.launcherPid } : {}), nonce: k.nonce, agents: k.agents.map(({ id, provider, root, session, lead }) => ({ id, provider, root, ...(isSessionId(session) ? { session } : {}), ...(typeof lead === 'string' && AGENT_ID.test(lead) ? { lead } : {}) })) };
+    return { ...(typeof k.launcherPid === 'number' ? { launcherPid: k.launcherPid } : {}), nonce: k.nonce, agents: k.agents.map(({ id, provider, root, session }) => ({ id, provider, root, ...(isSessionId(session) ? { session } : {}) })) };
   } catch {
     return null;
   }

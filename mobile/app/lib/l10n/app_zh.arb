@@ -43,7 +43,6 @@
   "markRead": "标记为已读",
   "openSession": "打开",
   "noWindows": "没有打开的窗口",
-  "helpers": "{n, plural, other{{n} 个助手}}",
   "justNow": "刚刚",
   "minutesAgo": "{n} 分钟前",
   "hoursAgo": "{n} 小时前",

@@ -17,19 +17,6 @@ export const DoneLine = memo(function DoneLine({ item }: { item: Extract<FeedIte
   );
 });
 
-const AGENT_NAME = { claude: 'Claude', codex: 'Codex', omp: 'omp' } as const;
-
-/** Epic 383 2e: another agent edited the same file in an overlapping turn; the link moves this tab to it. */
-export const OverlapLine = memo(function OverlapLine({ item }: { item: Extract<FeedItem, { kind: 'overlap' }> }) {
-  const t = useT();
-  return (
-    <div data-kind="overlap" className={`${BASE} text-warn`}>
-      {t('editOverlap', AGENT_NAME[item.provider], item.file)}{' '}
-      <a href={`/a/${item.agent}/`} className="underline underline-offset-2 hover:text-foreground">{t('editOverlapOpen')}</a>
-    </div>
-  );
-});
-
 export const NoticeLine = memo(function NoticeLine({ item }: { item: Extract<FeedItem, { kind: 'notice' }> }) {
   const t = useT();
   return (

@@ -65,7 +65,6 @@ const SELF = fileURLToPath(import.meta.url);
 const MAIN = path.join(REPO, fs.existsSync(path.join(REPO, 'server/src/main.js')) ? 'server/src/main.js' : 'server/src/main.ts');
 // `nota-bene remote`: its own bundle in the package, loaded only for that command (it needs ws and uqr, the launcher does not)
 const REMOTE = path.join(REPO, fs.existsSync(path.join(REPO, 'server/src/remote/cli.js')) ? 'server/src/remote/cli.js' : 'server/src/remote/cli.ts');
-const BUS_SHIM = path.join(REPO, fs.existsSync(path.join(REPO, 'server/src/busShim.js')) ? 'server/src/busShim.js' : 'server/src/busShim.ts');
 const USAGE = 'Usage: nota-bene [dir] [--agent claude|codex|omp] [--port N] [--resume ID [--fork]] [--new] [--detach] [--no-open]\n'
   + '       nota-bene --app   (the most recent project, as the app icon opens it) | nota-bene shortcut   (install the app icon)\n'
   + '       nota-bene --find DIR [--scan] | --last DIR | --url PORT | --front PORT\n'
@@ -1072,8 +1071,6 @@ async function supervise(o, autoPort, release, state) {
 export async function main(argv) {
   // a command of its own, with its own arguments (server/src/remote/cli.ts): before the window options are parsed
   if (argv[0] === 'remote') return (await import(pathToFileURL(REMOTE).href)).remoteMain(argv.slice(1));
-  // the agent bus for an agent with MCP over stdio only (epic 383 2f): it relays to the server's endpoint
-  if (argv[0] === 'mcp') return (await import(pathToFileURL(BUS_SHIM).href)).busShimMain(argv.slice(1));
   // the app icon runs this launcher (server/src/shortcut.ts), the one later updates hand over from; an inner one keeps its outer's
   if (!INNER) process.env.NOTA_BENE_LAUNCHER = SELF;
   if (argv[0] === 'shortcut' && argv.length === 1) {

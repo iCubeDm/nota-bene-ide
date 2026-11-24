@@ -282,25 +282,6 @@ final class AttachmentAnchor extends Anchor {
   }
 }
 
-final class BusSender implements _Json {
-  const BusSender({required this.agent, required this.provider});
-
-  factory BusSender.fromJson(Map<String, Object?> json) {
-    return BusSender(
-      agent: json['agent'] as String,
-      provider: AgentProvider.fromJson(json['provider']),
-    );
-  }
-
-  final String agent;
-  final AgentProvider provider;
-
-  @override
-  Map<String, Object?> toJson() {
-    return {'agent': agent, 'provider': provider.toJson()};
-  }
-}
-
 final class Capabilities implements _Json {
   const Capabilities({
     required this.compact,
@@ -1224,7 +1205,6 @@ final class HostWindow implements _Json {
     this.replies,
     this.icon,
     this.agent,
-    this.lead,
   });
 
   factory HostWindow.fromJson(Map<String, Object?> json) {
@@ -1243,7 +1223,6 @@ final class HostWindow implements _Json {
       replies: json['replies'] as int?,
       icon: json['icon'] as String?,
       agent: json['agent'] as String?,
-      lead: json['lead'] as String?,
     );
   }
 
@@ -1261,7 +1240,6 @@ final class HostWindow implements _Json {
   final int? replies;
   final String? icon;
   final String? agent;
-  final String? lead;
 
   @override
   Map<String, Object?> toJson() {
@@ -1280,7 +1258,6 @@ final class HostWindow implements _Json {
       if (replies != null) 'replies': replies,
       if (icon != null) 'icon': icon,
       if (agent != null) 'agent': agent,
-      if (lead != null) 'lead': lead,
     };
   }
 }
@@ -2234,7 +2211,6 @@ sealed class ServerEvent implements _Json {
       'compact-pending' => ServerEventCompactPending.fromJson(json),
       'send-held' => ServerEventSendHeld.fromJson(json),
       'server-error' => ServerEventServerError.fromJson(json),
-      'edit-overlap' => ServerEventEditOverlap.fromJson(json),
       'send-refused' => ServerEventSendRefused.fromJson(json),
       'shell-start' => ServerEventShellStart.fromJson(json),
       'shell-out' => ServerEventShellOut.fromJson(json),
@@ -2383,40 +2359,6 @@ final class ServerEventCompactPending extends ServerEvent {
       'kind': 'compact-pending',
       'pending': pending,
       'held': _jsonList(held),
-    };
-  }
-}
-
-final class ServerEventEditOverlap extends ServerEvent {
-  const ServerEventEditOverlap({
-    required this.file,
-    required this.agent,
-    required this.provider,
-    required this.ts,
-  });
-
-  factory ServerEventEditOverlap.fromJson(Map<String, Object?> json) {
-    return ServerEventEditOverlap(
-      file: json['file'] as String,
-      agent: json['agent'] as String,
-      provider: AgentProvider.fromJson(json['provider']),
-      ts: json['ts'] as num,
-    );
-  }
-
-  final String file;
-  final String agent;
-  final AgentProvider provider;
-  final num ts;
-
-  @override
-  Map<String, Object?> toJson() {
-    return {
-      'kind': 'edit-overlap',
-      'file': file,
-      'agent': agent,
-      'provider': provider.toJson(),
-      'ts': ts,
     };
   }
 }
@@ -3034,7 +2976,6 @@ final class ServerEventUser extends ServerEvent {
     this.idle,
     this.voice,
     this.voiceLang,
-    this.from,
   });
 
   factory ServerEventUser.fromJson(Map<String, Object?> json) {
@@ -3048,7 +2989,6 @@ final class ServerEventUser extends ServerEvent {
       idle: json['idle'] as bool?,
       voice: _opt(json['voice'], _obj(Voice.fromJson)),
       voiceLang: json['voiceLang'] as String?,
-      from: _opt(json['from'], _obj(BusSender.fromJson)),
     );
   }
 
@@ -3061,7 +3001,6 @@ final class ServerEventUser extends ServerEvent {
   final bool? idle;
   final Voice? voice;
   final String? voiceLang;
-  final BusSender? from;
 
   @override
   Map<String, Object?> toJson() {
@@ -3076,7 +3015,6 @@ final class ServerEventUser extends ServerEvent {
       if (idle != null) 'idle': idle,
       if (voice != null) 'voice': voice!.toJson(),
       if (voiceLang != null) 'voiceLang': voiceLang,
-      if (from != null) 'from': from!.toJson(),
     };
   }
 }

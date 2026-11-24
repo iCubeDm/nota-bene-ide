@@ -8,21 +8,6 @@ type Turn = { interruptRequested?: boolean; interruption?: Promise<void>; id?: s
 function turn(): Turn { let resolve!: () => void; const done = new Promise<void>((r) => { resolve = r; }); return { ids: new Set(), pending: 0, finished: false, at: Date.now(), done, resolve }; }
 
 /** One owned native process per active conversation. Acceptance is serial; generation work is not. */
-/** above the agent bus's 30 minutes without progress (bus.ts ASK_IDLE_MS): Codex must not cut a waiting ask first */
-const BUS_TOOL_TIMEOUT_SEC = 40 * 60;
-
-/** The agent bus (epic 383 2f) as the thread's config overrides: a streamable HTTP MCP server with its bearer. */
-export function busConfig(bus: NonNullable<StartOptions['bus']>): Record<string, unknown> {
-  return {
-    'mcp_servers.nota-bene.url': bus.url,
-    ...(bus.bearer ? { 'mcp_servers.nota-bene.http_headers': { Authorization: `Bearer ${bus.bearer}` } } : {}),
-    'mcp_servers.nota-bene.tool_timeout_sec': BUS_TOOL_TIMEOUT_SEC,
-    // as for Claude, the bus's own calls ask nothing: each message is a visible turn of the other agent, which keeps its
-    // own permissions, and either side can be stopped
-    'mcp_servers.nota-bene.default_tools_approval_mode': 'approve',
-  };
-}
-
 export class CodexSession implements AgentSession {
   readonly ready: Promise<void>;
   readonly messages: AsyncIterable<AgentEvent>;
@@ -92,7 +77,7 @@ export class CodexSession implements AgentSession {
     const requestedModel = this.model;
     const response = record(await this.rpc.request(resume ? fork ? 'thread/fork' : 'thread/resume' : 'thread/start', {
       developerInstructions: 'You are in Nota Bene, a browser chat rendering GitHub-flavored markdown. Use fenced mermaid or SVG diagrams. Show project images/video/audio with Markdown image syntax and project-relative paths. Reference project files with relative paths in inline code so the viewer can open them. The user may send batched inline comments quoting conversation or file fragments: address every item; uncommented material has no objections.',
-      cwd: this.o.cwd, ...(resume ? { threadId: resume } : {}), ...(this.o.bus ? { config: busConfig(this.o.bus) } : {}),
+      cwd: this.o.cwd, ...(resume ? { threadId: resume } : {}),
     }));
     if (this.ended) return;
     this.configuredPolicy = { ...(response.approvalPolicy ? { approvalPolicy: response.approvalPolicy } : {}), ...(response.sandbox ? { sandboxPolicy: response.sandbox } : {}) };

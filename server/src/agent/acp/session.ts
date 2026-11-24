@@ -66,21 +66,8 @@ export async function captureReplay(rpc: AcpConnection, sessionId: string, cwd: 
 }
 
 /** One owned ACP agent process per conversation; an approval-level change respawns it while idle. */
-/**
- * The agent bus (epic 383 2f) as an ACP session's `mcpServers`: over HTTP when the agent says it can, else through the
- * stdio shim (`nota-bene mcp`), its bearer in the shim's environment; none without a bus.
- */
-export function busServers(bus: StartOptions['bus'], http: boolean): unknown[] {
-  if (!bus) return [];
-  if (http) return [{ type: 'http', name: 'nota-bene', url: bus.url, headers: bus.bearer ? [{ name: 'Authorization', value: `Bearer ${bus.bearer}` }] : [] }];
-  if (!bus.launcher) return [];
-  return [{ name: 'nota-bene', command: process.execPath, args: [bus.launcher, 'mcp', '--url', bus.url], env: bus.bearer ? [{ name: 'NOTA_BENE_BUS_BEARER', value: bus.bearer }] : [] }];
-}
-
 export class AcpSession implements AgentSession {
   readonly ready: Promise<void>;
-  /** the agent bus, as this agent takes it (handshake) */
-  private servers: unknown[] = [];
   readonly messages: AsyncIterable<AgentEvent>;
   private readonly events: AgentEvent[] = [];
   private wake: (() => void) | undefined;
@@ -147,7 +134,6 @@ export class AcpSession implements AgentSession {
     const init = record(await rpc.ready);
     const old = tooOld(string(record(init.agentInfo).version), this.profile.minVersion);
     if (old) throw new Error(this.profile.errors.tooOld(old));
-    this.servers = busServers(this.o.bus, record(record(init.agentCapabilities).mcpCapabilities).http === true);
   }
   private set(configId: 'mode' | 'model' | 'thinking', value: string) {
     return this.rpc.request('session/set_config_option', { sessionId: this.sid, configId, value });
@@ -171,16 +157,16 @@ export class AcpSession implements AgentSession {
       // a fork never takes the source over; any other resume must not share a conversation another omp process holds
       if (!o.fork) await this.profile.beforeResume?.(o.resume);
       if (o.fork) {
-        const r = record(await this.rpc.request('session/fork', { sessionId: o.resume, cwd: o.cwd, mcpServers: this.servers }));
+        const r = record(await this.rpc.request('session/fork', { sessionId: o.resume, cwd: o.cwd, mcpServers: [] }));
         this.sid = string(r.sessionId); configOptions = r.configOptions;
       } else {
         this.sid = o.resume; this.replaying = true;
-        try { configOptions = record(await this.rpc.request('session/load', { sessionId: o.resume, cwd: o.cwd, mcpServers: this.servers }, { timeoutMs: 120_000 })).configOptions; }
+        try { configOptions = record(await this.rpc.request('session/load', { sessionId: o.resume, cwd: o.cwd, mcpServers: [] }, { timeoutMs: 120_000 })).configOptions; }
         finally { this.replaying = false; }
         this.mapper.flush();
       }
     } else {
-      const r = record(await this.rpc.request('session/new', { cwd: o.cwd, mcpServers: this.servers }));
+      const r = record(await this.rpc.request('session/new', { cwd: o.cwd, mcpServers: [] }));
       this.sid = string(r.sessionId); configOptions = r.configOptions;
     }
     if (this.ended) return;
@@ -290,7 +276,7 @@ export class AcpSession implements AgentSession {
     if (/^\/clear\s*$/.test(m.text)) {
       if (this.active.length) throw new Error(`Wait for ${name} to finish before clearing`);
       const old = this.sid;
-      const r = record(await this.rpc.request('session/new', { cwd: this.o.cwd, mcpServers: this.servers }));
+      const r = record(await this.rpc.request('session/new', { cwd: this.o.cwd, mcpServers: [] }));
       if (!string(r.sessionId)) throw new Error(`${name} did not return a session id`);
       this.sid = string(r.sessionId); this.mapper = new AcpMapper(); this.context = null; this.cost = 0; this.cancelAsks();
       void this.rpc.request('session/close', { sessionId: old }).catch(() => {});
@@ -354,7 +340,7 @@ export class AcpSession implements AgentSession {
       await this.handshake(rpc);
       this.replaying = true;
       let configOptions: unknown;
-      try { configOptions = record(await rpc.request('session/load', { sessionId: this.sid, cwd: this.o.cwd, mcpServers: this.servers }, { timeoutMs: 120_000 })).configOptions; }
+      try { configOptions = record(await rpc.request('session/load', { sessionId: this.sid, cwd: this.o.cwd, mcpServers: [] }, { timeoutMs: 120_000 })).configOptions; }
       finally { this.replaying = false; }
       this.mapper.flush(); // the replay's last text block must not come out again with the next live message
       this.mode = next;

@@ -19,9 +19,8 @@ export type RunningRow = {
   remote?: { host: string; name: string };
   /** epic 383: an agent the server on `port` opened beside its window's (`provider` is that agent's) */
   agent?: string;
-  /** epic 383 2g: its agent id (the window's own too), and a helper's lead */
+  /** epic 383 2g: its agent id (the window's own too) */
   id?: string;
-  lead?: string;
   /** issue 651: its open asks, oldest first: only an agent of this page's server, which answers them (answerAsk) */
   asks?: OpenAsk[];
 };

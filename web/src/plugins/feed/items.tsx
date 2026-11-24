@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { chat, useAppDispatch, type AnyFeedRenderer, type FeedItem, type Held } from '@/sdk';
-import { DoneLine, IdleCompactLine, MarkerLine, NoticeLine, OverlapLine } from './DoneLine.tsx';
+import { DoneLine, IdleCompactLine, MarkerLine, NoticeLine } from './DoneLine.tsx';
 import { MsgTime } from './MsgTime.tsx';
 import { PlanCard } from './PlanCard.tsx';
 import { UserMessage } from './UserMessage.tsx';
@@ -43,5 +43,4 @@ export const FEED_RENDERERS: AnyFeedRenderer[] = [
   { kind: 'permission', render: Permission },
   { kind: 'marker', render: MarkerLine },
   { kind: 'notice', render: NoticeLine },
-  { kind: 'overlap', render: OverlapLine },
 ];
