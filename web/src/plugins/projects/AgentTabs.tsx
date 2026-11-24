@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { connections, DROP_MARK, remotePage, routes, send, toast, useChatTab, useDragOrder, useSources, useT } from '@/sdk';
 import type { ReactNode } from 'react';
 import { AgentIcon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, ConfirmDialog, Svg, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
-import { enterProject, openFolder, PROVIDER_LABEL, reasonText, stopProject, useProjects, type Provider, type RunningRow } from './api.ts';
+import { enterProject, nav, openFolder, PROVIDER_LABEL, reasonText, stopProject, useProjects, type Provider, type RunningRow } from './api.ts';
 import { badgeOf } from './rows.ts';
 import { agentKey, moveAgent, ordered, useAgentOrder } from './agentOrder.ts';
 import { BadgeView, DOT, LIVE, STATE_KEY } from './Tile.tsx';
@@ -62,7 +62,7 @@ export function AgentTabs() {
     const why = await openFolder(dir, p, undefined, undefined, true);
     if (why) toast(t('projEnterFailed', reasonText(why)), dir);
   };
-  // issue 639: this page's own agent closes, then the page moves to its neighbour in the strip
+  // issue 639: this page's own agent closes, then the page moves to its neighbour in the strip; the server's last, to its home
   const close = async (r: RunningRow) => {
     setClosing(null);
     const i = shown.indexOf(r);
@@ -70,6 +70,7 @@ export function AgentTabs() {
     const why = await stopProject(r);
     if (why) return toast(t('agentClose'), reasonText(why));
     if (next) void enterProject(next);
+    else if (r === here) nav.go('/');
   };
   const choices = (dir: string) => kinds.map((p) => <DropdownMenuItem key={p} onSelect={() => void add(dir, p)}><AgentIcon provider={p} />{PROVIDER_LABEL[p]}</DropdownMenuItem>);
   return (
@@ -77,7 +78,7 @@ export function AgentTabs() {
       {shown.map((r) => (
         <Place key={agentKey(r)} id={agentKey(r)} move={move}>
           {r === here ? chat : <AgentTab r={r} branch={r.root === here.root ? undefined : trees.get(r.root)} onClose={r.agent && !r.remote && !remote ? () => setClosing(r) : undefined} />}
-          {r === here && here.agent && !remote && shown.length > 1 && <CloseX r={here} onClose={() => setClosing(here)} />}
+          {r === here && here.agent && !remote && <CloseX r={here} onClose={() => setClosing(here)} />}
           {r === here && here.lead && !remote && (
             <button type="button" title={t('helperKeepTip')} onClick={() => void keep()} className="ml-1 h-6 flex-none rounded-md border border-border-soft px-2 text-[0.6875rem] text-muted-foreground hover:text-foreground">
               {t('helperKeep')}

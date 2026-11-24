@@ -42,7 +42,7 @@ export type AnyTabView = { [K in keyof TabKinds]: TabView<K> }[keyof TabKinds];
  * there places among its own (`useChatTab()`; epic 383, issue 638: the project's agents).
  */
 export type SlotName = 'header.title' | 'header.center' | 'header.end' | 'header.menu' | 'header.badge' | 'strip.left' | 'strip.right' | 'tabs.chat'
-  | 'panel.left' | 'panel.right' | 'chat' | 'panes' | 'footer' | 'overlay'
+  | 'panel.left' | 'panel.right' | 'chat' | 'panes' | 'footer' | 'overlay' | 'home'
   | 'composer.status' | 'composer.tools' | 'composer.end' | 'composer.pickers';
 
 /** A plugin's part of the frame: rendered at `slot` by ascending `order`, with the frame's own parts (see `Slots`). */

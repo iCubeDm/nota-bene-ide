@@ -2,12 +2,13 @@
 
 ## Unreleased
 
+- **A home page for the server.** Its own address lists the projects (running, Recent) and opens or makes one, with no agent of its own. Closing the server's last agent goes there; the server stays up.
 - **Close this page's agent.** **✕** beside the chat's tab closes it and moves to the next agent of the strip; a page whose agent was closed elsewhere moves to another agent instead of reconnecting forever.
 - **Phone: projects open again after the update to one Nota Bene for every folder.** A connector started before it is replaced, so tabs no longer wait for the window; a server whose folder's agent was closed is listed under the agent it shows.
 - **Agent tabs keep their place; tabs move by drag.** Moving to another agent no longer puts it first: a project's agents keep one order on every page. Drag any tab to reorder it.
 - **Close an agent from its tab.** **✕** on another agent's tab closes it after a confirm; its session stays.
 - **Agent tabs show their agent's mark.** The chat's tab and each other agent's tab carry Claude's, OpenAI's (Codex) or omp's mark; so do the **+** and helper menus.
-- **A server's first agent closes like the others.** Its row in the switcher closes it alone while another agent of the server is open; the server and the other agents go on. The server's last agent still stays open.
+- **A server's first agent closes like the others.** Its row in the switcher closes it alone while another agent of the server is open; the server and the other agents go on.
 - **Phone: a project's agents together.** The phone keeps a folder's agents next to each other and shows a lead's helpers as one chip under it.
 - **Moving between a project's agents.** Alt+[ and Alt+] go to the previous and next agent; the switcher lists a project's agents and closes one.
 - **Agents start helpers.** An agent can start another agent of the project for part of its task, get its answer and close it; helpers group under their lead and fold up when idle. **Keep** turns one into an agent of the project.

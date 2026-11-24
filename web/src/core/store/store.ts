@@ -137,6 +137,8 @@ export function makeStore(o: {
   base?: string;
   plugins: readonly Plugin[];
   connect?: Connect;
+  /** false: no socket (the server's home page, issue 639, has no agent to connect to) */
+  socket?: false;
   pip?: PipApi;
 }) {
   // first: a contribution claimed twice fails here, before anything is made
@@ -183,7 +185,7 @@ export function makeStore(o: {
     mirror: (s) => store.dispatch(connState(s)),
   });
   conns.push(self);
-  self.open();
+  if (o.socket !== false) self.open();
   return store;
 }
 

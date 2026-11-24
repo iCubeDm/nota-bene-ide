@@ -172,7 +172,7 @@ describe('issue 639: this page\'s agent closes from its tab', () => {
     expect(stop).toBeLessThan(calls.findIndex((c) => c.url === '/system/projects/enter'));
   });
 
-  it('the last of the strip goes to the one before it; alone, the chat\'s tab has no ✕', async () => {
+  it('the last of the strip goes to the one before it; the server\'s last goes to its home', async () => {
     withHere();
     localStorage.setItem('nb.agentOrder', JSON.stringify(['4791/claude-a2b3c4', '4791/codex-k3f7qz', `4791/${HERE}`]));
     setup();
@@ -183,8 +183,10 @@ describe('issue 639: this page\'s agent closes from its tab', () => {
     cleanup();
     list = { ...LIST, running: [{ ...LIST.running[0]!, agent: HERE }] };
     setup();
-    await waitFor(() => expect(calls.some((c) => c.url === '/system/projects')).toBe(true));
-    expect(screen.queryByRole('button', { name: new RegExp(t('agentClose')) })).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: `${t('agentClose')}: Claude · Fix the login form` }));
+    fireEvent.click(await screen.findByRole('button', { name: t('agentClose') }));
+    await waitFor(() => expect(nav.go).toHaveBeenCalledWith('/'));
+    expect(calls.filter((c) => c.url === '/system/projects/stop')).toHaveLength(2);
   });
 });
 
