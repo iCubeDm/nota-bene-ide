@@ -27,6 +27,8 @@ export const de: Dict = {
   serverError: (w) => `Serverfehler${w ? ' · ' + w : ''}`,
   gitBashTitle: 'Git Bash empfohlen',
   gitBashMissing: 'Git Bash wurde nicht gefunden, daher führt Claude Code Shell-Befehle in PowerShell aus, ohne sein Bash-Tool. Für das Bash-Tool installieren Sie Git for Windows (oder setzen Sie CLAUDE_CODE_GIT_BASH_PATH auf dessen bash.exe) und starten Sie Nota Bene dann neu.',
+  historyTooLargeTitle: 'Verlauf nicht angezeigt',
+  historyTooLarge: 'Diese Unterhaltung ist zu groß, um sie hier anzuzeigen. Der Agent setzt sie trotzdem fort; starte eine neue Unterhaltung, um den Chat wieder zu sehen.',
   you: 'du',
   /** a day separator in the chat */
   today: 'Heute',

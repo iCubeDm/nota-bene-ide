@@ -8,7 +8,7 @@ import { CommandTap, offered, pickCommands, toSlash } from './commands.ts';
 import { gitBashWarning } from './gitBash.ts';
 import { mapFrames } from './map.ts';
 import { transcriptToEvents } from './transcript.ts';
-import { transcriptTimes } from './times.ts';
+import { assertReplayable, transcriptTimes } from './times.ts';
 import { agentOfCall, findSubagentMeta, hitFresh, hitGet, hitSet, isRunning, noMetaAdd, noMetaHas, subagentModel } from './subagents.ts';
 import { defaultProjectsDir } from '../../sessions.ts';
 import { UsageUnavailableError, mapContextUsage, mapUsage } from '../../stats.ts';
@@ -232,6 +232,7 @@ export function sdkBackend(): AgentBackend {
     }),
     // the SDK's messages carry no time: the transcript file's records do (times.ts)
     history: async (sessionId, cwd, attachments, onError) => {
+      await assertReplayable(defaultProjectsDir(), sessionId, cwd);
       const [msgs, times] = await Promise.all([getSessionMessages(sessionId, { dir: cwd }), transcriptTimes(defaultProjectsDir(), sessionId, { cwd })]);
       return transcriptToEvents(msgs, attachments, onError, { times });
     },

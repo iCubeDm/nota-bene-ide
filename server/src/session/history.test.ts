@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ServerEvent } from '@nota-bene/shared';
+import { TranscriptTooLargeError } from '../agent/types.ts';
 import { readHistory } from './history.ts';
 
 const ev: ServerEvent = { kind: 'user', id: 'u1', text: 'hi', ts: 0 };
@@ -21,6 +22,12 @@ describe('readHistory', () => {
     const { p, errors } = run(async () => { throw new Error('bad'); });
     expect(await p).toEqual([]);
     expect(errors).toEqual([['history', 'bad']]);
+  });
+
+  it('a transcript too large to replay: an empty feed, reported as history-too-large for the page to translate', async () => {
+    const { p, errors } = run(async () => { throw new TranscriptTooLargeError(2 ** 31); });
+    expect(await p).toEqual([]);
+    expect(errors).toEqual([['history-too-large', 'the transcript is 2048 MiB, too large to replay; the agent resumes it as usual']]);
   });
 
   it('a read that hangs: an empty feed after the timeout, reported as switch; a late rejection is no news', async () => {

@@ -1,11 +1,13 @@
 import type { ServerEvent } from '@nota-bene/shared';
+import { TranscriptTooLargeError } from '../agent/types.ts';
 
 class TimeoutError extends Error {}
 
 /**
  * A stored session's replay, raced against `timeoutMs` (a transcript read that hangs must not hold `switching`).
  * Either failure gives an empty feed: a timeout is reported as `switch` (the client ends its "switching" state on a
- * switch error), an unreadable transcript as `history` (it must not stop the server).
+ * switch error), an unreadable transcript as `history` (it must not stop the server), one too large to replay as
+ * `history-too-large` (the page says so in its language).
  */
 export async function readHistory(o: {
   read: () => Promise<ServerEvent[]>; timeoutMs: number; report: (where: string, e: unknown) => void;
@@ -19,7 +21,7 @@ export async function readHistory(o: {
       new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new TimeoutError('transcript read timed out')), o.timeoutMs); }),
     ]);
   } catch (e) {
-    o.report(e instanceof TimeoutError ? 'switch' : 'history', e);
+    o.report(e instanceof TimeoutError ? 'switch' : e instanceof TranscriptTooLargeError ? 'history-too-large' : 'history', e);
     return [];
   } finally {
     clearTimeout(timer);

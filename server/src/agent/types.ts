@@ -52,6 +52,15 @@ export type SessionListEntry = {
 /** The agent has no stored session with that id (a delete of one already gone). */
 export class SessionNotFoundError extends Error {}
 
+/** The transcript is too large to replay into the feed (times.ts HISTORY_MAX_BYTES); the agent still resumes it. */
+export class TranscriptTooLargeError extends Error {
+  readonly bytes: number;
+  constructor(bytes: number) {
+    super(`the transcript is ${Math.round(bytes / 2 ** 20)} MiB, too large to replay; the agent resumes it as usual`);
+    this.bytes = bytes;
+  }
+}
+
 export type SessionInfo = { customTitle?: string; summary?: string; firstPrompt?: string; cwd?: string };
 
 export interface AgentBackend<M = Mode, E = EffortLevel> {
