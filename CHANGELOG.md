@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **The home page runs the swarm.** It keeps the app's frame: a Projects panel with each project's agents and sessions, and an Inbox that puts first the agents waiting for you and answers their requests in place. **Home** in the rail leads back to it.
 - **A home page for the server.** Its own address lists the projects (running, Recent) and opens or makes one, with no agent of its own. Closing the server's last agent goes there; the server stays up, and the phone no longer lists it.
 - **Close this page's agent.** **✕** beside the chat's tab closes it and moves to the next agent of the strip; a page whose agent was closed elsewhere moves to another agent instead of reconnecting forever.
 - **Phone: projects open again after the update to one Nota Bene for every folder.** A connector started before it is replaced, so tabs no longer wait for the window; a server whose folder's agent was closed is listed under the agent it shows.
