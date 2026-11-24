@@ -7,6 +7,8 @@ import type { APIResponse, Page } from '@playwright/test';
 
 /** The fixture's token (serve.mjs writes the same into its state dir). */
 export const e2eToken = (fixture: string): string => createHash('sha256').update(`nota-bene e2e ${fixture}`).digest('hex');
+/** The fixture server's control token (serve.mjs writes the same into its state dir): its `/control/open` opens an agent in it. */
+export const e2eControl = (fixture: string): string => createHash('sha256').update(`nota-bene e2e control ${fixture}`).digest('hex');
 /** The fixture server's launch nonce (serve.mjs passes it as NOTA_BENE_NONCE). */
 export const e2eNonce = (fixture: string): string => createHash('sha256').update(`nota-bene e2e nonce ${fixture}`).digest('hex').slice(0, 32);
 

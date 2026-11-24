@@ -1,22 +1,22 @@
 import { expect, test } from '@playwright/test';
-import { apiGet } from './auth.ts';
+import { apiGet, e2eControl } from './auth.ts';
 
-// Issue 661: one window, one agent. A second agent on the chat fixture's folder (4791) gets a page of its own: its strip has
-// the chat's tab only, no tab of the folder's other agent and no +; ✕ in the chat's tab closes it and goes to the home page.
-// It closes only the agent it opened, so the fixture's own agent stays for the other specs.
+// Issue 661: one window, one agent. A second agent on the chat fixture's folder, opened in its server (/control/open; the
+// launcher would start a server of its own beside a --port one), has a page of its own: its strip has the chat's tab only, no
+// tab of the folder's other agent and no +; ✕ in the chat's tab closes it and goes to the server's home. It closes only the
+// agent it opened, so the fixture's own agent stays for the other specs.
 test('a page shows one agent; ✕ in the chat\'s tab closes it and goes to the server\'s home @chat', async ({ page, baseURL }) => {
   await page.goto('');
   await expect(page.locator('#composer-input')).toBeVisible();
   const { root } = (await (await apiGet(page, 'info')).json()) as { root: string };
-  const key = await page.evaluate(() => localStorage.getItem('nb.key'));
-  const opened = await page.request.post('system/projects/open', {
-    data: { dir: root, provider: 'claude', new: true },
-    headers: { 'x-nota-bene-key': key!, origin: new URL(baseURL!).origin },
+  const top = new URL(baseURL!).origin;
+  const opened = await page.request.post(`${top}/control/open`, {
+    data: { root, provider: 'claude', mode: 'new', show: false },
+    headers: { 'x-nota-bene-control': e2eControl('chat') },
   });
   expect(opened.ok()).toBe(true);
-  const { url } = (await opened.json()) as { url: string };
-  const agent = /\/a\/([^/]+)\//.exec(url)![1]!;
-  await page.goto(url);
+  const { agent } = (await opened.json()) as { agent: string };
+  await page.goto(`${top}/a/${agent}/`);
   await expect(page.locator('#composer-input')).toBeVisible();
 
   const x = page.getByRole('button', { name: /^Close this agent: / });
@@ -27,7 +27,7 @@ test('a page shows one agent; ✕ in the chat\'s tab closes it and goes to the s
 
   await x.click();
   await page.getByRole('button', { name: 'Close this agent', exact: true }).click();
-  await expect.poll(() => new URL(page.url()).pathname).toBe('/');
+  await expect.poll(() => page.url()).toBe(`${top}/`);
   const { agents } = (await (await apiGet(page, 'info')).json()) as { agents: { id: string }[] };
   expect(agents.map((a) => a.id)).not.toContain(agent);
 });
