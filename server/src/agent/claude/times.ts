@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
+import { TranscriptTooLargeError } from '../types.ts';
 
 const SAFE_ID = /^[\w-]{1,100}$/;
 /** the CLI cuts a longer folder name and appends a hash of the path: such a cwd is found by the scan */
@@ -66,6 +67,23 @@ async function* folders(projectsDir: string, cwd: string | undefined): AsyncGene
   let all: string[];
   try { all = await fs.promises.readdir(projectsDir); } catch { return; }
   for (const f of all) if (!tried.has(f)) yield f;
+}
+
+/**
+ * Past V8's string limit (~512 MiB) the SDK's `getSessionMessages` stalls the event loop for minutes and takes gigabytes
+ * (issue 669: a 2.1 GB transcript, 6 GB and 90 s+, while 411 MB read in 0.65 s), freezing every agent of the server.
+ */
+export const HISTORY_MAX_BYTES = 512 * 2 ** 20;
+
+/** Throws TranscriptTooLargeError when the session's transcript is past `max`; a missing one is the SDK's to report. */
+export async function assertReplayable(projectsDir: string, sessionId: string, cwd?: string, max = HISTORY_MAX_BYTES): Promise<void> {
+  if (!SAFE_ID.test(sessionId)) return;
+  for await (const f of folders(projectsDir, cwd)) {
+    let size: number;
+    try { size = (await fs.promises.stat(path.join(projectsDir, f, `${sessionId}.jsonl`))).size; } catch { continue; }
+    if (size > max) throw new TranscriptTooLargeError(size);
+    return;
+  }
 }
 
 /**

@@ -27,6 +27,9 @@ export const ru = {
   // a server-error with where `git-bash`: Claude Code on Windows without Git Bash, so on PowerShell only (server agent/claude/gitBash.ts)
   gitBashTitle: 'Рекомендуется Git Bash',
   gitBashMissing: 'Git Bash не найден, поэтому Claude Code выполняет команды оболочки в PowerShell, без инструмента Bash. Чтобы он появился, установите Git for Windows (или укажите путь к его bash.exe в CLAUDE_CODE_GIT_BASH_PATH) и перезапустите Nota Bene.',
+  // a server-error with where `history-too-large`: a transcript too large to replay (server agent/claude/times.ts)
+  historyTooLargeTitle: 'История не показана',
+  historyTooLarge: 'Этот разговор слишком большой, чтобы показать его здесь. Агент всё равно продолжает его; начни новый разговор, чтобы снова видеть чат.',
   you: 'ты',
   /** a day separator in the chat */
   today: 'Сегодня',

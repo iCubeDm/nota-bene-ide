@@ -27,6 +27,8 @@ export const zhCN: Dict = {
   serverError: (w) => `服务器错误${w ? ' · ' + w : ''}`,
   gitBashTitle: '建议安装 Git Bash',
   gitBashMissing: '未找到 Git Bash，因此 Claude Code 在 PowerShell 中运行 shell 命令，没有 Bash 工具。如需 Bash 工具，请安装 Git for Windows（或将 CLAUDE_CODE_GIT_BASH_PATH 设为其 bash.exe 的路径），然后重启 Nota Bene。',
+  historyTooLargeTitle: '未显示历史记录',
+  historyTooLarge: '此对话过大，无法在此显示。智能体仍会继续该对话；开始新对话即可再次看到聊天内容。',
   you: '你',
   /** a day separator in the chat */
   today: '今天',
