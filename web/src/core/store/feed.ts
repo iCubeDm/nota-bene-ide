@@ -1,12 +1,11 @@
 import { createAction } from '@reduxjs/toolkit';
-import { SHELL_OUTPUT_CAP, cutTail, type AgentProvider, type BusSender, type Interaction, type ImageRef, type ServerEvent, type ShellStop, type Voice, type VoiceError, type WireAgentEvent } from '@nota-bene/shared';
+import { SHELL_OUTPUT_CAP, cutTail, type Interaction, type ImageRef, type ServerEvent, type ShellStop, type Voice, type VoiceError, type WireAgentEvent } from '@nota-bene/shared';
 
 export type FeedItem =
   /** idle: the server's own /compact after a quiet stretch, shown as a line, not as the user's message */
   | { kind: 'user'; id: string; text: string; ts: number; force?: boolean; duringWork?: boolean; images?: ImageRef[]; idle?: boolean;
       /** a voice message (protocol 14): `text` is '' until the `voice-text` event puts the transcript in `voiceText`, or says why there is none in `voiceError` */
-      voice?: Voice; voiceText?: string; voiceError?: VoiceError; /** the language the transcript was made in (protocol 18) */ voiceLang?: string;
-      /** protocol 34 (epic 383 2f): another agent's message through the agent bus */ from?: BusSender }
+      voice?: Voice; voiceText?: string; voiceError?: VoiceError; /** the language the transcript was made in (protocol 18) */ voiceLang?: string }
   // `${uuid}:${blockIndex}`; while streaming `stream:${n}`. `ts`: when it began (its stream's start); 0 = not known
   | { kind: 'assistant'; id: string; text: string; final: boolean; ts: number }
   | {
@@ -32,9 +31,7 @@ export type FeedItem =
    * `text`: the resumed session id; translated at render. (Server errors are toasts, not feed items: R-M4-5.) `cut`
    * (protocol 22): the server stopped during a turn of this session, the line offers Continue
    */
-  | { kind: 'notice'; key: string; text: string; cut?: true }
-  /** protocol 33 (epic 383 2e): another agent of this server edited `file` in an overlapping turn, uncommitted */
-  | { kind: 'overlap'; key: string; file: string; agent: string; provider: AgentProvider; ts: number };
+  | { kind: 'notice'; key: string; text: string; cut?: true };
 
 export type FeedState = {
   items: FeedItem[];
@@ -278,7 +275,6 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
         ...(ev.idle ? { idle: true } : {}),
         ...(ev.voice ? { voice: ev.voice } : {}),
         ...(ev.voice && ev.voiceLang ? { voiceLang: ev.voiceLang } : {}),
-        ...(ev.from ? { from: ev.from } : {}),
         ...(!ev.historic && s.busy ? { duringWork: true } : {}),
       };
       return {
@@ -328,11 +324,6 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
     {
       const { key, lineN } = lineKey(s);
       return { ...s, lineN, items: [...s.items, { kind: 'notice', key, text: ev.id.slice(0, 8), ...(ev.cut ? { cut: true as const } : {}) }] };
-    }
-    case 'edit-overlap':
-    {
-      const { key, lineN } = lineKey(s);
-      return { ...s, lineN, items: [...s.items, { kind: 'overlap', key, file: ev.file, agent: ev.agent, provider: ev.provider, ts: ev.ts }] };
     }
     case 'comments': // handled by the comments store, not the feed
     case 'comment-ack': // protocol 19: answers to the comments store's ops

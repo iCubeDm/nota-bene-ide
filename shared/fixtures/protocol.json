@@ -1219,23 +1219,6 @@
       "agent": "codex-abcdef"
     },
     {
-      "kind": "edit-overlap",
-      "file": "src/x.ts",
-      "agent": "codex-abcdef",
-      "provider": "codex",
-      "ts": 1700000000000
-    },
-    {
-      "kind": "user",
-      "id": "bus-1",
-      "text": "review x.ts",
-      "ts": 1700000000000,
-      "from": {
-        "agent": "codex-abcdef",
-        "provider": "codex"
-      }
-    },
-    {
       "kind": "compact-pending",
       "pending": true,
       "held": [

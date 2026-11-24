@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { AgentEvent } from '@nota-bene/shared';
-import { busConfig, CodexSession } from './session.ts';
+import { CodexSession } from './session.ts';
 import { codexBackend } from './backend.ts';
 import type { CodexConnection } from './controls.ts';
 
@@ -217,18 +217,4 @@ it('child liveness is read from its owning session, not the separate metadata pr
   const { AttachmentStore } = await import('../../attachments.ts');
   try { expect(await backend.subagent('new-thread', '/tmp', 'codex-spawn', new AttachmentStore({ dir: '/unused' }))).toMatchObject({ running: true }); }
   finally { await backend.close?.(); }
-});
-
-describe('the agent bus on a Codex thread (epic 383 2f)', () => {
-  it('thread/start overrides the config with the bus, its bearer and a tool timeout above an ask\'s 30 minutes', async () => {
-    const bus = { url: 'http://127.0.0.1:4790/a/codex-abcdef/mcp', bearer: 'b1' };
-    const s = setup(new Script(), { bus });
-    await s.session.ready;
-    expect(s.rpc.calls.find((c) => c.method === 'thread/start')!.params.config).toEqual({
-      'mcp_servers.nota-bene.url': bus.url, 'mcp_servers.nota-bene.http_headers': { Authorization: 'Bearer b1' }, 'mcp_servers.nota-bene.tool_timeout_sec': 2400,
-      'mcp_servers.nota-bene.default_tools_approval_mode': 'approve',
-    });
-    expect(busConfig({ url: bus.url, bearer: null })).not.toHaveProperty(['mcp_servers.nota-bene.http_headers']);
-    await s.close();
-  });
 });

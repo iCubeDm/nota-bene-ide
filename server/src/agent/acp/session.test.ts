@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent, AgentMode, Interaction } from '@nota-bene/shared';
 import { AcpError, type AcpConnection, type AcpRequest } from './rpc.ts';
-import { AcpSession, busServers, tooOld } from './session.ts';
+import { AcpSession, tooOld } from './session.ts';
 import { OMP } from './omp.ts';
 
 const CONFIG = [
@@ -236,22 +236,5 @@ describe('ACP session', () => {
     s.rpc().update({ sessionUpdate: 'tool_call', toolCallId: 't', name: 'bash', kind: 'execute', status: 'pending', rawInput: {} }); await flush();
     expect(s.events.filter((e) => e.t === 'message')).toMatchObject([{ text: 'new reply' }]);
     await s.close();
-  });
-});
-
-describe('the agent bus on an ACP session (epic 383 2f)', () => {
-  const bus = { url: 'http://127.0.0.1:4790/a/omp-abcdef/mcp', bearer: 'b1', launcher: '/nb/bin/nota-bene.mjs' };
-  it('over HTTP when the agent says it can, else through the stdio shim with the bearer in its environment; none without a bus', () => {
-    expect(busServers(bus, true)).toEqual([{ type: 'http', name: 'nota-bene', url: bus.url, headers: [{ name: 'Authorization', value: 'Bearer b1' }] }]);
-    expect(busServers(bus, false)).toEqual([{ name: 'nota-bene', command: process.execPath, args: ['/nb/bin/nota-bene.mjs', 'mcp', '--url', bus.url], env: [{ name: 'NOTA_BENE_BUS_BEARER', value: 'b1' }] }]);
-    expect(busServers(undefined, true)).toEqual([]);
-  });
-  it('session/new carries it, as the agent\'s capabilities allow', async () => {
-    const rpc = new Script();
-    rpc.ready = Promise.resolve({ agentInfo: { name: 'omp', version: '18.16.0' }, agentCapabilities: { mcpCapabilities: { http: true } } });
-    const session = new AcpSession({ cwd: '/tmp', permissionMode: 'omp-yolo', ask: async () => false, bus }, { ...OMP, beforeResume: undefined }, () => rpc);
-    await session.ready;
-    expect(rpc.calls.find((c) => c.method === 'session/new')!.params.mcpServers).toEqual(busServers(bus, true));
-    session.close();
   });
 });

@@ -1,7 +1,7 @@
 import { AGENT_ID, type AgentProvider } from '@nota-bene/shared';
 import type { WithSlice } from '@reduxjs/toolkit';
 import { definePlugin, serverEvent } from '@/sdk';
-import { AgentTabs, cycleAgent } from './AgentTabs.tsx';
+import { AgentClose } from './AgentClose.tsx';
 import { AppIcon, shortcutResource } from './AppIcon.tsx';
 import { Inbox } from './Inbox.tsx';
 import { ProjectTitle } from './ProjectSwitcher.tsx';
@@ -28,8 +28,8 @@ export const projectsPlugin = definePlugin({
   slices: [projectsSlice],
   slots: [
     { slot: 'header.title', order: 10, render: ProjectTitle },
-    // epic 383 2e: the folder's other agents beside the chat's tab, and + to add one
-    { slot: 'tabs.chat', order: 10, render: AgentTabs },
+    // issue 661: the chat's tab, with ✕ closing this page's agent
+    { slot: 'tabs.chat', order: 10, render: AgentClose },
     // the open projects, outermost: a stopgap before one server for every project (issue 419)
     { slot: 'panel.left', order: 10, render: ProjectRail, on: 'both' },
     { slot: 'overlay', order: 50, render: Starter, on: 'both' },
@@ -47,9 +47,6 @@ export const projectsPlugin = definePlugin({
   // Alt+P, in a field too (also on a Mac, where Option+P types π): the project switcher in the header
   commands: [
     { id: 'hk_projects', codes: ['KeyP'], mods: { alt: true }, inFields: true, order: 70, run: ({ store }) => void store.dispatch(setProjectsMenu(!selectProjectsMenu(store.getState()))) },
-    // phase 3: the project's agents in the tab strip's order; in a field too, but on a Mac, where Option+[ types a character
-    { id: 'hk_agentPrev', codes: ['BracketLeft'], mods: { alt: true }, inFields: 'notMac', order: 71, run: () => cycleAgent(-1) },
-    { id: 'hk_agentNext', codes: ['BracketRight'], mods: { alt: true }, inFields: 'notMac', order: 72, run: () => cycleAgent(1) },
   ],
   settings: projectsSettings,
   resources: [projectsResource, shortcutResource],

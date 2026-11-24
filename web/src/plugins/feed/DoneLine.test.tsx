@@ -2,8 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import { setLang } from '@/core/i18n/index.ts';
-import { CompactingLine, DoneLine, MarkerLine, NoticeLine, OverlapLine } from './DoneLine.tsx';
-import { emptyFeed, reduce } from '@/core/store/feed.ts';
+import { CompactingLine, DoneLine, MarkerLine, NoticeLine } from './DoneLine.tsx';
 
 afterEach(() => setLang('ru'));
 
@@ -81,16 +80,4 @@ it('the compacting line counts from the server ts and fills the bar towards the 
     vi.useRealTimers();
     localStorage.clear();
   }
-});
-
-it('epic 383 2e: another agent editing the same file is a warning line with a link to that agent', () => {
-  setLang('en');
-  const s = reduce(emptyFeed, { kind: 'edit-overlap', file: 'src/x.ts', agent: 'codex-k3f7qz', provider: 'codex', ts: 5 });
-  const item = s.items.at(-1)!;
-  expect(item).toMatchObject({ kind: 'overlap', file: 'src/x.ts', agent: 'codex-k3f7qz', provider: 'codex' });
-  const { container } = render(<OverlapLine item={item as Extract<typeof item, { kind: 'overlap' }>} />);
-  const line = container.querySelector('[data-kind="overlap"]')!;
-  expect(line).toHaveTextContent('Codex is editing src/x.ts too');
-  expect(line).toHaveClass('text-warn');
-  expect(screen.getByRole('link', { name: 'Open it' })).toHaveAttribute('href', '/a/codex-k3f7qz/');
 });

@@ -43,7 +43,6 @@
   "markRead": "Marcar como leído",
   "openSession": "Abrir",
   "noWindows": "No hay ventanas abiertas",
-  "helpers": "{n, plural, =1{1 ayudante} other{{n} ayudantes}}",
   "justNow": "hace un momento",
   "minutesAgo": "hace {n} min",
   "hoursAgo": "{n, plural, =1{hace 1 hora} other{hace {n} horas}}",

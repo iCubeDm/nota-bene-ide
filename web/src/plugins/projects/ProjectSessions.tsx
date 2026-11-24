@@ -116,7 +116,6 @@ export function ProjectSessions({ root, windows, local, setLocal, onDone }: {
               <button type="button" disabled={w.current} onClick={() => { onDone(); void enterProject(w); }} className={`${rowCls} ${w.current ? 'bg-primary/10' : ''}`}>
                 <span aria-hidden className={`size-1.5 flex-none rounded-full ${DOT[w.state]}`} />
                 <span className="min-w-0 flex-1 truncate text-foreground">{agentName(w)}</span>
-                {w.lead && <span className="flex-none text-[0.6875rem] text-muted-foreground">{t('helperTag')}</span>}
               </button>
               {w.agent && !w.current && !w.remote && !remotePage() && (
                 <button type="button" aria-label={`${t('agentClose')}: ${agentName(w)}`} title={t('agentClose')} onClick={() => setClosing(w)}

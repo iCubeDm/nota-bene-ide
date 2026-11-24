@@ -48,8 +48,6 @@ export type HostWindow = {
    * `HostStreamMessage.agents`. Absent from an older host's `windows` (its first agent answered at the top).
    */
   agent?: string;
-  /** epic 383 2g: a helper's lead (an agent id of the same server; the window's own when no row has it as `agent`) */
-  lead?: string;
 };
 
 /**
@@ -59,4 +57,4 @@ export type HostWindow = {
 export type HostStreamMessage = { t: 'windows'; windows: HostWindow[]; agents?: HostWindow[] };
 
 /** The fields of a window's /info the host stream passes on. */
-export const HOST_WINDOW_INFO = ['title', 'session', 'model', 'busy', 'supervised', 'pending', 'last', 'replies', 'icon', 'lead'] as const satisfies readonly (keyof HostWindow)[];
+export const HOST_WINDOW_INFO = ['title', 'session', 'model', 'busy', 'supervised', 'pending', 'last', 'replies', 'icon'] as const satisfies readonly (keyof HostWindow)[];

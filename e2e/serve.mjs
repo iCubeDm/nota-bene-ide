@@ -21,6 +21,8 @@ const claudeDir = path.join(tmp, 'claude'), codexDir = path.join(tmp, 'codex');
 seedUsage(path.join(claudeDir, 'projects/-work-demo'));
 // the access token is on (the server default): a known one per fixture, so the config can log its browsers in (e2e/auth.ts)
 fs.writeFileSync(path.join(home, 'token'), createHash('sha256').update(`nota-bene e2e ${fixture}`).digest('hex'), { mode: 0o600 });
+// and a known control token, so a spec can open another agent in this server (/control/open) instead of through the launcher
+fs.writeFileSync(path.join(home, 'control-token'), createHash('sha256').update(`nota-bene e2e control ${fixture}`).digest('hex'), { mode: 0o600 });
 if (fixture === 'files') seedFiles(project);
 // the controls fixture's second session lives in a sibling folder of the project (removed with tmp)
 if (fixture === 'controls') {
@@ -108,6 +110,9 @@ const child = spawn(
   [path.join(root, 'server/src/main.ts'), project, '--port', port, '--fake', path.join(root, 'server/test/fixtures', `${fixture}.json`)],
   { cwd: root, env: { ...inherited, CLAUDE_CONFIG_DIR: claudeDir, CODEX_HOME: codexDir, NOTA_BENE_HOME: home, NOTA_BENE_NONCE: createHash('sha256').update(`nota-bene e2e nonce ${fixture}`).digest('hex').slice(0, 32) }, stdio: 'inherit', windowsHide: true },
 );
+// in its registry as a launcher would put it: the switcher's list and this page's own row (the chat tab's ✕) see it
+fs.mkdirSync(path.join(home, 'windows'));
+fs.writeFileSync(path.join(home, 'windows', `${port}.json`), JSON.stringify({ root: fs.realpathSync(project), pid: child.pid, startedAt: Date.now() }));
 
 let done = false;
 function finish(code) {

@@ -153,8 +153,6 @@ export const PROTOCOL = 37;
 export const AGENT_ID = /^[a-z]+-[a-z2-7]{6}$/;
 
 /** protocol 27: a send the server holds behind a pending restart or compaction (issue 499), as the feed shows it */
-/** epic 383 2f: the agent that sent a message through the agent bus */
-export type BusSender = { agent: string; provider: AgentProvider };
 
 export type HeldSend = { id: string; text: string; ts: number; images?: ImageRef[]; voice?: Voice };
 
@@ -345,8 +343,7 @@ export type ServerEvent =
   | { kind: 'agent'; e: WireAgentEvent; ts: number }
   /** `idle`: a `/compact` the server sent itself after the session sat idle */
   /** `voice`: a voice message; its `text` is '' until the `voice-text` event (a replayed history has the transcript in it) */
-  | { kind: 'user'; id: string; text: string; ts: number; force?: boolean; historic?: boolean; images?: ImageRef[]; idle?: boolean; voice?: Voice; /** protocol 18: the language a replayed voice message was transcribed in, when known */ voiceLang?: string;
-      /** protocol 34 (epic 383 2f): another agent's message through the agent bus, not the person's */ from?: BusSender }
+  | { kind: 'user'; id: string; text: string; ts: number; force?: boolean; historic?: boolean; images?: ImageRef[]; idle?: boolean; voice?: Voice; /** protocol 18: the language a replayed voice message was transcribed in, when known */ voiceLang?: string }
   /** protocol 14, stored: the transcript of the voice message `id`, or why there is none (then the agent got nothing) */
   | { kind: 'voice-text'; id: string; text?: string; error?: VoiceError; /** protocol 18: the language the transcript was made in (the detected one with `send.detect`) */ lang?: string; ts: number }
   | { kind: 'permission'; id: string; toolName: string; input: Record<string, unknown>; prompt?: Interaction; ts: number }
@@ -391,11 +388,6 @@ export type ServerEvent =
   /** protocol 27, to the asking socket only, never stored: its send is held (see `compact-pending`), or its typed `/compact` became the pending compaction; a `user` event follows when the send goes */
   | { kind: 'send-held'; id: string }
   | { kind: 'server-error'; where: string; message: string }
-  /**
-   * protocol 33 (epic 383 2e), stored: another agent of this server (`agent`, of `provider`) edited `file` (this agent's
-   * folder's relative path, else absolute) in a turn that overlaps this agent's, and the file has uncommitted changes
-   */
-  | { kind: 'edit-overlap'; file: string; agent: string; provider: AgentProvider; ts: number }
   /** to the asking socket only, never stored: a `send` the server did not take (the web side clears its pending state) */
   | { kind: 'send-refused'; id: string; reason: 'busy' | 'switching' | 'detached' }
   /** a `! cmd` run began (protocol 11); stored, so a reload shows the block */

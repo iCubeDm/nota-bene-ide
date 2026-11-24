@@ -29,8 +29,6 @@ export type SessionOptions = {
   idle?: IdleConfig;
   /** the `! cmd` runner's timing and environment (tests shorten the timeout and the kill delay) */
   shell?: { timeoutMs?: number; killMs?: number; env?: () => NodeJS.ProcessEnv };
-  /** epic 383 2f: the agent bus the session is started with (its MCP endpoint and bearer), asked at each start */
-  bus?: () => { url: string; bearer: string | null; launcher?: string } | null;
   /** which user messages were voice messages (default `<stateDir>/voice.jsonl`) */
   voices?: import('../voice/index.ts').VoiceIndex;
   /** a stored recording to text (tests stub it); default: the host's Whisper, VoiceFailure 'off' while it is off */
