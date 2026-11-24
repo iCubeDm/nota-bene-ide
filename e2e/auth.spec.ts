@@ -11,7 +11,7 @@ test('a page with no login shows the overlay and stops reconnecting @chat', asyn
   const page = await ctx.newPage();
   let sockets = 0;
   page.on('websocket', () => sockets++);
-  await page.goto('/');
+  await page.goto('');
   await expect(overlay(page)).toBeVisible();
   await expect(overlay(page)).toContainText('/nb');
   const seen = sockets;
@@ -23,7 +23,7 @@ test('a page with no login shows the overlay and stops reconnecting @chat', asyn
 test('the URL fragment logs in, is taken out of the address bar, and the window works @chat', async ({ browser, baseURL }) => {
   const ctx = await browser.newContext({ baseURL, locale: 'en-US', storageState: { cookies: [], origins: [] } });
   const page = await ctx.newPage();
-  await page.goto(`/#t=${e2eLogin('chat', PORT)}`);
+  await page.goto(`#t=${e2eLogin('chat', PORT)}`);
   await expect(page.locator('#composer-input')).toBeEnabled();
   await expect(overlay(page)).toHaveCount(0);
   expect(new URL(page.url()).hash).toBe('');
@@ -33,15 +33,15 @@ test('the URL fragment logs in, is taken out of the address bar, and the window 
   expect(await page.evaluate(() => document.cookie)).not.toContain('nb_'); // HttpOnly: the page cannot read it
   expect(await page.evaluate(() => localStorage.getItem('nb.key'))).toMatch(/^[0-9a-f]{64}$/); // the key that opens the socket and writes
   // images and media are plain subresource loads: the cookie goes with them
-  expect((await ctx.request.get('/info')).status()).toBe(401); // the cookie alone opens /file and /attach only
-  expect((await ctx.request.get('/info', { headers: { 'x-nota-bene-key': (await page.evaluate(() => localStorage.getItem('nb.key')))! } })).status()).toBe(200);
+  expect((await ctx.request.get('info')).status()).toBe(401); // the cookie alone opens /file and /attach only
+  expect((await ctx.request.get('info', { headers: { 'x-nota-bene-key': (await page.evaluate(() => localStorage.getItem('nb.key')))! } })).status()).toBe(200);
   await ctx.close();
 });
 
 test('a wrong token in the fragment is the same overlay @chat', async ({ browser, baseURL }) => {
   const ctx = await browser.newContext({ baseURL, locale: 'en-US', storageState: { cookies: [], origins: [] } });
   const page = await ctx.newPage();
-  await page.goto(`/#t=${'0'.repeat(64)}`);
+  await page.goto(`#t=${'0'.repeat(64)}`);
   await expect(overlay(page)).toBeVisible();
   expect(new URL(page.url()).hash).toBe('');
   expect((await ctx.cookies()).length).toBe(0);
@@ -50,22 +50,22 @@ test('a wrong token in the fragment is the same overlay @chat', async ({ browser
 
 test('the API and the socket refuse a request without the cookie, even from our own origin @chat', async ({ browser, baseURL }) => {
   const ctx = await browser.newContext({ baseURL, locale: 'en-US', storageState: { cookies: [], origins: [] } });
-  expect((await ctx.request.get('/info')).status()).toBe(401);
-  expect((await ctx.request.get('/file?path=README.md')).status()).toBe(401);
-  expect((await ctx.request.post('/restart-server', { headers: { origin: baseURL! } })).status()).toBe(401);
-  expect((await ctx.request.get('/')).status()).toBe(200); // the app shell is public
+  expect((await ctx.request.get('info')).status()).toBe(401);
+  expect((await ctx.request.get('file?path=README.md')).status()).toBe(401);
+  expect((await ctx.request.post('restart-server', { headers: { origin: new URL(baseURL!).origin } })).status()).toBe(401);
+  expect((await ctx.request.get('')).status()).toBe(200); // the app shell is public
   await ctx.close();
 });
 
 test('the cookie alone (no key in the page) reads files but cannot open the socket or write: the overlay @chat', async ({ browser, baseURL }) => {
   const cookieOnly = { cookies: loggedIn('chat', PORT).cookies, origins: [] };
   const ctx = await browser.newContext({ baseURL, locale: 'en-US', storageState: cookieOnly });
-  expect((await ctx.request.get('/info')).status()).toBe(401); // /info needs the key too
-  expect((await ctx.request.get('/file?path=README.md')).status()).not.toBe(401);
+  expect((await ctx.request.get('info')).status()).toBe(401); // /info needs the key too
+  expect((await ctx.request.get('file?path=README.md')).status()).not.toBe(401);
   // a write with the cookie and the page's own Origin, as a program that got the cookie would send it
-  expect((await ctx.request.post('/restart-server', { headers: { origin: baseURL! } })).status()).toBe(401);
+  expect((await ctx.request.post('restart-server', { headers: { origin: new URL(baseURL!).origin } })).status()).toBe(401);
   const page = await ctx.newPage();
-  await page.goto('/');
+  await page.goto('');
   await expect(overlay(page)).toBeVisible();
   expect(e2eCookie('chat', PORT)).not.toBe(e2eToken('chat'));
   await ctx.close();
@@ -74,7 +74,7 @@ test('the cookie alone (no key in the page) reads files but cannot open the sock
 test('the raw token in the fragment logs nobody in: only the launch\'s login value does @chat', async ({ browser, baseURL }) => {
   const ctx = await browser.newContext({ baseURL, locale: 'en-US', storageState: { cookies: [], origins: [] } });
   const page = await ctx.newPage();
-  await page.goto(`/#t=${e2eToken('chat')}`);
+  await page.goto(`#t=${e2eToken('chat')}`);
   await expect(overlay(page)).toBeVisible();
   expect((await ctx.cookies()).length).toBe(0);
   await ctx.close();
@@ -82,7 +82,7 @@ test('the raw token in the fragment logs nobody in: only the launch\'s login val
 
 test('the cookie alone opens /file and nothing else of the API @chat', async ({ browser, baseURL }) => {
   const ctx = await browser.newContext({ baseURL, locale: 'en-US', storageState: { cookies: loggedIn('chat', PORT).cookies, origins: [] } });
-  expect((await ctx.request.get('/file?path=README.md')).status()).not.toBe(401);
-  for (const p of ['/info', '/tree?path=', '/sessions', '/sources', '/complete?q=a', '/system/about']) expect((await ctx.request.get(p)).status(), p).toBe(401);
+  expect((await ctx.request.get('file?path=README.md')).status()).not.toBe(401);
+  for (const p of ['info', 'tree?path=', 'sessions', 'sources', 'complete?q=a', 'system/about']) expect((await ctx.request.get(p)).status(), p).toBe(401);
   await ctx.close();
 });

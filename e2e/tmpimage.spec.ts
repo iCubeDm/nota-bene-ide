@@ -14,7 +14,7 @@ test('a temp image path in a message opens as a tab with the picture; the cookie
   const file = nodePath.join(dir, 'shot.png');
   fs.writeFileSync(file, PNG);
   try {
-    await page.goto('/');
+    await page.goto('');
     await expect(composer(page)).toBeVisible();
     await composer(page).fill(`look at \`${file}\` please`);
     await composer(page).press('Enter');
@@ -27,11 +27,11 @@ test('a temp image path in a message opens as a tab with the picture; the cookie
     await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(1);
 
     // the cookie alone is refused; with the key the route answers, and a path outside the temp folders does not
-    const q = `/tmpimage?path=${encodeURIComponent(file)}`;
+    const q = `tmpimage?path=${encodeURIComponent(file)}`;
     expect((await context.request.get(q)).status()).toBe(401);
     expect((await apiGet(page, q)).status()).toBe(200);
-    expect((await apiGet(page, `/tmpimage?path=${encodeURIComponent(nodePath.join(os.homedir(), '.zshrc'))}`)).status()).toBe(404);
-    expect((await context.request.get(`/file?path=${encodeURIComponent(file)}`)).status()).not.toBe(200); // /file did not widen
+    expect((await apiGet(page, `tmpimage?path=${encodeURIComponent(nodePath.join(os.homedir(), '.zshrc'))}`)).status()).toBe(404);
+    expect((await context.request.get(`file?path=${encodeURIComponent(file)}`)).status()).not.toBe(200); // /file did not widen
 
     // the file goes away: reload shows the short state, the tab stays
     fs.unlinkSync(file);
