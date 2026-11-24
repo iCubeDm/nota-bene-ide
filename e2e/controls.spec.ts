@@ -24,7 +24,7 @@ function track(page: Page): { sent: Frame[]; got: Frame[] } {
 }
 
 async function open(page: Page) {
-  await page.goto('/');
+  await page.goto('');
   await expect(composer(page)).toBeVisible();
   await expect(pill(page)).toBeVisible(); // the mode is known once the server has said so
 }

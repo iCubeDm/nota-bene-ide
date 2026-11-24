@@ -17,7 +17,7 @@ function track(page: Page): { sent: Frame[] } {
 }
 
 async function launch(page: Page): Promise<void> {
-  await page.goto('/');
+  await page.goto('');
   await expect(composer(page)).toBeVisible();
   await composer(page).fill(`[tasks-drawer] ${uniq('go')}`);
   await composer(page).press('Enter');
@@ -60,7 +60,7 @@ test('the indicator counts the running tasks; the drawer lists them all with the
 
 test('a shell task\'s output grows in its own tab; Stop ends it as stopped @controls', async ({ page }) => {
   const t = track(page);
-  await page.goto('/');
+  await page.goto('');
   await expect(composer(page)).toBeVisible();
   await indicator(page).click();
   await row(page, 'e2e-sh-run').locator('[data-task-open]').click();
@@ -91,7 +91,7 @@ test('a shell task\'s output grows in its own tab; Stop ends it as stopped @cont
 });
 
 test('Stop in the drawer ends the background agent and its shell; the indicator goes quiet @controls', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('');
   await expect(composer(page)).toBeVisible();
   await indicator(page).click();
   await stop(page, 'e2e-ag-bg');
