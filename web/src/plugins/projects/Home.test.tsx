@@ -11,7 +11,7 @@ import { nav } from './api.ts';
 
 const URL_OK = `http://127.0.0.1:4791/a/codex-k3f7qz/#t=${'a'.repeat(64)}`;
 const row = (root: string, id: string, state: RunningRow['state'], o: Partial<RunningRow> = {}): RunningRow =>
-  ({ provider: 'claude', port: 4791, root, title: null, session: null, state, current: false, clients: 0, unseen: 0, last: null, agent: id, id, ...o });
+  ({ provider: 'claude', port: 4791, root, title: null, session: null, state, current: false, clients: 0, unseen: 0, last: null, agent: id, ...o });
 const ASK: OpenAsk = { id: 'p1', toolName: 'Bash', input: { command: 'ls' } };
 
 let list: ProjectsList;

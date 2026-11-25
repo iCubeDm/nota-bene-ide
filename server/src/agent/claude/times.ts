@@ -91,15 +91,15 @@ export async function fileTimes(file: string, from = 0): Promise<Map<string, num
 }
 
 /**
- * When each record of a Claude transcript was written, by its uuid. The SDK's `SessionMessage` drops the CLI's
- * `timestamp`, so a replay reads it from the file itself: `<projects>/<folder>/<sessionId>.jsonl`, or with `agentId`
- * a subagent's `<sessionId>/subagents/agent-<agentId>.jsonl`. The folder is the cwd's when it holds the file, else any
- * (a session id is unique). A missing or unreadable file, or a line that does not parse, gives no times: those events
- * stay at 0 (no time shown).
+ * When each record of a subagent's transcript was written, by its uuid. The SDK's `SessionMessage` drops the CLI's
+ * `timestamp`, so a replay reads it from the file itself: `<projects>/<folder>/<sessionId>/subagents/agent-<agentId>.jsonl`
+ * (the session's own times come from `fileTimes`). The folder is the cwd's when it holds the file, else any (a session
+ * id is unique). A missing or unreadable file, or a line that does not parse, gives no times: those events stay at 0
+ * (no time shown).
  */
-export async function transcriptTimes(projectsDir: string, sessionId: string, o: { agentId?: string; cwd?: string } = {}): Promise<Map<string, number>> {
-  if (!SAFE_ID.test(sessionId) || (o.agentId !== undefined && !SAFE_ID.test(o.agentId))) return new Map();
-  const rel = o.agentId === undefined ? `${sessionId}.jsonl` : path.join(sessionId, 'subagents', `agent-${o.agentId}.jsonl`);
+export async function transcriptTimes(projectsDir: string, sessionId: string, o: { agentId: string; cwd?: string }): Promise<Map<string, number>> {
+  if (!SAFE_ID.test(sessionId) || !SAFE_ID.test(o.agentId)) return new Map();
+  const rel = path.join(sessionId, 'subagents', `agent-${o.agentId}.jsonl`);
   for await (const f of folders(projectsDir, o.cwd)) {
     const times = await readTimes(path.join(projectsDir, f, rel));
     if (times) return times;

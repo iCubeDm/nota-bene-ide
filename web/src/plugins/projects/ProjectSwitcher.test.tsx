@@ -453,7 +453,7 @@ it('issue 297: on another computer\'s page this folder\'s sessions ask nothing t
 
 it('phase 3: an expanded project with several agents lists them; one beside the window closes after a confirm, its session staying', async () => {
   const notes = LIST.running.find((r) => r.root === '/w/notes')!;
-  const helper: RunningRow = { ...notes, provider: 'claude', current: false, title: 'Count the files', session: S3, agent: 'claude-h2h2h2', id: 'claude-h2h2h2' };
+  const helper: RunningRow = { ...notes, provider: 'claude', current: false, title: 'Count the files', session: S3, agent: 'claude-h2h2h2' };
   list = { ...LIST, running: [...LIST.running, helper] };
   await openMenu();
   await screen.findByRole('group', { name: t('projSessionsOf', 'notes') }); // this project's starts expanded

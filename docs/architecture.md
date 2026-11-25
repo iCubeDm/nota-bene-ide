@@ -4,10 +4,10 @@ How the parts fit. Operational rules and the security model: [agent reference](a
 
 ## 1. Overview
 
-Nota Bene is a local web application. One **window** is one server process, one project folder, one port from 4777 to 4799 and one agent session (Claude Code, Codex or omp). The provider is fixed at launch; session discovery and persisted state are scoped to it. One browser tab works with the window (the owner); other tabs see "the window is already open" and can take it over.
+Nota Bene is a local web application. One **server** process, on a port from 4777 to 4799, holds every **agent** the person opened: an agent is one project folder, one provider (Claude Code, Codex or omp) and one session, served under `/a/<id>/`. The server's top is its home page, which has no agent. An agent's provider is fixed when it is opened; session discovery and persisted state are scoped to it. One browser tab works with an agent (the owner); other tabs see that it is already open and can take it over.
 
 All providers implement the same `AgentBackend` / `AgentSession` contract. The
-server selects one at startup; the browser consumes normalized events and declared
+server makes one per agent; the browser consumes normalized events and declared
 capabilities. Claude SDK types, Codex RPC frames and ACP frames stay inside their adapters.
 omp runs on a generic ACP adapter (`agent/acp/`): transport, mapper and session are
 agent-neutral; `acp/omp.ts` is the profile with omp's binary, launch flags, approval-form
@@ -15,12 +15,12 @@ wording, hidden commands and error texts.
 
 ```mermaid
 flowchart TB
-  subgraph Browser["Browser (the window's owner tab)"]
+  subgraph Browser["Browser (the agent's owner tab)"]
     UI["React UI"] --> RS["Redux store"]
     RS <--> WSC["sdk/connections.ts over net/socket.ts"]
     UI -- fetch --> HTTPC["sdk/repository.ts: shared reads"]
   end
-  subgraph Server["The window's Node server (server/src)"]
+  subgraph Server["The Node server (server/src), one agent shown"]
     HTTP["http.ts: Host/Origin filter, auth and router"]
     WSS["WebSocketServer /ws"]
     HUB["EventHub: history and broadcast"]
@@ -137,11 +137,11 @@ The host stream's `windows` message is typed in `shared/src/host.ts` (`HostWindo
 
 The phone side is in `mobile/`: `mobile/channel` (`nb_channel`, pure Dart) is the same channel from the other end (Noise IK on the `cryptography` package, checked against the same vectors and worked examples; the mux; relay admission), proved end to end against the real relay and connector by `cross_test.dart`, which drives `server/src/remote/crossHost.ts`. `mobile/app` (`nb_app`, Flutter, Android) uses the protocol types generated into `mobile/protocol`, including `Feature` and `hasFeature`. `main.dart` `_load` builds one `Sdk` (`lib/sdk.dart`: `AppStores`, the host `Links`, the phone's `Identity`, the `Background` check) and passes it down; `AppStores` holds the vault-backed stores, the voice outboxes, the comment queues and the project pictures, so no store is a singleton and a test builds its own in memory. The app keeps one link per paired host (`hosts/host_link.dart`) and keys a window by `(host id, window key)`. It is an ordinary tab of a window over that link: `WindowTab` (`chat/window_tab.dart`) composes an `AgentConnection` (`chat/agent_connection.dart`: the stream, reconnects, passive and takeover, `send`, `has(Feature)`, `http`), a `Repository` over it (`files/repository.dart`: the window's reads, one in flight per route) and a `WindowState` (`chat/window_state.dart`: the feed, a port of `web/src/core/store/feed.ts`, the models, mode and effort, held sends, a pending compaction or restart, stats; `apply(event)`) and its `Tasks` (`tasks/tasks.dart`: the port of `shared/src/tasks.ts`, which tells only when the tasks change), with the window's comments, voice outbox and media cache, and sends through `send` and `sendVoice`, the question passed in. The screens read the parts themselves; the feed alone listens while a reply streams. `LinkLife` (`hosts/link_life.dart`), made beside the links, decides when they run; the notifications only hold them. Build and test commands are in [mobile/README.md](../mobile/README.md).
 
-### 2.4 Projects across windows
+### 2.4 Projects across servers
 
-Until one server holds every project (design: [one tab for all projects](superpowers/specs/2026-11-15-one-tab-projects-design.md)), the header's project switcher works over today's windows. The current window's server reads every provider's registry and proves each listener with that provider's token, as the connector does (`server/src/projects.ts`). To move a tab, it derives the target's login value from that token, the port and the proved nonce, exactly as the launcher's `loginTarget` does. The value goes only into the JSON answer; the page navigates to it. To open a folder, the server opens it as one of its agents itself and answers that agent's URL (`server/src/projectRoutes.ts`); its own agents are listed, entered and closed in-process too, only other servers are asked over HTTP. The launcher and that route record each opened folder in `recent.json` in the base state folder (`server/src/recent.ts`). The web side is `web/src/plugins/projects/`.
+A server holds every agent it opened, and more than one server can run on a computer (another port, another computer through the relay). The header's project switcher lists them all. The page's server reads every provider's registry and proves each listener with that provider's token, as the connector does (`server/src/projects.ts`). To move a tab, it derives the target's login value from that token, the port and the proved nonce, exactly as the launcher's `loginTarget` does. The value goes only into the JSON answer; the page navigates to it. To open a folder, the server opens it as one of its agents itself and answers that agent's URL (`server/src/projectRoutes.ts`); its own agents are listed, entered and closed in-process too, only other servers are asked over HTTP. The launcher and that route record each opened folder in `recent.json` in the base state folder (`server/src/recent.ts`). The web side is `web/src/plugins/projects/`.
 
-The menu is a list of chats: the web folds the windows of one folder into one row (`rows.ts`) and shows one badge, `!` for a window that waits, else the replies not seen. A window keeps, per session, when the person last saw it (`seen-sessions.json` in its provider's state folder, `server/src/seen.ts`); its page posts `/seen` while it is visible and focused, and `/info` reports `unseen`, the final replies after that time (a time, not a count: a compaction drops replies from the history). Another window's sessions come through `POST /system/projects/sessions`, which proves the window as above and reads its `/sessions` with the helper bearer. Opening a session in another window rides on the login hand-off: the URL is `#t=<login>&s=<id>` (or `&s=new`), and that page switches once it is logged in (`web/src/plugins/projects/landing.ts`); no server-to-server switch is needed.
+The menu is a list of chats: the web folds the agents of one folder into one row (`rows.ts`) and shows one badge, `!` for an agent that waits, else the replies not seen. An agent keeps, per session, when the person last saw it (`seen-sessions.json` in its provider's state folder, `server/src/seen.ts`); its page posts `/seen` while it is visible and focused, and `/info` reports `unseen`, the final replies after that time (a time, not a count: a compaction drops replies from the history). Another server's sessions come through `POST /system/projects/sessions`, which proves that server as above and reads the agent's `/sessions` with the helper bearer. Opening a session of another agent rides on the login hand-off: the URL is `#t=<login>&s=<id>` (or `&s=new`), and that page switches once it is logged in (`web/src/plugins/projects/landing.ts`); no server-to-server switch is needed.
 
 ## 3. Server
 
@@ -176,7 +176,7 @@ The menu is a list of chats: the web folds the windows of one folder into one ro
 | `fileRoutes.ts`, `files.ts`, `git.ts` | `/tree`, `/file` (Range, sandbox headers), `/complete`, `/sources`, `/git-status`. Sources: the current checkout, other worktrees (from disk) and branches (through git blobs). |
 | `vcs.ts` | The read-only git views: `/vcs-diff`, `/vcs-file`, `/vcs-branches`, `/vcs-log`, `/vcs-commit`, `/vcs-commit-file`. Every call runs with `--no-optional-locks`, so polling never takes `index.lock` from an agent. A failed git is a 503, never an empty answer. |
 | `system.ts` | Settings: about, prefs, storage and cleaning into the trash, windows, the control token. |
-| `projects.ts`, `projectRoutes.ts`, `recent.ts`, `seen.ts` | The project switcher ([2.4](#24-projects-across-windows)). |
+| `projects.ts`, `projectRoutes.ts`, `recent.ts`, `seen.ts` | The project switcher ([2.4](#24-projects-across-servers)). |
 | `update.ts`, `runtime.ts`, `updater.ts` | The in-app update ([agent reference](agent-reference.md#in-app-update)). |
 | `restartGate.ts`, `turnMarks.ts` | The deferred server restart and the cut-turn note. |
 | `osFiles.ts`, `fileEdit.ts`, `gitSwitch.ts` | Reveal and Open on the desktop, saving an edited file, switching the checkout's branch. |
