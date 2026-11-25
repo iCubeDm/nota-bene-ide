@@ -12,7 +12,7 @@ export type LastMessage = {
 };
 
 /**
- * One window as the host stream lists it. `port`, `provider` and `root` are always there; every other field may be
+ * One agent (once: one window) as the host stream lists it. `port`, `provider` and `root` are always there; every other field may be
  * missing (the host could not read the window's /info that time, or an older host).
  */
 export type HostWindow = {
@@ -44,17 +44,14 @@ export type HostWindow = {
   /** the version (a hash) of the picture of the window's project folder; null when it has none */
   icon?: string | null;
   /**
-   * Epic 383: the agent, its streams under `/a/<agent>`: a server's first in `windows` (issue 639), its others in
-   * `HostStreamMessage.agents`. Absent from an older host's `windows` (its first agent answered at the top).
+   * Epic 383: the agent, its streams under `/a/<agent>` (issue 639). Absent from an older host's rows (its one agent
+   * answered at the top).
    */
   agent?: string;
 };
 
-/**
- * What the host stream sends: the whole list on open and on every change. `agents`: the servers' other agents (epic 383),
- * kept apart from `windows` so a client before them, which would open a server's first agent for them, does not list them.
- */
-export type HostStreamMessage = { t: 'windows'; windows: HostWindow[]; agents?: HostWindow[] };
+/** What the host stream sends: the whole list on open and on every change, one row per agent of every server (protocol 38). */
+export type HostStreamMessage = { t: 'windows'; windows: HostWindow[] };
 
 /** The fields of a window's /info the host stream passes on. */
 export const HOST_WINDOW_INFO = ['title', 'session', 'model', 'busy', 'supervised', 'pending', 'last', 'replies', 'icon'] as const satisfies readonly (keyof HostWindow)[];

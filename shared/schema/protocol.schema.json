@@ -837,14 +837,8 @@
       "type": "object"
     },
     "HostStreamMessage": {
-      "description": "What the host stream sends: the whole list on open and on every change. `agents`: the servers' other agents (epic 383), kept apart from `windows` so a client before them, which would open a server's first agent for them, does not list them.",
+      "description": "What the host stream sends: the whole list on open and on every change, one row per agent of every server (protocol 38).",
       "properties": {
-        "agents": {
-          "items": {
-            "$ref": "#/definitions/HostWindow"
-          },
-          "type": "array"
-        },
         "t": {
           "const": "windows",
           "type": "string"
@@ -863,10 +857,10 @@
       "type": "object"
     },
     "HostWindow": {
-      "description": "One window as the host stream lists it. `port`, `provider` and `root` are always there; every other field may be missing (the host could not read the window's /info that time, or an older host).",
+      "description": "One agent (once: one window) as the host stream lists it. `port`, `provider` and `root` are always there; every other field may be missing (the host could not read the window's /info that time, or an older host).",
       "properties": {
         "agent": {
-          "description": "Epic 383: the agent, its streams under `/a/<agent>`: a server's first in `windows` (issue 639), its others in `HostStreamMessage.agents`. Absent from an older host's `windows` (its first agent answered at the top).",
+          "description": "Epic 383: the agent, its streams under `/a/<agent>` (issue 639). Absent from an older host's rows (its one agent answered at the top).",
           "type": "string"
         },
         "busy": {
@@ -3986,5 +3980,5 @@
     "voiceDetect": 18,
     "wholePicture": 25
   },
-  "x-protocol": 37
+  "x-protocol": 38
 }

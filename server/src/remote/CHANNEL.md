@@ -124,7 +124,7 @@ phone sees the relay's close (4403) and shows that it is not paired.
 The `OPEN` body names what the stream is:
 
 - `{"kind":"host"}`: the host's own stream. The host sends one message
-  `{"t":"windows","windows":[{id?, port, provider, root, title?, session?, model?, busy?, supervised?, pending?, last?, replies?, icon?}],"agents"?:[…]}`
+  `{"t":"windows","windows":[{id?, port, provider, root, title?, session?, model?, busy?, supervised?, pending?, last?, replies?, icon?, agent?}]}`, one row per agent of every server
   (`HostStreamMessage` in `shared/src/host.ts`, generated for the phone;
   `id`: the window's stable id, `<provider>:<first 16 hex of sha1(root)>`, the
   same across restarts and port changes; a second window of the same folder and
@@ -142,14 +142,11 @@ The `OPEN` body names what the stream is:
   compacted history, so the count can drop. The phone treats a drop as a reset
   and may miss replies that arrived after a compaction while it was away. An
   older window sends none of the three.)
-  `agents` (epic 383): the servers' other agents, folders opened in a running
-  server, as rows of the same shape with `agent`, the agent's id: its `ws`,
-  `http` and `public` streams go to the server's `port` under `/a/<agent>`. Its
-  `id` is its folder's, so a window that moves into a server keeps it. Apart
-  from `windows` so that a client before them, which would open the server's
-  first agent for such a row, does not list them; a host before them sends none.
-  A `windows` row names its agent too (#639: every agent is under its prefix,
-  the server's top is no agent's): the server's first; an older host's has none.
+  `agent` (epic 383): the row's agent id: its `ws`, `http` and `public` streams
+  go to the server's `port` under `/a/<agent>` (#639: every agent is under its
+  prefix, the server's top is no agent's). The row's `id` is its folder's, so a
+  folder that moves into a server keeps it. A host before agents sends none: its
+  one agent answers at the top.
   when the stream opens and again whenever the list or a field changes (it
   checks every 5 s while the stream is open). The phone sends nothing on it.
   The phone ignores fields it does not know and treats every field but `port`,

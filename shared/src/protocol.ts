@@ -149,9 +149,10 @@ export { FEATURES, has, type Feature } from './features.ts';
 /**
  * The protocol this server speaks, announced in `hello`; `FEATURES` names the additions a client gates on. 30 to 37 are
  * the agents of one server (epic 383, issue 639: `open-agent`, agents in the host stream and the connector's `open`,
- * every agent under `/a/<id>/`): nothing asks for them by name; a managed connector of an older protocol is replaced.
+ * every agent under `/a/<id>/`), 38 the host stream as one list of them: nothing asks for them by name; a managed
+ * connector of an older protocol is replaced.
  */
-export const PROTOCOL = 37;
+export const PROTOCOL = 38;
 
 /** The form of an agent id (epic 383): `<provider>-<6 base32>`, as in `/a/<id>/`. */
 export const AGENT_ID = /^[a-z]+-[a-z2-7]{6}$/;

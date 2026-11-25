@@ -59,13 +59,6 @@ extension LastMessageTime on LastMessage {
   };
 }
 
-/// The rows of a host stream `windows` message: its windows, then the servers' other agents (epic 383; listed apart
-/// so a phone before them does not open a server's first agent for them).
-List<Object?> hostRows(Map<Object?, Object?> j) => [
-  ...j['windows'] as List,
-  if (j['agents'] case final List agents) ...agents,
-];
-
 /// The windows of a host stream `windows` message. A window that does not parse is left out, the others kept. A
 /// window listed without `icon` (the host could not read its /info that time) keeps the picture it had in [before],
 /// so the icon does not blink off.
@@ -334,7 +327,7 @@ class Channel {
         return;
       }
       if (j is Map && j['t'] == 'windows' && j['windows'] is List) {
-        final raw = hostRows(j);
+        final raw = j['windows'] as List;
         // a host that knows project pictures lists `icon` (null or a version); an older one never does
         _icons = _icons || raw.any((w) => w is Map && w.containsKey('icon'));
         final list = parseWindows(raw, _last);

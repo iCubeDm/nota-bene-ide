@@ -187,7 +187,7 @@ describe('device channel', () => {
     expect(h.lists[0]).toEqual([expect.objectContaining({ port: a.port, provider: 'claude', root: path.join(tmp, 'proj') })]);
   });
 
-  it('the host stream lists a server\'s other agents apart, each with its agent id and its folder\'s id (epic 383)', async () => {
+  it('the host stream lists every agent of a server in one list, each with its agent id and its folder\'s id (epic 383)', async () => {
     const a = await window();
     const other = path.join(tmp, 'other');
     fs.mkdirSync(other);
@@ -195,11 +195,12 @@ describe('device channel', () => {
     const { agent } = await opened.json() as { agent: string };
     const l = await paired(await windows());
     const h = l.phone.host();
-    await until(() => h.agents.some((x) => x.length > 0));
-    const i = h.agents.findIndex((x) => x.length > 0);
-    // the server by its first agent, under its prefix too (issue 639)
-    expect(h.lists[i]).toEqual([expect.objectContaining({ port: a.port, root: path.join(tmp, 'proj'), agent: a.agent })]);
-    expect(h.agents[i]).toEqual([expect.objectContaining({ id: windowKey('claude', other), port: a.port, agent, provider: 'claude', root: other, replies: 0 })]);
+    await until(() => h.lists.some((x) => x.length > 1));
+    // every agent under its prefix (issue 639), the server's first one first
+    expect(h.lists.find((x) => x.length > 1)).toEqual([
+      expect.objectContaining({ port: a.port, root: path.join(tmp, 'proj'), agent: a.agent }),
+      expect.objectContaining({ id: windowKey('claude', other), port: a.port, agent, provider: 'claude', root: other, replies: 0 }),
+    ]);
     // its streams go under its prefix
     const info = await l.phone.http(a.port, 'GET', `/a/${agent}/info`);
     expect(JSON.parse(info.body.toString())).toMatchObject({ agent, root: other });
