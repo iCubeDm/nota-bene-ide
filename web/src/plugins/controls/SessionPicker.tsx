@@ -1,15 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { ago, useT, selectBusy, selectSession, useAppDispatch, useAppSelector, connection, byteSize, routes, selectSwitching, switchSession, REFUSED, useNote, archiveSession, brief, deleteSession, renameSession, useService } from '@/sdk';
+import { ago, useT, selectBusy, selectSession, useAppDispatch, useAppSelector, repository, byteSize, selectSwitching, switchSession, REFUSED, useNote, archiveSession, brief, deleteSession, renameSession, useService, sessionsResource, type SessionsView, type SessionRow } from '@/sdk';
 import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog, ArchiveIcon } from '@/sdk/ui';
 
-/** GET /sessions (server/src/sessions.ts SessionsView). */
-export type SessionsView = {
-  current: string | null;
-  root: string;
-  /** `archived`: hidden by the menu's archive (the server's list) */
-  sessions: { id: string; title: string; at: number; size: number; cwd: string; archived?: true }[];
-};
-type Item = SessionsView['sessions'][number];
+type Item = SessionRow;
 
 const matches = (x: Item, needle: string) => !needle || x.title.toLowerCase().includes(needle);
 
@@ -28,11 +21,6 @@ export function menuItems(v: SessionsView, needle: string): { items: Item[]; arc
 const marked = (x: Item, on: boolean): Item => {
   const { archived: _, ...rest } = x;
   return on ? { ...rest, archived: true } : rest;
-};
-
-const isView = (v: unknown): v is SessionsView => {
-  const o = v as SessionsView;
-  return !!o && typeof o.root === 'string' && Array.isArray(o.sessions);
 };
 
 type Ask = { id: string | null; title: string; dir: string };
@@ -98,16 +86,11 @@ export function SessionPicker() {
   /** (Re)loads the list; the filter and the archive view stay as they are. */
   const load = () => {
     const seq = ++loadSeq.current;
-    void connection.fetch(routes.sessions())
-      .then(async (r) => {
-        if (!r.ok) throw new Error(brief(r.status, await r.text().catch(() => '')));
-        const v: unknown = await r.json();
-        if (!isView(v)) throw new Error('bad /sessions answer');
-        return v;
-      })
-      .then((v) => { if (seq === loadSeq.current) setView(v); }, (e: unknown) => {
-        if (seq === loadSeq.current) setView(t('sessFail') + brief(null, e instanceof Error ? e.message : String(e)));
-      });
+    void repository.load(sessionsResource, undefined).then((v) => {
+      if (seq !== loadSeq.current) return;
+      const { failed, status, error } = repository.peek(sessionsResource, undefined);
+      setView(v && !failed ? v : t('sessFail') + brief(status ?? null, status ? '' : error ?? ''));
+    });
   };
   // read when a delete answers: the agent may have started working while the question was open
   const offNow = useRef(off);

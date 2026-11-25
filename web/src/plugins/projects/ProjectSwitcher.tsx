@@ -5,10 +5,10 @@
 // Recent folders come from the launcher's list and from this window's session history; one opens in a window of its agent,
 // ✕ removes one from both (the server keeps it out until it is launched again).
 import { useEffect, useState } from 'react';
-import { useT, shortHome, folderName, connection, routes, toast, withKey, selectSession, useAppDispatch, useAppSelector, remotePage, useRegistry, ago } from '@/sdk';
+import { useT, shortHome, folderName, repository, sessionsResource, toast, withKey, selectSession, useAppDispatch, useAppSelector, remotePage, useRegistry, ago, type SessionRow } from '@/sdk';
 import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog, ICONS, Svg } from '@/sdk/ui';
 import { enterProject, forgetRecent, onPageRestore, openFolder, reasonText, openStarter, PROVIDER_LABEL, selectProjectsMenu, setProjectsMenu, stopProject, useProjects, type Provider, type RunningRow } from './api.ts';
-import { ProjectSessions, type LocalSession } from './ProjectSessions.tsx';
+import { ProjectSessions } from './ProjectSessions.tsx';
 import { badgeOf, foldRows, rowKey, rowTitle, titlePrefix, type ProjectRow } from './rows.ts';
 import { BadgeView, folderOf, LIVE, rowBadge, STATE_KEY, Tile } from './Tile.tsx';
 
@@ -81,7 +81,7 @@ export function ProjectsList({ onDone: close, home = false }: { onDone: () => vo
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [local, setLocal] = useState<LocalSession[]>([]);
+  const [local, setLocal] = useState<SessionRow[]>([]);
   const [stopAsk, setStopAsk] = useState<ProjectRow | null>(null);
   // removed here before the next poll says so
   const [forgot, setForgot] = useState<Set<string>>(new Set());
@@ -96,9 +96,7 @@ export function ProjectsList({ onDone: close, home = false }: { onDone: () => vo
     setExpanded(new Set(session?.root ? [rowKey(session.root, here?.host)] : []));
     if (home) return;
     let gone = false;
-    connection.fetch(routes.sessions()).then((r) => (r.ok ? r.json() : null)).then((v: { sessions?: LocalSession[] } | null) => {
-      if (!gone && v && Array.isArray(v.sessions)) setLocal(v.sessions.filter((x) => typeof x?.cwd === 'string' && typeof x.id === 'string'));
-    }).catch(() => {});
+    void repository.load(sessionsResource, undefined).then((v) => { if (!gone && v) setLocal(v.sessions); });
     return () => { gone = true; };
   }, [session?.root, home]);
 

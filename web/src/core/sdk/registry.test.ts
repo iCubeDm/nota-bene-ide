@@ -158,7 +158,7 @@ it('the Settings sections and rows come in today\'s order; one id twice, or one 
 });
 
 it('the plugins\' resources are registered by id; a registered one needs an id, and one id twice fails the build', () => {
-  expect([...buildRegistry(PLUGINS).resources.keys()].sort()).toEqual(['controls.info', 'cut.export', 'projects.list', 'projects.shortcut', 'settings.about', 'settings.storage', 'update.auto', 'update.status', 'usage.report', 'vcs.branches', 'vcs.commit', 'vcs.diff', 'vcs.log', 'vcs.patch', 'voice.dictation']);
+  expect([...buildRegistry(PLUGINS).resources.keys()].sort()).toEqual(['controls.info', 'cut.export', 'projects.installed', 'projects.list', 'projects.shortcut', 'settings.about', 'settings.storage', 'update.auto', 'update.status', 'usage.report', 'vcs.branches', 'vcs.commit', 'vcs.diff', 'vcs.log', 'vcs.patch', 'voice.dictation']);
   const res = (id: string | undefined) => ({ ...(id ? { id } : {}), key: () => '', route: () => '/x' });
   expect(() => buildRegistry([{ id: 'a', resources: [res(undefined)] }])).toThrow('a registered resource needs an id');
   expect(() => buildRegistry([{ id: 'a', resources: [res('r')] }, { id: 'b', resources: [res('r')] }])).toThrow('the resource "r" is declared twice');
@@ -204,7 +204,7 @@ it('the files, git, projects, feed, tasks, edits, media and composer services ar
   expect(keys('files')).toEqual(['diskChanged', 'inTree', 'jumpToFileComment', 'pickSource', 'selectDiskSeq', 'selectFileLoad', 'selectFileVersion',
     'selectRefreshSeq', 'selectSource', 'selectTreeOpen', 'setTreeOpen']);
   expect(keys('vcs')).toEqual(['showCommit']);
-  expect(keys('projects')).toEqual(['openFolder']);
+  expect(keys('projects')).toEqual(['openFolder', 'othersWorking']);
   expect(keys('feedUi')).toEqual(['Feed', 'revealTool', 'selectFolds']);
   expect(keys('tasks')).toEqual(['CallMenu']);
   expect(keys('cut')).toEqual(['liveCutState']);

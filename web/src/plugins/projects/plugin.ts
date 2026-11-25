@@ -9,7 +9,7 @@ import { ProjectRail } from './ProjectRail.tsx';
 import { HomeFooter, HomeTitle, ProjectsPanel, ProjectsToggle } from './HomeParts.tsx';
 import { Starter } from './Starter.tsx';
 import { Seen } from './seen.ts';
-import { nav, openFolder, projectsResource, projectsSlice, reasonText, selectProjectsMenu, setProjectsMenu } from './api.ts';
+import { installedResource, nav, openFolder, othersWorking, projectsResource, projectsSlice, reasonText, selectProjectsMenu, setProjectsMenu } from './api.ts';
 import { projectsSettings } from './settings.tsx';
 
 declare module '@/sdk' {
@@ -21,6 +21,8 @@ declare module '@/sdk' {
 export interface ProjectsService {
   /** opens the folder in a window of its own (this tab moves there); the refusal, in words, or null */
   openFolder(dir: string, provider: AgentProvider): Promise<string | null>;
+  /** whether an agent of this computer other than this page's is working now */
+  othersWorking(): Promise<boolean>;
 }
 
 export const projectsPlugin = definePlugin({
@@ -49,10 +51,10 @@ export const projectsPlugin = definePlugin({
     { id: 'hk_projects', codes: ['KeyP'], mods: { alt: true }, inFields: true, order: 70, run: ({ store }) => void store.dispatch(setProjectsMenu(!selectProjectsMenu(store.getState()))) },
   ],
   settings: projectsSettings,
-  resources: [projectsResource, shortcutResource],
+  resources: [projectsResource, installedResource, shortcutResource],
   // epic 383: `nota-bene` or `/nb` opened another agent of this tab's server: the tab moves to it (same origin, logged in)
   listeners: (start) => {
     start({ actionCreator: serverEvent, effect: ({ payload: ev }) => { if (ev.kind === 'open-agent' && AGENT_ID.test(ev.agent)) nav.go(`${agentPath(ev.agent)}/`); } });
   },
-  projects: { openFolder: async (dir, provider) => { const why = await openFolder(dir, provider); return why && reasonText(why); } },
+  projects: { openFolder: async (dir, provider) => { const why = await openFolder(dir, provider); return why && reasonText(why); }, othersWorking },
 });
