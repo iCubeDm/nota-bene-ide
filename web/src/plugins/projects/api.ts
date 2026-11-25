@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { Interaction, InteractionAnswer } from '@nota-bene/shared';
-import { t, defineResource, routes, toast, useResource, remotePage, type RootState, send } from '@/sdk';
+import { t, defineResource, repository, routes, toast, useResource, remotePage, type RootState, send } from '@/sdk';
 
 export type Provider = 'claude' | 'codex' | 'omp';
 export type ProjectState = 'working' | 'waiting' | 'idle' | 'restarting' | 'silent';
@@ -70,6 +70,18 @@ export const projectsResource = defineResource<void, ProjectsList>({
   timeout: 8000,
   // a malformed answer is an empty list
   parse: (text) => { const j: unknown = JSON.parse(text); return isList(j) ? j : EMPTY; },
+});
+
+/** GET /system/agents: the agents installed on this computer, and the one a new project starts with. Read when asked, no poll. */
+export const installedResource = defineResource<void, { agents: Provider[]; default?: Provider }>({
+  id: 'projects.installed',
+  key: () => '',
+  route: () => routes.systemAgents(),
+  parse: (text) => {
+    const j = JSON.parse(text) as { agents?: Provider[]; default?: Provider };
+    if (!Array.isArray(j?.agents)) throw new Error('bad /system/agents answer');
+    return { agents: j.agents, ...(j.default ? { default: j.default } : {}) };
+  },
 });
 
 const hasFocus = () => typeof document.hasFocus !== 'function' || document.hasFocus();
@@ -182,6 +194,10 @@ export async function answerAsk(row: RunningRow, id: string, allow: boolean, res
     return false;
   }
 }
+
+/** Whether an agent of this computer other than this page's is working now (false when the list did not answer). */
+export const othersWorking = async (): Promise<boolean> =>
+  !!(await repository.load(projectsResource, undefined))?.running.some((w) => !w.current && !w.remote && w.state === 'working');
 
 /** Stops that window from the list (its agent and launcher), or closes an agent beside a window's; the session stays. The refusal's reason, or null. */
 export async function stopProject(row: RunningRow): Promise<string | null> {

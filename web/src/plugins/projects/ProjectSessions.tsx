@@ -5,13 +5,12 @@
 // This window's sessions are renamed and archived from their row (the time gives way on hover); delete stays in the
 // Sessions menu (▾ on the chat tab). Another window's are only opened: its server takes no write from this one.
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import { useT, connection, routes, toast, useAppDispatch, switchSession, remotePage, REFUSED, archiveSession, renameSession, ago, send } from '@/sdk';
+import { useT, repository, routes, toast, useAppDispatch, switchSession, remotePage, REFUSED, archiveSession, renameSession, ago, send, type SessionRow } from '@/sdk';
 import { ConfirmDialog, ArchiveIcon } from '@/sdk/ui';
-import { enterProject, openFolder, PROVIDER_LABEL, reasonText, rowRef, type Provider, type RunningRow } from './api.ts';
+import { enterProject, installedResource, openFolder, PROVIDER_LABEL, reasonText, rowRef, type Provider, type RunningRow } from './api.ts';
 import { agentName, useAgentClose } from './AgentClose.tsx';
 import { DOT } from './Tile.tsx';
 
-export type LocalSession = { id: string; title: string; at: number; cwd: string; archived?: true };
 type Item = { id: string; title: string; at: number; window: RunningRow; mine?: true };
 const SHOWN = 8;
 const LIVE = new Set(['working', 'waiting', 'idle']);
@@ -19,7 +18,7 @@ const ACTION = 'rounded px-1 text-xs text-muted-foreground hover:text-foreground
 const rowCls = 'flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left text-xs hover:bg-muted disabled:cursor-default';
 
 export function ProjectSessions({ root, windows, local, setLocal, onDone }: {
-  root: string; windows: RunningRow[]; local: LocalSession[]; setLocal: Dispatch<SetStateAction<LocalSession[]>>; onDone: () => void;
+  root: string; windows: RunningRow[]; local: SessionRow[]; setLocal: Dispatch<SetStateAction<SessionRow[]>>; onDone: () => void;
 }) {
   const t = useT();
   const dispatch = useAppDispatch();
@@ -47,9 +46,7 @@ export function ProjectSessions({ root, windows, local, setLocal, onDone }: {
         return [];
       }
     })).then((lists) => { if (!gone) setOthers(lists.flat()); });
-    connection.fetch(routes.systemAgents()).then((r) => (r.ok ? r.json() : null)).then((j: { agents?: Provider[] } | null) => {
-      if (!gone && j && Array.isArray(j.agents)) setAgents(j.agents);
-    }).catch(() => {});
+    void repository.load(installedResource, undefined).then((j) => { if (!gone && j) setAgents(j.agents); });
     return () => { gone = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per expansion: the menu's poll must not refetch every window's list
   }, [root]);

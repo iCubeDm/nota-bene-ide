@@ -1,4 +1,31 @@
-import { send } from '../sdk/repository.ts';
+import { defineResource, send } from '../sdk/repository.ts';
+import { routes } from '../sdk/routes.ts';
+
+/** GET /sessions (server/src/sessions.ts SessionsView): the sessions of this page's agent, of every folder. */
+export type SessionsView = {
+  current: string | null;
+  root: string;
+  /** `archived`: hidden by the menu's archive (the server's list) */
+  sessions: { id: string; title: string; at: number; size: number; cwd: string; archived?: true }[];
+};
+export type SessionRow = SessionsView['sessions'][number];
+
+const isView = (v: unknown): v is SessionsView => {
+  const o = v as SessionsView;
+  return !!o && typeof o.root === 'string' && Array.isArray(o.sessions);
+};
+
+/** Read when a menu opens (no poll): the Sessions menu and the project switcher. */
+export const sessionsResource = defineResource<void, SessionsView>({
+  id: 'sessions',
+  key: () => '',
+  route: () => routes.sessions(),
+  parse: (text) => {
+    const v: unknown = JSON.parse(text);
+    if (!isView(v)) throw new Error('bad /sessions answer');
+    return { ...v, sessions: v.sessions.filter((x) => typeof x?.cwd === 'string' && typeof x.id === 'string') };
+  },
+});
 
 // The Sessions menu's writes (server/src/sessions.ts), shared by the menu, the chat tab and the feed's cleared line
 

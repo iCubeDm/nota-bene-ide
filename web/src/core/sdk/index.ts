@@ -111,7 +111,7 @@ export { seekAndPause } from '../store/mediaController.ts';
 export { usePagePause } from '../shell/pagePause.ts';
 export { SEEK_STEPS, seekStep, useSeekStep, type SeekStepValue } from '../store/seekStep.ts';
 export { applyPlayerKey, inPlayerScope, ONCE, THEIRS, PLAYER_HELP, type Flash } from '../store/playerKeys.ts';
-export { brief, renameSession, archiveSession, deleteSession } from '../store/sessions.ts';
+export { brief, renameSession, archiveSession, deleteSession, sessionsResource, type SessionsView, type SessionRow } from '../store/sessions.ts';
 
 import { answerPermission, interrupt, takeOver } from '../store/store.ts';
 import { send as sendChat } from '../store/send.ts';

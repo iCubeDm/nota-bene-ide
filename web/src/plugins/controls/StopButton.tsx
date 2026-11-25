@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useT, selectBusy, useAppDispatch, useAppSelector, routes, toast, selectSwitching, stopWindow, remotePage, connection, send } from '@/sdk';
+import { useT, selectBusy, useAppDispatch, useAppSelector, routes, toast, selectSwitching, stopWindow, remotePage, send, useService } from '@/sdk';
 import { ConfirmDialog, ICONS, Svg } from '@/sdk/ui';
 
 /** The header's Stop Nota Bene, before this window stops itself: every other window; how many could not be stopped. */
@@ -28,12 +28,11 @@ export function StopButton() {
   const switching = useAppSelector(selectSwitching);
   const [ask, setAsk] = useState(false);
   const [othersBusy, setOthersBusy] = useState(false);
+  const projects = useService('projects');
   const open = () => {
     setAsk(true);
     setOthersBusy(false);
-    connection.fetch(routes.systemProjects()).then((r) => (r.ok ? r.json() : null)).then((j: { running?: { state?: string; current?: boolean; remote?: object }[] } | null) => {
-      setOthersBusy(!!j?.running?.some((w) => !w.current && !w.remote && w.state === 'working'));
-    }).catch(() => {});
+    void projects.othersWorking().then(setOthersBusy);
   };
   const stop = async () => {
     setAsk(false);

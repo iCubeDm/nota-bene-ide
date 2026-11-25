@@ -10,9 +10,9 @@ import { setDraft } from '@/plugins/composer/slice.ts';
 import { setLang } from '@/core/i18n/index.ts';
 import { Header } from '@/core/shell/Header.tsx';
 import { makeStore } from '@/core/testing';
-import { menuItems, SessionPicker, type SessionsView } from './SessionPicker.tsx';
+import { menuItems, SessionPicker } from './SessionPicker.tsx';
 import { ago } from '@/core/lib/format.ts';
-import { brief } from '@/core/store/sessions.ts';
+import { brief, type SessionsView } from '@/core/store/sessions.ts';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 
