@@ -1,10 +1,13 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
-import { fragmentSession } from '@/core/net/auth.ts';
+import { createElement } from 'react';
+import { Provider } from 'react-redux';
+import { cleanup, render } from '@testing-library/react';
+import { fragmentSession, landingSession, loginFromFragment } from '@/core/net/auth.ts';
 import { t } from '@/core/i18n/index.ts';
 import { getToasts } from '@/core/shell/toast.ts';
 import { makeStore } from '@/core/testing';
-import { startLanding } from './landing.ts';
+import { Arrival, startLanding } from './landing.ts';
 
 const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
@@ -76,4 +79,16 @@ it('a fresh window without a session id yet: a chosen session opens at once, new
   n.session(null);
   n.session(A);
   expect(n.sent.some((m) => m.type === 'switch')).toBe(false);
+});
+
+it('the plugin\'s Arrival opens the session the login kept from the address, on an agent\'s page', async () => {
+  const hist = { replaceState: vi.fn() } as unknown as History;
+  await loginFromFragment({ hash: `#t=${TOKEN}&s=${B}`, pathname: '/', search: '' } as Location, hist, vi.fn(async () => new Response('{}')) as never);
+  expect(landingSession()).toBe(B);
+  const r = rig();
+  render(createElement(Provider, { store: r.store, children: createElement(Arrival) }));
+  r.open();
+  r.session(A);
+  expect(r.sent.filter((m) => m.type === 'switch')).toEqual([{ type: 'switch', id: B, dir: '/r' }]);
+  cleanup();
 });

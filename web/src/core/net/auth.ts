@@ -11,8 +11,12 @@ export const KEY_HEADER = 'x-nota-bene-key';
 // (plugins/projects/landing.ts)
 const FRAGMENT = /^#t=([0-9a-f]{64})(?:&s=([0-9a-fA-F-]{36}|new))?$/;
 
-/** The session a hand-off asks this page to open, or null; read before the login takes the fragment away. */
+/** The session a hand-off asks this page to open, or null. */
 export const fragmentSession = (hash: string): string | null => FRAGMENT.exec(hash)?.[2] ?? null;
+
+let landing: string | null = null;
+/** The session the address this page was opened on asked for (`&s=`), kept by the login, which takes the fragment away. */
+export const landingSession = (): string | null => landing;
 
 export function getKey(): string | null {
   try {
@@ -44,6 +48,7 @@ export const socketProtocols = (): string[] => {
 export async function loginFromFragment(loc: Location = location, hist: History = history, fetchFn: typeof fetch = fetch): Promise<boolean> {
   const m = FRAGMENT.exec(loc.hash);
   if (!m) return false;
+  landing = m[2] ?? null;
   // before anything else: from now on a reload, a copied address or a screen share no longer holds the token
   hist.replaceState(null, '', loc.pathname + loc.search);
   try {

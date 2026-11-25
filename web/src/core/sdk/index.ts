@@ -27,6 +27,7 @@ export { PATHS_MIME, draggedPaths, hasFiles, downloadUrl } from '../lib/drag.ts'
 export { prepareImage, uploadImage, encodeImage, mediaTypeOf } from '../lib/image.ts';
 export { useFocusWithin } from '../shell/focusWithin.ts';
 export { useOnHome } from '../shell/Slots.tsx';
+export { landingSession } from '../net/auth.ts';
 export { makeAnchor } from '../anchors/resolve.ts';
 export { textOf, collapsedLength, rawIndexOf, offsetsOf, rangeForAnchor } from '../anchors/text.ts';
 export { QUICK_LABELS, labelsFor, labelText, labelOf, instructionOf } from '../anchors/labels.ts';
