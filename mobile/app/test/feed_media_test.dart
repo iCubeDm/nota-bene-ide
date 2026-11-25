@@ -32,7 +32,7 @@ Future<void> settleReal(WidgetTester t, [int rounds = 4]) async {
 
 Map<String, Object?> hello() => {
   'kind': 'hello',
-  'protocol': 13,
+  'protocol': 18,
   'capabilities': Rig.caps(),
   'tmpDirs': ['/tmp'],
 };

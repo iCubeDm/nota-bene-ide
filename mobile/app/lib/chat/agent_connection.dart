@@ -13,7 +13,11 @@ import 'package:nb_protocol/nb_protocol.dart' as nb show has;
 
 import '../hosts/host_link.dart';
 
-enum TabState { connecting, open, occupied, taken, gone, offline }
+enum TabState { connecting, open, occupied, taken, gone, offline, old }
+
+/// The oldest window protocol the app works with (voice messages with language detection): everything up to it is
+/// used without asking, and a window below it is not opened ([TabState.old]).
+const protocolFloor = 18;
 
 const takenOverCode = 4001;
 
@@ -236,6 +240,14 @@ class AgentConnection extends ChangeNotifier {
         onOpen?.call();
       case ServerEventHello(:final protocol):
         this.protocol = protocol;
+        if (protocol < protocolFloor) {
+          // not ours any more: its close must not start a retry
+          final s = _stream;
+          _stream = null;
+          s?.close(1000);
+          _set(TabState.old);
+          return;
+        }
         onEvent(e);
       default:
         onEvent(e);

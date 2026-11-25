@@ -320,22 +320,6 @@ void main() {
       },
     );
 
-    testWidgets('a host without icon support: the menu offers neither', (
-      t,
-    ) async {
-      final ch = FakeChannel([window(4793, '/home/u/old', title: 'Old')])
-        ..iconsSupported = false;
-      ch.onHttp = (port, m, path) async => answer(404);
-      f.results.add(ch);
-      final links = await pump(t);
-      await t.longPress(find.text('Old'));
-      await t.pumpAndSettle();
-      expect(find.text('Set icon'), findsNothing);
-      expect(find.text('Remove icon'), findsNothing);
-      expect(find.text('Mark read'), findsOneWidget);
-      links.dispose();
-    });
-
     testWidgets(
       'Remove icon sends DELETE and asks the host for its windows again',
       (t) async {

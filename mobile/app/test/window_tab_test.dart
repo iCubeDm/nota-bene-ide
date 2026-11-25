@@ -75,12 +75,12 @@ void main() {
     final path = ch.wsOpens.single['path'] as String;
     expect(path, matches(RegExp(r'^/ws\?tab=[0-9a-f-]{36}&held=1$')));
     expect(tab.connection.state, TabState.connecting);
-    ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': 13});
+    ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': 18});
     ch.event(ch.lastWsId, replay([user('u1')]));
     await settle();
     expect(tab.connection.state, TabState.open);
     expect(tab.windowState.feed.items.single, isA<UserItem>());
-    expect(tab.connection.protocol, 13);
+    expect(tab.connection.protocol, 18);
   });
 
   test('occupied then Work here sends takeover and opens on replay', () async {
@@ -374,7 +374,7 @@ void main() {
     Future<void> open(Map<String, Object?> c) async {
       ch.event(ch.lastWsId, {
         'kind': 'hello',
-        'protocol': 13,
+        'protocol': 18,
         'capabilities': c,
       });
       ch.event(ch.lastWsId, replay([]));
@@ -449,7 +449,7 @@ void main() {
 
   group('send', () {
     // the replay leaves the agent working: a user message with no reply yet
-    Future<void> openBusy({bool busy = true, num protocol = 16}) async {
+    Future<void> openBusy({bool busy = true, num protocol = 18}) async {
       ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': protocol});
       ch.event(
         ch.lastWsId,

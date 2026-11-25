@@ -42,8 +42,6 @@ class Rig {
     Seen? seen,
     AppVisible? visible,
     HostWindow? win,
-    // false: a desktop from before project pictures (its list never carries `icon`)
-    bool icons = true,
     // false when something on screen animates for good (a pulsing dot)
     bool settle = true,
     // the same app run: the voice outboxes and comment queues keep what they have ([stores], when the test put them)
@@ -58,8 +56,7 @@ class Rig {
         ? this.stores ?? await memoryStores()
         : await memoryStores();
     final f = FakeFactory();
-    ch = FakeChannel([win ?? window(4791, '/home/u/notes')])
-      ..iconsSupported = icons;
+    ch = FakeChannel([win ?? window(4791, '/home/u/notes')]);
     f.results.add(ch);
     link = HostLink(
       PairedHost(
@@ -93,7 +90,7 @@ class Rig {
     );
     await t.pump();
     if (greet) {
-      event(hello ?? {'kind': 'hello', 'protocol': 13, 'capabilities': caps()});
+      event(hello ?? {'kind': 'hello', 'protocol': 18, 'capabilities': caps()});
       if (replay) event({'kind': 'replay', 'events': events});
     }
     if (settle) {

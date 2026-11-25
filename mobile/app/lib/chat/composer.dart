@@ -347,7 +347,6 @@ class _ComposerState extends State<Composer> {
     hint: t.messageHint,
     session: _session,
     open: open,
-    voiceProtocol: widget.tab.connection.has(Feature.voice),
     whisperAvailable: transcribes(widget.tab),
     onWhisperMissing: () => showWhisperSheet(context, widget.tab),
     showMic: mic,
@@ -356,7 +355,6 @@ class _ComposerState extends State<Composer> {
     sending: uploading,
     onSend: _send,
     onAttach: _attach,
-    snackAnchor: () => context,
     // the layout of the row does not change: the portal floats over the feed. The hold hides it (the big circle and
     // the lock are drawn over that place); a locked recording leaves the finger, and the turn can still be stopped.
     // The paperclip floats while text is typed (it left the row to leave the text its width), never while recording.

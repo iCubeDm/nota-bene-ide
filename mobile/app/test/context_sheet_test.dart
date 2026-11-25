@@ -180,7 +180,7 @@ void main() {
       t,
       hello: {
         'kind': 'hello',
-        'protocol': 13,
+        'protocol': 18,
         'capabilities': {...Rig.caps(), 'idleCompact': false},
       },
     );
@@ -284,7 +284,7 @@ void main() {
       t,
       hello: {
         'kind': 'hello',
-        'protocol': 13,
+        'protocol': 18,
         'capabilities': Rig.caps(compact: false),
       },
     );
@@ -401,7 +401,7 @@ void main() {
       t,
       hello: {
         'kind': 'hello',
-        'protocol': 13,
+        'protocol': 18,
         'capabilities': Rig.caps(clear: false),
       },
     );

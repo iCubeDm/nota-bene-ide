@@ -97,7 +97,7 @@ void main() {
       t,
       hello: {
         'kind': 'hello',
-        'protocol': 13,
+        'protocol': 18,
         'capabilities': Rig.caps(models: false),
       },
     );

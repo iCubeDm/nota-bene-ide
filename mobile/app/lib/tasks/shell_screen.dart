@@ -136,7 +136,7 @@ class _ShellScreenState extends State<ShellScreen> {
               ),
             ),
           ),
-          if (taskControls(widget.tab) && running && !_gone) ...[
+          if (running && !_gone) ...[
             const SizedBox(width: 8),
             StopButton(
               tab: widget.tab,

@@ -2,7 +2,6 @@
 // the page has one, and only while there is no text) and at the right the mic, which becomes Send once there is something
 // to send. A recording takes the text's place. The page decides what is sent and what a recording does; this only draws
 // and routes the taps, so both fields have the same geometry and the same states.
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -26,7 +25,6 @@ class MessageField extends StatefulWidget {
     required this.hint,
     required this.session,
     required this.open,
-    required this.voiceProtocol,
     required this.whisperAvailable,
     required this.onWhisperMissing,
     required this.showMic,
@@ -41,8 +39,6 @@ class MessageField extends StatefulWidget {
     this.onAttach,
     this.floating,
     this.fill,
-    this.snackAnchor,
-    this.snackScaffold,
   });
 
   /// What the field sits on, when it is not the chat's background (the comment sheet's own colour).
@@ -57,8 +53,6 @@ class MessageField extends StatefulWidget {
   /// The page can take input now (the window is open); the mic and the paperclip are off otherwise.
   final bool open;
 
-  /// A window older than protocol 14 has no voice: its mic is greyed and says why on a tap, not missing.
-  final bool voiceProtocol;
   final bool whisperAvailable;
   final VoidCallback onWhisperMissing;
 
@@ -79,42 +73,12 @@ class MessageField extends StatefulWidget {
   /// Something floating over the right button (the chat's Stop), given the link to it.
   final Widget Function(LayerLink link)? floating;
 
-  /// The box a snackbar of the greyed mic floats above (the page's own by default).
-  final BuildContext Function()? snackAnchor;
-
-  /// The context of the Scaffold the snackbar shows on, when it is not an ancestor (the comment sheet's own, under it).
-  final BuildContext? Function()? snackScaffold;
-
   @override
   State<MessageField> createState() => _MessageFieldState();
 }
 
 class _MessageFieldState extends State<MessageField> {
   final _trailing = LayerLink();
-
-  /// The old host's mic says why it does nothing: a snackbar floating above the message field, not over it.
-  void _micOldSnack(String text) {
-    final ctx = context;
-    final messenger = ScaffoldMessenger.maybeOf(ctx);
-    final scaffold =
-        (widget.snackScaffold?.call() ?? Scaffold.maybeOf(ctx)?.context)
-            ?.findRenderObject();
-    final box = (widget.snackAnchor?.call() ?? ctx).findRenderObject();
-    var bottom = 8.0;
-    if (messenger == null) return;
-    if (scaffold is RenderBox && box is RenderBox && box.hasSize) {
-      final end = scaffold.localToGlobal(Offset.zero).dy + scaffold.size.height;
-      bottom = math.max(8, end - box.localToGlobal(Offset.zero).dy + 8);
-    }
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(text),
-        behavior: SnackBarBehavior.floating,
-        margin: EdgeInsets.fromLTRB(8, 0, 8, bottom),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -144,27 +108,13 @@ class _MessageFieldState extends State<MessageField> {
         ),
       );
       final showMic = widget.showMic && !widget.showSend;
-      // the mic: a window older than protocol 14 gets the greyed one
-      final Widget mic = !widget.voiceProtocol
-          ? IconButton(
-              key: const ValueKey('mic-old'),
-              tooltip: t.micUnavailable,
-              icon: const NbIcon(NbGlyph.mic),
-              style: IconButton.styleFrom(
-                fixedSize: const Size.square(_button),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                backgroundColor: Colors.transparent,
-                foregroundColor: c.mutedFg.withValues(alpha: .6),
-              ),
-              onPressed: () => _micOldSnack(t.micNeedsUpdate),
-            )
-          : RecordButton(
-              key: const ValueKey('mic'),
-              session: widget.session,
-              enabled: widget.micEnabled ?? open,
-              available: widget.whisperAvailable,
-              onUnavailable: widget.onWhisperMissing,
-            );
+      final Widget mic = RecordButton(
+        key: const ValueKey('mic'),
+        session: widget.session,
+        enabled: widget.micEnabled ?? open,
+        available: widget.whisperAvailable,
+        onUnavailable: widget.onWhisperMissing,
+      );
       final Widget send = IconButton(
         key: const ValueKey('send'),
         tooltip: widget.sending ? t.attachUploading : t.send,

@@ -20,17 +20,10 @@ const stopConfirm = Duration(seconds: 3);
 /// How long a sent Stop waits for its answer before it is offered again.
 const stopWait = Duration(seconds: 5);
 
-/// The window has the task controls (stop, to background, a shell's output).
-bool taskControls(WindowTab tab) => tab.connection.has(Feature.taskControl);
-
 /// Whether [x]'s view opens here: a subagent's conversation or a shell's output, on a window that serves it.
 bool canOpenTask(WindowTab tab, Task x) => switch (x.kind) {
-  TaskKind.agent =>
-    x.type != 'remote_agent' &&
-        x.call != null &&
-        tab.connection.has(Feature.subagentAnchors),
-  TaskKind.shell =>
-    taskControls(tab) && tab.windowState.capabilities?.taskOutput != false,
+  TaskKind.agent => x.type != 'remote_agent' && x.call != null,
+  TaskKind.shell => tab.windowState.capabilities?.taskOutput != false,
   _ => false,
 };
 
@@ -343,7 +336,7 @@ class _TasksSheetState extends State<TasksSheet> {
       meta: meta,
       bold: true,
       actions: [
-        if (taskControls(tab) && g.live.isNotEmpty)
+        if (g.live.isNotEmpty)
           StopButton(
             tab: tab,
             id: r.id,
@@ -384,7 +377,7 @@ class _TasksSheetState extends State<TasksSheet> {
             }
           : null,
       actions: [
-        if (taskControls(tab) && x.running && !x.inner)
+        if (x.running && !x.inner)
           StopButton(tab: tab, id: r.id, refusals: tab.tasks.refusals),
         if (x.running) BackgroundButton(tab: tab, task: x, resulted: _resulted),
       ],
@@ -532,7 +525,6 @@ class BackgroundButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final call = task.call;
     if (call == null ||
-        !taskControls(tab) ||
         tab.windowState.capabilities?.taskBackground == false ||
         !foreground(task, tab.windowState.feed, resulted)) {
       return const SizedBox.shrink();

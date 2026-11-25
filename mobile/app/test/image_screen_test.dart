@@ -42,7 +42,7 @@ Future<Rig> openImage(
   List<Map<String, Object?>> comments = const [],
   List<ViewerImage>? items,
   int index = 0,
-  num protocol = 13,
+  num protocol = 18,
 }) async {
   final r = Rig();
   await r.open(

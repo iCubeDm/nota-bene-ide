@@ -339,8 +339,6 @@ class Channel {
       }
       if (j is Map && j['t'] == 'windows' && j['windows'] is List) {
         final raw = j['windows'] as List;
-        // a host that knows project pictures lists `icon` (null or a version); an older one never does
-        _icons = _icons || raw.any((w) => w is Map && w.containsKey('icon'));
         final list = parseWindows(raw, _last);
         _last = list;
         _windows.add(list);
@@ -396,11 +394,6 @@ class Channel {
   }
 
   List<HostWindow>? get lastWindows => _last;
-
-  /// The host knows project pictures: a list it sent carried `icon`. An older host does not, and the phone offers no
-  /// Set icon there. Set before the list that shows it is added to [windows].
-  bool get iconsSupported => _icons;
-  bool _icons = false;
 
   /// Completes with the relay's close code (0 when there was none) once the channel is gone.
   Future<int> get closed => _closed.future;

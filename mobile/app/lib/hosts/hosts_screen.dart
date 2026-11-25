@@ -117,9 +117,7 @@ class HostsList extends StatelessWidget {
               unread: seen.unread(l.host.id, w),
               now: clock(),
               onOpen: () => onOpen(l, w),
-              onSetIcon: onSetIcon == null || !l.iconsSupported
-                  ? null
-                  : () => onSetIcon!(l, w),
+              onSetIcon: onSetIcon == null ? null : () => onSetIcon!(l, w),
               onRemoveIcon: onRemoveIcon == null || w.icon == null
                   ? null
                   : () => onRemoveIcon!(l, w),

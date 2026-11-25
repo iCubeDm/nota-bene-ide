@@ -67,7 +67,6 @@ class WindowTab extends ChangeNotifier {
       send: connection.send,
       http: () => connection.http,
       compose: (ids, lang) => comments.composeFor(windowState, ids, lang),
-      canDetect: () => connection.has(Feature.voiceDetect),
     );
     comments.held = () => voiceOutbox.heldIds;
     voiceOutbox.addListener(comments.refresh);
@@ -170,9 +169,7 @@ class WindowTab extends ChangeNotifier {
       lang,
       detect: detect,
       force: force,
-      commentIds: connection.has(Feature.voiceComments)
-          ? [for (final c in comments.sendable) c.id]
-          : const [],
+      commentIds: [for (final c in comments.sendable) c.id],
       commentLang: commentLang,
     );
     return true;

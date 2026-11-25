@@ -124,6 +124,7 @@ class _OneTabOverlayState extends State<OneTabOverlay> {
       final text = switch (tab.connection.state) {
         TabState.occupied => t.occupiedTitle,
         TabState.taken => t.takenTitle,
+        TabState.old => t.hostTooOld,
         _ => null,
       };
       if (text == null) return const SizedBox.shrink();
