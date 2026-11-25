@@ -35,7 +35,7 @@ beside the published package's Nota Bene.
 stale `web/dist` at launch and before a restart, opens the browser and supervises the server. One server (epic 383):
 a launch takes the server-wide lock (`<base>/locks/server`), gives way to a window already serving the folder (up to 10 s
 for one in its restart gap), else opens the folder in a running server that answers `POST /control/open`
-(`server/src/attach.ts`: every provider's registry, each entry proved with its provider's token; an older server's 404 is
+(`server/src/attach.ts`: each registry entry proved with the token; an older server's 404 is
 passed over) and only then starts one. `--port N` never attaches. The server keeps its extra agents in
 `windows/<port>.agents.json`; a relaunch with the same launcher pid (a crash) or nonce (a restart, an update) reopens them
 under their ids, each on its folder's last session; a fresh launch ignores and replaces the file.
@@ -105,8 +105,10 @@ Native since 1.9.0. What differs from POSIX goes through `server/src/platform.ts
 
 ## State
 
-The folder's layout is the guide's [State on disk](guide.md#state-on-disk). `NOTA_BENE_HOME` is the base: Claude's
-state is the base itself, Codex's and omp's are `providers/codex` and `providers/omp` under it. Never in the repo.
+The folder's layout is the guide's [State on disk](guide.md#state-on-disk). `NOTA_BENE_HOME` is the base. The
+server's own state (token, control token, registry, `prefs.json`) is in the base itself (`serverStateDir`); an agent's is
+its provider's folder (`agentContext`): the base for Claude, `providers/codex` and `providers/omp` for the others.
+`server/src/prefsMigration.ts` brings in the `prefs.json` an older server kept in a provider's folder. Never in the repo.
 The only write into a project is `<root>/.nota-bene/marks/` (`server/src/marks.ts`).
 
 ## In-app update
@@ -130,8 +132,8 @@ A published window (package root without `.git`) updates itself; a checkout neve
 
 ## Providers
 
-`--agent claude|codex|omp` (Claude by default). A window stays bound to one backend; discovery, locks, secrets,
-preferences, comments and archives are per provider, and the session picker lists only its own.
+`--agent claude|codex|omp` (Claude by default). An agent stays bound to one backend; sessions, comments
+and archives are per provider, and the session picker lists only its own. The token, the registry and the settings are the server's.
 
 - Codex: `server/src/agent/codex/`. Native RPC shapes stay inside it. The marketplace `.agents/plugins/marketplace.json`
   installs `codex/plugin.json`, whose skill runs the pinned npm runtime through `npm exec`. Publishing marketplace
@@ -228,7 +230,7 @@ The canonical security model. Nothing on the machine reaches the API or the sock
   (`server/src/remote/device.ts` `goodPath`; [channel contract](../server/src/remote/CHANNEL.md)).
 - **`/file`** serves `.html` and other text kinds as `text/plain`, everything under a CSP `sandbox`.
 - **Project switcher** (`server/src/projects.ts`, `projectRoutes.ts`): a window mints another window's login itself,
-  from that provider's token after `proveListener`, and returns it only in a JSON body. The `&s=<id>` hand-off after the
+  from the token after `proveListener`, and returns it only in a JSON body. The `&s=<id>` hand-off after the
   login is dropped with the fragment before `/auth`.
 - **Desktop proxy** (`server/src/remote/proxy.ts`, issue 297): another computer's window on a listener of the connector,
   served as `localhost` (the windows stay on `127.0.0.1`, so the cookies never mix), with its own token, nonce, login,

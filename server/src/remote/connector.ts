@@ -205,7 +205,7 @@ export class Connector extends EventEmitter {
       projects: async () => {
         // this computer's windows and agents (none current: the page is the other one's) and the paired ones'; no Recent,
         // which would open folders here. Only that computer's own rows say more than what lists and moves
-        const own = await listProjects({ port: 0, provider: 'claude' });
+        const own = await listProjects({ port: 0 });
         const rows = remoteRows(this.computers(), { host, port, ...(agent ? { agent } : {}) });
         return { running: [...own.running.map(bareRow), ...rows.map((r) => (r.remote?.host === host ? r : bareRow(r)))], recent: [], hidden: [] };
       },

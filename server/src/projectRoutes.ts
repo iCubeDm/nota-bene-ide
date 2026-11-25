@@ -86,8 +86,7 @@ export function projectRoutes(o: {
   hub: EventHub;
   /** this server's port (known after listen) */
   port: () => number;
-  provider: AgentProvider;
-  /** epic 383: this agent's id when it is not the window's own (its rows are told apart by it) */
+  /** this agent's id; none on the server's home page */
   agent?: string;
   /** this server: it opens the folders and answers for its own agents */
   self: Self;
@@ -97,7 +96,7 @@ export function projectRoutes(o: {
 }): Record<string, RequestListener> {
   const agents = o.agents ?? defaultAgents();
   const warned = new Set<string>();
-  const own = () => ({ port: o.port(), provider: o.provider, self: o.self, ...(o.agent ? { agent: o.agent } : {}) });
+  const own = () => ({ port: o.port(), self: o.self, ...(o.agent ? { agent: o.agent } : {}) });
   /** a row of the list as the page sends it back: a window, or an agent with its id; null for anything else */
   const rowOf = (b: Record<string, unknown>) => {
     if (!isProvider(b.provider) || !Number.isInteger(b.port) || typeof b.root !== 'string') return null;

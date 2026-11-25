@@ -674,13 +674,13 @@ describe('compact-end and idle compaction', () => {
 
 describe('permission mode', () => {
   it('capabilities: the agent starts in a mode it offers (a persisted \'auto\' becomes the first of `modes`); the pref stays', async () => {
-    setModePref('/proj', 'auto');
+    setModePref('claude', '/proj', 'auto');
     const inner = fakeBackend([{ text: 'a' }], { capabilities: { modes: ['default'] } });
     const { hub, events } = setup(inner);
     const s = await createSessionManager({ hub, backend: inner, cwd: '/proj' });
     expect(inner.startModes).toEqual(['default']);
     expect(s.mode()).toBe('default');
-    expect(readPrefs().modes[prefsKey('/proj')]).toBe('auto');
+    expect(readPrefs().modes[prefsKey('claude', '/proj')]).toBe('auto');
     void events;
     s.close();
   });
@@ -691,7 +691,7 @@ describe('permission mode', () => {
     const b1 = fakeBackend([{ text: 'x' }]);
     expect((await setup(b1).make()).mode()).toBe('auto');
     expect(b1.startModes).toEqual(['auto']);
-    setModePref('/proj', 'plan');
+    setModePref('claude', '/proj', 'plan');
     const b2 = fakeBackend([{ text: 'x' }]);
     expect((await setup(b2).make()).mode()).toBe('plan');
     expect(b2.startModes).toEqual(['plan']);
@@ -704,7 +704,7 @@ describe('permission mode', () => {
     await s.setMode('acceptEdits');
     expect(b.setModes).toEqual(['acceptEdits']);
     expect(s.mode()).toBe('acceptEdits');
-    expect(readPrefs().modes[prefsKey('/proj')]).toBe('acceptEdits');
+    expect(readPrefs().modes[prefsKey('claude', '/proj')]).toBe('acceptEdits');
     expect(modeEvents(events)).toEqual(['acceptEdits']);
   });
 
@@ -738,13 +738,13 @@ describe('permission mode', () => {
   });
 
   it('follows an init whose permissionMode differs', async () => {
-    setModePref('/proj', 'plan');
+    setModePref('claude', '/proj', 'plan');
     const { events, make } = setup(fakeBackend([{ text: 'x', initMode: 'default' }]));
     const s = await make();
     s.send({ id: 'u1', text: 'hi' });
     await until(() => agentOf(events, 'turn-end').length === 1);
     expect(s.mode()).toBe('default');
-    expect(readPrefs().modes[prefsKey('/proj')]).toBe('default');
+    expect(readPrefs().modes[prefsKey('claude', '/proj')]).toBe('default');
     expect(modeEvents(events)).toEqual(['default']);
   });
 
@@ -792,7 +792,7 @@ describe('permission mode', () => {
     const s = await make();
     await s.setMode('plan', 'm1');
     expect(events.filter((e) => e.kind === 'mode')).toEqual([{ kind: 'mode', mode: 'plan' }, { kind: 'mode', mode: 'plan', ack: 'm1' }]);
-    expect(readPrefs().modes[prefsKey('/proj')]).toBe('plan');
+    expect(readPrefs().modes[prefsKey('claude', '/proj')]).toBe('plan');
   });
 
   it('every mode request is answered once with its ack, a refused one too', async () => {

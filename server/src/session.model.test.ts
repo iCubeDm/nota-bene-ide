@@ -6,7 +6,7 @@ import type { ModelOption, ServerEvent } from '@nota-bene/shared';
 import { fakeBackend } from './agent/fake.ts';
 import type { ProviderBackend as AgentBackend } from './agent/types.ts';
 import { EventHub } from './hub.ts';
-import { modelKey, readPrefs, setModelPref } from './prefs.ts';
+import { prefsKey, readPrefs, setModelPref } from './prefs.ts';
 import { createSessionManager } from './session.ts';
 
 let home: string;
@@ -39,7 +39,7 @@ async function until(cond: () => boolean, ms = 2000): Promise<void> {
 }
 
 const modelEvents = (events: ServerEvent[]) => events.filter((e) => e.kind === 'model');
-const pref = () => readPrefs().models[modelKey('claude', '/proj')];
+const pref = () => readPrefs().models[prefsKey('claude', '/proj')];
 
 describe('model and effort', () => {
   it('setModel: setModel and the effort go to the agent, the pref is written, one event carries the ack, even while busy', async () => {

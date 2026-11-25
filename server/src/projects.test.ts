@@ -5,7 +5,6 @@ import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { fakeBackend } from './agent/fake.ts';
 import { verifiedBearer } from './auth.ts';
-import { providerStateDir } from './agent/provider.ts';
 import { recordRecent } from './recent.ts';
 import { bareRow, enterUrl, listProjects, remoteRows, sessionsOf, stopAt, stopOthers, type ProbedInfo } from './projects.ts';
 import { agentServer, launchServer } from './testing.ts';
@@ -32,7 +31,7 @@ afterEach(async () => {
   for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true });
 });
 
-/** A real window of `provider` on `root`, registered in that provider's registry. */
+/** A real server started as `provider` on `root`, registered. */
 async function windowOf(provider: 'claude' | 'codex', root: string, exit: (code: number) => void = () => {}) {
   if (provider === 'codex') process.env.NOTA_BENE_AGENT = 'codex';
   try {
@@ -46,7 +45,7 @@ async function windowOf(provider: 'claude' | 'codex', root: string, exit: (code:
   }
 }
 
-it('lists the windows of every provider with their state', async () => {
+it('lists the servers\' agents with their state, whichever provider a server started as', async () => {
   const a = mk('nb-proj-notes-'), b = mk('nb-proj-site-');
   const pa = await windowOf('claude', a);
   const pb = await windowOf('codex', b);
@@ -55,7 +54,7 @@ it('lists the windows of every provider with their state', async () => {
   const roots: Record<number, string> = { [pa]: a, [pb]: b, [pc]: b };
   const seenTokens = new Set<string>();
   // issue 639: a server's home lists its agents, each answering as itself
-  const list = await listProjects({ port: pa, provider: 'claude', agent: 'claude-aaaaaa' }, async (port, token) => {
+  const list = await listProjects({ port: pa, agent: 'claude-aaaaaa' }, async (port, token) => {
     seenTokens.add(token);
     const provider = port === pb ? 'codex' as const : 'claude' as const;
     return { root: roots[port]!, extra: [{ root: roots[port]!, session: 's', title: null, ...states[port], agent: `${provider}-aaaaaa`, provider }] };
@@ -64,7 +63,8 @@ it('lists the windows of every provider with their state', async () => {
     ['claude', pa, 'idle', true], ['codex', pb, 'working', false], ['claude', pc, 'waiting', false],
   ]));
   expect(list.running).toHaveLength(3);
-  expect(seenTokens.size).toBe(2); // each provider's window probed with its own token
+  expect(seenTokens.size).toBe(1); // issue 706: one token, whichever provider a server started as
+  expect(fs.existsSync(path.join(home, 'providers', 'codex', 'windows'))).toBe(false);
 });
 
 it('issue 691: the asking server answers for its own agents itself; only the others are probed', async () => {
@@ -76,7 +76,7 @@ it('issue 691: the asking server answers for its own agents itself; only the oth
     info: (): ProbedInfo => ({ root: a, extra: [{ root: a, agent: 'codex-aaaaaa', provider: 'codex', busy: true, session: 's1' }] }),
     agent: () => null, open: async () => { throw new Error('unused'); },
   };
-  const list = await listProjects({ port: pa, provider: 'claude', self }, async (port) => { probed.push(port); return { root: b, agent: 'claude-bbbbbb' }; });
+  const list = await listProjects({ port: pa, self }, async (port) => { probed.push(port); return { root: b, agent: 'claude-bbbbbb' }; });
   expect(probed).toEqual([pb]);
   expect(list.running.map((r) => [r.port, r.agent, r.state])).toEqual(expect.arrayContaining([[pa, 'codex-aaaaaa', 'working'], [pb, undefined, 'idle']]));
   expect(list.running).toHaveLength(2);
@@ -87,7 +87,7 @@ it('a restarting entry and a silent one are listed without a session', async () 
   const pa = await windowOf('claude', a);
   registerWindow(4794, '/x/restarting', DEAD, process.pid);
   registerWindow(4795, '/x/gone', DEAD);
-  const list = await listProjects({ port: pa, provider: 'claude' }, async () => null);
+  const list = await listProjects({ port: pa }, async () => null);
   const by = Object.fromEntries(list.running.map((r) => [r.port, r]));
   expect(by[4794]).toMatchObject({ state: 'restarting', session: null });
   expect(by[pa]).toMatchObject({ state: 'silent', session: null });
@@ -99,7 +99,7 @@ it('recent marks the running folders', async () => {
   const pa = await windowOf('claude', a);
   recordRecent(home, '/x/old', 'claude', 1);
   recordRecent(home, a, 'claude', 2);
-  const list = await listProjects({ port: pa, provider: 'claude' });
+  const list = await listProjects({ port: pa });
   expect(list.recent).toEqual([{ root: a, provider: 'claude', at: 2, running: true }, { root: '/x/old', provider: 'claude', at: 1, running: false }]);
 });
 
@@ -130,14 +130,14 @@ it('enterUrl refuses a port whose root changed, before any bearer is sent', asyn
   expect(infos).toBe(1); // only the proved listener was asked, and its root did not match
 });
 
-it('enterUrl refuses another provider\'s listener', async () => {
+it('enterUrl refuses a listener that holds another token', async () => {
   const a = mk('nb-proj-a-');
+  process.env.NOTA_BENE_HOME = mk('nb-projects-other-');
   const pa = await windowOf('claude', a);
-  await windowOf('codex', mk('nb-proj-c-')); // the codex token exists
-  process.env.NOTA_BENE_AGENT = 'codex';
-  registerWindow(pa, a, process.pid); // filed under codex, but the port is a claude window
-  delete process.env.NOTA_BENE_AGENT;
-  expect(await enterUrl({ provider: 'codex', port: pa, root: a })).toEqual({ error: 'window not answering' });
+  process.env.NOTA_BENE_HOME = home;
+  await windowOf('claude', mk('nb-proj-c-')); // this state folder's token exists
+  registerWindow(pa, a, process.pid); // filed here, but the port is another state folder's server
+  expect(await enterUrl({ provider: 'claude', port: pa, root: a })).toEqual({ error: 'window not answering' });
 });
 
 it('rows carry the unseen replies and the last message; a window that does not answer has neither', async () => {
@@ -145,7 +145,7 @@ it('rows carry the unseen replies and the last message; a window that does not a
   const pa = await windowOf('claude', a);
   registerWindow(4794, '/x/restarting', DEAD, process.pid);
   const last = { role: 'assistant' as const, text: 'done', at: 5 };
-  const list = await listProjects({ port: pa, provider: 'claude' }, async () => ({ root: a, extra: [{ root: a, unseen: 2, last, agent: 'claude-aaaaaa', provider: 'claude' }] }));
+  const list = await listProjects({ port: pa }, async () => ({ root: a, extra: [{ root: a, unseen: 2, last, agent: 'claude-aaaaaa', provider: 'claude' }] }));
   const by = Object.fromEntries(list.running.map((r) => [r.port, r]));
   expect(by[pa]).toMatchObject({ unseen: 2, last });
   expect(by[4794]).toMatchObject({ unseen: 0, last: null });
@@ -156,7 +156,7 @@ it('issue 651: rows of this server carry the open asks, another server\'s do not
   const pa = await windowOf('claude', a);
   const pb = await windowOf('claude', b);
   const asks = [{ id: 'p1', toolName: 'Bash', input: { command: 'ls' } }];
-  const list = await listProjects({ port: pa, provider: 'claude' }, async (port) => ({ root: port === pa ? a : b, extra: [{ root: port === pa ? a : b, pending: true, asks, agent: port === pa ? 'claude-aaaaaa' : 'claude-bbbbbb', provider: 'claude' }] }));
+  const list = await listProjects({ port: pa }, async (port) => ({ root: port === pa ? a : b, extra: [{ root: port === pa ? a : b, pending: true, asks, agent: port === pa ? 'claude-aaaaaa' : 'claude-bbbbbb', provider: 'claude' }] }));
   const by = Object.fromEntries(list.running.map((r) => [r.port, r]));
   expect(by[pa]).toMatchObject({ state: 'waiting', asks });
   expect(by[pb]!.state).toBe('waiting');
@@ -204,7 +204,7 @@ const exited = () => {
   return { exit: (code: number) => done(code), code: p };
 };
 
-it('stopAt stops that window with its own provider\'s control token', async () => {
+it('stopAt stops that server with the control token, whichever provider it started as', async () => {
   const a = mk('nb-proj-a-');
   const e = exited();
   const pa = await windowOf('codex', a, e.exit);
@@ -221,14 +221,14 @@ it('stopAt refuses a window that is not on that folder before sending anything',
   expect(sent).toBe(0);
 });
 
-it('stopOthers stops every window but this one, of every provider', async () => {
+it('stopOthers stops every server but this one', async () => {
   const [a, b, c] = [mk('nb-proj-a-'), mk('nb-proj-b-'), mk('nb-proj-c-')];
   const ea = exited(), eb = exited();
   let ownStopped = false;
   const own = await windowOf('claude', a, () => { ownStopped = true; });
   await windowOf('claude', b, ea.exit);
   await windowOf('codex', c, eb.exit);
-  expect(await stopOthers({ port: own, provider: 'claude' })).toEqual({ stopped: 2, failed: 0 });
+  expect(await stopOthers({ port: own })).toEqual({ stopped: 2, failed: 0 });
   expect(await Promise.all([ea.code, eb.code])).toEqual([0, 0]);
   expect(ownStopped).toBe(false);
 });
@@ -267,11 +267,11 @@ it('epic 383: an agent the server opened is a row of its own, in its folder, wit
   const { port, id, first } = await windowWithAgent(a, b);
   const pick = (l: Awaited<ReturnType<typeof listProjects>>) => l.running.map((r) => [r.provider, r.port, r.root, r.agent, r.state, r.current]);
   // issue 639: the first agent's row carries its id too
-  expect(pick(await listProjects({ port, provider: 'claude', agent: first }))).toEqual(expect.arrayContaining([
+  expect(pick(await listProjects({ port, agent: first }))).toEqual(expect.arrayContaining([
     ['claude', port, a, first, 'idle', true], ['codex', port, b, id, 'idle', false],
   ]));
   // the agent's own page: its row is the current one
-  const own = await listProjects({ port, provider: 'codex', agent: id });
+  const own = await listProjects({ port, agent: id });
   expect(pick(own)).toEqual(expect.arrayContaining([['claude', port, a, first, 'idle', false], ['codex', port, b, id, 'idle', true]]));
   expect(own.running).toHaveLength(2);
   expect(own.recent).toEqual([]);
@@ -280,11 +280,11 @@ it('epic 383: an agent the server opened is a row of its own, in its folder, wit
 it('epic 383: a restarting server lists the agents its launcher keeps as restarting, not an earlier launch\'s', async () => {
   await windowOf('claude', mk('nb-proj-a-')); // the claude token exists
   registerWindow(4794, '/x/a', DEAD, process.pid);
-  writeKeptAgents(4794, { launcherPid: process.pid, nonce: 'n', agents: [{ id: 'claude-abcdef', provider: 'claude', root: '/x/a' }, { id: 'codex-abcdef', provider: 'codex', root: '/x/b' }] }, providerStateDir(home, 'claude'));
+  writeKeptAgents(4794, { launcherPid: process.pid, nonce: 'n', agents: [{ id: 'claude-abcdef', provider: 'claude', root: '/x/a' }, { id: 'codex-abcdef', provider: 'codex', root: '/x/b' }] });
   // a launch before a Stop kept its own: this launcher does not reopen them
   registerWindow(4793, '/x/c', DEAD, process.pid);
-  writeKeptAgents(4793, { launcherPid: DEAD, nonce: 'old', agents: [{ id: 'codex-ghostq', provider: 'codex', root: '/x/d' }] }, providerStateDir(home, 'claude'));
-  const list = await listProjects({ port: 0, provider: 'claude' }, async () => null);
+  writeKeptAgents(4793, { launcherPid: DEAD, nonce: 'old', agents: [{ id: 'codex-ghostq', provider: 'codex', root: '/x/d' }] });
+  const list = await listProjects({ port: 0 }, async () => null);
   // issue 639: every one by its id; the server itself only where nothing comes back (4793)
   expect(list.running.map((r) => [r.provider, r.root, r.agent, r.state])).toEqual(expect.arrayContaining([
     ['claude', '/x/a', 'claude-abcdef', 'restarting'], ['codex', '/x/b', 'codex-abcdef', 'restarting'], ['claude', '/x/c', undefined, 'restarting'],
@@ -321,14 +321,14 @@ it('epic 383: stopAt closes an agent alone, with its server\'s control token; it
   const { port, id, first } = await windowWithAgent(a, b);
   expect(await stopAt({ provider: 'codex', port, root: a, agent: id })).toEqual({ error: 'window not answering' });
   expect(await stopAt({ provider: 'codex', port, root: b, agent: id })).toEqual({ ok: true });
-  const l = await listProjects({ port, provider: 'claude' });
+  const l = await listProjects({ port });
   expect(l.running.map((r) => [r.root, r.agent])).toEqual([[a, first]]);
 });
 
 it('epic 383: stopOthers from an agent\'s page leaves its own server', async () => {
   const a = mk('nb-proj-a-'), b = mk('nb-proj-b-');
   const { port, id } = await windowWithAgent(a, b);
-  expect(await stopOthers({ port, provider: 'codex', agent: id })).toEqual({ stopped: 0, failed: 0 });
+  expect(await stopOthers({ port, agent: id })).toEqual({ stopped: 0, failed: 0 });
 });
 
 it('issue 297: a paired computer\'s windows as rows, the state from its host stream, the proxy\'s own one current', () => {

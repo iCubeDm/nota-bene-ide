@@ -199,7 +199,10 @@ export async function installRelease(version: string, o: { npm?: string; node?: 
   }
 }
 
-/** Versions that live windows (or their restarting launchers) run, from every provider's registry. */
+/**
+ * Versions that live servers (or their restarting launchers) run: the registry's, and those of the `providers/<p>` folders,
+ * where a server started before issue 706 as Codex or omp keeps its entry until it is restarted.
+ */
 function versionsInUse(): Set<string> {
   const used = new Set<string>();
   for (const p of PROVIDERS) {

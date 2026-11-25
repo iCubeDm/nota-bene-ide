@@ -38,7 +38,7 @@ async function serve(self: Partial<Self> = {}, agents?: () => Promise<{ agents: 
   hub.emit = (ev, o) => { events.push(ev); return emit(ev, o); };
   const calls: { dir: string; provider: string; fresh: boolean }[] = [];
   const open: Self['open'] = async (dir, provider, fresh) => { calls.push({ dir, provider, fresh }); return (self.open ?? (async (d) => agentOn(d)))(dir, provider, fresh); };
-  const routes = projectRoutes({ hub, port: () => 4791, provider: 'claude', self: { info: () => ({ root: tree }), agent: () => null, ...self, open }, ...(agents ? { agents } : {}), ...(agent ? { agent } : {}) });
+  const routes = projectRoutes({ hub, port: () => 4791, self: { info: () => ({ root: tree }), agent: () => null, ...self, open }, ...(agents ? { agents } : {}), ...(agent ? { agent } : {}) });
   const srv = http.createServer((req, res) => routes[new URL(req.url!, 'http://x').pathname]!(req, res));
   await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
   closers.push(() => new Promise<void>((r) => srv.close(() => r())));
