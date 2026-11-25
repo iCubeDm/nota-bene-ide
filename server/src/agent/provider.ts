@@ -4,6 +4,8 @@ import type { AgentProvider } from '@nota-bene/shared';
 
 export type { AgentProvider };
 
+export const PROVIDERS: AgentProvider[] = ['claude', 'codex', 'omp'];
+
 export function parseProvider(value: string | undefined): AgentProvider {
   if (value === undefined || value === 'claude') return 'claude';
   if (value === 'codex' || value === 'omp') return value;

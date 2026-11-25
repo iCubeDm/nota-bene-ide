@@ -18,8 +18,8 @@ import { HostLink } from './hostLink.ts';
 import type { KeyPair } from './noise.ts';
 import { WindowProxy, type EnterTarget } from './proxy.ts';
 import { readPrefs } from '../prefs.ts';
-import { bareRow, enterUrl, listProjects, PROVIDERS, remoteRows, type Computer } from '../projects.ts';
-import type { AgentProvider } from '../agent/provider.ts';
+import { bareRow, enterUrl, listProjects, remoteRows, type Computer } from '../projects.ts';
+import { PROVIDERS, type AgentProvider } from '../agent/provider.ts';
 import { KEY_LIMIT, KEY_LIMIT_MESSAGE, RelayClient } from './relayClient.ts';
 import {
   addDevice, b64u, clearLastError, deviceHash, deviceKey, fingerprint, fromB64u, hostKey, pairTicket, pairUri, readAccessKey, readDevices, readHosts, readLastError,

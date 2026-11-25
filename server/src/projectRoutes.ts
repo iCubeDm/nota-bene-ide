@@ -10,12 +10,12 @@ import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http
 import os from 'node:os';
 import path from 'node:path';
 import { defaultChoice, detectAgents } from './agent/choice.ts';
-import type { AgentProvider } from './agent/provider.ts';
+import { PROVIDERS, type AgentProvider } from './agent/provider.ts';
 import { isSessionId } from '@nota-bene/shared';
 import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
 import { HIDDEN } from './platform.ts';
-import { enterUrl, listProjects, PROVIDERS, remoteRows, sessionsOf, stopAt, stopOthers, type Computer } from './projects.ts';
+import { enterUrl, listProjects, remoteRows, sessionsOf, stopAt, stopOthers, type Computer } from './projects.ts';
 import { forgetRecent, readRecent } from './recent.ts';
 import { AGENT_ID, stateBaseDir } from './state.ts';
 import { readJson } from './system.ts';

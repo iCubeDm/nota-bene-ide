@@ -6,14 +6,13 @@
 // version has no /control/open (404) and is passed over. The answer's URL carries the login of that server's launch; the
 // caller opens it or prints it to the one that asked (never to a log).
 import path from 'node:path';
-import { providerStateDir, type AgentProvider } from './agent/provider.ts';
+import type { AgentProvider } from './agent/provider.ts';
 import { loginCredential, proveListener, readSecret, SecretError } from './auth.ts';
-import { providerToken } from './remote/discover.ts';
-import { AGENT_ID, stateBaseDir } from './state.ts';
+import { registries } from './servers.ts';
+import { AGENT_ID } from './state.ts';
 import { CONTROL_HEADER } from './system.ts';
-import { pidAlive, readWindows } from './windows.ts';
+import { pidAlive } from './windows.ts';
 
-const PROVIDERS: AgentProvider[] = ['claude', 'codex', 'omp'];
 const PROVE_MS = 1500;
 const OPEN_MS = 60_000; // a backend's first start (Codex app-server, an ACP agent) may take a while
 
@@ -28,18 +27,16 @@ export type AttachAsk = { root: string; provider: AgentProvider; mode: 'resume' 
 /** The running servers to try, by port: every provider's live entries with that provider's tokens. */
 function servers(): { port: number; token: string; control: string }[] {
   const out: { port: number; token: string; control: string }[] = [];
-  for (const p of PROVIDERS) {
-    const dir = providerStateDir(stateBaseDir(), p);
-    let token: string | null, control: string | null;
+  for (const { dir, token, entries } of registries()) {
+    let control: string | null;
     try {
-      token = providerToken(dir);
       control = readSecret(path.join(dir, 'control-token'));
     } catch (e) {
       if (e instanceof SecretError) continue; // that provider's windows are the launcher's to report on, not ours
       throw e;
     }
-    if (!token || !control) continue;
-    for (const [key, w] of Object.entries(readWindows(dir))) if (pidAlive(w.pid)) out.push({ port: Number(key), token, control });
+    if (!control) continue;
+    for (const [port, w] of entries) if (pidAlive(w.pid)) out.push({ port, token, control });
   }
   return out.sort((a, b) => a.port - b.port);
 }

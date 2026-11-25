@@ -7,7 +7,8 @@ import { providerStateDir } from '../agent/provider.ts';
 import { writePrivateFile } from '../auth.ts';
 import { startServer } from '../server.ts';
 import { readWindows, registerWindow } from '../windows.ts';
-import { windowInfo, Windows } from './discover.ts';
+import { infoAt } from '../servers.ts';
+import { Windows } from './discover.ts';
 
 let tmp: string;
 let home: string;
@@ -59,7 +60,7 @@ describe('window discovery', () => {
         { port: a.port, provider: 'claude', root: path.join(tmp, 'a') },
         { port: b.port, provider: 'codex', root: path.join(tmp, 'b') },
       ].sort((x, y) => x.port - y.port));
-      const info = await windowInfo(w.get(b.port)!);
+      const info = await infoAt(b.port, '', w.get(b.port)!.bearer);
       expect(info?.root).toBe(path.join(tmp, 'b'));
       expect(w.get(a.port)!.bearer).toMatch(/^Bearer [0-9a-f]{64}$/);
     } finally {

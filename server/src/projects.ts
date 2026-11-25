@@ -6,18 +6,17 @@
 // in bin/nota-bene.mjs): derived from that token, that port and the nonce the listener proved. It goes only into the JSON
 // answer to the page, which navigates to it; never into a log, an error or a URL query.
 import type { HostWindow, LastMessage } from '@nota-bene/shared';
-import { providerStateDir, type AgentProvider } from './agent/provider.ts';
+import { PROVIDERS, providerStateDir, type AgentProvider } from './agent/provider.ts';
 import path from 'node:path';
-import { helperCredential, loginCredential, proveListener, readSecret, SecretError } from './auth.ts';
+import { helperCredential, loginCredential, proveListener, readSecret } from './auth.ts';
 import { readHidden, readRecent, type RecentEntry } from './recent.ts';
 import { CONTROL_HEADER } from './system.ts';
-import { providerToken } from './remote/discover.ts';
+import { infoAt, registries, serverAgents } from './servers.ts';
 import { AGENT_ID, stateBaseDir } from './state.ts';
-import { pidAlive, readKeptAgents, readWindows, type WindowEntry } from './windows.ts';
+import { pidAlive, readKeptAgents, type WindowEntry } from './windows.ts';
 import { wirePath } from './wirePath.ts';
 import type { OpenAsk } from './session/permissions.ts';
 
-export const PROVIDERS: AgentProvider[] = ['claude', 'codex', 'omp'];
 const PROBE_MS = 700;
 
 export type ProjectState = 'working' | 'waiting' | 'idle' | 'restarting' | 'silent';
@@ -45,62 +44,28 @@ export type ProbedInfo = {
 };
 export type Probe = (port: number, token: string) => Promise<ProbedInfo | null>;
 
-/** An agent's /info at `base` ('' the window's, `/a/<id>` another's) with `bearer`; null for anything else. */
-async function infoAt(port: number, base: string, bearer: string, fetchFn: typeof fetch = fetch, ms = PROBE_MS): Promise<(ProbedInfo & { agent?: unknown; agents?: unknown }) | null> {
-  try {
-    const r = await fetchFn(`http://127.0.0.1:${port}${base}/info`, { headers: { authorization: bearer }, signal: AbortSignal.timeout(ms), redirect: 'error' });
-    const j = r.ok ? ((await r.json()) as (ProbedInfo & { agent?: unknown; agents?: unknown }) | null) : null;
-    return j && typeof j.root === 'string' ? j : null;
-  } catch {
-    return null;
-  }
-}
-
-const isAgent = (a: unknown): a is { id: string; provider: AgentProvider } =>
-  !!a && typeof (a as { id?: unknown }).id === 'string' && AGENT_ID.test((a as { id: string }).id) && PROVIDERS.includes((a as { provider: AgentProvider }).provider);
+const rooted = (i: Record<string, unknown> | null): i is ProbedInfo & Record<string, unknown> => typeof i?.root === 'string';
 
 /** The listener on `port` proved with `token`, then its /info and its other agents' with that launch's helper bearer; null for anything else. */
 export const probeWith: Probe = async (port, token) => {
   const n = await proveListener({ dial: port, timeoutMs: PROBE_MS, token });
   if (n === null) return null;
   const bearer = `Bearer ${helperCredential(token, port, n)}`;
-  const j = await infoAt(port, '', bearer);
-  if (!j) return null;
-  const others = (Array.isArray(j.agents) ? j.agents : []).filter(isAgent).filter((a) => a.id !== j.agent);
-  const extra = (await Promise.all(others.map(async (a) => {
-    const i = await infoAt(port, `/a/${a.id}`, bearer);
-    return i ? [{ ...i, agent: a.id, provider: a.provider }] : [];
-  }))).flat();
-  return { ...j, extra };
+  const { top, agents } = await serverAgents(port, bearer);
+  if (!rooted(top)) return null;
+  return { ...top, extra: agents.flatMap(({ id, provider, info }) => (id !== top.agent && rooted(info) ? [{ ...info, agent: id, provider }] : [])) };
 };
 
 const folder = (root: string) => root.split(/[\\/]/).filter(Boolean).pop() ?? root;
 const sameRoot = (stored: string, given: string) => stored === given || wirePath(stored) === given;
-
-/** A provider's registry and token; null when it has no token (it has no windows). Throws SecretError for a bad token file. */
-function providerOf(provider: AgentProvider): { token: string; entries: [string, WindowEntry][] } | null {
-  const dir = providerStateDir(stateBaseDir(), provider);
-  const token = providerToken(dir);
-  return token ? { token, entries: Object.entries(readWindows(dir)) } : null;
-}
 
 /** The page asking (projectRoutes): its server's port, its provider and, for an agent beside the window's, its id. */
 export type Own = { port: number; provider: AgentProvider; agent?: string };
 
 export async function listProjects(own: Own, probe: Probe = probeWith, warn: (m: string) => void = () => {}): Promise<ProjectsList> {
   const rows: RunningRow[] = [];
-  await Promise.all(PROVIDERS.map(async (provider) => {
-    let p: ReturnType<typeof providerOf>;
-    try {
-      p = providerOf(provider);
-    } catch (e) {
-      if (e instanceof SecretError) return warn(e.message);
-      throw e;
-    }
-    if (!p) return;
-    const { token } = p;
-    await Promise.all(p.entries.map(async ([key, w]) => {
-      const port = Number(key);
+  await Promise.all(registries((e) => warn(e.message)).map(async ({ provider, token, entries }) => {
+    await Promise.all(entries.map(async ([port, w]) => {
       const alive = pidAlive(w.pid);
       if (!alive && !(w.launcherPid !== undefined && pidAlive(w.launcherPid))) return; // stale: gone
       const info = alive ? await probe(port, token) : null;
@@ -164,16 +129,11 @@ type Proved = { provider: AgentProvider; token: string; nonce: string; bearer: s
 
 /** The registry entry on `port` and its token: of `provider`, or for an agent of whichever provider's server holds the port. */
 function entryOf(o: Window): { provider: AgentProvider; token: string; w: WindowEntry } | null {
-  for (const provider of o.agent ? PROVIDERS : [o.provider]) {
-    let p: ReturnType<typeof providerOf>;
-    try {
-      p = providerOf(provider);
-    } catch (e) {
-      if (e instanceof SecretError && o.agent) continue;
-      throw e;
-    }
-    const w = p?.entries.find(([k]) => Number(k) === o.port)?.[1];
-    if (p && w && pidAlive(w.pid)) return { provider, token: p.token, w };
+  // a window's own provider with an unusable token is the asker's to hear of; an agent's server may be any provider's
+  for (const { provider, token, entries } of registries((e, p) => { if (!o.agent && p === o.provider) throw e; })) {
+    if (!o.agent && provider !== o.provider) continue;
+    const w = entries.find(([port]) => port === o.port)?.[1];
+    if (w && pidAlive(w.pid)) return { provider, token, w };
   }
   return null;
 }
@@ -190,7 +150,7 @@ async function proved(o: Window, fetchFn: typeof fetch): Promise<Proved> {
   const bearer = `Bearer ${helperCredential(e.token, o.port, n)}`;
   const base = o.agent ? `/a/${o.agent}` : '';
   const j = await infoAt(o.port, base, bearer, fetchFn, 1500);
-  if (!j || (o.agent ? !sameRoot(j.root, o.root) : j.root !== e.w.root)) return { error: 'window not answering' };
+  if (!rooted(j) || (o.agent ? !sameRoot(j.root, o.root) : j.root !== e.w.root)) return { error: 'window not answering' };
   return { provider: e.provider, token: e.token, nonce: n, bearer, root: j.root, base };
 }
 
@@ -246,16 +206,8 @@ export async function stopAt(o: Window, fetchFn: typeof fetch = fetch): Promise<
 /** Header ⏻, before this window stops itself: every other live window of every provider; how many stopped and failed. */
 export async function stopOthers(own: Own, fetchFn: typeof fetch = fetch): Promise<{ stopped: number; failed: number }> {
   const targets: Window[] = [];
-  for (const provider of PROVIDERS) {
-    let p: ReturnType<typeof providerOf>;
-    try {
-      p = providerOf(provider);
-    } catch (e) {
-      if (e instanceof SecretError) continue;
-      throw e;
-    }
-    for (const [key, w] of p?.entries ?? []) {
-      const port = Number(key);
+  for (const { provider, entries } of registries()) {
+    for (const [port, w] of entries) {
       if (port === own.port || !pidAlive(w.pid)) continue; // one listener a port: this page's own server, whichever agent asks
       targets.push({ provider, port, root: w.root });
     }
