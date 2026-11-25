@@ -11,9 +11,14 @@ import { theme } from '@/core/shell/theme.ts';
 
 const now = Date.now();
 const WINDOWS = [
-  { port: 4777, root: '/Users/me/a', pid: 1, startedAt: now - 3 * 3600_000, current: true, state: 'live', session: 's', title: 'Mine', supervised: true, busy: false, clients: 1 },
-  { port: 4778, root: '/Users/me/b', pid: 2, startedAt: now - 5 * 60_000, current: false, state: 'live', session: 't', title: 'Other', supervised: true, busy: true, clients: 0 },
-  { port: 4779, root: '/Users/me/c', pid: 3, startedAt: now, current: false, state: 'stale', session: null, title: null, supervised: false, busy: false, clients: 0 },
+  { provider: 'claude', port: 4777, root: '/Users/me/a', pid: 1, startedAt: now - 3 * 3600_000, current: true, state: 'live', supervised: true, clients: 1, agents: [
+    { id: 'claude-aaaaaa', provider: 'claude', root: '/Users/me/a', title: 'Mine', busy: false, current: true },
+    { id: 'codex-bbbbbb', provider: 'codex', root: '/Users/me/beside', title: 'Beside', busy: false, current: false },
+  ] },
+  { provider: 'codex', port: 4778, root: '/Users/me/b', pid: 2, startedAt: now - 5 * 60_000, current: false, state: 'live', supervised: true, clients: 0, agents: [
+    { id: 'codex-cccccc', provider: 'codex', root: '/Users/me/b', title: 'Other', busy: true, current: false },
+  ] },
+  { provider: 'claude', port: 4779, root: '/Users/me/c', pid: 3, startedAt: now, current: false, state: 'stale', supervised: false, clients: 0, agents: [] as { id: string; provider: string; root: string; title: string; busy: boolean; current: boolean }[] },
 ];
 let posts: { url: string; body: unknown }[];
 let actionReply: () => Response;
@@ -60,6 +65,7 @@ function setup() {
   return store;
 }
 const win = async (port: number) => (await screen.findByText(`:${port}`)).closest<HTMLElement>('[data-window]')!;
+const agentRow = (w: HTMLElement, id: string) => w.querySelector<HTMLElement>(`[data-agent="${id}"]`)!;
 
 it('⚙ → All settings opens one Settings tab; a second time activates the same one; it closes like a file tab', () => {
   const store = setup();
@@ -71,29 +77,41 @@ it('⚙ → All settings opens one Settings tab; a second time activates the sam
   expect(selectTabs(store.getState()).open.map((t) => t.id)).toEqual(['chat']);
 });
 
-it('Windows: this window has no actions; another one can be restarted or stopped, sending the row it showed; a stale one only says so', async () => {
+it('Servers: this server and this window have no actions; its other agent and another server do, sending the row shown; a stale one only says so', async () => {
   setup();
-  expect(within(await win(4777)).getByText('this window')).toBeInTheDocument();
-  expect(within(await win(4777)).queryByRole('button')).toBeNull();
+  const mine = await win(4777);
+  expect(within(mine).getByText('this server')).toBeInTheDocument();
+  expect(within(agentRow(mine, 'claude-aaaaaa')).getByText('this window')).toBeInTheDocument();
+  expect(within(agentRow(mine, 'claude-aaaaaa')).queryByRole('button')).toBeNull();
+  // the agent beside this one: its folder, provider and title; opened under its prefix on this server
+  const beside = agentRow(mine, 'codex-bbbbbb');
+  expect(beside).toHaveTextContent('beside');
+  expect(beside).toHaveTextContent('Codex · Beside · idle');
+  expect(within(beside).getByRole('link', { name: 'Open' })).toHaveAttribute('href', '/a/codex-bbbbbb/');
+  expect(within(mine).getAllByRole('button').map((b) => b.textContent)).toEqual(['Restart agent']);
+  fireEvent.click(within(beside).getByRole('button', { name: 'Restart agent' }));
+  await waitFor(() => expect(posts).toContainEqual({ url: '/system/windows/action', body: { port: 4777, root: '/Users/me/a', pid: 1, startedAt: WINDOWS[0]!.startedAt, action: 'restart-agent', agent: 'codex-bbbbbb' } }));
   const other = await win(4778);
-  expect(other).toHaveTextContent('Other · working · no tab · up 5 min');
+  expect(other).toHaveTextContent('no tab · up 5 min');
+  expect(agentRow(other, 'codex-cccccc')).toHaveTextContent('Codex · Other · working');
+  expect(within(agentRow(other, 'codex-cccccc')).getByRole('link', { name: 'Open' })).toHaveAttribute('href', 'http://127.0.0.1:4778/a/codex-cccccc/');
   expect(within(await win(4779)).getByText('gone')).toBeInTheDocument();
   expect(within(await win(4779)).queryByRole('button')).toBeNull();
   const row = { port: 4778, root: '/Users/me/b', pid: 2, startedAt: WINDOWS[1]!.startedAt };
-  // B is working: even a restart asks first, and says the running turn is interrupted
+  // its agent is working: even a restart asks first, and says the running turn is interrupted
   fireEvent.click(within(other).getByRole('button', { name: 'Restart agent' }));
   let dialog = await screen.findByRole('dialog');
   expect(dialog).toHaveTextContent('Its agent is working: the running turn is interrupted.');
-  expect(posts).toEqual([]);
   fireEvent.click(within(dialog).getByRole('button', { name: 'Restart agent' }));
-  await waitFor(() => expect(posts).toContainEqual({ url: '/system/windows/action', body: { ...row, action: 'restart-agent' } }));
-  // while it is in flight the row's buttons are off: no double relay
+  await waitFor(() => expect(posts).toContainEqual({ url: '/system/windows/action', body: { ...row, action: 'restart-agent', agent: 'codex-cccccc' } }));
+  // while it is in flight the server's buttons are off: no double relay
   expect(within(other).getByRole('button', { name: 'Stop' })).toBeDisabled();
   expect(await screen.findByText('Sent')).toHaveAttribute('role', 'status');
   await waitFor(() => expect(within(other).getByRole('button', { name: 'Stop' })).toBeEnabled(), { timeout: 3000 });
   fireEvent.click(within(other).getByRole('button', { name: 'Stop' }));
   dialog = await screen.findByRole('dialog');
-  expect(dialog).toHaveTextContent('Stop the window on port 4778 (~/b)?');
+  expect(dialog).toHaveTextContent('Stop the server on port 4778 (~/b)? Its agents stop; the sessions stay and can be resumed.');
+  expect(dialog).toHaveTextContent('Its agent is working: the running turn is interrupted.');
   fireEvent.click(within(dialog).getByRole('button', { name: 'Stop' }));
   await waitFor(() => expect(posts).toContainEqual({ url: '/system/windows/action', body: { ...row, action: 'stop' } }));
 });
@@ -111,20 +129,20 @@ it('Windows: a C:/ root (a Windows server) shows its folder name and ~ for C:/Us
   }
 });
 
-it('Windows: a changed window and a window too old for the control route say so', async () => {
-  WINDOWS[1]!.busy = false;
+it('Servers: a changed server and one too old for the control route say so', async () => {
+  WINDOWS[1]!.agents[0]!.busy = false;
   try {
     setup();
     const other = await win(4778);
     actionReply = () => new Response('window changed', { status: 409 });
     fireEvent.click(within(other).getByRole('button', { name: 'Restart agent' }));
-    expect(await screen.findByText(/That window has changed since the list was loaded/)).toBeInTheDocument();
+    expect(await screen.findByText(/That server has changed since the list was loaded/)).toBeInTheDocument();
     await waitFor(() => expect(within(other).getByRole('button', { name: 'Restart agent' })).toBeEnabled(), { timeout: 3000 });
     actionReply = () => Response.json({ status: 403 }, { status: 502 });
     fireEvent.click(within(other).getByRole('button', { name: 'Restart agent' }));
     expect(await screen.findByText(/was started before Settings could control it/)).toBeInTheDocument();
   } finally {
-    WINDOWS[1]!.busy = true;
+    WINDOWS[1]!.agents[0]!.busy = true;
   }
 });
 
@@ -249,7 +267,7 @@ it('Defaults: the mode is saved on the server; About shows the version', async (
   expect(await screen.findByText('Could not load: 500')).toBeInTheDocument();
   expect(screen.getByText(/in the Claude Code task/)).toBeInTheDocument();
   act(() => void fireEvent.change(screen.getByRole('combobox', { name: 'Interface language' }), { target: { value: 'ru' } }));
-  expect(await screen.findByText('Окна')).toBeInTheDocument();
+  expect(await screen.findByText('Серверы')).toBeInTheDocument();
 });
 
 it('About names the agent of the window where a log would be', async () => {
@@ -262,7 +280,7 @@ it('About names the agent of the window where a log would be', async () => {
 it('the sections and the Defaults rows keep their order, whichever plugin registers them (issue 511)', async () => {
   setup();
   await screen.findByText('v0.9-12-gabc');
-  expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['Windows', 'Storage', 'Voice messages (Whisper)', 'Defaults', 'Themes', 'About']);
+  expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['Servers', 'Storage', 'Voice messages (Whisper)', 'Defaults', 'Themes', 'About']);
   const defaults = screen.getByRole('heading', { name: 'Defaults' }).closest('section')!;
   await within(defaults).findByRole('combobox', { name: 'Agent mode for projects without their own' });
   const labels = [...defaults.querySelectorAll('.w-56')].map((n) => n.textContent);

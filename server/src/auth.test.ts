@@ -747,14 +747,14 @@ describe('the helpers send nothing to a listener that cannot prove itself', () =
   }
   const nothingSent = (seen: { auth?: string | undefined; cookie?: string | undefined }[]) => seen.every((x) => x.auth === undefined && x.cookie === undefined);
 
-  it('probeInfo and probeWindow: silent, lying and proof-guessing listeners see no Authorization and no request for /info', async () => {
+  it('probeInfo and probeServer: silent, lying and proof-guessing listeners see no Authorization and no request for /info', async () => {
     const { probeInfo } = await import('./windows.ts');
-    const { probeWindow } = await import('./system.ts');
-    accessToken();
+    const { probeServer } = await import('./servers.ts');
+    const token = accessToken();
     for (const answer of [undefined, () => '{"proof":"00","n":"' + N1 + '","root":"/x"}', () => JSON.stringify({ proof: 'ab'.repeat(32), n: N1, root: '/x' })]) {
       const imp = await impostor(answer);
       expect(await probeInfo(imp.port)).toBeNull();
-      expect(await probeWindow(imp.port)).toBeNull();
+      expect(await probeServer(imp.port, token)).toBeNull();
       expect(imp.seen.length).toBeGreaterThan(0);
       expect(nothingSent(imp.seen)).toBe(true);
       expect(imp.seen.every((x) => x.url.startsWith('/hello?c='))).toBe(true);
@@ -861,13 +861,11 @@ describe('a refused secret stops the start before the agent exists', () => {
   it('proveListener and the probes let the error through; the garbage-file message says delete, not chmod', async () => {
     const { SecretError } = await import('./auth.ts');
     const { probeInfo } = await import('./windows.ts');
-    const { probeWindow } = await import('./system.ts');
     fs.mkdirSync(home, { recursive: true });
     fs.writeFileSync(path.join(home, 'token'), 'junk', { mode: 0o600 });
     await expect(proveListener({ dial: 1, timeoutMs: 100 })).rejects.toBeInstanceOf(SecretError);
     await expect(verifiedBearer(1, 100)).rejects.toBeInstanceOf(SecretError);
     await expect(probeInfo(1)).rejects.toBeInstanceOf(SecretError);
-    await expect(probeWindow(1)).rejects.toBeInstanceOf(SecretError);
     const err = (() => { try { accessToken(); return null; } catch (e) { return e as Error; } })();
     expect(err!.message).toMatch(/delete it/);
     expect(err!.message).not.toMatch(/chmod/);
