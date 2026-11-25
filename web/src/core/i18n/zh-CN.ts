@@ -445,7 +445,6 @@ export const zhCN: Dict = {
   whyNotWritable: '无法在此创建文件夹',
   whyGitInit: 'git init 失败（文件夹已创建）',
   whyBadRequest: '服务器无法理解该请求',
-  startStill: '窗口仍在启动：稍后会出现在“运行中”',
   stAttachments: '粘贴的图片',
   stComments: '评论',
   stHistory: '压缩前的对话历史',

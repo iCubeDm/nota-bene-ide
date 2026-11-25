@@ -99,11 +99,11 @@ export function useProjects(active: boolean): { data: ProjectsList | null; reloa
   return { data: data ?? (failed ? EMPTY : null), reload: refresh };
 }
 
-/** The server's fixed refusals (server/src/projects.ts, projectRoutes.ts), in the page's language; any other text (a launcher's line) as it is. */
+/** The server's fixed refusals (server/src/projects.ts, projectRoutes.ts), in the page's language; any other text as it is. */
 const REASONS = {
   'no such window': 'whyNoWindow', 'window not answering': 'whyNotAnswering', 'not a folder': 'whyNotFolder', 'not readable': 'whyNotReadable',
   'not writable': 'whyNotWritable', 'git init failed': 'whyGitInit', 'bad request': 'whyBadRequest', 'bad answer': 'whyBadRequest',
-  'still starting': 'startStill', exists: 'startExists', refused: 'whyRefused',
+  exists: 'startExists', refused: 'whyRefused',
 } as const;
 export const reasonText = (why: string): string => (why in REASONS ? t(REASONS[why as keyof typeof REASONS]) : why);
 

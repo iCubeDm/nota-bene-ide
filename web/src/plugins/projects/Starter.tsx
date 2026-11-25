@@ -119,7 +119,7 @@ export function Starter() {
       ? await openFolder(list.path, agent, { name, git })
       : await openFolder(selected ? join(list.path, selected) : list.path, agent);
     setRunning(false);
-    if (why) setNote(why === 'exists' || why === 'still starting' ? reasonText(why) : t('startFailed', reasonText(why)));
+    if (why) setNote(why === 'exists' ? reasonText(why) : t('startFailed', reasonText(why)));
   };
   const nameBad = making && name !== '' && !validName(name);
   const dirs = [...(list?.dirs ?? [])].sort(byGitThenName);

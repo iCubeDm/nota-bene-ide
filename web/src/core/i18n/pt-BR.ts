@@ -445,7 +445,6 @@ export const ptBR: Dict = {
   whyNotWritable: 'não é possível criar pastas aqui',
   whyGitInit: 'git init falhou (a pasta foi criada)',
   whyBadRequest: 'o servidor não entendeu a solicitação',
-  startStill: 'A janela ainda está iniciando: ela aparecerá em “Em execução”',
   stAttachments: 'Imagens coladas',
   stComments: 'Comentários',
   stHistory: 'Histórico do chat antes da compactação',

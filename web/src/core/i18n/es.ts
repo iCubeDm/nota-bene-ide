@@ -445,7 +445,6 @@ export const es: Dict = {
   whyNotWritable: 'no se pueden crear carpetas aquí',
   whyGitInit: 'git init falló (la carpeta se creó)',
   whyBadRequest: 'el servidor no entendió la solicitud',
-  startStill: 'La ventana aún se está iniciando: aparecerá en «En ejecución»',
   stAttachments: 'Imágenes pegadas',
   stComments: 'Comentarios',
   stHistory: 'Historial del chat antes de la compactación',

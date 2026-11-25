@@ -163,15 +163,12 @@ it('the new-folder row opens from its button in Open mode too, and a bad name is
   expect(screen.getByRole('button', { name: t('startCreate') })).toBeDisabled();
 });
 
-it('a server refusal is shown in the dialog; a slow launch says it is still starting', async () => {
+it('a server refusal is shown in the dialog', async () => {
   answer = (url) => (url === '/system/projects/create' ? new Response('exists', { status: 409 }) : null);
   await start('new');
   fireEvent.change(screen.getByRole('textbox', { name: t('startName') }), { target: { value: 'taken' } });
   fireEvent.click(screen.getByRole('button', { name: t('startCreate') }));
   expect(await screen.findByText(t('startExists'))).toBeInTheDocument();
-  answer = (url) => (url === '/system/projects/open' ? new Response('still starting', { status: 504 }) : null);
-  fireEvent.click(screen.getByRole('button', { name: t('startOpen') }));
-  expect(await screen.findByText(t('startStill'))).toBeInTheDocument();
   expect(nav.go).not.toHaveBeenCalled();
 });
 

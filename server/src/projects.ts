@@ -59,8 +59,29 @@ export const probeWith: Probe = async (port, token) => {
 const folder = (root: string) => root.split(/[\\/]/).filter(Boolean).pop() ?? root;
 const sameRoot = (stored: string, given: string) => stored === given || wirePath(stored) === given;
 
+/**
+ * The asking page's own server (issue 691): it holds its agents, so nothing about them is asked over HTTP. Absent in the
+ * connector, which is no server.
+ */
+export type Self = {
+  /** what its /info answers, its agents' under `extra` */
+  info(): ProbedInfo;
+  /** its agent `id`, or null */
+  agent(id: string): SelfAgent | null;
+  /** the agent of that folder and provider, opened unless it is open (`fresh`: a new session in a new one); throws what the page is told */
+  open(dir: string, provider: AgentProvider, fresh: boolean): Promise<SelfAgent>;
+};
+export type SelfAgent = {
+  root: string;
+  /** its page with the login; with `session`, that session opens there (web landing.ts) */
+  url(session?: string): string;
+  /** its GET /sessions */
+  sessions(): Promise<{ current: string | null; sessions: unknown[] }>;
+  close(): void;
+};
+
 /** The page asking (projectRoutes): its server's port, its provider and, for an agent beside the window's, its id. */
-export type Own = { port: number; provider: AgentProvider; agent?: string };
+export type Own = { port: number; provider: AgentProvider; agent?: string; self?: Self };
 
 export async function listProjects(own: Own, probe: Probe = probeWith, warn: (m: string) => void = () => {}): Promise<ProjectsList> {
   const rows: RunningRow[] = [];
@@ -68,7 +89,7 @@ export async function listProjects(own: Own, probe: Probe = probeWith, warn: (m:
     await Promise.all(entries.map(async ([port, w]) => {
       const alive = pidAlive(w.pid);
       if (!alive && !(w.launcherPid !== undefined && pidAlive(w.launcherPid))) return; // stale: gone
-      const info = alive ? await probe(port, token) : null;
+      const info = !alive ? null : port === own.port && own.self ? own.self.info() : await probe(port, token);
       const live = info && info.root === w.root ? info : null;
       const stateOf = (i: ProbedInfo): ProjectState => (i.pending ? 'waiting' : i.busy ? 'working' : 'idle');
       const row = (p: AgentProvider, root: string, i: ProbedInfo | null, state: ProjectState, agent?: string): RunningRow => ({
@@ -125,6 +146,13 @@ export const bareRow = (r: RunningRow): RunningRow => ({ ...r, title: null, sess
 export type EnterResult = { url: string } | { error: 'no such window' | 'window not answering' };
 /** A window, or with `agent` (epic 383) an agent the server on `port` opened: `provider` is then that agent's */
 type Window = { provider: AgentProvider; port: number; root: string; agent?: string };
+
+/** `o` as an agent of the asking server itself: null when it has no such agent on that folder; undefined: another server's. */
+function mine(o: Window, own: Own | undefined): SelfAgent | null | undefined {
+  if (!own?.self || o.port !== own.port) return undefined;
+  const a = o.agent ? own.self.agent(o.agent) : null;
+  return a && sameRoot(a.root, o.root) ? a : null;
+}
 type Proved = { provider: AgentProvider; token: string; nonce: string; bearer: string; root: string; base: string } | { error: 'no such window' | 'window not answering' };
 
 /** The registry entry on `port` and its token: of `provider`, or for an agent of whichever provider's server holds the port. */
@@ -155,7 +183,9 @@ async function proved(o: Window, fetchFn: typeof fetch): Promise<Proved> {
 }
 
 /** The login URL of that window; with `session`, the page there opens that session once logged in (web landing.ts). */
-export async function enterUrl(o: Window & { session?: string }, fetchFn: typeof fetch = fetch): Promise<EnterResult> {
+export async function enterUrl(o: Window & { session?: string }, fetchFn: typeof fetch = fetch, own?: Own): Promise<EnterResult> {
+  const a = mine(o, own);
+  if (a !== undefined) return a ? { url: a.url(o.session) } : { error: 'no such window' };
   const r = await proved(o, fetchFn);
   if ('error' in r) return r;
   return { url: `http://127.0.0.1:${o.port}${r.base}/#t=${loginCredential(r.token, o.port, r.nonce)}${o.session ? `&s=${o.session}` : ''}` };
@@ -165,17 +195,21 @@ export type SessionRow = { id: string; title: string; at: number; archived?: tru
 export type SessionsResult = { current: string | null; sessions: SessionRow[] } | { error: 'no such window' | 'window not answering' };
 
 /** That window's sessions (its GET /sessions) in its folder: one in a subfolder is that folder's (its switch would move the window). */
-export async function sessionsOf(o: Window, fetchFn: typeof fetch = fetch): Promise<SessionsResult> {
+export async function sessionsOf(o: Window, fetchFn: typeof fetch = fetch, own?: Own): Promise<SessionsResult> {
+  const rows = (v: { current?: unknown; sessions?: unknown } | null, root: string): SessionsResult => {
+    if (!v || !Array.isArray(v.sessions)) return { error: 'window not answering' };
+    const sessions = (v.sessions as { id: string; title: string; at: number; cwd: string; archived?: true }[])
+      .filter((x) => typeof x?.id === 'string' && x.cwd === root)
+      .map((x) => ({ id: x.id, title: typeof x.title === 'string' ? x.title : '', at: typeof x.at === 'number' ? x.at : 0, ...(x.archived ? { archived: true as const } : {}) }));
+    return { current: typeof v.current === 'string' ? v.current : null, sessions };
+  };
+  const a = mine(o, own);
+  if (a !== undefined) return a ? rows(await a.sessions(), a.root) : { error: 'no such window' };
   const r = await proved(o, fetchFn);
   if ('error' in r) return r;
   try {
     const res = await fetchFn(`http://127.0.0.1:${o.port}${r.base}/sessions`, { headers: { authorization: r.bearer }, signal: AbortSignal.timeout(3000), redirect: 'error' });
-    const v = res.ok ? ((await res.json()) as { current?: unknown; sessions?: unknown } | null) : null;
-    if (!v || !Array.isArray(v.sessions)) return { error: 'window not answering' };
-    const sessions = (v.sessions as { id: string; title: string; at: number; cwd: string; archived?: true }[])
-      .filter((x) => typeof x?.id === 'string' && x.cwd === r.root)
-      .map((x) => ({ id: x.id, title: typeof x.title === 'string' ? x.title : '', at: typeof x.at === 'number' ? x.at : 0, ...(x.archived ? { archived: true as const } : {}) }));
-    return { current: typeof v.current === 'string' ? v.current : null, sessions };
+    return rows(res.ok ? ((await res.json()) as { current?: unknown; sessions?: unknown } | null) : null, r.root);
   } catch {
     return { error: 'window not answering' };
   }
@@ -188,7 +222,12 @@ export type StopResult = { ok: true } | { error: 'no such window' | 'window not 
  * stays; an agent beside a window's closes alone (POST /a/<id>/control/close). The listener is proved first, so the token
  * goes only to one that holds that provider's access token.
  */
-export async function stopAt(o: Window, fetchFn: typeof fetch = fetch): Promise<StopResult> {
+export async function stopAt(o: Window, fetchFn: typeof fetch = fetch, own?: Own): Promise<StopResult> {
+  const a = mine(o, own);
+  if (a !== undefined) {
+    a?.close();
+    return a ? { ok: true } : { error: 'no such window' };
+  }
   const r = await proved(o, fetchFn);
   if ('error' in r) return r;
   // the server's provider's: an agent's provider may be another

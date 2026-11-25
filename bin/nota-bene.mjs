@@ -42,7 +42,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { SecretError, accessToken, isNonce, loginCredential, newNonce, proveListener, stateSecret } from '../server/src/auth.ts';
-import { HIDDEN, killTree, npmSpec, realpathNative, samePath } from '../server/src/platform.ts';
+import { HIDDEN, killTree, notAProject, npmSpec, realpathNative, samePath } from '../server/src/platform.ts';
 import { launcherOf, patchUpdateState, readCurrent, runtimeDir, writeCurrent } from '../server/src/runtime.ts';
 import { transcriptExists } from '../server/src/sessions.ts';
 import { envAgentContext, lastSession, serverStateDir, stateBaseDir } from '../server/src/state.ts';
@@ -615,21 +615,6 @@ function last(dir) {
 
 // --- launch ----------------------------------------------------------------------------------------------------
 
-/** `dir` is the real path, `given` the path as typed (resolved): a drive root that resolves to a folder (a `subst` or mapped
- *  drive on Windows) is still a root. */
-function refuse(dir, given = dir) {
-  const home = (() => {
-    try {
-      return realDir(os.homedir());
-    } catch {
-      return os.homedir();
-    }
-  })();
-  const isRoot = (p) => samePath(p, path.parse(p).root);
-  return samePath(dir, home) || isRoot(dir) || isRoot(given); // home, or a file system root (`/`, `C:\`, `\\host\share\`)
-
-}
-
 const OPEN_PAGE_KEEP_MS = 30_000;
 
 /**
@@ -1142,7 +1127,7 @@ export async function main(argv) {
       }
       return 0;
     }
-    // the home page's server has no project: its folder is one no project can be (refuse)
+    // the home page's server has no project: its folder is one no project can be (notAProject)
     given = o.home ? os.homedir() : path.resolve(o.dir);
     o.dir = realDir(given);
   } catch (e) {
@@ -1150,7 +1135,7 @@ export async function main(argv) {
     return e instanceof SecretError ? EXIT_SECRET : 1;
   }
   if (!o.home) {
-    if (refuse(o.dir, given)) {
+    if (notAProject(o.dir, given)) {
       say(`refusing to open the whole ${o.dir} as a project — name a project folder.`);
       return 1;
     }

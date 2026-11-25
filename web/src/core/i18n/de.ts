@@ -445,7 +445,6 @@ export const de: Dict = {
   whyNotWritable: 'hier können keine Ordner angelegt werden',
   whyGitInit: 'git init fehlgeschlagen (der Ordner wurde angelegt)',
   whyBadRequest: 'der Server hat die Anfrage nicht verstanden',
-  startStill: 'Das Fenster startet noch: es erscheint unter „Laufend“',
   stAttachments: 'Eingefügte Bilder',
   stComments: 'Kommentare',
   stHistory: 'Chatverlauf vor der Komprimierung',

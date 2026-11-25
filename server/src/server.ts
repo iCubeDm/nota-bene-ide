@@ -36,7 +36,7 @@ import { AuditLog } from './audit.ts';
 import { clipAsk } from './session/permissions.ts';
 import { moveWindow, readKeptAgents, writeKeptAgents } from './windows.ts';
 import { pidAlive, samePath } from './platform.ts';
-import { listProjects } from './projects.ts';
+import { listProjects, type ProbedInfo, type Self, type SelfAgent } from './projects.ts';
 import { controlRoute, controlToken, describeVersion, readJson, systemRoutes } from './system.ts';
 import { RESTART, restartGate } from './restartGate.ts';
 import { compactOrder } from './compactOrder.ts';
@@ -59,7 +59,7 @@ import { cutRoutes } from './cut/routes.ts';
 import { usageRoutes } from './usage/routes.ts';
 import { attachAgent } from './attach.ts';
 import { startFold } from './fold.ts';
-import { CHALLENGE_RE, KEY_PROTOCOL, accessToken, authenticated, isNonce, loginRoute, newNonce, proofFor } from './auth.ts';
+import { CHALLENGE_RE, KEY_PROTOCOL, accessToken, authenticated, isNonce, loginCredential, loginRoute, newNonce, proofFor } from './auth.ts';
 
 /** how long a newcomer waits for the owner to close before it is told `occupied` (R-M7-6) */
 export const TAKEOVER_GRACE_MS = 700;
@@ -183,6 +183,8 @@ type Shared = {
   closeAgent: (id: string) => number;
   /** POST /control/open, set once the server is up */
   controlOpen: (body: unknown) => Promise<{ status: number; body: unknown }>;
+  /** the server as its own pages' project routes ask it (issue 691) */
+  self: Self;
 };
 
 type Agent = {
@@ -195,6 +197,10 @@ type Agent = {
   root(): string;
   /** its session's id (none before the first turn) */
   session(): string | null;
+  /** its /info */
+  info(): ProbedInfo;
+  /** its GET /sessions */
+  sessions(): Promise<{ current: string | null; sessions: unknown[] }>;
   /** at work, its /info's `busy`: a turn, a waiting question or approval, a switch or a running task */
   working(): boolean;
   /** not a pause: at work, a `! cmd` run, or a finished task's report still due */
@@ -298,7 +304,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     // this server's agents and the other servers' (issue 680), each with its folder, session and work
     const running = async (): Promise<{ id?: string; root: string; session: string | null; working: boolean }[]> => [
       ...s.live(),
-      ...(await listProjects({ port: s.port(), provider: a.agent.provider, agent: a.id })).running
+      ...(await listProjects({ port: s.port(), provider: a.agent.provider, agent: a.id, self: s.self })).running
         .filter((r) => r.port !== s.port()).map((r) => ({ root: r.root, session: r.session, working: r.state === 'working' || r.state === 'waiting' })),
     ];
     // issue 499: a compaction ordered while the agent works waits for the next pause, after a pending restart; the sends
@@ -339,14 +345,14 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
         try { drop(); } catch (e) { reportError(hub, `sessions/delete ${what}`, e); }
       }
     };
+    const sessions = () => listSessionsView({ backend: a.backend, current: manager.info().id, root: root(), archived: readArchived(agent.stateDir) });
     const sessionsRoute: http.RequestListener = (req, res) => {
       if (req.method !== 'GET' && req.method !== 'HEAD') {
         res.writeHead(405, { allow: 'GET, HEAD', 'content-type': 'text/plain; charset=utf-8' });
         res.end('method not allowed');
         return;
       }
-      const { id } = manager.info();
-      listSessionsView({ backend: a.backend, current: id, root: root(), archived: readArchived(agent.stateDir) }).then(
+      sessions().then(
         (view) => {
           res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
           res.end(req.method === 'HEAD' ? undefined : JSON.stringify(view));
@@ -357,6 +363,13 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
           res.end(e instanceof Error ? e.message : String(e));
         },
       );
+    };
+    const info = () => {
+      const { id, root, title, model } = manager.info();
+      const asks = manager.asks();
+      // busy (a turn or a running task, issue 667) and clients: for the lists of
+      // projects; pending, last, replies: the phone's list
+      return { agent: a.id, root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: working(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root), agents: s.agents(), ...(asks.length ? { asks: asks.map(clipAsk) } : {}) };
     };
     const handler = httpHandler({
       hub,
@@ -486,7 +499,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
         ...dictationRoutes({ hub }),
         ...cutRoutes({ hub, exporter: cutExporter, peaks: cutPeaks, reverse: cutReverse, root }),
         ...remoteRoutes({ hub, keeper: o.remote }),
-        ...projectRoutes({ hub, port: () => s.port(), provider: agent.provider, agent: a.id, repoDir, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
+        ...projectRoutes({ hub, port: () => s.port(), provider: agent.provider, agent: a.id, self: s.self, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
         ...systemRoutes({
           updater: win, newer,
           hub, root, stateDir: agent.stateDir, modes: a.backend.capabilities.modes, port: () => s.port(), repoDir,
@@ -505,13 +518,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       },
       webDist: o.webDist,
       controlToken: () => s.control,
-      info: () => {
-        const { id, root, title, model } = manager.info();
-        const asks = manager.asks();
-        // busy (a turn or a running task, issue 667) and clients: for the lists of
-        // projects; pending, last, replies: the phone's list
-        return { agent: a.id, root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: working(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root), agents: s.agents(), ...(asks.length ? { asks: asks.map(clipAsk) } : {}) };
-      },
+      info,
     });
     const switchFailed = (e: unknown) => reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);
     const wss = new WebSocketServer({
@@ -940,6 +947,8 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       upgrade: (req, socket, head) => wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req)),
       root,
       session: () => manager.info().id,
+      info,
+      sessions,
       working,
       notPaused,
       askers: () => askers.size,
@@ -1069,7 +1078,25 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       agents: () => [...agents.values()].map((x) => ({ id: x.id, provider: x.provider, root: x.root() })),
       live: () => [...agents.values()].map((x) => ({ id: x.id, root: x.root(), session: x.session(), working: x.working() })),
       othersBusy: (id) => [...agents.values()].some((x) => x.id !== id && x.notPaused()),
+      self: {
+        info: () => ({ ...homeInfo(), extra: [...agents.values()].map((x) => ({ ...x.info(), agent: x.id, provider: x.provider })) }),
+        agent: (id) => { const x = agents.get(id); return x ? selfAgent(x) : null; },
+        open: async (dir, provider, fresh) => {
+          const r = await s.controlOpen({ root: dir, provider, mode: fresh ? 'new' : 'resume', show: false });
+          const x = r.status === 200 ? agents.get((r.body as { agent: string }).agent) : undefined;
+          if (!x) throw new Error(typeof r.body === 'string' ? r.body : 'the agent did not open');
+          return selfAgent(x);
+        },
+      },
     };
+    const selfAgent = (x: Agent): SelfAgent => ({
+      root: x.root(),
+      // the login of this launch, as the launcher's (attach.ts): the page may be asking from another origin
+      url: (session) => `http://127.0.0.1:${ownPort}/a/${x.id}/#${[...(token === null ? [] : [`t=${loginCredential(token, ownPort, nonce)}`]), ...(session ? [`s=${session}`] : [])].join('&')}`,
+      sessions: x.sessions,
+      close: () => void s.closeAgent(x.id),
+    });
+    const homeInfo = () => ({ root: folder, agents: s.agents(), supervised: supervised(), codeChanged: codeChanged(), busy: notPaused(), restartPending: restart.pending(), clients: sum((a) => a.hub.clients()) });
     // issue 639: the server's project folder, which its home answers with (the registry's root, the launcher's "already
     // open"): the launch's, then wherever the agent it came from switches while no other agent is left on it
     let folder = o.cwd;
@@ -1127,10 +1154,10 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     const homeHub = new EventHub();
     const home = httpHandler({
       hub: homeHub, open: s.open, ...(authorize ? { authorize } : {}), allowedHosts, allowedOrigins, webDist: o.webDist, controlToken: () => control,
-      info: () => ({ root: folder, agents: s.agents(), supervised: supervised(), codeChanged: codeChanged(), busy: notPaused(), restartPending: restart.pending(), clients: sum((a) => a.hub.clients()) }),
+      info: homeInfo,
       extra: {
         // the switcher's, the starter's: the home page lists the projects and opens them (issue 639)
-        ...projectRoutes({ hub: homeHub, port: () => s.port(), provider: agent.provider, repoDir, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
+        ...projectRoutes({ hub: homeHub, port: () => s.port(), provider: agent.provider, self: s.self, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
         '/control/': controlRoute({
           hub: homeHub,
           control: {
@@ -1256,7 +1283,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     // POST /control/open {root, provider?, mode?: 'resume' | 'new', session?, fork?, show?}: the agent of that folder and provider,
     // the one open unless a new or a named session is asked for. The launcher's way into a running server; `show: false`
     // (its --no-open) moves no tab
-    s.controlOpen = async (body) => {
+    const openOne = async (body: unknown): Promise<{ status: number; body: unknown }> => {
       const b = (body ?? {}) as { root?: unknown; provider?: unknown; mode?: unknown; session?: unknown; fork?: unknown; show?: unknown };
       const shown = b.show === false ? () => ({}) : showIn;
       let provider: AgentProvider;
@@ -1276,6 +1303,13 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       const target = launchTarget({ dir: root, resume: b.session as string | undefined, fork: b.fork === true, new: b.mode === 'new', native: provider !== 'claude' }, agentContext(provider).stateDir);
       const id = await openAgent({ provider, cwd: root, backend: o.backends(provider), ...target });
       return { status: 200, body: { agent: id, opened: true, ...shown(agents.get(id)!) } };
+    };
+    // one at a time: two asks for one folder (a double click, a page and a launcher) open one agent
+    let opened: Promise<unknown> = Promise.resolve();
+    s.controlOpen = (body) => {
+      const r = opened.then(() => openOne(body));
+      opened = r.catch(() => {});
+      return r;
     };
     // `shown`: a tab on this computer shows the agent: one already did, or the last one attached moves to it (the launcher
     // then opens no browser); none: the launcher opens one

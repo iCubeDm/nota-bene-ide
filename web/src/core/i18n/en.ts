@@ -454,7 +454,6 @@ export const en: Dict = {
   whyNotWritable: 'cannot create folders here',
   whyGitInit: 'git init failed (the folder was created)',
   whyBadRequest: 'the server did not understand the request',
-  startStill: 'The window is still starting: it will appear under Running',
   stAttachments: 'Pasted images',
   stComments: 'Comments',
   stHistory: 'Chat history before compaction',

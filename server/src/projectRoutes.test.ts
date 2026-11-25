@@ -4,8 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { EventHub } from './hub.ts';
-import { launchEnv, launcherOf, projectRoutes, validName, type Launch } from './projectRoutes.ts';
-import { recordRecent } from './recent.ts';
+import { projectRoutes, validName } from './projectRoutes.ts';
+import type { Self, SelfAgent } from './projects.ts';
+import { readRecent, recordRecent } from './recent.ts';
 
 let tree: string;
 let home: string;
@@ -24,13 +25,20 @@ afterEach(async () => {
   for (const d of [tree, home]) fs.rmSync(d, { recursive: true, force: true });
 });
 
-async function serve(launch: Launch = async () => ({ code: 0, firstLine: `opened ${URL_OK}` }), agents?: () => Promise<{ agents: ('claude' | 'codex' | 'omp')[]; default: 'claude' | 'codex' | 'omp' }>, agent?: string) {
+/** An agent of the asking server on `root`; `closed` counts its closes. */
+const agentOn = (root: string, closed = { n: 0 }): SelfAgent => ({
+  root, url: (session) => `${URL_OK}${session ? `&s=${session}` : ''}`, close: () => void closed.n++,
+  sessions: async () => ({ current: null, sessions: [{ id: 'a1', title: 'here', at: 2, cwd: root }, { id: 'a2', title: 'below', at: 1, cwd: path.join(root, 'sub') }] }),
+});
+
+async function serve(self: Partial<Self> = {}, agents?: () => Promise<{ agents: ('claude' | 'codex' | 'omp')[]; default: 'claude' | 'codex' | 'omp' }>, agent?: string) {
   const hub = new EventHub();
   const events: unknown[] = [];
   const emit = hub.emit.bind(hub);
   hub.emit = (ev, o) => { events.push(ev); return emit(ev, o); };
-  const calls: { args: string[]; env: NodeJS.ProcessEnv }[] = [];
-  const routes = projectRoutes({ hub, port: () => 4791, provider: 'claude', repoDir: tree, launch: async (args, env) => { calls.push({ args, env }); return launch(args, env); }, ...(agents ? { agents } : {}), ...(agent ? { agent } : {}) });
+  const calls: { dir: string; provider: string; fresh: boolean }[] = [];
+  const open: Self['open'] = async (dir, provider, fresh) => { calls.push({ dir, provider, fresh }); return (self.open ?? (async (d) => agentOn(d)))(dir, provider, fresh); };
+  const routes = projectRoutes({ hub, port: () => 4791, provider: 'claude', self: { info: () => ({ root: tree }), agent: () => null, ...self, open }, ...(agents ? { agents } : {}), ...(agent ? { agent } : {}) });
   const srv = http.createServer((req, res) => routes[new URL(req.url!, 'http://x').pathname]!(req, res));
   await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
   closers.push(() => new Promise<void>((r) => srv.close(() => r())));
@@ -63,33 +71,20 @@ it('folders starts at home and refuses a relative path and a file', async () => 
   expect((await s.post('/system/folders', { path: path.join(tree, 'none') })).status).toBe(404);
 });
 
-it('open passes the agent and the folder to the launcher and returns its URL', async () => {
-  process.env.NOTA_BENE_NONCE = 'b'.repeat(32);
-  try {
-    const s = await serve();
-    const r = await s.post('/system/projects/open', { dir: tree, provider: 'codex' });
-    expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ url: URL_OK });
-    const { args, env } = s.calls[0]!;
-    expect(args).toEqual(expect.arrayContaining([tree, '--agent', 'codex', '--detach', '--no-open']));
-    expect(args[args.indexOf('--agent') + 1]).toBe('codex');
-    expect(args).not.toContain('--new');
-    expect(env.NOTA_BENE_NONCE).toBeUndefined();
-    expect(env.NOTA_BENE_HOME).toBe(home);
-  } finally {
-    delete process.env.NOTA_BENE_NONCE;
-  }
+it('open asks the server for the folder\'s agent, returns its URL and remembers the folder', async () => {
+  const s = await serve();
+  const r = await s.post('/system/projects/open', { dir: tree, provider: 'codex' });
+  expect(r.status).toBe(200);
+  expect(await r.json()).toEqual({ url: URL_OK });
+  expect(s.calls).toEqual([{ dir: tree, provider: 'codex', fresh: false }]);
+  expect(readRecent(home).map((e) => [e.root, e.provider])).toEqual([[tree, 'codex']]);
 });
 
-it('open with already-open returns that window\'s URL', async () => {
-  const s = await serve(async () => ({ code: 0, firstLine: `already-open ${URL_OK}` }));
-  expect(await (await s.post('/system/projects/open', { dir: tree, provider: 'claude' })).json()).toEqual({ url: URL_OK });
-});
-
-it('open with an agent of the running server (epic 383) returns its URL under /a/<id>/', async () => {
-  const url = `http://127.0.0.1:4793/a/codex-k3f7qz/#t=${'a'.repeat(64)}`;
-  const s = await serve(async () => ({ code: 0, firstLine: `opened ${url}` }));
-  expect(await (await s.post('/system/projects/open', { dir: tree, provider: 'codex' })).json()).toEqual({ url });
+it('open refuses the home folder and a folder that is gone', async () => {
+  const s = await serve();
+  expect((await s.post('/system/projects/open', { dir: os.homedir(), provider: 'claude' })).status).toBe(400);
+  expect((await s.post('/system/projects/open', { dir: path.join(tree, 'gone'), provider: 'claude' })).status).toBe(404);
+  expect(s.calls).toHaveLength(0);
 });
 
 it('open refuses a relative folder and an unknown agent', async () => {
@@ -99,16 +94,12 @@ it('open refuses a relative folder and an unknown agent', async () => {
   expect(s.calls).toHaveLength(0);
 });
 
-it('open reports a launcher failure without its output reaching the hub', async () => {
-  const s = await serve(async () => ({ code: 1, firstLine: 'nota-bene: cannot use /x' }));
+it('open reports what the server refuses and leaves the folder out of Recent', async () => {
+  const s = await serve({ open: async () => { throw new Error('the server is stopping'); } });
   const r = await s.post('/system/projects/open', { dir: tree, provider: 'claude' });
   expect(r.status).toBe(502);
-  expect(await r.text()).toBe('nota-bene: cannot use /x');
-  const odd = await serve(async () => ({ code: 0, firstLine: `weird #t=${'c'.repeat(64)}` }));
-  const r2 = await odd.post('/system/projects/open', { dir: tree, provider: 'claude' });
-  expect(r2.status).toBe(502);
-  expect(await r2.text()).not.toContain('#t=');
-  expect(JSON.stringify([...s.events, ...odd.events])).not.toContain('#t=');
+  expect(await r.text()).toBe('the server is stopping');
+  expect(readRecent(home)).toEqual([]);
 });
 
 it('create refuses bad names', async () => {
@@ -127,7 +118,7 @@ it('create makes the folder, runs git init when asked, and opens it', async () =
   expect(r.status).toBe(200);
   expect(await r.json()).toEqual({ url: URL_OK });
   expect(fs.existsSync(path.join(tree, 'with git', '.git'))).toBe(true);
-  expect(s.calls[0]!.args).toContain(path.join(tree, 'with git'));
+  expect(s.calls[0]).toEqual({ dir: path.join(tree, 'with git'), provider: 'claude', fresh: true });
   expect((await s.post('/system/projects/create', { parent: tree, name: 'plain', git: false, provider: 'claude' })).status).toBe(200);
   expect(fs.existsSync(path.join(tree, 'plain'))).toBe(true);
   expect(fs.existsSync(path.join(tree, 'plain', '.git'))).toBe(false);
@@ -157,42 +148,6 @@ it('enter refuses a bad body and an unknown window', async () => {
 it('projects lists running and recent', async () => {
   const s = await serve();
   expect(await (await fetch(`${s.base}/system/projects`)).json()).toEqual({ running: [], recent: [], hidden: [] });
-});
-
-it('launchEnv drops the launch-state variables and keeps the rest', () => {
-  const env = launchEnv({ NOTA_BENE_HOME: '/h', NOTA_BENE_PORT_RANGE: '4791-4795', NOTA_BENE_SUPERVISED: '1', NOTA_BENE_LAUNCHER_PID: '1', NOTA_BENE_NONCE: 'n', NOTA_BENE_AGENT: 'codex', NOTA_BENE_INNER: '1', NOTA_BENE_LOCKED: '1', NOTA_BENE_AUTOPORT: '1', NOTA_BENE_HANDOVER: '1', NOTA_BENE_HANDOVER_NONCE: 'n', NOTA_BENE_UPDATED_FROM: '1.0.0', NOTA_BENE_PLUGIN_VERSION: '1.0.0', PATH: '/bin' });
-  expect(env).toEqual({ NOTA_BENE_HOME: '/h', NOTA_BENE_PORT_RANGE: '4791-4795', PATH: '/bin' });
-});
-
-/** A stand-in launcher at `<repo>/bin/nota-bene.mjs` running `body`. */
-function stubBin(body: string): string {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-proutes-bin-'));
-  fs.mkdirSync(path.join(repo, 'bin'));
-  fs.writeFileSync(path.join(repo, 'bin', 'nota-bene.mjs'), body);
-  closers.push(async () => fs.rmSync(repo, { recursive: true, force: true }));
-  return repo;
-}
-
-it('the launcher line is read even when it is written just before the exit', async () => {
-  // the line goes out in pieces, the last one as the process ends: stdout must be read to its end, not to 'exit'
-  const repo = stubBin(`process.stdout.write('opened http://127.0.0.1:4793/');\nsetTimeout(() => { process.stdout.write('#t=${'a'.repeat(64)}\\n'); process.exit(0); }, 20);\n`);
-  for (let i = 0; i < 5; i++) expect(await launcherOf(repo)([], process.env)).toEqual({ code: 0, firstLine: `opened ${URL_OK}` });
-});
-
-it('a launcher that takes longer than the wait is left running and reported as still starting', async () => {
-  const mark = path.join(tree, 'done');
-  const repo = stubBin(`import fs from 'node:fs';\nsetTimeout(() => fs.writeFileSync(${JSON.stringify(mark)}, 'x'), 600);\n`);
-  const r = await launcherOf(repo, 100)([], process.env);
-  expect(r).toEqual({ code: -1, firstLine: 'still starting' });
-  await new Promise((res) => setTimeout(res, 1200));
-  expect(fs.existsSync(mark)).toBe(true); // not killed: its window still comes up
-});
-
-it('a still-starting launch answers 504 still starting', async () => {
-  const s = await serve(async () => ({ code: -1, firstLine: 'still starting' }));
-  const r = await s.post('/system/projects/open', { dir: tree, provider: 'claude' });
-  expect(r.status).toBe(504);
-  expect(await r.text()).toBe('still starting');
 });
 
 it('sessions and enter refuse a bad body; sessions of an unknown window is 404', async () => {
@@ -235,6 +190,19 @@ it('stop refuses a bad body, this window and an unknown one; stop-others with no
 it('issue 639: this page\'s own agent is stopped from its tab like the others (looked for, not refused)', async () => {
   const s = await serve(undefined, undefined, 'claude-q2w3e4');
   expect((await s.post('/system/projects/stop', { provider: 'claude', port: 4791, root: tree, agent: 'claude-q2w3e4' })).status).toBe(404);
+});
+
+it('issue 691: an agent of this server is entered, listed and closed in-process, by its id and folder', async () => {
+  const closed = { n: 0 };
+  const s = await serve({ agent: (id) => (id === 'codex-abcdef' ? agentOn(tree, closed) : null) });
+  const row = { provider: 'codex', port: 4791, root: tree, agent: 'codex-abcdef' };
+  expect(await (await s.post('/system/projects/enter', { ...row, session: 'new' })).json()).toEqual({ url: `${URL_OK}&s=new` });
+  expect(await (await s.post('/system/projects/sessions', row)).json()).toEqual({ current: null, sessions: [{ id: 'a1', title: 'here', at: 2 }] });
+  // another folder: the row is stale
+  expect((await s.post('/system/projects/stop', { ...row, root: path.join(tree, 'other') })).status).toBe(404);
+  expect(closed.n).toBe(0);
+  expect((await s.post('/system/projects/stop', row)).status).toBe(200);
+  expect(closed.n).toBe(1);
 });
 
 it('forget drops a folder from Recent and lists it as hidden; a bad root is refused', async () => {

@@ -119,7 +119,7 @@ export function ProjectsList({ onDone: close, home = false }: { onDone: () => vo
     setBusy(true);
     const why = await openFolder(e.root, e.provider, undefined, sessionId);
     setBusy(false);
-    if (why) toast(why === 'still starting' ? reasonText(why) : t('startFailed', reasonText(why)), e.root);
+    if (why) toast(t('startFailed', reasonText(why)), e.root);
   };
   const forget = async (root: string) => {
     setForgot((f) => new Set(f).add(root));

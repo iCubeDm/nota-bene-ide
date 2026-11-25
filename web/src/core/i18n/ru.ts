@@ -454,7 +454,6 @@ export const ru = {
   whyNotWritable: 'в эту папку нельзя писать',
   whyGitInit: 'git init не удался (папка создана)',
   whyBadRequest: 'сервер не понял запрос',
-  startStill: 'Окно ещё запускается: оно появится в списке «Запущены»',
   stAttachments: 'Вставленные картинки',
   stComments: 'Комментарии',
   stHistory: 'История чата до сжатия',
