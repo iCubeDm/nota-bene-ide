@@ -202,6 +202,27 @@ it('issue 639: the top is the server\'s home (its folder and agents); every agen
   await socket(`${s.url}/a/${first}`);
 });
 
+it('issue 667: an agent whose turn ended but whose background task runs is busy in its /info; a watcher alone is not', async () => {
+  const s = await startServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, webDist: path.join(tmp, 'dist'), backend: fakeBackend([
+    { match: 'watch', text: 'watching', frames: [{ type: 'system', subtype: 'task_started', task_id: 't-watch', description: 'tail -f build.log', task_type: 'local_bash', tool_use_id: 'toolu_watch', ambient: true }] },
+    { match: 'index', text: 'started', frames: [{ type: 'system', subtype: 'task_started', task_id: 't-bg', description: 'Index the docs', task_type: 'local_agent', tool_use_id: 'toolu_bg', is_backgrounded: true }] },
+  ]) });
+  closers.push(s.close);
+  const { url } = await firstAgent(s.url);
+  const busy = async () => ((await (await fetch(`${url}/info`)).json()) as { busy: boolean }).busy;
+  const { ws, events } = await socket(url);
+  const turn = async (text: string) => {
+    const ends = () => events.filter((e) => e.kind === 'agent' && e.e.t === 'turn-end').length;
+    const n = ends();
+    ws.send(JSON.stringify({ type: 'send', id: text, text }));
+    await until(() => ends() > n);
+  };
+  await turn('watch');
+  expect(await busy()).toBe(false);
+  await turn('index');
+  expect(await busy()).toBe(true);
+});
+
 it('issue 639: /a/<id>/control/close closes any agent, the first one too, but not the server\'s last; the folder stays', async () => {
   let closedA = false;
   const one = fakeBackend([]);

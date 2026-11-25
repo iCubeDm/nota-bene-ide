@@ -490,8 +490,9 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       info: () => {
         const { id, root, title, model } = manager.info();
         const asks = manager.asks();
-        // busy and clients: for another window's Settings → Windows; pending, last, replies: the phone's list
-        return { agent: a.id, root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root), agents: s.agents(), ...(asks.length ? { asks: asks.map(clipAsk) } : {}) };
+        // busy (a turn or a running task, issue 667) and clients: for another window's Settings → Windows and the lists of
+        // projects; pending, last, replies: the phone's list
+        return { agent: a.id, root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy() || hub.tasksRunning() > 0, restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root), agents: s.agents(), ...(asks.length ? { asks: asks.map(clipAsk) } : {}) };
       },
     });
     const switchFailed = (e: unknown) => reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);
