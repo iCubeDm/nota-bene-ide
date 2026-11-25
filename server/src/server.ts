@@ -98,9 +98,9 @@ export type ServerOptions = {
   /** idle compaction timing and the settings.json check (tests shorten / stub them) */
   idle?: IdleConfig;
   idleOffInSettings?: () => boolean;
-  /** every stats update; main.ts records the limit readings from it, tests leave the real store alone */
-  onStats?: (s: Stats) => void;
-  onLimit?: (info: unknown) => void;
+  /** what records an agent's stats updates and limit hits, by its provider (issue 675: every agent, not the first alone);
+   *  main.ts gives Claude's, tests leave the real store alone */
+  usage?: (provider: AgentProvider) => { onStats?: (s: Stats) => void; onLimit?: (info: unknown) => void };
   /** the `! cmd` runner's timing and environment (tests shorten the timeout and the kill delay) */
   shell?: { timeoutMs?: number; killMs?: number; env?: () => NodeJS.ProcessEnv };
   /**
@@ -1084,8 +1084,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     const reopen = same ? kept!.agents : [];
     const launchAgent = async () => adopt(await startAgent(s, {
       agent, id: launchAgentId(agent.provider, nonce), cwd: o.cwd, backend: o.backend,
-      ...(o.resume ? { resume: o.resume } : {}), ...(o.fork ? { fork: true } : {}),
-      ...(o.onStats ? { onStats: o.onStats } : {}), ...(o.onLimit ? { onLimit: o.onLimit } : {}),
+      ...(o.resume ? { resume: o.resume } : {}), ...(o.fork ? { fork: true } : {}), ...o.usage?.(agent.provider),
     }));
     if (!same) await launchAgent();
     // issue 639: what has no agent prefix is the server's own: the app shell, the login, its folder and agents, /control/*
@@ -1225,7 +1224,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       if (x.id !== undefined && agents.has(x.id)) throw new Error(`agent ${x.id} is open already`);
       let id = x.id ?? '';
       while (!id || agents.has(id)) id = newAgentId(x.provider);
-      const added = await startAgent(s, { agent: agentContext(x.provider), id, cwd: x.cwd, backend: x.backend, ...(x.resume ? { resume: x.resume } : {}), ...(x.fork ? { fork: true } : {}) });
+      const added = await startAgent(s, { agent: agentContext(x.provider), id, cwd: x.cwd, backend: x.backend, ...(x.resume ? { resume: x.resume } : {}), ...(x.fork ? { fork: true } : {}), ...o.usage?.(x.provider) });
       if (closing || exiting) {
         await added.close(); // the close has already gone through the map: this one would outlive it
         throw new Error('the server is stopping');
