@@ -146,6 +146,8 @@ async function main(): Promise<void> {
   const pluginVersion = takePluginVersion(process.env);
   const fold = takeFold(process.env);
   const webDist = fileURLToPath(new URL('../../web/dist', import.meta.url));
+  // one pair for every Claude agent: each remembers the last reading, so a pair per agent would record the account's twice
+  const claudeUsage = { onStats: limitRecorder(new UsageStore('claude')), onLimit: hitRecorder(new UsageStore('claude')) };
   let started: Awaited<ReturnType<typeof startServer>>;
   try {
     started = await startServer({
@@ -157,7 +159,7 @@ async function main(): Promise<void> {
       backends,
       webDist,
       allowedOrigins: args.allowOrigins,
-      ...(!native && !args.fake ? { onStats: limitRecorder(new UsageStore('claude')), onLimit: hitRecorder(new UsageStore('claude')) } : {}),
+      ...(args.fake ? {} : { usage: (provider) => (provider === 'claude' ? claudeUsage : {}) }),
       ...(nonce ? { nonce } : {}),
       ...(pluginVersion ? { pluginVersion } : {}),
       audit: {},
