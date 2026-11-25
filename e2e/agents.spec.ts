@@ -74,7 +74,7 @@ test('comment on a subagent reply, send: the message names the subagent and quot
   });
   await page.getByRole('button', { name: /^💬/ }).click();
   const note = uniq('check the retry');
-  await page.getByPlaceholder('Comment…').fill(note);
+  await page.getByRole('textbox', { name: 'Comment…' }).fill(note);
   await page.getByRole('button', { name: /^(Add|Добавить)$/ }).click();
   await expect(page.locator('#comments [data-comment-id]').filter({ hasText: note })).toHaveCount(1);
   // the mark is drawn in the subagent's pane

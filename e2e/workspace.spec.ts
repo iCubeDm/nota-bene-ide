@@ -1,8 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
+import { fieldText } from './field.ts';
 
 // M6-16: the workspace frame of Package B and C in a real browser — strips, tab overflow, Alt+E, the hotkeys and
 // the Settings tab. The `files` fixture (its project has docs/, src/, media/ and big.log).
-const composer = (page: Page) => page.getByPlaceholder(/Message the agent|Сообщение агенту/);
+const composer = (page: Page) => page.getByRole('textbox', { name: /Message the agent|Сообщение агенту/ });
 const sheet = (page: Page) => page.locator('#tree-sheet');
 const comments = (page: Page) => page.locator('#comments');
 const strip = (page: Page) => page.getByRole('tablist');
@@ -106,7 +107,7 @@ test('Alt+E: the recent files with the previous one selected; Enter flips back; 
   await page.keyboard.press('Alt+KeyE');
   await expect(list).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(composer(page)).toHaveValue('');
+  await expect.poll(() => fieldText(composer(page))).toBe('');
 });
 
 test('the interface scale: the settings menu steps it and stays open, Alt+= / Alt+0 step it, Settings → Defaults picks it; a reload keeps it @files', async ({ page }) => {
@@ -167,7 +168,7 @@ test('themes: the gear menu and Settings pick one, a reload keeps it, nothing ke
       card: css('.nb-card', 'backgroundColor'),
       keyword: css('pre code .hljs-keyword', 'color'),
       diagram: css('.mermaid-out', 'backgroundColor'),
-      composer: css('textarea', 'backgroundColor') + '|' + css('textarea', 'color'),
+      composer: css('[data-testid=field-box]', 'backgroundColor') + '|' + css('#composer-input', 'color'),
       sessions: css('#sessBtn svg', 'color'),
     };
   });

@@ -3,7 +3,7 @@ import { en } from '../web/src/core/i18n/en.ts';
 
 // The header's update notice in a real browser. The server's /system/update* routes are stubbed: the page only shows
 // what the status says and posts install / restart, so no release is installed and the shared server never exits.
-const composer = (page: Page) => page.getByPlaceholder(/Message the agent/);
+const composer = (page: Page) => page.getByRole('textbox', { name: /Message the agent/ });
 const base = { current: '1.98.0', latest: '1.99.0', canUpdate: true, auto: false, busy: false, log: '/state/runtime/update.log' };
 
 type Status = typeof base & { phase: string; failed?: string };

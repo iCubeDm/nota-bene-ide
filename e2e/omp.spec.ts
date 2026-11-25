@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 // Separate config reuses the serial test port after the Claude suite has shut down.
 test('omp browser: ACP questions, an approval after a mode respawn, stable replay @omp', async ({ page }) => {
   await page.goto('');
-  const composer = page.getByPlaceholder(/Message the agent/);
+  const composer = page.getByRole('textbox', { name: /Message the agent/ });
   const pill = page.getByRole('button', { name: /mode/i }).filter({ hasText: /^Yolo$/ });
   await expect(pill).toBeVisible();
   await composer.fill('question'); await composer.press('Enter');

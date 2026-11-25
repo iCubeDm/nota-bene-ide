@@ -1,9 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
+import { fieldText } from './field.ts';
 
 // `! cmd` in the composer (protocol 11): the server runs it, the feed shows the block. On the chat fixture's shared server,
 // so every test looks for its own command text.
 
-const composer = (page: Page) => page.getByPlaceholder(/Message the agent|Сообщение агенту/);
+const composer = (page: Page) => page.getByRole('textbox', { name: /Message the agent|Сообщение агенту/ });
 let seq = 0;
 const uniq = (label: string) => `${label}-${Date.now().toString(36)}-${process.pid}-${seq++}`;
 const blockOf = (page: Page, cmd: string) => page.locator('[data-testid="shell-block"]').filter({ hasText: cmd });
@@ -22,7 +23,7 @@ test('a ! command runs on the server and its block shows the output and the exit
   const block = blockOf(page, tag);
   await expect(block.getByTestId('shell-output')).toContainText(`${tag}\noops`);
   await expect(block.getByTestId('shell-how')).toHaveText(/exit 3|код 3/);
-  await expect(composer(page)).toHaveValue('');
+  await expect.poll(() => fieldText(composer(page))).toBe('');
   await expect(page.getByTestId('shell-cue')).toHaveCount(0);
   // a command is no message: no user bubble carries it
   await expect(page.locator('[data-kind="user"]').filter({ hasText: tag })).toHaveCount(0);
@@ -38,7 +39,7 @@ test('Stop ends a long command, and the block says it was stopped @chat', async 
   // a second command while this one runs is refused, the draft kept
   await composer(page).fill('! echo second');
   await composer(page).press('Enter');
-  await expect(composer(page)).toHaveValue('! echo second');
+  await expect.poll(() => fieldText(composer(page))).toBe('! echo second');
   await block.getByRole('button', { name: /Stop|Остановить/ }).click();
   await expect(block.getByTestId('shell-how')).toHaveText(/stopped|остановлена/);
   await expect(block).not.toHaveAttribute('data-running', /.*/);

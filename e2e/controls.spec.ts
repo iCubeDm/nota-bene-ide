@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { fieldText } from './field.ts';
 import type { Mode } from '@nota-bene/shared';
 import { en } from '../web/src/core/i18n/en.ts';
 
@@ -164,7 +165,7 @@ test('plan card: comment on it, approve from acceptEdits, one restoring mode mes
     el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
   });
   await page.getByRole('button', { name: /^💬/ }).click();
-  await page.getByPlaceholder('Comment…').fill('plan comment e2e');
+  await page.getByRole('textbox', { name: 'Comment…' }).fill('plan comment e2e');
   await page.getByRole('button', { name: /^(Add|Добавить)$/ }).click();
   await expect(page.locator('[data-hl="pending"]')).toHaveCount(1);
   if ((await page.locator('#comments').getAttribute('data-open')) !== 'true') await page.locator('#toggleComments').click();
@@ -196,14 +197,14 @@ test('prompt suggestion: ghost text in the idle empty composer, Tab fills it @co
   const text = `[suggest] ${uniq('suggest')}`;
   await send(page, text);
   await expect(donesAfter(page, text).first()).toBeVisible();
-  await expect(composer(page)).toHaveAttribute('placeholder', 'now write the tests');
+  await expect(composer(page)).toHaveAttribute('aria-placeholder', 'now write the tests');
   await composer(page).focus();
   await expect(composer(page)).toBeFocused();
   await page.keyboard.press('Tab');
-  await expect(composer(page)).toHaveValue('now write the tests');
+  await expect.poll(() => fieldText(composer(page))).toBe('now write the tests');
   await expect(composer(page)).toBeFocused(); // Tab was taken by the composer, not by the browser
   // a typed draft is never overwritten by a late suggestion: with text in the field the ghost is gone
-  await expect(composer(page)).not.toHaveAttribute('placeholder', 'now write the tests');
+  await expect(composer(page)).not.toHaveAttribute('aria-placeholder', 'now write the tests');
 });
 
 // M7-13 (R-M7-4): the server archives what a compaction cuts; a reloaded page gets the button, a live one keeps its feed
@@ -343,7 +344,7 @@ test('switching sessions: only this project\'s are offered, sends wait, the draf
   await expect(page.locator('#conn')).toHaveText('');
   await expect(page.getByText('gamma answer')).toBeVisible();
   await expect(root(page)).toHaveText(rootWas);
-  await expect(composer(page)).toHaveValue(draft);
+  await expect.poll(() => fieldText(composer(page))).toBe(draft);
   expect(t.sent.filter((f) => f.type === 'send').length).toBe(sentBefore);
   await expect(page.locator('[data-tab="file:notes.md"]')).toBeVisible();
 
@@ -391,7 +392,7 @@ test('the / menu offers the session\'s commands, picks with Tab and runs a skill
   await expect(rows).toHaveCount(1);
   await composer(page).press('Tab');
   await expect(menu).toBeHidden();
-  await expect(composer(page)).toHaveValue('/ping ');
+  await expect.poll(() => fieldText(composer(page))).toBe('/ping ');
   await composer(page).press('Enter'); // the menu is closed: Enter sends
   const reply = page.locator('[data-kind="user"]').filter({ hasText: '/ping' });
   await expect(reply.first()).toBeVisible();
