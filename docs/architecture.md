@@ -150,7 +150,8 @@ The menu is a list of chats: the web folds the windows of one folder into one ro
 | Module | Responsibility |
 |---|---|
 | `main.ts` | Argument parsing, choice of what to resume, exit code 98 when the port is taken, the launcher watchdog. |
-| `server.ts` | Composition: the stores, `SessionManager`, the HTTP router and the WSS; the dispatcher of WebSocket messages and the link between comments and the session. One tab per window (owner socket, 700 ms reload grace, 30 s ping, `takeover` closes the old owner with 4001, `?passive=1`). Messages the agent's `capabilities` forbid are rejected as `server-error`. |
+| `server.ts` | The server: one listener, its login and home page, the process's exit, update and restart; it opens, keeps and closes its agents. |
+| `agent.ts` | One agent, under `/a/<id>/`. Composition: the stores, `SessionManager`, the HTTP router and the WSS; the dispatcher of WebSocket messages and the link between comments and the session. One tab per window (owner socket, 700 ms reload grace, 30 s ping, `takeover` closes the old owner with 4001, `?passive=1`). Messages the agent's `capabilities` forbid are rejected as `server-error`. |
 | `auth.ts` | The access token and every value derived from it ([Access token](agent-reference.md#access-token)). |
 | `stateGuard.ts` | Knows the folders that hold secrets (the current state folder and the two default ones) and refuses to serve, list or search anything inside them. |
 | `http.ts` | No framework. Order: Host allowlist, then `/control/` (token, no Origin) or Origin for non-GET, then the open routes (`/auth`, `/hello`), then auth for everything else, then the routes, `/info`, and last the static files of `web/dist` with an SPA fallback. |
@@ -532,7 +533,7 @@ targets), browser values (the day, a media query, a page frame's render count) a
 sequenceDiagram
   participant U as UI
   participant S as Store
-  participant SV as server.ts
+  participant SV as agent.ts
   participant CS as CommentStore
   participant SM as SessionManager
   participant A as Agent

@@ -1,5 +1,5 @@
 // A compaction ordered while the agent works (issue 499): it waits for the next pause, by the pending restart's rule
-// (`busy` in server.ts), and needs no open page. Priority, always: restart > compact > messages. While a restart or a
+// (`notPaused` in agent.ts), and needs no open page. Priority, always: restart > compact > messages. While a restart or a
 // compaction is pending, or the ordered compaction runs, the user's sends are held here, not handed to the agent (the SDK
 // would answer them in the running turn, with no pause between them); they go, in order, once neither is pending and
 // the compaction's own turn is over. The order and the held sends are a small record per session,
@@ -44,7 +44,7 @@ export function compactOrder(o: {
   dir: string;
   /** the id the current conversation's records go under (null: none yet) */
   session: () => string | null;
-  /** not a pause (server.ts `notPaused`) */
+  /** not a pause (agent.ts `notPaused`) */
   busy: () => boolean;
   switching: () => boolean;
   restartPending: () => boolean;
