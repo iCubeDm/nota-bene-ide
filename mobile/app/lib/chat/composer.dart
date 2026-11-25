@@ -297,8 +297,7 @@ class _ComposerState extends State<Composer> {
       final pending = widget.tab.comments.sendable.isNotEmpty;
       final canSend = open && !uploading && !_failed && (hasContent || pending);
       final recording = _session.active;
-      // the mic while the field is empty (and no image waits), Send otherwise, both while comments wait; a window older than
-      // protocol 14 has no voice: its mic is greyed and says why on a tap, not missing
+      // the mic while the field is empty (and no image waits), Send otherwise, both while comments wait
       final mic = !hasContent || recording;
       final send = hasContent || (pending && !recording);
       return PopScope(
