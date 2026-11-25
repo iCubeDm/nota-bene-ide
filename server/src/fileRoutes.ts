@@ -11,7 +11,6 @@ import { blobSize, branchFiles, gitStatus, listSources, readFile, readTree, Sour
 import { branchInfo, commitFileOf, commitOf, diffOf, fileOf, logOf } from './vcs.ts';
 import { switchBranch, SwitchRefused } from './gitSwitch.ts';
 import type { Fields } from './audit.ts';
-import { listWindows } from './system.ts';
 import type { ProviderSession as AgentSession } from './agent/types.ts';
 import { parseRange } from './range.ts';
 import { serveTmpImage } from './tmpImage.ts';
@@ -156,14 +155,14 @@ export function fileRoutes(o: {
   root: () => string;
   hub: EventHub;
   complete: (q: string) => Promise<string[]>;
-  /** the roots of the windows whose agent is at work, for the branch list and the switch; a test passes its own */
+  /** the roots of the agents at work, for the branch list and the switch */
   working?: () => Promise<string[]>;
   /** this window's agent is at work: no branch switch under it */
   selfBusy?: () => boolean;
   /** a line of the window's audit log */
   audit?: (ev: string, f: Fields) => void;
 }): Record<string, RequestListener> {
-  const working = o.working ?? (async () => (await listWindows(0)).filter((w) => w.busy).map((w) => w.root));
+  const working = o.working ?? (async () => []);
   const fail = (req: IncomingMessage, res: ServerResponse, e: unknown) => {
     reportError(o.hub, req.url ?? '', e);
     if (!res.headersSent) plain(res, 500, e instanceof Error ? e.message : String(e));

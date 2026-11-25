@@ -171,6 +171,8 @@ type Shared = {
   exitWith: (code: number) => void;
   /** every agent (their /info and home's list them: the switcher's rows, projects.ts) */
   agents: () => { id: string; provider: AgentProvider; root: string }[];
+  /** every agent's folder, session and whether it is at work (issue 676: an agent's guards read its neighbours here, not over HTTP) */
+  live: () => { id: string; root: string; session: string | null; busy: boolean }[];
   /** some agent but this one is not in a pause */
   othersBusy: (id: string) => boolean;
   /** POST /a/<id>/control/close, set once the server is up: 200, or 409 for the server's last agent */
@@ -189,6 +191,8 @@ type Agent = {
   root(): string;
   /** its session's id (none before the first turn) */
   session(): string | null;
+  /** at work, its /info's `busy`: a turn or a running task */
+  busy(): boolean;
   /** not a pause: its turn, a question, a switch, a `! cmd` run or a task */
   notPaused(): boolean;
   /** its sockets that ask for a pending restart in their own pause (gh-422) */
@@ -283,7 +287,11 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     const root = () => manager.info().root;
     // not a pause: a turn, a waiting question or approval, a switch, a `! cmd` run or a task of the agent still running.
     // The update's hand-over (77) and a pending restart (75) wait for the same pause
+    const busy = () => manager.busy() || hub.tasksRunning() > 0;
     const notPaused = () => manager.busy() || manager.shellRunning() || hub.tasksRunning() > 0 || hub.reportDue();
+    // this server's agents and the other servers' windows, each with its folder, session and work
+    const running = async (): Promise<{ id?: string; root: string; session: string | null; busy: boolean }[]> =>
+      [...s.live(), ...(await listWindows(s.port())).filter((w) => !w.current && w.state === 'live')];
     // issue 499: a compaction ordered while the agent works waits for the next pause, after a pending restart; the sends
     // of pages that understand it (`held=1`) wait behind both
     const order = compactOrder({
@@ -350,7 +358,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       extra: {
         ...fileRoutes({
           root, hub, complete: (q) => complete({ session: manager, root: root() }, q),
-          selfBusy: () => manager.busy(), ...(audit ? { audit: (ev, f) => audit.write(ev, f) } : {}),
+          selfBusy: () => manager.busy(), working: async () => (await running()).filter((w) => w.busy).map((w) => w.root), ...(audit ? { audit: (ev, f) => audit.write(ev, f) } : {}),
         }),
         ...attachmentRoutes(attachments, hub),
         // issue 461: any file into the project's attachments/, and Show in Finder / Open (this machine's page only)
@@ -375,8 +383,8 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
         '/sessions/archive': archiveRoute({ hub, current: () => manager.info().id, set: (id, on) => setArchived(id, on, agent.stateDir) }),
         '/sessions/delete': deleteRoute({
           hub, current: () => manager.info().id, switching: () => manager.switching(),
-          // another live window of this provider on it (a terminal CLI cannot be seen: the dialog says so)
-          openElsewhere: async (id) => (await listWindows(s.port())).some((w) => !w.current && w.state === 'live' && w.session?.toLowerCase() === id),
+          // another agent of this server or a live window of this provider on it (a terminal CLI cannot be seen: the dialog says so)
+          openElsewhere: async (id) => (await running()).some((w) => w.id !== a.id && w.session?.toLowerCase() === id),
           remove: a.backend.capabilities.deleteSession && a.backend.deleteSession ? (id) => a.backend.deleteSession!(id) : undefined,
           forget: forgetDeleted,
         }),
@@ -492,7 +500,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
         const asks = manager.asks();
         // busy (a turn or a running task, issue 667) and clients: for another window's Settings → Windows and the lists of
         // projects; pending, last, replies: the phone's list
-        return { agent: a.id, root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: manager.busy() || hub.tasksRunning() > 0, restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root), agents: s.agents(), ...(asks.length ? { asks: asks.map(clipAsk) } : {}) };
+        return { agent: a.id, root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root), agents: s.agents(), ...(asks.length ? { asks: asks.map(clipAsk) } : {}) };
       },
     });
     const switchFailed = (e: unknown) => reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);
@@ -922,6 +930,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       upgrade: (req, socket, head) => wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req)),
       root,
       session: () => manager.info().id,
+      busy,
       notPaused,
       askers: () => askers.size,
       owned: () => !!owner && owner.ws.readyState === owner.ws.OPEN,
@@ -1048,6 +1057,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       controlOpen: async () => ({ status: 503, body: 'starting' }),
       closeAgent: () => 409,
       agents: () => [...agents.values()].map((x) => ({ id: x.id, provider: x.provider, root: x.root() })),
+      live: () => [...agents.values()].map((x) => ({ id: x.id, root: x.root(), session: x.session(), busy: x.busy() })),
       othersBusy: (id) => [...agents.values()].some((x) => x.id !== id && x.notPaused()),
     };
     // issue 639: the server's project folder, which its home answers with (the registry's root, the launcher's "already

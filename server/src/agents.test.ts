@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -221,6 +222,40 @@ it('issue 667: an agent whose turn ended but whose background task runs is busy 
   expect(await busy()).toBe(false);
   await turn('index');
   expect(await busy()).toBe(true);
+});
+
+it('issue 676: a session open in another agent of this server is not deleted', async () => {
+  const deleted: string[] = [];
+  const one = fakeBackend([]);
+  one.capabilities.deleteSession = true;
+  one.deleteSession = async (id) => { deleted.push(id); };
+  const s = await startServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, webDist: path.join(tmp, 'dist'), backend: one });
+  closers.push(s.close);
+  const { url } = await firstAgent(s.url);
+  const open = '11111111-2222-4333-8444-555555555555';
+  const b = `${s.url}/a/${await s.open({ provider: 'claude', cwd: path.join(tmp, 'b'), backend: fakeBackend([]), resume: open })}`;
+  expect(await (await fetch(`${b}/info`)).json()).toMatchObject({ session: open });
+  const del = (id: string) => fetch(`${url}/sessions/delete`, { method: 'POST', headers: { 'content-type': 'application/json', origin: s.url }, body: JSON.stringify({ id }) });
+  expect(await (await del(open)).text()).toBe('the session is open in another window');
+  expect(deleted).toEqual([]);
+});
+
+it('issue 676: the branch list marks the folder of an agent at work on this server', async () => {
+  const b = path.join(tmp, 'b');
+  const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd: b });
+  git('init', '-q', '-b', 'main');
+  git('commit', '-q', '--allow-empty', '-m', 'one');
+  const s = await startServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, webDist: path.join(tmp, 'dist'), backend: fakeBackend([]) });
+  closers.push(s.close);
+  const url = `${s.url}/a/${await s.open({ provider: 'codex', cwd: b, backend: fakeBackend([
+    { match: 'index', text: 'started', frames: [{ type: 'system', subtype: 'task_started', task_id: 't-bg', description: 'Index the docs', task_type: 'local_agent', tool_use_id: 'toolu_bg', is_backgrounded: true }] },
+  ]) })}`;
+  const busy = async () => ((await (await fetch(`${url}/vcs-branches`)).json()) as { busy: boolean }[]).map((r) => r.busy);
+  expect(await busy()).toEqual([false]);
+  const { ws, events } = await socket(url);
+  ws.send(JSON.stringify({ type: 'send', id: 'm', text: 'index' }));
+  await until(() => events.some((e) => e.kind === 'agent' && e.e.t === 'turn-end'));
+  expect(await busy()).toEqual([true]);
 });
 
 it('issue 675: an agent opened later records its usage too, by its provider', async () => {
