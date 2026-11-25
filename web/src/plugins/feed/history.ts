@@ -15,14 +15,14 @@ function isPage(v: unknown): v is HistoryPage {
  * - An answer arriving after a replay, a /clear or a session change (another epoch or id) is dropped.
  * `beforePrepend` runs right before the prepend is dispatched, in the same task: the feed measures its scroll there.
  */
-export const loadEarlier = (beforePrepend?: () => void): AppThunk<Promise<EarlierResult>> => async (dispatch, getState, { connections }) => {
+export const loadEarlier = (beforePrepend?: () => void): AppThunk<Promise<EarlierResult>> => async (dispatch, getState, { connection }) => {
   const f = getState().feed;
   const session = f.session?.id;
   if (!session || f.earlier <= 0) return 'failed';
   const { epoch, earlier } = f;
   let page: HistoryPage;
   try {
-    const r = await connections.current().fetch(routes.history(session, earlier + 1));
+    const r = await connection.fetch(routes.history(session, earlier + 1));
     if (r.status === 404) page = { events: [], segment: earlier, more: false };
     else if (!r.ok) return stale() ? 'stale' : 'failed';
     else {

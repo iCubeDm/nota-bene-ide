@@ -3,7 +3,7 @@ import { act, screen } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { PROTOCOL } from '@nota-bene/shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/core/components/ui/tooltip.tsx';
-import { connectionsOf, useConnState } from '@/sdk/connections.ts';
+import { connectionOf, useConnState } from '@/sdk/connections.ts';
 import { selectConn, selectSession } from '@/core/store/store.ts';
 import { events, renderWith, stubResources, stubRoutes, testStore } from './index.tsx';
 
@@ -50,7 +50,7 @@ it('testStore: the connection is open, the hello and events given are applied, a
 it('sent records what the store sends; without a hello the protocol is 0, with an empty one the current', () => {
   const { store, conn } = testStore();
   expect(store.getState().controls.protocol).toBe(0);
-  connectionsOf(store).current().send({ type: 'interrupt' });
+  connectionOf(store).send({ type: 'interrupt' });
   expect(conn.sent).toEqual([{ type: 'interrupt' }]);
   expect(testStore({ hello: {} }).store.getState().controls.protocol).toBe(PROTOCOL);
   expect(events.hello()).toEqual({ kind: 'hello', protocol: PROTOCOL });

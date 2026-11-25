@@ -36,15 +36,12 @@ export { anchorLine, batchQuote, mediaTime, cutWhere, cutLine } from '../anchors
 
 // the connection
 export {
-  SELF,
-  connections,
+  connection,
   useConnection,
   useConnState,
   useFeature,
   selectFeature,
-  type AgentId,
   type AgentConnection,
-  type ConnectionManager,
   type ConnState,
   type HelloEvent,
   type Route,

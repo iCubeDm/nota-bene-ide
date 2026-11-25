@@ -1,5 +1,5 @@
 import type { AttachmentAnchor, Comment, MediaAnchor } from '@nota-bene/shared';
-import { prepareImage, uploadImage, t, connections, routes, type MediaAnchorPatch, send } from '@/sdk';
+import { prepareImage, uploadImage, t, connection, routes, type MediaAnchorPatch, send } from '@/sdk';
 import { drawShapes, renderMarks, strokeWidth } from './render.ts';
 import { drawBadges } from './badges.ts';
 
@@ -107,7 +107,7 @@ export async function prepareAttachmentComment(
  */
 export async function composite(members: { n: number; comment: Comment }[]): Promise<string> {
   const ms = members.map(({ n, comment }) => ({ n, a: comment.anchor as MediaAnchor }));
-  const r = await fetch(connections.current().url(routes.attach(members[0].comment.images![0])));
+  const r = await fetch(connection.url(routes.attach(members[0].comment.images![0])));
   if (!r.ok) throw new Error(`attach ${r.status}`);
   const bmp = await createImageBitmap(await r.blob());
   try {

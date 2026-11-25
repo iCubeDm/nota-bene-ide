@@ -5,7 +5,7 @@
 // This window's sessions are renamed and archived from their row (the time gives way on hover); delete stays in the
 // Sessions menu (▾ on the chat tab). Another window's are only opened: its server takes no write from this one.
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import { useT, connections, routes, toast, useAppDispatch, switchSession, remotePage, REFUSED, archiveSession, renameSession, ago, send } from '@/sdk';
+import { useT, connection, routes, toast, useAppDispatch, switchSession, remotePage, REFUSED, archiveSession, renameSession, ago, send } from '@/sdk';
 import { ConfirmDialog, ArchiveIcon } from '@/sdk/ui';
 import { enterProject, openFolder, PROVIDER_LABEL, reasonText, rowRef, stopProject, type Provider, type RunningRow } from './api.ts';
 import { DOT } from './Tile.tsx';
@@ -46,7 +46,7 @@ export function ProjectSessions({ root, windows, local, setLocal, onDone }: {
         return [];
       }
     })).then((lists) => { if (!gone) setOthers(lists.flat()); });
-    connections.current().fetch(routes.systemAgents()).then((r) => (r.ok ? r.json() : null)).then((j: { agents?: Provider[] } | null) => {
+    connection.fetch(routes.systemAgents()).then((r) => (r.ok ? r.json() : null)).then((j: { agents?: Provider[] } | null) => {
       if (!gone && j && Array.isArray(j.agents)) setAgents(j.agents);
     }).catch(() => {});
     return () => { gone = true; };
