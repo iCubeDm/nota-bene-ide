@@ -176,7 +176,7 @@ type Shared = {
   /** every agent (their /info and home's list them: the switcher's rows, projects.ts) */
   agents: () => { id: string; provider: AgentProvider; root: string }[];
   /** every agent's folder, session and whether it is at work (issue 676: an agent's guards read its neighbours here, not over HTTP) */
-  live: () => { id: string; root: string; session: string | null; busy: boolean }[];
+  live: () => { id: string; root: string; session: string | null; working: boolean }[];
   /** some agent but this one is not in a pause */
   othersBusy: (id: string) => boolean;
   /** POST /a/<id>/control/close, set once the server is up: 200, or 409 for the server's last agent */
@@ -195,9 +195,9 @@ type Agent = {
   root(): string;
   /** its session's id (none before the first turn) */
   session(): string | null;
-  /** at work, its /info's `busy`: a turn or a running task */
-  busy(): boolean;
-  /** not a pause: its turn, a question, a switch, a `! cmd` run or a task */
+  /** at work, its /info's `busy`: a turn, a waiting question or approval, a switch or a running task */
+  working(): boolean;
+  /** not a pause: at work, a `! cmd` run, or a finished task's report still due */
   notPaused(): boolean;
   /** its sockets that ask for a pending restart in their own pause (gh-422) */
   askers(): number;
@@ -232,7 +232,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     // gh-422: the mark of a turn the server is in the middle of, so the start after a cut one can say so
     const turnMarks = new TurnMarks({
       dir: path.join(agent.stateDir, 'turns-open'),
-      // the agent's work (not a switch, whose ↻ ends its own turn): a turn, a question or approval, a running task
+      // a turn to mark: the agent at work (`working` below), but not in a switch alone (its ↻ ends its own turn)
       working: () => (manager.busy() && !manager.switching()) || hub.tasksRunning() > 0,
       session: () => manager.info().id,
     });
@@ -289,15 +289,17 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     });
     // the one source of the project root: a switch changes it, so every route reads it per request
     const root = () => manager.info().root;
-    // not a pause: a turn, a waiting question or approval, a switch, a `! cmd` run or a task of the agent still running.
-    // The update's hand-over (77) and a pending restart (75) wait for the same pause
-    const busy = () => manager.busy() || hub.tasksRunning() > 0;
-    const notPaused = () => manager.busy() || manager.shellRunning() || hub.tasksRunning() > 0 || hub.reportDue();
+    // the two answers to "is this agent busy" (issue 689). At work: a turn, a waiting question or approval, a switch or a
+    // running task; what the lists show and what holds a checkout
+    const working = () => manager.busy() || hub.tasksRunning() > 0;
+    // not a pause: at work, a `! cmd` run, or a finished task's report still due. The update's hand-over (77), a pending
+    // restart (75) and an ordered compaction wait for the pause
+    const notPaused = () => working() || manager.shellRunning() || hub.reportDue();
     // this server's agents and the other servers' (issue 680), each with its folder, session and work
-    const running = async (): Promise<{ id?: string; root: string; session: string | null; busy: boolean }[]> => [
+    const running = async (): Promise<{ id?: string; root: string; session: string | null; working: boolean }[]> => [
       ...s.live(),
       ...(await listProjects({ port: s.port(), provider: a.agent.provider, agent: a.id })).running
-        .filter((r) => r.port !== s.port()).map((r) => ({ root: r.root, session: r.session, busy: r.state === 'working' || r.state === 'waiting' })),
+        .filter((r) => r.port !== s.port()).map((r) => ({ root: r.root, session: r.session, working: r.state === 'working' || r.state === 'waiting' })),
     ];
     // issue 499: a compaction ordered while the agent works waits for the next pause, after a pending restart; the sends
     // of pages that understand it (`held=1`) wait behind both
@@ -365,7 +367,8 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       extra: {
         ...fileRoutes({
           root, hub, complete: (q) => complete({ session: manager, root: root() }, q),
-          selfBusy: () => manager.busy(), working: async () => (await running()).filter((w) => w.busy).map((w) => w.root), ...(audit ? { audit: (ev, f) => audit.write(ev, f) } : {}),
+          // the other servers' may fail to list: this server's own agents always count
+          working: async () => (await running().catch(() => s.live())).filter((w) => w.working).map((w) => w.root), ...(audit ? { audit: (ev, f) => audit.write(ev, f) } : {}),
         }),
         ...attachmentRoutes(attachments, hub),
         // issue 461: any file into the project's attachments/, and Show in Finder / Open (this machine's page only)
@@ -507,7 +510,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
         const asks = manager.asks();
         // busy (a turn or a running task, issue 667) and clients: for the lists of
         // projects; pending, last, replies: the phone's list
-        return { agent: a.id, root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root), agents: s.agents(), ...(asks.length ? { asks: asks.map(clipAsk) } : {}) };
+        return { agent: a.id, root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: working(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root), agents: s.agents(), ...(asks.length ? { asks: asks.map(clipAsk) } : {}) };
       },
     });
     const switchFailed = (e: unknown) => reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);
@@ -937,7 +940,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       upgrade: (req, socket, head) => wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req)),
       root,
       session: () => manager.info().id,
-      busy,
+      working,
       notPaused,
       askers: () => askers.size,
       owned: () => !!owner && owner.ws.readyState === owner.ws.OPEN,
@@ -1064,7 +1067,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       controlOpen: async () => ({ status: 503, body: 'starting' }),
       closeAgent: () => 409,
       agents: () => [...agents.values()].map((x) => ({ id: x.id, provider: x.provider, root: x.root() })),
-      live: () => [...agents.values()].map((x) => ({ id: x.id, root: x.root(), session: x.session(), busy: x.busy() })),
+      live: () => [...agents.values()].map((x) => ({ id: x.id, root: x.root(), session: x.session(), working: x.working() })),
       othersBusy: (id) => [...agents.values()].some((x) => x.id !== id && x.notPaused()),
     };
     // issue 639: the server's project folder, which its home answers with (the registry's root, the launcher's "already

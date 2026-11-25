@@ -45,12 +45,12 @@ function run(cwd: string, branch: string): Promise<void> {
 
 /**
  * Switches `root`'s checkout to the local branch `branch`. `working`: the roots of the busy Nota Bene windows;
- * `selfBusy`: this window's agent. Answers the branch it left (null: detached) and the new one; SwitchRefused otherwise.
+ * Answers the branch it left (null: detached) and the new one; SwitchRefused otherwise.
  */
 export async function switchBranch(
   root: string,
   branch: string,
-  o: { selfBusy: () => boolean; working: () => Promise<string[]> },
+  o: { working: () => Promise<string[]> },
 ): Promise<{ from: string | null; branch: string }> {
   forgetRepo(root); // the list the name is checked against is git's of now, not of 5 s ago
   const { top, sources, checkouts } = await repo(root);
@@ -62,7 +62,7 @@ export async function switchBranch(
   const from = here.ref || null;
   if (branch === from) return { from, branch };
   // the deepest checkout holding each busy window: an agent in a worktree inside the project does not hold this one
-  if (o.selfBusy() || holders(checkouts, await o.working().catch(() => [])).has(checkouts[0]!)) throw new SwitchRefused(409, 'busy');
+  if (holders(checkouts, await o.working().catch(() => [])).has(checkouts[0]!)) throw new SwitchRefused(409, 'busy');
   try {
     await run(root, branch);
   } finally {
