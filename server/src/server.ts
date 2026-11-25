@@ -450,7 +450,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
           res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
           res.end('{"ok":true,"pending":false}');
         },
-        // the header's Stop window (⏻), as Settings → Windows stops another one: 0 tells a launcher to unregister and exit
+        // the header's Stop window (⏻): 0 tells a launcher to unregister and exit
         '/stop': (req, res) => {
           if (req.method !== 'POST') {
             res.writeHead(405, { allow: 'POST', 'content-type': 'text/plain; charset=utf-8' });
@@ -502,7 +502,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       info: () => {
         const { id, root, title, model } = manager.info();
         const asks = manager.asks();
-        // busy (a turn or a running task, issue 667) and clients: for another window's Settings → Windows and the lists of
+        // busy (a turn or a running task, issue 667) and clients: for the lists of
         // projects; pending, last, replies: the phone's list
         return { agent: a.id, root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: busy(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root), agents: s.agents(), ...(asks.length ? { asks: asks.map(clipAsk) } : {}) };
       },

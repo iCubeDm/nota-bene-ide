@@ -1,117 +1,18 @@
-import { useState } from 'react';
 import { UI_SCALES, type UiScale } from '@nota-bene/shared';
-import { defineResource, routes, useResource, useSettings, storage, systemPrefs, byteSize, percent, getLang, chooseLang, LANGS, t as tNow, useT, type Lang, folderName, shortWinHome, selectCapabilitiesKnown, useAppSelector, theme, THEME_GROUPS, THEME_NAMES, useTheme, uiScale, useUiScale, playCue, type Sounds, type SettingsSection, send } from '@/sdk';
+import { defineResource, routes, useResource, useSettings, storage, systemPrefs, byteSize, percent, getLang, chooseLang, LANGS, useT, type Lang, shortWinHome, selectCapabilitiesKnown, useAppSelector, theme, THEME_GROUPS, THEME_NAMES, useTheme, uiScale, useUiScale, playCue, type Sounds, type SettingsSection } from '@/sdk';
 import { Button, SettingsFail, SettingsRow as Row } from '@/sdk/ui';
 
 type Size = { bytes: number; files: number };
 /** `history`: the archive before compactions (R-M7-1); absent from a server older than M7-12 */
 type Storage = { attachments: Size; comments: Size; history?: Size; trash: Size; marks: Size & { root: string }; unreferenced: Size };
-type WindowRow = {
-  port: number; root: string; pid: number; startedAt: number; current: boolean;
-  state: 'live' | 'restarting' | 'silent' | 'stale';
-  session: string | null; title: string | null; supervised: boolean; busy: boolean; clients: number;
-  /** gh-422: a server restart waits for its agent; absent: a window of a version before that (its restart cuts the turn) */
-  restartPending?: boolean;
-};
 type About = { version: string; stateDir: string; logs: string[]; node: string; pid: number };
-type Action = 'restart-agent' | 'restart-server' | 'restart-server-now' | 'restart-server-cancel' | 'stop';
 
-const windowsResource = defineResource<void, WindowRow[]>({ id: 'settings.windows', key: () => '', route: () => routes.systemWindows() });
 const storageResource = defineResource<void, Storage>({ id: 'settings.storage', key: () => '', route: () => routes.systemStorage() });
 const aboutResource = defineResource<void, About>({ id: 'settings.about', key: () => '', route: () => routes.systemAbout() });
-export const SETTINGS_RESOURCES = [windowsResource, storageResource, aboutResource];
+export const SETTINGS_RESOURCES = [storageResource, aboutResource];
 
 // macOS and Linux home folders, and Windows' C:/Users/<name>
 const short = (d: string) => shortWinHome(d).replace(/^\/(Users|home)\/[^/]+/, '~');
-const uptime = (since: number, now = Date.now()) => {
-  const m = Math.max(0, Math.round((now - since) / 60000));
-  return m < 60 ? tNow('upMin', m) : m < 1440 ? tNow('upHMin', Math.floor(m / 60), m % 60) : tNow('upD', Math.floor(m / 1440));
-};
-
-function WindowsRefresh({ active }: { active: boolean }) {
-  const t = useT();
-  const windows = useResource(windowsResource, undefined, { on: active });
-  return <Button type="button" variant="ghost" size="sm" onClick={windows.refresh}>{t('refresh')}</Button>;
-}
-
-/** Every Nota Bene window, with restart and stop for the others. */
-function Windows({ active }: { active: boolean }) {
-  const t = useT();
-  const { note, ask } = useSettings();
-  const windows = useResource(windowsResource, undefined, { on: active });
-  // the port whose action is in flight: that row's buttons are off until it settles (no double relays)
-  const [pending, setPending] = useState<number | null>(null);
-
-  const act = (w: WindowRow, action: Action) => async () => {
-    note(null);
-    setPending(w.port);
-    try {
-      // the row's identity: the server refuses if another window has taken the port since this list was loaded; the
-      // refusal's body says why, so this POST reads it itself rather than through the host's
-      const r = await send(routes.systemWindowsAction(), { port: w.port, action, root: w.root, pid: w.pid, startedAt: w.startedAt }).catch(() => null);
-      if (r?.ok) return note(t('winSent'));
-      const body = r ? await r.text().catch(() => '') : '';
-      const inner = r?.status === 502 ? (JSON.parse(body || '{}') as { status?: number }).status : undefined;
-      note(!r ? t('setLoadFail', 'network')
-        : body === 'window changed' ? t('winChanged')
-        : inner === 403 || inner === 404 ? t('winOld') // a window started before the control route existed
-        : t('setLoadFail', inner ? `${r.status} (${inner})` : `${r.status} ${body}`.trim()));
-    } catch (e) {
-      note(t('setLoadFail', e instanceof Error ? e.message : String(e)));
-    } finally {
-      setTimeout(() => { setPending(null); windows.refresh(); }, action === 'restart-agent' ? 500 : 1500);
-    }
-  };
-  // every action on another window ends its running turn: ask first when it is working, and always for Stop
-  // a restart of a window that waits for its agent cuts nothing: it goes without asking (gh-422); Restart now always asks
-  const confirmAct = (w: WindowRow, action: Action, label: string) => {
-    if (action === 'restart-server-cancel' || (action === 'restart-server' && w.restartPending !== undefined)) return void act(w, action)();
-    if (action === 'restart-server-now') return ask({ title: label, body: t('winRestartNowQ', w.port, short(w.root)), confirm: t('restartNowBtn'), run: act(w, action) });
-    if (action !== 'stop' && !w.busy) return void act(w, action)();
-    const body = action === 'stop' ? t('winStopQ', w.port, short(w.root)) : t('winBusyQ', label, w.port, short(w.root));
-    ask({ title: label, body: w.busy && action === 'stop' ? `${body}\n${t('winBusyNote')}` : body, confirm: label, run: act(w, action) });
-  };
-
-  return (
-    <>
-      <SettingsFail error={windows.failed ? windows.error : null} />
-      {windows.data && !windows.data.length && <div className="text-xs text-muted-foreground">{t('winNone')}</div>}
-      <div className="flex flex-col gap-2">
-        {windows.data?.map((w) => (
-          <div key={w.port} data-window={w.port} className="rounded-lg border border-border-soft px-3 py-2 text-[0.8125rem]">
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className="font-semibold text-foreground">{folderName(w.root) || w.root}</span>
-              <span className="font-mono text-[0.6875rem] text-muted-foreground">{short(w.root)}</span>
-              <span className="font-mono text-[0.6875rem] text-muted-foreground">:{w.port}</span>
-              {w.current && <span className="rounded bg-primary/15 px-1.5 text-[0.6875rem] text-link">{t('winThis')}</span>}
-              {w.state !== 'live' && <span className="text-[0.6875rem] text-warn">{t(`win_${w.state}`)}</span>}
-            </div>
-            {w.state === 'live' && (
-              <div className="mt-0.5 text-xs text-muted-foreground">
-                {[w.title, w.busy ? t('winBusy') : t('winIdle'), w.restartPending ? t('winRestartPending') : null, w.clients ? t('winTabs', w.clients) : t('winHeadless'), t('winUp', uptime(w.startedAt))].filter(Boolean).join(' · ')}
-              </div>
-            )}
-            {!w.current && w.state === 'live' && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                <Button asChild variant="outline" size="sm"><a href={`http://127.0.0.1:${w.port}/`} target="_blank" rel="noopener noreferrer">{t('winOpen')}</a></Button>
-                <Button type="button" variant="outline" size="sm" disabled={pending === w.port} onClick={() => confirmAct(w, 'restart-agent', t('winRestartAgent'))}>{t('winRestartAgent')}</Button>
-                {w.supervised && !w.restartPending && <Button type="button" variant="outline" size="sm" disabled={pending === w.port} onClick={() => confirmAct(w, 'restart-server', t('winRestartServer'))}>{t('winRestartServer')}</Button>}
-                {w.supervised && w.restartPending && (
-                  <>
-                    <Button type="button" variant="outline" size="sm" disabled={pending === w.port} onClick={() => confirmAct(w, 'restart-server-now', t('restartServerNow'))}>{t('restartServerNow')}</Button>
-                    <Button type="button" variant="outline" size="sm" disabled={pending === w.port} onClick={() => confirmAct(w, 'restart-server-cancel', t('restartCancel'))}>{t('restartCancel')}</Button>
-                  </>
-                )}
-                <Button type="button" variant="outline" size="sm" disabled={pending === w.port} onClick={() => confirmAct(w, 'stop', t('winStop'))}>{t('winStop')}</Button>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </>
-  );
-}
-
 /** Sizes; moving unreferenced pasted images to the trash. */
 function StorageSection({ active }: { active: boolean }) {
   const t = useT();
@@ -279,7 +180,6 @@ function AboutSection({ active }: { active: boolean }) {
  * mode (30), the update's two (40, 50), the projects' rail (70) and the composer's shell of `! cmd` (90).
  */
 export const SETTINGS: SettingsSection[] = [
-  { id: 'windows', order: 10, title: 'setWindows', render: Windows, aside: WindowsRefresh },
   { id: 'storage', order: 20, title: 'setStorage', render: StorageSection },
   { id: 'defaults', order: 40, title: 'setDefaults' },
   { id: 'lang', in: 'defaults', order: 10, render: LangRow },

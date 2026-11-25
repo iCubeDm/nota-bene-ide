@@ -339,7 +339,7 @@ const MATRIX: { method: string; path: string; cookie: 'open' | 'refused' }[] = [
   { method: 'GET', path: `/voice/${ID}`, cookie: 'open' },
   { method: 'HEAD', path: `/voice/${ID}`, cookie: 'open' },
   ...['/info', '/tree?path=', '/complete?q=a', '/sources', '/sessions', '/history?session=x&before=1', '/subagent?session=x&tool=y',
-    '/task-output?session=x&task=y', '/git-status', '/vcs-diff', '/vcs-file?path=a.txt', '/vcs-branches', '/vcs-log', '/vcs-commit?sha=abcdef0', '/vcs-commit-file?sha=abcdef0&path=a.txt', '/system/about', '/system/update/changes', '/system/windows', '/system/storage', '/system/prefs', '/system/projects', '/usage?provider=none', '/tmpimage?path=%2Ftmp%2Fa.png', '/edit?path=a.txt', '/cut/export?path=a.nbcut.json', '/cut/peaks?path=a.wav', '/cut/reverse?path=a.mp4&out=1',
+    '/task-output?session=x&task=y', '/git-status', '/vcs-diff', '/vcs-file?path=a.txt', '/vcs-branches', '/vcs-log', '/vcs-commit?sha=abcdef0', '/vcs-commit-file?sha=abcdef0&path=a.txt', '/system/about', '/system/update/changes', '/system/storage', '/system/prefs', '/system/projects', '/usage?provider=none', '/tmpimage?path=%2Ftmp%2Fa.png', '/edit?path=a.txt', '/cut/export?path=a.nbcut.json', '/cut/peaks?path=a.wav', '/cut/reverse?path=a.mp4&out=1',
     `/marks/${ID}/frame.jpg`].map((path) => ({ method: 'GET', path, cookie: 'refused' as const })),
   { method: 'POST', path: '/attach', cookie: 'refused' },
   { method: 'GET', path: '/project-icon', cookie: 'refused' },
@@ -363,7 +363,6 @@ const MATRIX: { method: string; path: string; cookie: 'open' | 'refused' }[] = [
   { method: 'POST', path: '/cut/export/cancel', cookie: 'refused' },
   { method: 'POST', path: '/cut/new', cookie: 'refused' },
   { method: 'POST', path: '/system/storage/clean', cookie: 'refused' },
-  { method: 'POST', path: '/system/windows/action', cookie: 'refused' },
   { method: 'POST', path: '/system/projects/enter', cookie: 'refused' },
   { method: 'POST', path: '/seen', cookie: 'refused' },
   { method: 'POST', path: '/system/projects/sessions', cookie: 'refused' },
@@ -747,14 +746,12 @@ describe('the helpers send nothing to a listener that cannot prove itself', () =
   }
   const nothingSent = (seen: { auth?: string | undefined; cookie?: string | undefined }[]) => seen.every((x) => x.auth === undefined && x.cookie === undefined);
 
-  it('probeInfo and probeWindow: silent, lying and proof-guessing listeners see no Authorization and no request for /info', async () => {
+  it('probeInfo: silent, lying and proof-guessing listeners see no Authorization and no request for /info', async () => {
     const { probeInfo } = await import('./windows.ts');
-    const { probeWindow } = await import('./system.ts');
     accessToken();
     for (const answer of [undefined, () => '{"proof":"00","n":"' + N1 + '","root":"/x"}', () => JSON.stringify({ proof: 'ab'.repeat(32), n: N1, root: '/x' })]) {
       const imp = await impostor(answer);
       expect(await probeInfo(imp.port)).toBeNull();
-      expect(await probeWindow(imp.port)).toBeNull();
       expect(imp.seen.length).toBeGreaterThan(0);
       expect(nothingSent(imp.seen)).toBe(true);
       expect(imp.seen.every((x) => x.url.startsWith('/hello?c='))).toBe(true);
@@ -861,13 +858,11 @@ describe('a refused secret stops the start before the agent exists', () => {
   it('proveListener and the probes let the error through; the garbage-file message says delete, not chmod', async () => {
     const { SecretError } = await import('./auth.ts');
     const { probeInfo } = await import('./windows.ts');
-    const { probeWindow } = await import('./system.ts');
     fs.mkdirSync(home, { recursive: true });
     fs.writeFileSync(path.join(home, 'token'), 'junk', { mode: 0o600 });
     await expect(proveListener({ dial: 1, timeoutMs: 100 })).rejects.toBeInstanceOf(SecretError);
     await expect(verifiedBearer(1, 100)).rejects.toBeInstanceOf(SecretError);
     await expect(probeInfo(1)).rejects.toBeInstanceOf(SecretError);
-    await expect(probeWindow(1)).rejects.toBeInstanceOf(SecretError);
     const err = (() => { try { accessToken(); return null; } catch (e) { return e as Error; } })();
     expect(err!.message).toMatch(/delete it/);
     expect(err!.message).not.toMatch(/chmod/);
