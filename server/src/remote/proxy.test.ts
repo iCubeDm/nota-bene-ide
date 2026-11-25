@@ -13,8 +13,6 @@ import WebSocket from 'ws';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fakeBackend } from '../agent/fake.ts';
 import { accessToken, loginCredential, newNonce } from '../auth.ts';
-import { startServer } from '../server.ts';
-import { launchAgentId } from '../state.ts';
 import { registerWindow } from '../windows.ts';
 import { Connector } from './connector.ts';
 import { type Msg } from './control.ts';
@@ -22,6 +20,7 @@ import { pairHost } from './hostLink.ts';
 import { RemoteKeeper } from './keeper.ts';
 import { BAD_FRAME, Mux } from './mux.ts';
 import { WindowProxy } from './proxy.ts';
+import { launchServer } from '../testing.ts';
 
 const script = fileURLToPath(new URL('./crossHost.ts', import.meta.url));
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -82,10 +81,10 @@ describe('another computer\'s window through this one', () => {
     const aRoot = path.join(tmp, 'a-proj');
     const keeper = new RemoteKeeper({ spawn: () => {} });
     const aNonce = newNonce();
-    const aw = await startServer({ cwd: aRoot, port: 0, backend: fakeBackend([{ text: 'a' }]), webDist: path.join(tmp, 'a-dist'), exit: () => {}, remote: keeper, nonce: aNonce });
+    const aw = await launchServer({ cwd: aRoot, port: 0, backend: fakeBackend([{ text: 'a' }]), webDist: path.join(tmp, 'a-dist'), exit: () => {}, remote: keeper, nonce: aNonce, id: 'claude-aaaaaa' });
     closers.push(() => aw.close());
     const aPort = Number(new URL(aw.url).port);
-    const aAt = `/a/${launchAgentId('claude', aNonce)}`; // A's page is its launch agent's (issue 639)
+    const aAt = '/a/claude-aaaaaa'; // A's page is its agent's (issue 639)
     registerWindow(aPort, aRoot, process.pid);
 
     ask({ op: 'pair' });

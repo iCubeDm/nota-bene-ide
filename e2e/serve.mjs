@@ -107,7 +107,7 @@ const inherited = { ...process.env };
 for (const k of ['NOTA_BENE_LAUNCHER_PID', 'NOTA_BENE_SUPERVISED', 'NOTA_BENE_NONCE']) delete inherited[k];
 const child = spawn(
   process.execPath,
-  [path.join(root, 'server/src/main.ts'), project, '--port', port, '--fake', path.join(root, 'server/test/fixtures', `${fixture}.json`)],
+  [path.join(root, 'server/src/main.ts'), project, '--port', port, '--id', 'claude-eeeeee', '--fake', path.join(root, 'server/test/fixtures', `${fixture}.json`)],
   { cwd: root, env: { ...inherited, CLAUDE_CONFIG_DIR: claudeDir, CODEX_HOME: codexDir, NOTA_BENE_HOME: home, NOTA_BENE_NONCE: createHash('sha256').update(`nota-bene e2e nonce ${fixture}`).digest('hex').slice(0, 32) }, stdio: 'inherit', windowsHide: true },
 );
 // in its registry as a launcher would put it: the switcher's list and this page's own row (the chat tab's ✕) see it

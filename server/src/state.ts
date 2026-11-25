@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -39,18 +39,9 @@ export function agentContext(provider: AgentProvider, base: string = stateBaseDi
 
 const B32 = 'abcdefghijklmnopqrstuvwxyz234567';
 
-/**
- * A window's agent id (epic 383, step 2b): `<provider>-<6 base32>`, what `/a/<id>/` addresses. A window holds one agent, so
- * the id comes from its launch nonce: a restart keeps it, as it keeps the login, and a new launch or a crash replaces both.
- */
-export function launchAgentId(provider: AgentProvider, nonce: string): string {
-  const h = createHash('sha256').update(`nota-bene:agent:${nonce}`).digest();
-  return `${provider}-${[...h.subarray(0, 6)].map((b) => B32[b & 31]).join('')}`;
-}
-
 export { AGENT_ID } from '@nota-bene/shared';
 
-/** Another agent of a server (epic 383, step 2c): a fresh id of the same form. */
+/** An agent's id (epic 383): `<provider>-<6 base32>`, what `/a/<id>/` addresses. */
 export function newAgentId(provider: AgentProvider): string {
   return `${provider}-${[...randomBytes(6)].map((b) => B32[b & 31]).join('')}`;
 }

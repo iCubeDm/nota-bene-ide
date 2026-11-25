@@ -6,9 +6,9 @@ import { afterEach, beforeEach, expect, it } from 'vitest';
 import { fakeBackend } from './agent/fake.ts';
 import { attachAgent } from './attach.ts';
 import { accessToken, proofFor } from './auth.ts';
-import { startServer } from './server.ts';
 import { controlToken } from './system.ts';
 import { registerWindow } from './windows.ts';
+import { launchServer } from './testing.ts';
 
 // The launcher's attach (epic 383, step 2c): a folder opens as an agent of the running server.
 
@@ -32,10 +32,10 @@ afterEach(async () => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
-async function server(opensAgents: boolean): Promise<number> {
-  const s = await startServer({
+async function server(): Promise<number> {
+  const s = await launchServer({
     cwd: path.join(tmp, 'a'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'),
-    ...(opensAgents ? { backends: () => fakeBackend([]) } : {}),
+    backends: () => fakeBackend([]),
   });
   closers.push(s.close);
   const port = Number(new URL(s.url).port);
@@ -61,13 +61,8 @@ it('an older server (no /control/open: 404) is passed over', async () => {
   expect(await attachAgent({ root: path.join(tmp, 'b'), provider: 'codex', mode: 'resume' })).toBeNull();
 });
 
-it('a server that opens no other agents is passed over', async () => {
-  await server(false);
-  expect(await attachAgent({ root: path.join(tmp, 'b'), provider: 'codex', mode: 'resume' })).toBeNull();
-});
-
 it('opens the folder as an agent of the running server, then finds it there', async () => {
-  const port = await server(true);
+  const port = await server();
   const first = await attachAgent({ root: path.join(tmp, 'b'), provider: 'codex', mode: 'resume' });
   expect(first).toMatchObject({ port, opened: true, shown: false });
   expect(first!.agent).toMatch(/^codex-[a-z2-7]{6}$/);
@@ -92,13 +87,13 @@ it('a tab of the server shows the agent (shown): the launcher opens no browser',
 });
 
 it('port: only that server is asked; another one opens nothing', async () => {
-  const port = await server(true);
+  const port = await server();
   expect(await attachAgent({ root: path.join(tmp, 'b'), provider: 'codex', mode: 'resume', port: port + 1 })).toBeNull();
   expect(await attachAgent({ root: path.join(tmp, 'b'), provider: 'codex', mode: 'resume', under: port })).toBeNull();
   expect(await attachAgent({ root: path.join(tmp, 'b'), provider: 'codex', mode: 'resume', port })).toMatchObject({ port, opened: true });
 });
 
 it('a refused ask (no such folder) throws', async () => {
-  await server(true);
+  await server();
   await expect(attachAgent({ root: path.join(tmp, 'gone'), provider: 'codex', mode: 'resume' })).rejects.toThrow(/no such folder/);
 });

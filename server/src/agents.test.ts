@@ -6,9 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 import type { ServerEvent } from '@nota-bene/shared';
 import { fakeBackend } from './agent/fake.ts';
-import { startServer } from './server.ts';
 import { CONTROL_HEADER, controlToken } from './system.ts';
 import { readKeptAgents } from './windows.ts';
+import { launchServer } from './testing.ts';
 
 // Several agents in one server (epic 383, step 2c): each its own folder, session, socket and one-tab rule, under /a/<id>/;
 // the top is the server's home (issue 639).
@@ -69,7 +69,7 @@ it('a second agent has its own folder, socket, session and tab', async () => {
   const two = fakeBackend([{ text: 'from b' }]);
   let closedTwo = false;
   two.close = async () => { closedTwo = true; };
-  const s = await startServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, backend: one, webDist: path.join(tmp, 'dist') });
+  const s = await launchServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, backend: one, webDist: path.join(tmp, 'dist') });
   closers.push(s.close);
   const b = await s.open({ provider: 'codex', cwd: path.join(tmp, 'b'), backend: two });
   expect(b).toMatch(/^codex-[a-z2-7]{6}$/);
@@ -109,7 +109,7 @@ it('/control/open: an agent for a folder and provider, the one already open, or 
   const made: string[] = [];
   const a = path.join(tmp, 'a');
   const b = path.join(tmp, 'b');
-  const s = await startServer({
+  const s = await launchServer({
     insecureNoAuth: true, cwd: a, port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'),
     backends: (p) => { made.push(p); return fakeBackend([]); },
   });
@@ -146,7 +146,7 @@ it('/control/open: an agent for a folder and provider, the one already open, or 
 it('/control/open moves the tab that follows (go=1) to the agent, the last one attached; with none the launcher opens one', async () => {
   const a = path.join(tmp, 'a');
   const b = path.join(tmp, 'b');
-  const s = await startServer({ insecureNoAuth: true, cwd: a, port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'), backends: () => fakeBackend([]) });
+  const s = await launchServer({ insecureNoAuth: true, cwd: a, port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'), backends: () => fakeBackend([]) });
   closers.push(s.close);
   const open = async (body: unknown) => (await fetch(`${s.url}/control/open`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() }, body: JSON.stringify(body) })).json() as Promise<{ agent: string; opened: boolean; shown?: true }>;
   const top = await firstAgent(s.url);
@@ -175,7 +175,7 @@ it('/control/open moves the tab that follows (go=1) to the agent, the last one a
 
 it('/control/open with show: false moves no tab; an agent another device owns is not one a tab moves onto', async () => {
   const b = path.join(tmp, 'b');
-  const s = await startServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'), backends: () => fakeBackend([]) });
+  const s = await launchServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'), backends: () => fakeBackend([]) });
   closers.push(s.close);
   const open = async (body: unknown) => (await fetch(`${s.url}/control/open`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() }, body: JSON.stringify(body) })).json() as Promise<{ agent: string; shown?: true }>;
   const tab = await socket((await firstAgent(s.url)).url, '?tab=t1&go=1');
@@ -188,7 +188,7 @@ it('/control/open with show: false moves no tab; an agent another device owns is
 });
 
 it('issue 639: the top is the server\'s home (its folder and agents); every agent is under /a/<id>/ only', async () => {
-  const s = await startServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist') });
+  const s = await launchServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist') });
   closers.push(s.close);
   const b = await s.open({ provider: 'codex', cwd: path.join(tmp, 'b'), backend: fakeBackend([]) });
   const top = (await (await fetch(`${s.url}/info`)).json()) as { root: string; agent?: string; agents: { id: string; provider: string; root: string }[] };
@@ -204,7 +204,7 @@ it('issue 639: the top is the server\'s home (its folder and agents); every agen
 });
 
 it('issue 667: an agent whose turn ended but whose background task runs is busy in its /info; a watcher alone is not', async () => {
-  const s = await startServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, webDist: path.join(tmp, 'dist'), backend: fakeBackend([
+  const s = await launchServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, webDist: path.join(tmp, 'dist'), backend: fakeBackend([
     { match: 'watch', text: 'watching', frames: [{ type: 'system', subtype: 'task_started', task_id: 't-watch', description: 'tail -f build.log', task_type: 'local_bash', tool_use_id: 'toolu_watch', ambient: true }] },
     { match: 'index', text: 'started', frames: [{ type: 'system', subtype: 'task_started', task_id: 't-bg', description: 'Index the docs', task_type: 'local_agent', tool_use_id: 'toolu_bg', is_backgrounded: true }] },
   ]) });
@@ -229,7 +229,7 @@ it('issue 676: a session open in another agent of this server is not deleted', a
   const one = fakeBackend([]);
   one.capabilities.deleteSession = true;
   one.deleteSession = async (id) => { deleted.push(id); };
-  const s = await startServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, webDist: path.join(tmp, 'dist'), backend: one });
+  const s = await launchServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, webDist: path.join(tmp, 'dist'), backend: one });
   closers.push(s.close);
   const { url } = await firstAgent(s.url);
   const open = '11111111-2222-4333-8444-555555555555';
@@ -245,7 +245,7 @@ it('issue 676: the branch list marks the folder of an agent at work on this serv
   const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd: b });
   git('init', '-q', '-b', 'main');
   git('commit', '-q', '--allow-empty', '-m', 'one');
-  const s = await startServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, webDist: path.join(tmp, 'dist'), backend: fakeBackend([]) });
+  const s = await launchServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, webDist: path.join(tmp, 'dist'), backend: fakeBackend([]) });
   closers.push(s.close);
   const url = `${s.url}/a/${await s.open({ provider: 'codex', cwd: b, backend: fakeBackend([
     { match: 'index', text: 'started', frames: [{ type: 'system', subtype: 'task_started', task_id: 't-bg', description: 'Index the docs', task_type: 'local_agent', tool_use_id: 'toolu_bg', is_backgrounded: true }] },
@@ -260,7 +260,7 @@ it('issue 676: the branch list marks the folder of an agent at work on this serv
 
 it('issue 675: an agent opened later records its usage too, by its provider', async () => {
   const seen: string[] = [];
-  const s = await startServer({
+  const s = await launchServer({
     insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, webDist: path.join(tmp, 'dist'), backend: fakeBackend([]),
     usage: (provider) => (provider === 'claude' ? { onStats: () => { seen.push(provider); } } : {}),
   });
@@ -276,11 +276,11 @@ it('issue 675: an agent opened later records its usage too, by its provider', as
   expect(seen.length).toBeGreaterThan(0);
 });
 
-it('issue 639: /a/<id>/control/close closes any agent, the first one too, but not the server\'s last; the folder stays', async () => {
+it('issue 639: /a/<id>/control/close closes any agent, the server\'s last too; the folder stays', async () => {
   let closedA = false;
   const one = fakeBackend([]);
   one.close = async () => { closedA = true; };
-  const s = await startServer({
+  const s = await launchServer({
     insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, backend: one, webDist: path.join(tmp, 'dist'),
     nonce: 'c'.repeat(32), keep: { launcherPid: 111 },
   });
@@ -295,13 +295,14 @@ it('issue 639: /a/<id>/control/close closes any agent, the first one too, but no
   expect((await fetch(`${s.url}/a/${first}/info`)).status).toBe(404);
   expect(readKeptAgents(port)?.agents.map((k) => k.id)).toEqual([b]);
   expect(await (await fetch(`${s.url}/info`)).json()).toMatchObject({ root: path.join(tmp, 'a'), agents: [{ id: b }] });
-  expect((await close(`/a/${b}`)).status).toBe(409);
   // only with the control token, never from a page
   expect((await fetch(`${s.url}/a/${b}/control/close`, { method: 'POST', headers: { origin: s.url } })).status).toBe(403);
+  expect((await close(`/a/${b}`)).status).toBe(200);
+  expect(await (await fetch(`${s.url}/info`)).json()).toMatchObject({ root: path.join(tmp, 'a'), agents: [] });
 });
 
 it('issue 639: a server that opens agents closes its last one too and stays up; its home lists the projects', async () => {
-  const s = await startServer({
+  const s = await launchServer({
     insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'),
     nonce: 'c'.repeat(32), keep: { launcherPid: 111 }, backends: () => fakeBackend([]),
   });
@@ -320,7 +321,7 @@ it('issue 639: a server that opens agents closes its last one too and stays up; 
 describe('kept agents (2c-2, issue 639): a relaunch of the same launch reopens every agent under its id, the first one too', () => {
   const N1 = 'a'.repeat(32);
   const N2 = 'b'.repeat(32);
-  const start = (port: number, nonce: string, launcherPid: number) => startServer({
+  const start = (port: number, nonce: string, launcherPid: number) => launchServer({
     insecureNoAuth: true, cwd: path.join(tmp, 'a'), port, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'),
     nonce, keep: { launcherPid }, backends: () => fakeBackend([]),
   });
@@ -366,7 +367,7 @@ describe('kept agents (2c-2, issue 639): a relaunch of the same launch reopens e
     await until(() => readKeptAgents(port)?.agents.filter((k) => k.session).length === 2);
     await s.close();
     const shared = fakeBackend([]);
-    const again = await startServer({
+    const again = await launchServer({
       insecureNoAuth: true, cwd: path.join(tmp, 'a'), port, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'),
       nonce: N1, keep: { launcherPid: 111 }, backends: () => shared,
     });

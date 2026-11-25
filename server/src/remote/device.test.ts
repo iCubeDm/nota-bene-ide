@@ -7,7 +7,6 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeBackend } from '../agent/fake.ts';
 import { verifiedBearer } from '../auth.ts';
-import { startServer } from '../server.ts';
 import { CONTROL_HEADER, controlToken } from '../system.ts';
 import { HOST_WINDOW_INFO } from '@nota-bene/shared';
 import { registerWindow, windowKey } from '../windows.ts';
@@ -17,6 +16,7 @@ import { CONN_WINDOW } from './mux.ts';
 import { generateKeyPair, type KeyPair } from './noise.ts';
 import { b64u, hostKey, pairProof } from './store.ts';
 import { Phone } from './testPhone.ts';
+import { launchServer } from '../testing.ts';
 
 let tmp: string;
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -49,7 +49,7 @@ const until = async (cond: () => boolean, ms = 5000) => {
 };
 
 async function window(port = 0) {
-  const s = await startServer({ cwd: path.join(tmp, 'proj'), port, backend: fakeBackend([{ text: 'hello' }]), backends: () => fakeBackend([]), webDist: path.join(tmp, 'dist'), takeoverGraceMs: 40, exit: () => {} });
+  const s = await launchServer({ cwd: path.join(tmp, 'proj'), port, backend: fakeBackend([{ text: 'hello' }]), backends: () => fakeBackend([]), webDist: path.join(tmp, 'dist'), takeoverGraceMs: 40, exit: () => {} });
   const p = Number(new URL(s.url).port);
   registerWindow(p, path.join(tmp, 'proj'), process.pid);
   let open = true;

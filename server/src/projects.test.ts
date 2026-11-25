@@ -8,8 +8,7 @@ import { verifiedBearer } from './auth.ts';
 import { providerStateDir } from './agent/provider.ts';
 import { recordRecent } from './recent.ts';
 import { bareRow, enterUrl, listProjects, remoteRows, sessionsOf, stopAt, stopOthers, type ProbedInfo } from './projects.ts';
-import { startServer } from './server.ts';
-import { agentServer } from './testing.ts';
+import { agentServer, launchServer } from './testing.ts';
 import { registerWindow, writeKeptAgents } from './windows.ts';
 
 let home: string;
@@ -37,7 +36,7 @@ afterEach(async () => {
 async function windowOf(provider: 'claude' | 'codex', root: string, exit: (code: number) => void = () => {}) {
   if (provider === 'codex') process.env.NOTA_BENE_AGENT = 'codex';
   try {
-    const s = await startServer({ cwd: root, port: 0, backend: fakeBackend([{ text: 'hi' }]), webDist: dist, exit });
+    const s = await launchServer({ cwd: root, port: 0, backend: fakeBackend([{ text: 'hi' }]), webDist: dist, exit });
     closers.push(s.close);
     const port = Number(new URL(s.url).port);
     registerWindow(port, root, process.pid);
@@ -229,7 +228,7 @@ it('issue 680: a session open in an agent of another server is not deleted', asy
   const x = await agentServer({ cwd: a, port: 0, backend: one, webDist: dist, exit: () => {} });
   closers.push(x.close);
   registerWindow(Number(new URL(x.url).port), a, process.pid);
-  const y = await startServer({ cwd: b, port: 0, backend: fakeBackend([]), webDist: dist, exit: () => {}, resume: open });
+  const y = await launchServer({ cwd: b, port: 0, backend: fakeBackend([]), webDist: dist, exit: () => {}, resume: open });
   closers.push(y.close);
   registerWindow(Number(new URL(y.url).port), b, process.pid);
   const bearer = (await verifiedBearer(Number(new URL(x.url).port), 2000))!;

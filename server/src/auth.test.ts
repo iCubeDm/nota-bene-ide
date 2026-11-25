@@ -12,10 +12,9 @@ import {
   accessToken, authenticated, cookieCredential, cookieRoute, loginCredential, cookieName, helperCredential, keyCredential, proofFor, proveListener, sameSecret,
   sessionCookie, verifiedBearer,
 } from './auth.ts';
-import { startServer } from './server.ts';
-import { launchAgentId } from './state.ts';
 import { controlToken } from './system.ts';
 import { shellEnv } from './session/shellText.ts';
+import { launchServer } from './testing.ts';
 
 // The local access token (B1d): nothing reaches the API or the socket without it. Two tiers: the cookie alone reads (GET/HEAD);
 // the socket and every write need the page's key too. Every derived value is bound to the port and to the launch's nonce.
@@ -280,9 +279,9 @@ describe('credentials', () => {
   });
 });
 
-async function boot(o: { allowedOrigins?: string[]; oneTab?: boolean; nonce?: string; port?: number; exit?: (code: number) => void } = {}) {
+async function boot(o: { allowedOrigins?: string[]; oneTab?: boolean; nonce?: string; id?: string; port?: number; exit?: (code: number) => void } = {}) {
   const { port: want, ...rest } = o;
-  const s = await startServer({
+  const s = await launchServer({
     cwd: path.join(tmp, 'proj'), port: want ?? 0, backend: fakeBackend([{ text: 'hello' }]), webDist: path.join(tmp, 'dist'),
     takeoverGraceMs: 40, exit: () => {}, ...rest, // a /stop or /restart-server that gets through must not end the test process
   });
@@ -460,8 +459,8 @@ describe('the route matrix: each route x no credentials, cookie, cookie plus key
 
 describe('the agent prefix (epic 383): /a/<id>/… is the route below it, every rule included', () => {
   it('each route of the matrix keeps its tier under the prefix; another agent\'s prefix is 404 even with the key', async () => {
-    const s = await boot({ nonce: N1 });
-    const a = `/a/${launchAgentId('claude', N1)}`;
+    const s = await boot({ nonce: N1, id: 'claude-aaaaaa' });
+    const a = '/a/claude-aaaaaa';
     const call = (m: { method: string; path: string }, headers: Record<string, string>) =>
       req(s.port, a + m.path, { method: m.method, headers: { origin: s.origin, 'content-type': 'application/json', ...headers }, body: m.method === 'POST' ? '{}' : undefined });
     for (const m of MATRIX) {
@@ -473,14 +472,14 @@ describe('the agent prefix (epic 383): /a/<id>/… is the route below it, every 
       expect((await call(m, { cookie: s.cookie, 'x-nota-bene-key': s.key })).status, `${label}: cookie + key`).not.toBe(401);
     }
     const keyed = { cookie: s.cookie, 'x-nota-bene-key': s.key };
-    for (const p of [`/a/${launchAgentId('claude', N2)}/info`, `/a/${launchAgentId('codex', N1)}/info`, '/a/x/info', '/a/']) {
+    for (const p of ['/a/claude-bbbbbb/info', '/a/codex-aaaaaa/info', '/a/x/info', '/a/']) {
       expect((await req(s.port, p, { headers: keyed })).status, p).toBe(404);
     }
   });
 
   it('names its agent in /info, serves the shell and the socket under it, and keeps the control token rule', async () => {
-    const s = await boot({ nonce: N1, oneTab: false });
-    const id = launchAgentId('claude', N1);
+    const id = 'claude-aaaaaa';
+    const s = await boot({ nonce: N1, id, oneTab: false });
     const keyed = { cookie: s.cookie, 'x-nota-bene-key': s.key };
     expect(JSON.parse((await req(s.port, `/a/${id}/info`, { headers: keyed })).body).agent).toBe(id);
     const home = JSON.parse((await req(s.port, '/info', { headers: keyed })).body); // the server's (issue 639)
@@ -488,7 +487,7 @@ describe('the agent prefix (epic 383): /a/<id>/… is the route below it, every 
     for (const p of [`/a/${id}`, `/a/${id}/`, `/a/${id}/app.js`]) expect((await req(s.port, p)).status, p).toBe(200);
     expect((await wsTry(`${s.server}/a/${id}`, { cookie: s.cookie, origin: s.origin }, [`nb.${s.key}`])).frame).toBeDefined();
     expect((await wsTry(`${s.server}/a/${id}`, { cookie: s.cookie, origin: s.origin })).status).toBe(401);
-    expect((await wsTry(`${s.server}/a/${launchAgentId('claude', N2)}`, { authorization: `Bearer ${s.helper}` })).status).toBe(404);
+    expect((await wsTry(`${s.server}/a/claude-bbbbbb`, { authorization: `Bearer ${s.helper}` })).status).toBe(404);
     // an upgrade is /ws exactly, at the top or under the prefix: a path a URL parser would choke on or normalise is no socket
     for (const p of ['//[/ws', `/a/${id}//%/ws`, '/x/../ws', `/a/${id}/x/../ws`, '//evil/ws']) {
       const status = await new Promise<number>((resolve, reject) => {
@@ -662,8 +661,8 @@ describe('a launch is a boundary: values from an earlier one are dead', () => {
   });
 
   it('two servers started with no nonce get different ones', async () => {
-    const a = await startServer({ cwd: path.join(tmp, 'proj'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist') });
-    const b = await startServer({ cwd: path.join(tmp, 'proj'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist') });
+    const a = await launchServer({ cwd: path.join(tmp, 'proj'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist') });
+    const b = await launchServer({ cwd: path.join(tmp, 'proj'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist') });
     closers.push(a.close, b.close);
     const n = async (u: string) => ((await (await fetch(`${u}/hello?c=${'ab'.repeat(16)}`)).json()) as { n: string }).n;
     expect(await n(a.url)).toMatch(/^[0-9a-f]{32}$/);
@@ -843,7 +842,7 @@ describe('a refused secret stops the start before the agent exists', () => {
     fs.writeFileSync(path.join(home, 'token'), 'a'.repeat(64), { mode: 0o644 });
     fs.chmodSync(path.join(home, 'token'), 0o644);
     const b = touched();
-    await expect(startServer({ cwd: path.join(tmp, 'proj'), port: 0, backend: b.backend, webDist: path.join(tmp, 'dist') })).rejects.toThrow(/readable by other users/);
+    await expect(launchServer({ cwd: path.join(tmp, 'proj'), port: 0, backend: b.backend, webDist: path.join(tmp, 'dist') })).rejects.toThrow(/readable by other users/);
     expect(b.count()).toBe(0);
   });
 
@@ -851,7 +850,7 @@ describe('a refused secret stops the start before the agent exists', () => {
     accessToken();
     fs.writeFileSync(path.join(home, 'control-token'), 'junk', { mode: 0o600 });
     const b = touched();
-    await expect(startServer({ cwd: path.join(tmp, 'proj'), port: 0, backend: b.backend, webDist: path.join(tmp, 'dist') })).rejects.toThrow(/control-token/);
+    await expect(launchServer({ cwd: path.join(tmp, 'proj'), port: 0, backend: b.backend, webDist: path.join(tmp, 'dist') })).rejects.toThrow(/control-token/);
     expect(b.count()).toBe(0);
   });
 

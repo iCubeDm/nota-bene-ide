@@ -51,7 +51,7 @@ export default defineConfig({
   projects: fixtures.map((f) => ({
     name: f.name,
     grep: new RegExp(`@${f.name}\\b`),
-    use: { baseURL: agentURL(f.name, f.port), storageState: loggedIn(f.name, f.port) }, // the page's login cookie; auth.spec.ts covers the login itself
+    use: { baseURL: agentURL(f.port), storageState: loggedIn(f.name, f.port) }, // the page's login cookie; auth.spec.ts covers the login itself
   })),
   webServer: fixtures.map((f) => ({
     command: `node e2e/serve.mjs ${f.name} ${f.port}`,

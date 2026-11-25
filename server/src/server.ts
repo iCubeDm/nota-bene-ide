@@ -31,7 +31,7 @@ import { archiveRoute, deleteRoute, launchTarget, listSessionsView, renameRoute,
 import { readArchived, setArchived } from './archivedSessions.ts';
 import { markSeen, readSeen } from './seen.ts';
 import { codeChecker } from './codeStamp.ts';
-import { AGENT_ID, agentContext, envAgentContext, forgetSession, launchAgentId, newAgentId, stateBaseDir, type AgentContext } from './state.ts';
+import { AGENT_ID, agentContext, envAgentContext, forgetSession, newAgentId, stateBaseDir, type AgentContext } from './state.ts';
 import { AuditLog } from './audit.ts';
 import { clipAsk } from './session/permissions.ts';
 import { moveWindow, readKeptAgents, writeKeptAgents } from './windows.ts';
@@ -85,9 +85,10 @@ function installProcessHandlers(): void {
 export type ServerOptions = {
   cwd: string;
   port: number;
-  backend: AgentBackend;
   resume?: string;
   fork?: boolean;
+  /** the launch agent's id (main.ts --id: the e2e fixtures' page address is fixed); default: a minted one */
+  id?: string;
   /** called by POST /restart-server and /control/stop (tests stub it) */
   exit?: (code: number) => void;
   /** the checkout the server runs from (Settings → About's version); default: two levels above this file */
@@ -126,10 +127,10 @@ export type ServerOptions = {
   remote?: RemoteKeeper;
   /** which agent this is and where its data lives (main.ts); default: the one NOTA_BENE_AGENT chose */
   agent?: AgentContext;
-  /** a backend for another agent of `provider` (main.ts; tests pass fakes); absent = no agent beyond the first */
-  backends?: (provider: AgentProvider) => AgentBackend;
+  /** a backend for an agent of `provider` (main.ts; tests pass fakes) */
+  backends: (provider: AgentProvider) => AgentBackend;
   /**
-   * The launcher's server (main.ts): its extra agents are kept beside its registry entry (`<port>.agents.json`), and a
+   * The launcher's server (main.ts): its agents are kept beside its registry entry (`<port>.agents.json`), and a
    * relaunch of the same launch (this launcher pid: a crash; this nonce: a restart or an update) reopens them under their ids
    */
   keep?: { launcherPid?: number };
@@ -963,8 +964,8 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
 }
 
 /**
- * The server: one listener, login and process for its agents (epic 383). It starts with the agent of `o.cwd` and
- * `o.backend`, whose routes also answer at the top; `open` adds another, under `/a/<id>/` only.
+ * The server: one listener, login and process for its agents (epic 383), each under `/a/<id>/`. It starts with the agent
+ * of `o.cwd`; `open` adds another.
  */
 export async function startServer(o: ServerOptions): Promise<{ url: string; close(): Promise<void>; open(x: { provider: AgentProvider; cwd: string; backend: AgentBackend; resume?: string; fork?: boolean }): Promise<string> }> {
   installProcessHandlers();
@@ -1094,12 +1095,28 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     // the launch's agent, an ordinary one under /a/<id>/ (issue 639)
     const kept = o.keep && o.port ? readKeptAgents(o.port) : null;
     // a launch whose agents were all closed comes back with none (its home, issue 639)
-    const same = !!kept && !!o.backends && ((o.keep!.launcherPid !== undefined && kept.launcherPid === o.keep!.launcherPid) || kept.nonce === nonce);
+    const same = !!kept && ((o.keep!.launcherPid !== undefined && kept.launcherPid === o.keep!.launcherPid) || kept.nonce === nonce);
     const reopen = same ? kept!.agents : [];
-    const launchAgent = async () => adopt(await startAgent(s, {
-      agent, id: launchAgentId(agent.provider, nonce), cwd: o.cwd, backend: o.backend,
-      ...(o.resume ? { resume: o.resume } : {}), ...(o.fork ? { fork: true } : {}), ...o.usage?.(agent.provider),
-    }));
+    let closing: Promise<void> | null = null;
+    /** an agent (epic 383): its own id, minted unless one is kept, under `/a/<id>/` */
+    const openAgent = async (x: { provider: AgentProvider; cwd: string; backend: AgentBackend; resume?: string; fork?: boolean; id?: string }): Promise<string> => {
+      if (closing || exiting) throw new Error('the server is stopping');
+      if (x.id !== undefined && agents.has(x.id)) throw new Error(`agent ${x.id} is open already`);
+      let id = x.id ?? '';
+      while (!id || agents.has(id)) id = newAgentId(x.provider);
+      const added = await startAgent(s, { agent: agentContext(x.provider), id, cwd: x.cwd, backend: x.backend, ...(x.resume ? { resume: x.resume } : {}), ...(x.fork ? { fork: true } : {}), ...o.usage?.(x.provider) });
+      if (closing || exiting) {
+        await added.close(); // the close has already gone through the map: this one would outlive it
+        throw new Error('the server is stopping');
+      }
+      adopt(added);
+      keep();
+      return id;
+    };
+    const launchAgent = () => openAgent({
+      provider: agent.provider, cwd: o.cwd, backend: o.backends(agent.provider),
+      ...(o.resume ? { resume: o.resume } : {}), ...(o.fork ? { fork: true } : {}), ...(o.id ? { id: o.id } : {}),
+    });
     if (!same) await launchAgent();
     // issue 639: what has no agent prefix is the server's own: the app shell, the login, its folder and agents, /control/*
     const homeHub = new EventHub();
@@ -1200,7 +1217,6 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       keeper.start();
     }
 
-    let closing: Promise<void> | null = null;
     close = () => (closing ??= (async () => {
       audit?.write('server-stop');
       audit?.close();
@@ -1232,21 +1248,6 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
         report('windows', e);
       }
     };
-    /** another agent (epic 383): its own id, minted, under `/a/<id>/` only */
-    const openAgent = async (x: { provider: AgentProvider; cwd: string; backend: AgentBackend; resume?: string; fork?: boolean; id?: string }): Promise<string> => {
-      if (closing || exiting) throw new Error('the server is stopping');
-      if (x.id !== undefined && agents.has(x.id)) throw new Error(`agent ${x.id} is open already`);
-      let id = x.id ?? '';
-      while (!id || agents.has(id)) id = newAgentId(x.provider);
-      const added = await startAgent(s, { agent: agentContext(x.provider), id, cwd: x.cwd, backend: x.backend, ...(x.resume ? { resume: x.resume } : {}), ...(x.fork ? { fork: true } : {}), ...o.usage?.(x.provider) });
-      if (closing || exiting) {
-        await added.close(); // the close has already gone through the map: this one would outlive it
-        throw new Error('the server is stopping');
-      }
-      adopt(added);
-      keep();
-      return id;
-    };
     // POST /control/open {root, provider?, mode?: 'resume' | 'new', session?, fork?, show?}: the agent of that folder and provider,
     // the one open unless a new or a named session is asked for. The launcher's way into a running server; `show: false`
     // (its --no-open) moves no tab
@@ -1267,7 +1268,6 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
           && (b.session === undefined || a.session()?.toLowerCase() === String(b.session).toLowerCase()));
         if (have) return { status: 200, body: { agent: have.id, opened: false, ...shown(have) } };
       }
-      if (!o.backends) return { status: 501, body: 'this server opens no other agents' };
       const target = launchTarget({ dir: root, resume: b.session as string | undefined, fork: b.fork === true, new: b.mode === 'new', native: provider !== 'claude' }, agentContext(provider).stateDir);
       const id = await openAgent({ provider, cwd: root, backend: o.backends(provider), ...target });
       return { status: 200, body: { agent: id, opened: true, ...shown(agents.get(id)!) } };
@@ -1284,16 +1284,15 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       return { shown: true };
     };
     // an agent closes alone (the switcher's Close project, its tab's ✕); its session stays, its folder under Recent. The
-    // server's last one too, when it opens others: its home lists the projects to open one again (issue 639)
+    // server's last one too: its home lists the projects to open one again (issue 639)
     s.closeAgent = (id) => {
       const a = agents.get(id);
-      if (!a || (!o.backends && agents.size === 1)) return 409;
+      if (!a) return 409;
       agents.delete(id);
       keep();
       void a.close();
       return 200;
     };
-    const backends = o.backends;
     const settled = new Map(reopen.map((k) => [k.id, Promise.withResolvers<void>()]));
     for (const [id, p] of settled) reopening.set(id, p.promise);
     for (const k of reopen) {
@@ -1302,7 +1301,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
         if (!AGENT_ID.test(k.id) || !k.id.startsWith(`${provider}-`)) throw new Error(`not an agent id: ${k.id}`);
         if (!fs.statSync(k.root, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`the folder of agent ${k.id} is gone: ${k.root}`);
         const target = launchTarget({ dir: k.root, ...(k.session ? { resume: k.session } : {}), native: provider !== 'claude' }, agentContext(provider).stateDir);
-        await openAgent({ provider, cwd: k.root, backend: backends!(provider), id: k.id, ...target });
+        await openAgent({ provider, cwd: k.root, backend: o.backends(provider), id: k.id, ...target });
       } catch (e) {
         report('agents', e); // that one is dropped: its folder is gone, or its backend would not start
       } finally {
