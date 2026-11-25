@@ -51,3 +51,16 @@ it('readOnly refuses typing', () => {
   const { field } = setup('', { readOnly: true });
   expect(viewOf(field()).state.readOnly).toBe(true);
 });
+
+it('spellcheck and the touch keyboard behave as in a textarea', () => {
+  setup();
+  const box = screen.getByRole('textbox', { name: 'Message' });
+  expect(box.getAttribute('spellcheck')).toBe('true');
+  expect(box.getAttribute('autocorrect')).toBe('on');
+  expect(box.getAttribute('autocapitalize')).toBe('sentences');
+});
+
+it('a field mounted with a draft has its caret at the end', () => {
+  const { field } = setup('keep me');
+  expect(field().selection()).toEqual({ from: 7, to: 7 });
+});

@@ -28,19 +28,24 @@ export function closeFence(view: EditorView, from: number, to: number, text: str
 }
 
 /**
- * Enter in a block's body: a newline; on an empty last line after some code, it leaves the block (the line goes, the
- * caret after the block). Anywhere else Enter is the host's (the composer sends).
+ * Enter in a closed block (the kind typing ` ``` ` makes): on the opening fence it goes into the block (after typing its
+ * language), in the body it is a newline, on an empty last line after some code it leaves the block (the line goes, the
+ * caret after the block). Anywhere else, a fence that never closes (pasted) included, Enter is the host's (it sends).
  */
 export function enterInBlock(view: EditorView): boolean {
   const { state } = view;
   const sel = state.selection.main;
   if (!sel.empty) return false;
   const block = blockAt(state, sel.head);
-  if (!block) return false;
+  if (!block || !closed(block)) return false;
   const first = state.doc.lineAt(block.from), last = state.doc.lineAt(block.to);
   const line = state.doc.lineAt(sel.head);
-  if (line.number === first.number || (closed(block) && line.number >= last.number)) return false;
-  const leaves = closed(block) && line.length === 0 && line.number === last.number - 1 && line.number - 1 > first.number;
+  if (line.number >= last.number) return false;
+  if (line.number === first.number) {
+    view.dispatch({ selection: { anchor: first.to + 1 }, scrollIntoView: true });
+    return true;
+  }
+  const leaves = line.length === 0 && line.number === last.number - 1 && line.number - 1 > first.number;
   if (!leaves) return insertNewline(view);
   const atEnd = last.to === state.doc.length;
   const after = last.to - (line.length + 1);

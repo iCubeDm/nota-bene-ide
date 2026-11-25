@@ -28,3 +28,15 @@ test('the composer draws markdown as it is typed and sends the markdown itself (
   await expect.poll(() => sent).toContain(`\`\`\`\nlet a = 1\n\`\`\`\n**${word}**`);
   await expect.poll(() => fieldText(box)).toBe('');
 });
+
+test('an empty composer is one line high, its placeholder cut rather than wrapped @chat', async ({ page }) => {
+  await page.setViewportSize({ width: 420, height: 800 }); // narrow: the placeholder is longer than the field
+  await page.goto('');
+  const field = page.getByTestId('field-box').first();
+  await expect(composer(page)).toBeVisible();
+  expect(await fieldText(composer(page))).toBe('');
+  const line = (await composer(page).locator('.cm-line').first().boundingBox())!.height;
+  // one line of text plus the box's padding and border, never two
+  expect((await field.boundingBox())!.height).toBeLessThan(line * 1.5 + 20);
+  expect((await composer(page).locator('.cm-placeholder').boundingBox())!.height).toBeLessThanOrEqual(line);
+});

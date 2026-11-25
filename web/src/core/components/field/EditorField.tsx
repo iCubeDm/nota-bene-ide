@@ -83,7 +83,8 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
         for (const fn of listeners.current) fn({ doc: u.docChanged, selection: u.selectionSet, pointer });
       }),
     ];
-    const v = new EditorView({ parent: host.current!, state: EditorState.create({ doc: value, extensions: ext }) });
+    // a field mounted again with a draft (after a recording) has its caret at the end, as a value set from outside does
+    const v = new EditorView({ parent: host.current!, state: EditorState.create({ doc: value, selection: { anchor: value.length }, extensions: ext }) });
     view.current = v;
     return () => { v.destroy(); view.current = null; };
     // one editor per mount: the value, the names and the switches follow through the effects below
@@ -129,6 +130,10 @@ const named = (id: string | undefined, label: string | undefined, placeholder: s
   EditorView.contentAttributes.of({
     role: 'textbox',
     'aria-multiline': 'true',
+    // CodeMirror turns these off for code; a message is prose
+    spellcheck: 'true',
+    autocorrect: 'on',
+    autocapitalize: 'sentences',
     ...(id ? { id } : {}),
     ...(label ?? placeholder ? { 'aria-label': (label ?? placeholder)! } : {}),
     ...(placeholder ? { 'aria-placeholder': placeholder } : {}),

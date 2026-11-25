@@ -81,3 +81,15 @@ it('the newline key continues a list and ends it on an empty item', () => {
   newlineContinue(view);
   expect(text()).toBe('- a\n');
 });
+
+it('Enter on the opening fence of a block goes into the block', () => {
+  open('```js\nlet a\n```', 5);
+  expect(enterInBlock(view)).toBe(true);
+  expect(text()).toBe('```js\nlet a\n```');
+  expect(caret()).toBe(6);
+});
+
+it('Enter in a fence that never closes (pasted) is the host\'s', () => {
+  open('```\nlet a', 9);
+  expect(enterInBlock(view)).toBe(false);
+});
