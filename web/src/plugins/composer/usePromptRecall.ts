@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type KeyboardEvent, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, type RefObject } from 'react';
 import type { PromptEntry } from '@nota-bene/shared';
 import { useAppDispatch, type Field } from '@/sdk';
 import { recallList } from './history.ts';
@@ -43,7 +43,7 @@ export function usePromptRecall({ items, sid, text, ref }: { items: PromptEntry[
   // prompts containing it; ↓ past the newest brings the draft back); it goes on while the draft is still exactly the recalled
   // prompt: any edit ends it. `always` (Alt+↑/↓) ignores the caret, a selection and a multi-line draft: a multi-line draft
   // is stashed and the whole list walked
-  const stepHistory = (e: KeyboardEvent<HTMLElement>, always: boolean): boolean => {
+  const stepHistory = (e: KeyboardEvent, always: boolean): boolean => {
     const el = ref.current;
     if (!el) return false;
     const b = browse.current;

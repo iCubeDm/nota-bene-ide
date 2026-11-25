@@ -1,4 +1,4 @@
-import type { ClipboardEventHandler, KeyboardEventHandler, PointerEventHandler, ReactNode, Ref, RefObject } from 'react';
+import type { PointerEventHandler, ReactNode, Ref, RefObject } from 'react';
 import { Button } from '@/core/components/ui/button.tsx';
 import { EditorField } from './field/EditorField.tsx';
 import type { Field } from './field/field.ts';
@@ -75,8 +75,8 @@ export function MessageInput({ fieldRef, id, value, onChange, onKeyDown, onPaste
   id?: string;
   value: string;
   onChange: (v: string) => void;
-  onKeyDown?: KeyboardEventHandler<HTMLElement>;
-  onPaste?: ClipboardEventHandler<HTMLElement>;
+  onKeyDown?: (e: KeyboardEvent) => void;
+  onPaste?: (e: ClipboardEvent) => void;
   readOnly?: boolean;
   placeholder?: string;
   ariaLabel?: string;

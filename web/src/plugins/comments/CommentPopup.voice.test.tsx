@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { CLAUDE_CAPABILITIES, type ClientMessage } from '@nota-bene/shared';
 import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import { setLang } from '@/core/i18n/index.ts';
-import { makeStore } from '@/core/testing';
+import { makeStore, setValue } from '@/core/testing';
 import { release, resetPlayer } from '@/plugins/voice/player.ts';
 import { mic } from '@/plugins/voice/recorder.ts';
 import { CommentPopup } from './CommentPopup.tsx';
@@ -153,7 +153,7 @@ it('typed text and clips go in one comment; a failed transcript blocks Add until
   const { comments } = setup();
   await record(); // the mic is there while the field is empty; typing swaps it for Add
   expect(await screen.findByText('Whisper is off on the computer')).toBeInTheDocument();
-  fireEvent.change(screen.getByPlaceholderText('Comment…'), { target: { value: 'see this' } });
+  setValue(screen.getByRole('textbox', { name: 'Comment…' }), 'see this');
   expect(addBtn()).toBeDisabled();
   delete texts['1'];
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
@@ -188,17 +188,17 @@ it('Add is there empty and typed (disabled when empty); the mic inside hides on 
   setup();
   expect(micBtn().querySelector('path')?.getAttribute('d')).toBe('M5 11a7 7 0 0 0 14 0M12 18v3');
   expect(addBtn()).toBeDisabled();
-  fireEvent.change(screen.getByPlaceholderText('Comment…'), { target: { value: 'note' } });
+  setValue(screen.getByRole('textbox', { name: 'Comment…' }), 'note');
   expect(screen.queryByTestId('popup-mic')).toBeNull();
   expect(addBtn()).toBeEnabled();
-  fireEvent.change(screen.getByPlaceholderText('Comment…'), { target: { value: '  ' } });
+  setValue(screen.getByRole('textbox', { name: 'Comment…' }), '  ');
   expect(micBtn()).toBeInTheDocument();
   expect(addBtn()).toBeDisabled();
 });
 
 it('Add saves the comment as before', () => {
   const { comments, onClose } = setup();
-  fireEvent.change(screen.getByPlaceholderText('Comment…'), { target: { value: 'note' } });
+  setValue(screen.getByRole('textbox', { name: 'Comment…' }), 'note');
   fireEvent.click(addBtn());
   expect(comments()[0]).toMatchObject({ text: 'note' });
   expect(onClose).toHaveBeenCalled();
@@ -225,7 +225,7 @@ it('an attached image alone swaps the mic for Add', async () => {
   expect(micBtn()).toBeInTheDocument();
   const ev = new Event('paste', { bubbles: true, cancelable: true });
   Object.defineProperty(ev, 'clipboardData', { value: { files: [new File(['x'], 'a.png', { type: 'image/png' })], items: [] } });
-  act(() => void screen.getByPlaceholderText('Comment…').dispatchEvent(ev));
+  act(() => void screen.getByRole('textbox', { name: 'Comment…' }).dispatchEvent(ev));
   expect(await screen.findByRole('button', { name: 'Add' })).toBeInTheDocument();
   expect(screen.queryByTestId('popup-mic')).toBeNull();
 });

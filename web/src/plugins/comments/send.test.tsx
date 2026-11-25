@@ -8,7 +8,7 @@ import { Composer } from '@/plugins/composer/Composer.tsx';
 import { Feed } from '@/plugins/feed/Feed.tsx';
 import { setLang } from '@/core/i18n/index.ts';
 import { serverEvent, useAppDispatch } from '@/core/store/store.ts';
-import { makeStore } from '@/core/testing';
+import { makeStore, valueOf } from '@/core/testing';
 import { addImage, uploadFinished, uploadStarted } from '@/core/store/message.ts';
 import { openFile } from '@/core/tabs/slice.ts';
 import { setFileVersion } from '@/plugins/files/slice.ts';
@@ -46,7 +46,7 @@ function setup(items: Comment[] = [], open = true) {
       </TooltipProvider>
     </Provider>,
   );
-  return { sent, store, box: screen.getByRole('textbox') as HTMLTextAreaElement };
+  return { sent, store, box: screen.getByRole('textbox') };
 }
 
 it('send carries composed text and commentIds', async () => {
@@ -157,14 +157,14 @@ it('Cmd+Enter with comments while busy sends force:true, once confirmed', async 
 it('the draft clears after a send', async () => {
   const { box } = setup([cm('c1')]);
   await userEvent.type(box, 'draft{Enter}');
-  expect(box.value).toBe('');
+  expect(valueOf(box)).toBe('');
 });
 
 it('offline keeps the draft and the pending comments and shows the notice', async () => {
   const { sent, store, box } = setup([cm('c1')], false);
   await userEvent.type(box, 'keep{Enter}');
   expect(sent).toHaveLength(0);
-  expect(box.value).toBe('keep');
+  expect(valueOf(box)).toBe('keep');
   expect(store.getState().comments.sendingIds).toEqual([]);
   expect(screen.getByRole('button', { name: 'Send (1)' })).toBeInTheDocument();
   expect(screen.getByText('no connection to the server…')).toBeInTheDocument();
@@ -175,7 +175,7 @@ it('the panel send includes the draft', async () => {
   await userEvent.type(box, 'also this');
   await userEvent.click(document.getElementById('cSend')!);
   expect(sentOf(sent[0]).text.startsWith('also this\n\nComments on fragments:')).toBe(true);
-  expect(box.value).toBe('');
+  expect(valueOf(box)).toBe('');
 });
 
 it('a foreign comments event that still lists our ids as pending does not re-enable send', async () => {
@@ -274,10 +274,10 @@ it('send-refused restores the draft, the images and the comment ids, and toasts'
   act(() => void store.dispatch(addImage({ id: 'a'.repeat(64) + '.png', mediaType: 'image/png' })));
   await userEvent.type(box, 'please{Enter}');
   const m = lastSend(sent);
-  expect(box.value).toBe('');
+  expect(valueOf(box)).toBe('');
   expect(store.getState().comments.sendingIds).toEqual(['c1']);
   act(() => void store.dispatch(serverEvent({ kind: 'send-refused', id: m.id, reason: 'switching' })));
-  expect(box.value).toBe('please');
+  expect(valueOf(box)).toBe('please');
   expect(store.getState().message.images).toHaveLength(1);
   expect(store.getState().comments.sendingIds).toEqual([]);
   expect(getToasts().map((x) => x.title)).toContain('Not sent: a session switch is in progress');
@@ -289,7 +289,7 @@ it('a busy refusal (a /compact or /clear typed during a turn) says to wait, not 
   await userEvent.type(box, '/clear');
   await userEvent.keyboard('{Escape}{Enter}');
   act(() => void store.dispatch(serverEvent({ kind: 'send-refused', id: lastSend(sent).id, reason: 'busy' })));
-  expect(box.value).toBe('/clear');
+  expect(valueOf(box)).toBe('/clear');
   const titles = getToasts().map((x) => x.title);
   expect(titles).toContain('Not sent: wait for the agent to finish. /compact and /clear cannot be queued.');
   expect(titles).not.toContain('Not sent: a session switch is in progress');
@@ -301,7 +301,7 @@ it('send-refused keeps a newer draft, and says what it was', async () => {
   await userEvent.type(box, 'first{Enter}');
   await userEvent.type(box, 'second');
   act(() => void store.dispatch(serverEvent({ kind: 'send-refused', id: lastSend(sent).id, reason: 'switching' })));
-  expect(box.value).toBe('second');
+  expect(valueOf(box)).toBe('second');
   const t = getToasts().find((x) => x.title === 'Not sent: a session switch is in progress');
   expect(t?.msg).toContain('first');
 });
@@ -313,7 +313,7 @@ it('the echo ends the wait: a later send-refused with that id restores nothing',
   const m = lastSend(sent);
   act(() => void store.dispatch(serverEvent({ kind: 'user', id: m.id, text: 'ok', ts: 9 })));
   act(() => void store.dispatch(serverEvent({ kind: 'send-refused', id: m.id, reason: 'switching' })));
-  expect(box.value).toBe('');
+  expect(valueOf(box)).toBe('');
 });
 
 it('send numbers a media comment\'s images frame only (an old comment layer is not sent) within the global numbering; the header names file, time and size', async () => {
@@ -361,7 +361,7 @@ it('a /clear draft with pending comments is not sent: the draft and the comments
   await userEvent.type(box, '/clear');
   await userEvent.keyboard('{Escape}{Enter}');
   expect(sent).toHaveLength(0);
-  expect(box.value).toBe('/clear');
+  expect(valueOf(box)).toBe('/clear');
   expect(store.getState().comments.items.map((c) => c.status)).toEqual(['pending']);
   expect(getToasts().map((x) => x.title)).toContain('Not sent: /clear would drop the pending comments. Send or remove them first.');
   // the comments panel's own Send is the same path
@@ -450,7 +450,7 @@ describe('a detached attachment comment (its image is not in the composer)', () 
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
     expect(sent).toHaveLength(0);
     expect(getToasts().map((x) => x.title)).toContain('Not sent: the comments are on images that are not attached. Attach the image again or remove the comment.');
-    expect(box.value).toBe('');
+    expect(valueOf(box)).toBe('');
   });
 
   it('still blocks /clear', async () => {

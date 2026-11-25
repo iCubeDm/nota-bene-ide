@@ -7,7 +7,7 @@ import { Markdown } from '@/core/components/markdown/Markdown.tsx';
 import { setLang } from '@/core/i18n/index.ts';
 import { clearRefCache, refClick } from '@/core/refs/refs.ts';
 import { serverEvent } from '@/core/store/store.ts';
-import { makeStore, renderWith } from '@/core/testing';
+import { makeStore, renderWith, setValue } from '@/core/testing';
 import { activate, fileTabId, openFile, selectActiveTab, selectTabs } from '@/core/tabs/slice.ts';
 import { setPanelOpen } from '@/plugins/comments/slice.ts';
 import { sendBatch, whereOf } from '@/plugins/comments/send.ts';
@@ -243,7 +243,7 @@ it('a selection in a branch view anchors with its ref; its mark never paints in 
   window.getSelection()!.addRange(r);
   fireEvent.mouseUp(root);
   fireEvent.click(await screen.findByRole('button', { name: '💬 Comment' }));
-  fireEvent.change(await screen.findByPlaceholderText('Comment…'), { target: { value: 'on old' } });
+  setValue(await screen.findByRole('textbox', { name: 'Comment…' }), 'on old');
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
   const c = store.getState().comments.items[0];
   expect(anchorSource(c.anchor)).toEqual({ kind: 'file', path: 'a.md', ref: 'old' });

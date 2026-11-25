@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ClipboardEvent } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { t, isLocalPage, prepareImage, uploadImage, type ImageEntry } from '@/sdk';
 import { uploadFile, UploadError } from './file.ts';
 

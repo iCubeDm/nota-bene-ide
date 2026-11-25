@@ -3,7 +3,8 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import { setLang } from '@/core/i18n/index.ts';
-import { makeStore } from '@/core/testing';
+import { makeStore, select, setValue, valueOf } from '@/core/testing';
+import { fieldFor } from '@/sdk';
 import { CommentPopup } from './CommentPopup.tsx';
 import { loadEmoji } from './emoji.ts';
 import type { PendingSelection } from './SelectionButton.tsx';
@@ -27,12 +28,8 @@ function setup() {
       </TooltipProvider>
     </Provider>,
   );
-  const box = screen.getByPlaceholderText('Comment…') as HTMLTextAreaElement;
-  const type = (value: string) => {
-    fireEvent.change(box, { target: { value } });
-    box.setSelectionRange(value.length, value.length);
-    fireEvent.input(box);
-  };
+  const box = screen.getByRole('textbox', { name: 'Comment…' });
+  const type = (value: string) => setValue(box, value);
   return { store, onClose, box, type };
 }
 
@@ -41,7 +38,7 @@ it('":+1" then Enter inserts 👍', () => {
   type('nice :+1');
   expect(screen.getByRole('listbox')).toBeInTheDocument();
   fireEvent.keyDown(box, { key: 'Enter' });
-  expect(box.value).toBe('nice 👍');
+  expect(valueOf(box)).toBe('nice 👍');
   expect(screen.queryByRole('listbox')).toBeNull();
   expect(store.getState().comments.items).toHaveLength(0);
 });
@@ -55,24 +52,24 @@ it('Tab inserts, arrows move the selection', () => {
   expect(screen.getAllByRole('option')[1]).toHaveAttribute('aria-selected', 'true');
   const second = screen.getAllByRole('option')[1].textContent!.match(/^(\S+?):/)?.[1] ?? '';
   fireEvent.keyDown(box, { key: 'Tab' });
-  expect(box.value).toBe(second);
-  expect(box.selectionStart).toBe(second.length);
+  expect(valueOf(box)).toBe(second);
+  expect(caret(box)).toBe(second.length);
 });
 
 it('caret lands right after the inserted emoji', () => {
   const { box, type } = setup();
   type('a :+1');
   fireEvent.keyDown(box, { key: 'Enter' });
-  expect(box.selectionStart).toBe('a 👍'.length);
+  expect(caret(box)).toBe('a 👍'.length);
 });
 
 it('a stale token is never corrupted: caret moved away, Enter does nothing', () => {
   const { box, type } = setup();
   type(':smil');
-  box.setSelectionRange(0, 0);
+  select(box, 0);
   fireEvent.keyDown(box, { key: 'Home' });
   fireEvent.keyDown(box, { key: 'Enter' });
-  expect(box.value).toBe(':smil');
+  expect(valueOf(box)).toBe('\n:smil'); // Enter is the popup's newline, at the caret; the token stays as typed
   expect(screen.queryByRole('listbox')).toBeNull();
 });
 
@@ -85,13 +82,13 @@ it('does not trigger inside http://x', () => {
 it('":thumbsup:" is replaced on the closing colon', () => {
   const { box, type } = setup();
   type(':thumbsup:');
-  expect(box.value).toBe('👍');
+  expect(valueOf(box)).toBe('👍');
 });
 
 it('an unknown closed code is left alone', () => {
   const { box, type } = setup();
   type(':nopenotacode:');
-  expect(box.value).toBe(':nopenotacode:');
+  expect(valueOf(box)).toBe(':nopenotacode:');
 });
 
 it('does not trigger mid-word (12:30)', () => {
@@ -125,24 +122,26 @@ it('mouse click inserts the row', () => {
   const row = screen.getAllByRole('option')[0];
   fireEvent.mouseDown(row);
   fireEvent.click(row);
-  expect(box.value).toBe('👍');
+  expect(valueOf(box)).toBe('👍');
 });
 
 it('caret jump to a closed :+1: elsewhere does not replace it', () => {
   const { box, type } = setup();
   type(':+1: x :smil');
   expect(screen.getByRole('listbox')).toBeInTheDocument();
-  box.setSelectionRange(4, 4);
+  select(box, 4);
   expect(document.activeElement).toBe(box);
   fireEvent(document, new Event('selectionchange'));
-  expect(box.value).toBe(':+1: x :smil');
+  expect(valueOf(box)).toBe(':+1: x :smil');
 });
 
 it('selectionchange away from the token closes the list', () => {
   const { box, type } = setup();
   type(':smil');
-  box.setSelectionRange(0, 0);
+  select(box, 0);
   expect(document.activeElement).toBe(box);
   fireEvent(document, new Event('selectionchange'));
   expect(screen.queryByRole('listbox')).toBeNull();
 });
+
+const caret = (el: HTMLElement) => fieldFor(el)!.selection().from;

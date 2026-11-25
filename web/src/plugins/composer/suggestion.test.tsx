@@ -5,7 +5,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ClientMessage, ServerEvent, WireAgentEvent } from '@nota-bene/shared';
 import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import { setLang } from '@/core/i18n/index.ts';
-import { makeStore } from '@/core/testing';
+import { fieldFor } from '@/sdk';
+import { makeStore, setValue, valueOf } from '@/core/testing';
 import { Composer } from './Composer.tsx';
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
@@ -24,7 +25,7 @@ function setup() {
   const emit = (e: ServerEvent) => act(() => ev(e));
   const agent = (e: WireAgentEvent) => emit({ kind: 'agent', ts: 1, e });
   const suggest = (s: string) => agent({ t: 'suggestion', text: s });
-  const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+  const box = screen.getByRole('textbox');
   return { store, emit, agent, suggest, box };
 }
 const user = (historic = false): ServerEvent => ({ kind: 'user', id: 'u1', text: 'hi', ts: 1, ...(historic ? { historic: true } : {}) }) as ServerEvent;
@@ -32,12 +33,12 @@ const user = (historic = false): ServerEvent => ({ kind: 'user', id: 'u1', text:
 it('shows the suggestion as the placeholder with a badge when idle, hides it when busy', () => {
   const { suggest, emit, box } = setup();
   suggest('run the tests');
-  expect(box.placeholder).toBe('run the tests');
+  expect(box).toHaveAttribute('aria-placeholder', 'run the tests');
   expect(screen.getByText('Tab ⇥')).toHaveAttribute('aria-hidden', 'true');
   emit(user()); // a send makes the agent busy (and clears the suggestion)
-  expect(box.placeholder).not.toBe('run the tests');
+  expect(box).not.toHaveAttribute('aria-placeholder', 'run the tests');
   suggest('run the tests'); // arrives while busy: stored but not shown
-  expect(box.placeholder).not.toBe('run the tests');
+  expect(box).not.toHaveAttribute('aria-placeholder', 'run the tests');
   expect(screen.queryByText('Tab ⇥')).toBeNull();
 });
 
@@ -45,7 +46,7 @@ it('hides it when the field has text', async () => {
   const { suggest, box } = setup();
   suggest('run the tests');
   await userEvent.type(box, 'x');
-  expect(box.placeholder).not.toBe('run the tests');
+  expect(box).not.toHaveAttribute('aria-placeholder', 'run the tests');
   expect(screen.queryByText('Tab ⇥')).toBeNull();
 });
 
@@ -54,10 +55,10 @@ it('Tab fills the field through the draft, caret at the end, and keeps focus', a
   suggest('run the tests');
   box.focus();
   await userEvent.keyboard('{Tab}');
-  expect(box.value).toBe('run the tests');
+  expect(valueOf(box)).toBe('run the tests');
   expect(store.getState().composer.draft).toBe('run the tests');
   expect(box).toHaveFocus();
-  await vi.waitFor(() => expect(box.selectionStart).toBe(13));
+  await vi.waitFor(() => expect(fieldFor(box)!.selection().from).toBe(13));
 });
 
 it('Tab does nothing special without a suggestion, with text, or with Shift', async () => {
@@ -75,13 +76,11 @@ it('Tab with the @ picker open picks from the picker, not the suggestion', async
   const { suggest, box } = setup();
   suggest('run the tests');
   box.focus();
-  fireEvent.change(box, { target: { value: '@ap' } });
-  box.setSelectionRange(3, 3);
-  fireEvent.input(box);
+  setValue(box, '@ap');
   await screen.findByRole('listbox');
   fireEvent.keyDown(box, { key: 'Tab' });
-  expect(box.value).toContain('src/app.ts');
-  expect(box.value).not.toContain('run the tests');
+  expect(valueOf(box)).toContain('src/app.ts');
+  expect(valueOf(box)).not.toContain('run the tests');
 });
 
 it.each([
@@ -106,7 +105,7 @@ it('is hidden while a switch is in flight', () => {
   const { suggest, store, box } = setup();
   suggest('run the tests');
   act(() => void store.dispatch({ type: 'controls/switchStarted' }));
-  expect(box.placeholder).not.toBe('run the tests');
+  expect(box).not.toHaveAttribute('aria-placeholder', 'run the tests');
 });
 
 it('a session re-announce with the same id (title refresh) keeps it; a different id or root clears it', () => {

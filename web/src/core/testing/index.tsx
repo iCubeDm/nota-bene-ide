@@ -1,7 +1,7 @@
 // The test harness of issue 511, for test files only: a store on a fake connection, a fetch stub keyed by path, a
 // render wrapper and typed event builders. Tests move onto it when a step touches them.
 import type { ReactElement, ReactNode } from 'react';
-import { render } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { PROTOCOL, type ClientMessage, type ServerEvent, type WireAgentEvent } from '@nota-bene/shared';
 import { EditorView } from '@codemirror/view';
@@ -108,13 +108,15 @@ export const valueOf = (el: Element): string => fieldOf(el).text();
 /** Puts `text` in a message field as one edit of the person's, the caret at its end. */
 export function setValue(el: Element, text: string): void {
   const f = fieldOf(el);
-  f.replace(0, f.text().length, text);
+  act(() => f.replace(0, f.text().length, text));
 }
 /** Selects [from, to) in a message field (`to` defaults to `from`: a caret). */
 export const select = (el: Element, from: number, to = from): void => {
   const f = fieldOf(el);
-  if (from === to) f.setCaret(from);
-  else EditorView.findFromDOM(f.element)!.dispatch({ selection: { anchor: from, head: to } });
+  act(() => {
+    if (from === to) f.setCaret(from);
+    else EditorView.findFromDOM(f.element)!.dispatch({ selection: { anchor: from, head: to } });
+  });
 };
 function fieldOf(el: Element): Field {
   const f = fieldFor(el);

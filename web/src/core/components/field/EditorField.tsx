@@ -1,8 +1,9 @@
 import { history, historyKeymap, standardKeymap } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
-import { Compartment, EditorState, Transaction, type Extension } from '@codemirror/state';
+import { Compartment, EditorState, Prec, Transaction, type Extension } from '@codemirror/state';
 import { EditorView, keymap, placeholder as placeholderExt } from '@codemirror/view';
-import { useEffect, useImperativeHandle, useLayoutEffect, useRef, type ClipboardEventHandler, type MouseEvent, type KeyboardEventHandler, type Ref } from 'react';
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, type MouseEvent, type Ref } from 'react';
+import { draggedPaths, hasFiles } from '../../lib/drag.ts';
 import { fieldOf, fromHost, type Field, type Listeners } from './field.ts';
 import { blockKeys } from './blockKeys.ts';
 import { livePreview } from './livePreview.ts';
@@ -28,8 +29,11 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
   id?: string;
   value: string;
   onChange: (v: string) => void;
-  onKeyDown?: KeyboardEventHandler<HTMLElement>;
-  onPaste?: ClipboardEventHandler<HTMLElement>;
+  /** the host's keys (send, the history), after the field's own block keys and before its editing keys: a key the host
+   * prevents is done */
+  onKeyDown?: (e: KeyboardEvent) => void;
+  /** before the field's own paste: a paste it prevents (files) is not pasted as text */
+  onPaste?: (e: ClipboardEvent) => void;
   readOnly?: boolean;
   /** shows the text as is (a shell command): no markdown drawn */
   plain?: boolean;
@@ -44,6 +48,10 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
   const listeners = useRef<Listeners>(new Set());
   const change = useRef(onChange);
   change.current = onChange;
+  const paste = useRef(onPaste);
+  paste.current = onPaste;
+  const keys = useRef(onKeyDown);
+  keys.current = onKeyDown;
   const lock = useRef(new Compartment());
   const look = useRef(new Compartment());
   const naming = useRef(new Compartment());
@@ -56,8 +64,15 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
       EditorView.lineWrapping,
       bare,
       blockKeys(newline),
+      // after the block keys (an Enter in a code block is theirs), before the keymap (↑ on the first line is the history's)
+      Prec.highest(EditorView.domEventHandlers({ keydown: (e) => { if (!e.defaultPrevented) keys.current?.(e); return e.defaultPrevented; } })),
       keymap.of([...historyKeymap, ...BASE_KEYS]),
       naming.current.of(names()),
+      Prec.highest(EditorView.domEventHandlers({
+        paste: (e) => { paste.current?.(e); return e.defaultPrevented; },
+        // files and the Files tree's paths are the host's drop (an attachment, a path at the caret), never text dropped in
+        drop: (e) => hasFiles(e) || !!draggedPaths(e.dataTransfer),
+      })),
       lock.current.of(locked(!!readOnly)),
       look.current.of(plain ? [] : livePreview),
       EditorView.updateListener.of((u) => {
@@ -106,7 +121,7 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
     e.preventDefault();
     view.current.focus();
   };
-  return <div ref={host} onKeyDown={onKeyDown} onPaste={onPaste} onMouseDown={toText} className={className} />;
+  return <div ref={host} onMouseDown={toText} className={className} />;
 }
 
 /** The field's id, its name (the label, else the placeholder, as a textarea's) and its placeholder. */

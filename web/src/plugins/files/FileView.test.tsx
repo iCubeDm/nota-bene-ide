@@ -5,7 +5,7 @@ import type { Comment, ServerEvent } from '@nota-bene/shared';
 import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import { setLang } from '@/core/i18n/index.ts';
 import { serverEvent } from '@/core/store/store.ts';
-import { makeStore } from '@/core/testing';
+import { makeStore, setValue, valueOf } from '@/core/testing';
 import { addShape, selectDraft, setTool } from '@/plugins/media/markup/slice.ts';
 import { dismissToast, getToasts } from '@/core/shell/toast.ts';
 import { FileView } from './FileView.tsx';
@@ -325,14 +325,14 @@ it('Comment on an image opens the popup; Add renders the files and adds the comm
   fireEvent.click(screen.getByRole('button', { name: /^comment/i }));
   expect(screen.getByText('p.png · 1 shape')).toBeInTheDocument();
   expect(prepareMediaComment).not.toHaveBeenCalled(); // nothing is written until Add
-  fireEvent.change(screen.getByPlaceholderText('Comment…'), { target: { value: 'sit here' } });
+  setValue(screen.getByRole('textbox', { name: 'Comment…' }), 'sit here');
   await act(async () => void fireEvent.click(screen.getByRole('button', { name: 'Add' })));
   const anchor = { kind: 'media', source: { kind: 'file', path: 'media/p.png' }, width: 1000, height: 500, shapes: [SHAPE] };
   expect(prepareMediaComment).toHaveBeenCalledWith(expect.stringMatching(UUID), img, anchor, { version: expect.any(Promise) });
   const [c] = store.getState().comments.items;
   expect(c).toMatchObject({ id: prepareMediaComment.mock.calls[0]![0], text: 'sit here', anchor: { ...anchor, version: 'W/"5-1729.5"' }, images: ['1'.repeat(64), '2'.repeat(64)] });
   expect(selectDraft(store.getState(), tab)).toMatchObject({ on: true, shapes: [] });
-  expect(screen.queryByPlaceholderText('Comment…')).toBeNull();
+  expect(screen.queryByRole('textbox', { name: 'Comment…' })).toBeNull();
 });
 
 it('a paused video: the anchor has the time to the ms and no version without an ETag; cancelling keeps the draft', async () => {
@@ -349,7 +349,7 @@ it('a paused video: the anchor has the time to the ms and no version without an 
   fireEvent.click(screen.getByRole('button', { name: /^comment/i }));
   expect(screen.getByText('v.mp4 @ 0:04.240 · 1 shape')).toBeInTheDocument();
   fireEvent.keyDown(document, { key: 'Escape' });
-  expect(screen.queryByPlaceholderText('Comment…')).toBeNull();
+  expect(screen.queryByRole('textbox', { name: 'Comment…' })).toBeNull();
   expect(selectDraft(store.getState(), 'file:v.mp4')).toMatchObject({ on: true, shapes: [SHAPE] }); // nothing lost
   fireEvent.click(screen.getByRole('button', { name: /^comment/i }));
   await act(async () => void fireEvent.click(screen.getByRole('button', { name: 'Add' })));
@@ -370,21 +370,21 @@ it('a tab switch while Add saves: the save finishes and the comment is added; th
   fireEvent.click(screen.getByRole('button', { name: /mark up/i }));
   act(() => { store.dispatch(addShape('file:p.png', SHAPE)); });
   fireEvent.click(screen.getByRole('button', { name: /^comment/i }));
-  fireEvent.change(screen.getByPlaceholderText('Comment…'), { target: { value: 'keep me' } });
+  setValue(screen.getByRole('textbox', { name: 'Comment…' }), 'keep me');
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
   setActive(false); // the user switches tabs while the files upload
   await act(async () => release());
   await waitFor(() => expect(store.getState().comments.items).toHaveLength(1));
   expect(store.getState().comments.items[0]).toMatchObject({ text: 'keep me' });
   expect(selectDraft(store.getState(), 'file:p.png')).toMatchObject({ on: true, shapes: [] });
-  expect(screen.queryByPlaceholderText('Comment…')).toBeNull();
+  expect(screen.queryByRole('textbox', { name: 'Comment…' })).toBeNull();
   // the save is over: the next popup closes on a tab switch as before
   setActive(true); // still in the mode: the next drawing needs no Mark up
   act(() => { store.dispatch(addShape('file:p.png', SHAPE)); });
   fireEvent.click(screen.getByRole('button', { name: /^comment/i }));
-  expect(screen.getByPlaceholderText('Comment…')).toBeInTheDocument();
+  expect(screen.getByRole('textbox', { name: 'Comment…' })).toBeInTheDocument();
   setActive(false);
-  expect(screen.queryByPlaceholderText('Comment…')).toBeNull();
+  expect(screen.queryByRole('textbox', { name: 'Comment…' })).toBeNull();
 });
 
 it('while Add saves the drawing, the markup layer takes no stroke and Comment is off; a shape that slips in is kept', async () => {
@@ -428,13 +428,13 @@ it('a tab switch while Add saves and the save fails: back on the tab the popup i
   fireEvent.click(screen.getByRole('button', { name: /mark up/i }));
   act(() => { store.dispatch(addShape('file:p.png', SHAPE)); });
   fireEvent.click(screen.getByRole('button', { name: /^comment/i }));
-  fireEvent.change(screen.getByPlaceholderText('Comment…'), { target: { value: 'keep me' } });
+  setValue(screen.getByRole('textbox', { name: 'Comment…' }), 'keep me');
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
   setActive(false);
   await act(async () => fail());
   expect(store.getState().comments.items).toEqual([]);
   setActive(true);
-  expect(screen.getByPlaceholderText('Comment…')).toHaveValue('keep me');
+  expect(valueOf(screen.getByRole('textbox', { name: 'Comment…' }))).toBe('keep me');
   expect(screen.getByText(/Could not save the drawing.*marks 500/)).toBeInTheDocument();
 });
 
@@ -468,7 +468,7 @@ it('Comment on media with no natural size (an SVG, or still loading) says why in
   fireEvent.click(screen.getByRole('button', { name: /mark up/i }));
   act(() => { store.dispatch(addShape('file:p.svg', SHAPE)); });
   fireEvent.click(screen.getByRole('button', { name: /^comment/i }));
-  expect(screen.queryByPlaceholderText('Comment…')).toBeNull();
+  expect(screen.queryByRole('textbox', { name: 'Comment…' })).toBeNull();
   expect(getToasts().map((t) => t.title)).toContainEqual(expect.stringMatching(/^Cannot mark up this file/));
   expect(selectDraft(store.getState(), 'file:p.svg').shapes).toEqual([SHAPE]); // the drawing stays
 });

@@ -48,7 +48,7 @@ it('Comment on a drawing and Add: an attachment comment with the composite as it
   const { store, sent } = setup();
   act(() => void store.dispatch(addShape(`attach:${ID}`, rect)));
   await userEvent.click(screen.getByRole('button', { name: 'Comment (Enter)' }));
-  await userEvent.type(screen.getByPlaceholderText(/comment/i), 'this part');
+  await userEvent.type(screen.getByRole('textbox', { name: /comment/i }), 'this part');
   await userEvent.click(screen.getByRole('button', { name: 'Add' }));
   await waitFor(() => expect(store.getState().comments.items).toHaveLength(1));
   const c = store.getState().comments.items[0]!;

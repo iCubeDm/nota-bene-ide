@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from 'react-redux';
 import { isAttachmentAnchor, isMediaAnchor, isTextAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
 import { getLang, useT, useAppDispatch, useAppSelector, anchorLine, type Field, type PendingComment, type RootState, toast, clearPageSelections, selectCapabilities, selectSwitching, labelsFor, labelText, dictationAsk, insertPaths, hasFiles, ComposerFieldContext, type ImageEntry, useService, useFeature } from '@/sdk';
@@ -200,8 +200,8 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     }, pending));
   }, [pending, text]);
 
-  const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
-    if (e.key !== 'Enter' || !(e.metaKey || e.ctrlKey) || e.nativeEvent.isComposing) return;
+  const onKeyDown = (e: globalThis.KeyboardEvent) => {
+    if (e.key !== 'Enter' || !(e.metaKey || e.ctrlKey) || e.isComposing) return;
     e.preventDefault();
     e.stopPropagation(); // never reaches the composer
     void add();

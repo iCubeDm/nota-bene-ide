@@ -6,7 +6,7 @@ import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
 import { loadEmoji } from '@/plugins/comments/emoji.ts';
 import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import { setLang } from '@/core/i18n/index.ts';
-import { makeStore } from '@/core/testing';
+import { makeStore, valueOf } from '@/core/testing';
 import { Composer } from './Composer.tsx';
 
 // M6-05: the `:` emoji picker on the composer, next to the `@` picker, the suggestion Tab and the Shift+Tab mode cycle.
@@ -26,7 +26,7 @@ function setup() {
   const store = makeStore({ url: 'ws://x', connect: connect as never });
   render(<Provider store={store}><TooltipProvider><Composer /></TooltipProvider></Provider>);
   const emit = (e: ServerEvent) => act(() => ev(e));
-  const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+  const box = screen.getByRole('textbox');
   box.focus();
   return { sent, store, emit, box };
 }
@@ -36,8 +36,8 @@ it('":smi" opens the list; Enter inserts the emoji through the draft and does no
   await userEvent.keyboard('hi :smi');
   expect(await screen.findByRole('listbox')).toBeInTheDocument();
   await userEvent.keyboard('{Enter}');
-  expect(box.value).toMatch(/^hi \p{Extended_Pictographic}/u);
-  expect(store.getState().composer.draft).toBe(box.value);
+  expect(valueOf(box)).toMatch(/^hi \p{Extended_Pictographic}/u);
+  expect(store.getState().composer.draft).toBe(valueOf(box));
   expect(screen.queryByRole('listbox')).toBeNull();
   expect(sent.filter((m) => m.type === 'send')).toHaveLength(0);
 });
@@ -49,7 +49,7 @@ it('Esc closes only the picker: the draft stays and a busy agent is not interrup
   await screen.findByRole('listbox');
   await userEvent.keyboard('{Escape}');
   expect(screen.queryByRole('listbox')).toBeNull();
-  expect(box.value).toBe(':smi');
+  expect(valueOf(box)).toBe(':smi');
   expect(sent.filter((m) => m.type === 'interrupt')).toHaveLength(0);
 });
 
@@ -59,8 +59,8 @@ it('Tab picks the emoji instead of taking the prompt suggestion', async () => {
   await userEvent.keyboard(':smi');
   await screen.findByRole('listbox');
   await userEvent.keyboard('{Tab}');
-  expect(box.value).not.toBe('run the tests');
-  expect(box.value).toMatch(/^\p{Extended_Pictographic}/u);
+  expect(valueOf(box)).not.toBe('run the tests');
+  expect(valueOf(box)).toMatch(/^\p{Extended_Pictographic}/u);
 });
 
 it('an open list does not take Shift+Tab: it closes, nothing is inserted, and the mode cycles', async () => {
@@ -70,7 +70,7 @@ it('an open list does not take Shift+Tab: it closes, nothing is inserted, and th
   await screen.findByRole('listbox');
   await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
   expect(screen.queryByRole('listbox')).toBeNull();
-  expect(box.value).toBe(':smi');
+  expect(valueOf(box)).toBe(':smi');
   expect(sent.filter((m) => m.type === 'mode')).toEqual([{ type: 'mode', mode: 'default' }]);
 });
 

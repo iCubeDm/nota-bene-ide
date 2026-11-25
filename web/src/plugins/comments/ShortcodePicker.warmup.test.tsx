@@ -1,6 +1,9 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { createRef } from 'react';
+import { act, cleanup, render, screen } from '@testing-library/react';
+import { createRef, useState, type RefObject } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
+import { select, setValue, valueOf } from '@/core/testing';
+import { EditorField } from '@/core/components/field/EditorField.tsx';
+import type { Field } from '@/sdk';
 import { ShortcodePicker } from './ShortcodePicker.tsx';
 
 let release!: () => void;
@@ -10,16 +13,19 @@ vi.mock('./emoji.ts', () => ({
 }));
 afterEach(cleanup);
 
+function Host({ fieldRef }: { fieldRef: RefObject<Field | null> }) {
+  const [value, setV] = useState('');
+  return <><EditorField fieldRef={fieldRef} value={value} onChange={setV} newline="Enter" ariaLabel="box" /><ShortcodePicker target={fieldRef} /></>;
+}
+
 it('a caret moved onto a closed :+1: while emoji data loads is not replaced', async () => {
-  const ref = createRef<HTMLTextAreaElement>();
-  render(<><textarea ref={ref} /><ShortcodePicker target={ref} /></>);
-  const box = ref.current!;
+  const ref = createRef<Field | null>();
+  render(<Host fieldRef={ref} />);
+  const box = screen.getByRole('textbox', { name: 'box' });
   box.focus();
-  box.value = ':+1: x :sm';
-  box.setSelectionRange(box.value.length, box.value.length);
-  fireEvent.input(box); // starts the (pending) load
-  box.setSelectionRange(4, 4); // user moves the caret right after ":+1:"
+  setValue(box, ':+1: x :sm'); // starts the (pending) load
+  select(box, 4); // user moves the caret right after ":+1:"
   await act(async () => release());
-  expect(box.value).toBe(':+1: x :sm');
+  expect(valueOf(box)).toBe(':+1: x :sm');
   expect(screen.queryByRole('listbox')).toBeNull();
 });

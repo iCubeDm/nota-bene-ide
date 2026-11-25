@@ -7,7 +7,7 @@ import { afterEach, beforeEach, expect, it } from 'vitest';
 import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import { setLang } from '@/core/i18n/index.ts';
 import { PLUGINS } from '@/plugins.ts';
-import { definePlugin, useComposerField, type PendingComment, type SlotName } from '@/sdk';
+import { definePlugin, useComposerField, type Field, type PendingComment, type SlotName } from '@/sdk';
 import { makeStore } from '@/core/testing';
 import { CommentPopup } from '@/plugins/comments/CommentPopup.tsx';
 import { Composer } from './Composer.tsx';
@@ -16,7 +16,7 @@ beforeEach(() => setLang('en'));
 afterEach(() => { cleanup(); field = null; });
 
 const mark = (at: string) => () => <i data-probe={at} />;
-let field: HTMLTextAreaElement | null = null;
+let field: Field | null = null;
 function Picker() {
   const host = useComposerField();
   useEffect(() => void (field = host.field.current)); // after the commit: the host's ref is set by then
@@ -46,7 +46,7 @@ it('the composer places each slot\'s parts where its own pills were, and its pic
   expect(probes('status')[0]!.parentElement).toBe(row.parentElement!.firstElementChild);
   const [picker] = probes('picker');
   expect(picker).toHaveAttribute('data-kind', 'chat');
-  expect(field).toBe(document.getElementById('composer-input'));
+  expect(field?.element).toBe(document.getElementById('composer-input'));
 });
 
 it('a comment popup\'s field gets the same pickers, and none of the composer\'s pills', () => {
@@ -55,6 +55,6 @@ it('a comment popup\'s field gets the same pickers, and none of the composer\'s 
   const [picker] = probes('picker');
   expect(picker).toHaveAttribute('data-kind', 'comment');
   expect(screen.getByRole('dialog')).toContainElement(picker as HTMLElement);
-  expect(field).toBe(screen.getByRole('textbox'));
+  expect(field?.element).toBe(screen.getByRole('textbox'));
   expect([...probes('status'), ...probes('tools'), ...probes('end')]).toEqual([]);
 });

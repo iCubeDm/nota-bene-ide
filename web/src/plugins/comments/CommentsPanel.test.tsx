@@ -6,7 +6,7 @@ import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import { setLang } from '@/core/i18n/index.ts';
 import { RightStrip } from '@/core/shell/ToolStrip.tsx';
 import { serverEvent } from '@/core/store/store.ts';
-import { makeStore } from '@/core/testing';
+import { makeStore, setValue } from '@/core/testing';
 import { CommentPopup } from './CommentPopup.tsx';
 import { CommentsPanel } from './CommentsPanel.tsx';
 
@@ -67,8 +67,9 @@ it('adding a comment through the popup auto-opens the panel and persists 1', () 
       </TooltipProvider>
     </Provider>,
   );
-  fireEvent.change(document.querySelector('textarea')!, { target: { value: 'hi' } });
-  fireEvent.keyDown(document.querySelector('textarea')!, { key: 'Enter', metaKey: true });
+  const box = screen.getByRole('textbox', { name: 'Comment…' });
+  setValue(box, 'hi');
+  fireEvent.keyDown(box, { key: 'Enter', metaKey: true });
   expect(store.getState().comments.ui.panelOpen).toBe(true);
   expect(localStorage.getItem('panel:comments')).toBe('1');
 });

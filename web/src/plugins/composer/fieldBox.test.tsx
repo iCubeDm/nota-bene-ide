@@ -36,14 +36,16 @@ it('the composer history button and mic are inside the field box, the box first 
   expect(f).not.toContainElement(screen.getByLabelText('Send'));
 });
 
-it('the field box keeps its classes and the textarea its padding when the mic hides on the first typed character', async () => {
+it('the field box keeps its classes and the field its padding when the mic hides on the first typed character', async () => {
   render(<Provider store={store()}><TooltipProvider><Composer /></TooltipProvider></Provider>);
-  const ta = screen.getByRole('textbox') as HTMLTextAreaElement;
+  const ta = screen.getByRole('textbox');
   const f = fieldOf(ta);
-  const before = { box: f.className, area: ta.className, style: f.getAttribute('style') };
+  // the padding is on the field's own element, the one around the editor
+  const area = ta.closest('.cm-editor')!.parentElement!;
+  const before = { box: f.className, area: area.className, style: f.getAttribute('style') };
   await userEvent.type(ta, 'x');
   expect(screen.queryByTestId('mic')).toBeNull();
-  expect({ box: f.className, area: ta.className, style: f.getAttribute('style') }).toEqual(before);
+  expect({ box: f.className, area: area.className, style: f.getAttribute('style') }).toEqual(before);
 });
 
 it('the history list is positioned from the field box, not from the button', async () => {
@@ -61,5 +63,5 @@ it('the comment popup mic is inside its field box', () => {
   const s = store();
   const pending = { anchor: { source: { kind: 'message', id: 'a1' }, start: 0, end: 1, quote: 'q', prefix: '', suffix: '' }, rect: { left: 1, right: 2, top: 1, bottom: 2, width: 1, height: 1, x: 1, y: 1, toJSON() {} } as DOMRect };
   render(<Provider store={s}><TooltipProvider><CommentPopup pending={pending as never} onClose={() => {}} /></TooltipProvider></Provider>);
-  expect(fieldOf(screen.getByPlaceholderText('Comment…'))).toContainElement(screen.getByTestId('popup-mic'));
+  expect(fieldOf(screen.getByRole('textbox', { name: 'Comment…' }))).toContainElement(screen.getByTestId('popup-mic'));
 });
