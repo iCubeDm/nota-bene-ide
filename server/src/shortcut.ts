@@ -1,5 +1,5 @@
 // The app icon (epic 383, "start by click"): `nota-bene shortcut` and the tab's Add install one that runs `nota-bene --app`
-// (the most recent project). macOS: an app bundle in ~/Applications; Windows: a Start menu shortcut; Linux: a .desktop file.
+// (the home page). macOS: an app bundle in ~/Applications; Windows: a Start menu shortcut; Linux: a .desktop file.
 // It runs the launcher that installed it, the one a later update hands over from, so it keeps working across updates.
 // "Nota Bene" is the published package's; a checkout's is "Nota Bene Dev", beside it.
 import { spawnSync } from 'node:child_process';

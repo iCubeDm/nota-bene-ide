@@ -47,8 +47,8 @@ import { launcherOf, patchUpdateState, readCurrent, runtimeDir, writeCurrent } f
 import { transcriptExists } from '../server/src/sessions.ts';
 import { envAgentContext, lastSession, serverStateDir, stateBaseDir } from '../server/src/state.ts';
 import { defaultChoice, detectAgents, lastAgent, menu, parseChoice, rememberAgent } from '../server/src/agent/choice.ts';
-import { attachAgent } from '../server/src/attach.ts';
-import { readRecent, recordRecent } from '../server/src/recent.ts';
+import { attachAgent, runningServer } from '../server/src/attach.ts';
+import { recordRecent } from '../server/src/recent.ts';
 import { hostNow, installShortcut } from '../server/src/shortcut.ts';
 import { parentPluginVersion, pluginInstallVersion } from '../server/src/pluginOrigin.ts';
 import { parseProvider } from '../server/src/agent/provider.ts';
@@ -65,8 +65,8 @@ const SELF = fileURLToPath(import.meta.url);
 const MAIN = path.join(REPO, fs.existsSync(path.join(REPO, 'server/src/main.js')) ? 'server/src/main.js' : 'server/src/main.ts');
 // `nota-bene remote`: its own bundle in the package, loaded only for that command (it needs ws and uqr, the launcher does not)
 const REMOTE = path.join(REPO, fs.existsSync(path.join(REPO, 'server/src/remote/cli.js')) ? 'server/src/remote/cli.js' : 'server/src/remote/cli.ts');
-const USAGE = 'Usage: nota-bene [dir] [--agent claude|codex|omp] [--port N] [--resume ID [--fork]] [--new] [--detach] [--no-open]\n'
-  + '       nota-bene --app   (the most recent project, as the app icon opens it) | nota-bene shortcut   (install the app icon)\n'
+const USAGE = 'Usage: nota-bene <dir> [--agent claude|codex|omp] [--port N] [--resume ID [--fork]] [--new] [--detach] [--no-open]\n'
+  + '       nota-bene   (the home page: open a project there) | --app   (the same, as the app icon opens it) | shortcut   (install the app icon)\n'
   + '       nota-bene --find DIR [--scan] | --last DIR | --url PORT | --front PORT\n'
   + '       nota-bene remote [pair | devices | revoke ID | status | key | --relay URL]   (remote access, see nota-bene remote --help)\n'
   + '       nota-bene --help | --version';
@@ -157,13 +157,19 @@ export function parseArgs(argv) {
   }
   if (o.fork && o.resume === undefined) throw new Error(`${USAGE}\n--fork needs --resume`);
   if (o.new && o.resume !== undefined) throw new Error(`${USAGE}\n--new cannot be combined with --resume`);
-  if (o.app && o.dir !== undefined) throw new Error(`${USAGE}\n--app opens the most recent project, not a folder`);
+  if (o.app && o.dir !== undefined) throw new Error(`${USAGE}\n--app opens the home page, not a folder`);
+  const launching = o.find === undefined && o.last === undefined && o.url === undefined && o.front === undefined && !o.help && !o.version;
+  // no folder: the home page, where a project is opened. A session needs its folder
+  if (launching && o.dir === undefined) {
+    if (o.resume !== undefined || o.new || o.continue) throw new Error(`${USAGE}\n--resume, --new and --continue need a folder (\`.\` is this one)`);
+    o.home = true;
+  }
   return o;
 }
 
 /** The server's argv. A relaunch resumes what the window has now (--continue), never the original --resume/--fork/--new. */
 export function serverArgs(o, port, relaunch) {
-  const a = [o.dir, '--port', String(port)];
+  const a = [...(o.home ? ['--home'] : [o.dir]), '--port', String(port)];
   if (o.agent) a.push('--agent', o.agent);
   if (relaunch) a.push('--continue');
   else {
@@ -1098,25 +1104,13 @@ export async function main(argv) {
     return 0;
   }
   if (o.app) {
-    // the app icon: the most recent project that is still there, detached (no terminal to keep), as a plain launch of it would
-    const hit = readRecent(stateBaseDir()).find((e) => {
-      try {
-        return !refuse(realDir(e.root));
-      } catch {
-        return false;
-      }
-    });
-    if (!hit) {
-      say('no recent project — open one once with `nota-bene <folder>`');
-      return 1;
-    }
-    argv = [hit.root, '--agent', hit.provider, '--detach', ...argv.filter((a) => a !== '--app' && a !== '--detach')];
+    // the app icon: the home page, detached (no terminal to keep)
+    argv = ['--detach', ...argv.filter((a) => a !== '--app' && a !== '--detach')];
     o = parseArgs(argv);
   }
   // a bare launch in a terminal asks which agent when more than one can start; anything else (a script, a skill, the detached
   // or inner launcher this one starts) gets Claude unless --agent says otherwise, as before
-  const launching = o.find === undefined && o.last === undefined && o.url === undefined && o.front === undefined;
-  if (launching && o.agent === undefined && !INNER && process.env.NOTA_BENE_LOCKED !== '1' && process.stdin.isTTY && process.stderr.isTTY) {
+  if (!o.home && o.find === undefined && o.last === undefined && o.url === undefined && o.front === undefined && o.agent === undefined && !INNER && process.env.NOTA_BENE_LOCKED !== '1' && process.stdin.isTTY && process.stderr.isTTY) {
     const chosen = await chooseAgent(o.dir);
     if (chosen === null) return 130;
     if (chosen !== undefined) {
@@ -1148,18 +1142,21 @@ export async function main(argv) {
       }
       return 0;
     }
-    given = path.resolve(o.dir ?? '.');
+    // the home page's server has no project: its folder is one no project can be (refuse)
+    given = o.home ? os.homedir() : path.resolve(o.dir);
     o.dir = realDir(given);
   } catch (e) {
     say(e.message);
     return e instanceof SecretError ? EXIT_SECRET : 1;
   }
-  if (refuse(o.dir, given)) {
-    say(`refusing to open the whole ${o.dir} as a project — cd into a project first.`);
-    return 1;
+  if (!o.home) {
+    if (refuse(o.dir, given)) {
+      say(`refusing to open the whole ${o.dir} as a project — name a project folder.`);
+      return 1;
+    }
+    rememberAgent(stateBaseDir(), o.dir, o.agent ?? 'claude');
+    recordRecent(stateBaseDir(), o.dir, o.agent ?? 'claude');
   }
-  rememberAgent(stateBaseDir(), o.dir, o.agent ?? 'claude');
-  recordRecent(stateBaseDir(), o.dir, o.agent ?? 'claude');
   // the secrets, before any spawn: a refused one is reported once here, never as a crash loop of servers that die on it
   try {
     accessToken();
@@ -1182,7 +1179,11 @@ export async function main(argv) {
   const locked = process.env.NOTA_BENE_LOCKED === '1' || INNER;
   const release = locked ? () => {} : await acquireLaunchLock();
   try {
-    if (!locked) {
+    if (!locked && o.home) {
+      // a running server's home page; an explicit --port asks for a server of its own
+      const up = o.port === undefined ? await runningServer() : null;
+      if (up) return await attached(o, { ...up, opened: false, shown: false });
+    } else if (!locked) {
       const port = await servingWindow(o.dir);
       // a running server opens the folder as one of its agents: the one it has, or a new one. The server serving the folder
       // is asked too: its agent there may have been closed (issue 642). An explicit --port asks for a server of its own.
@@ -1336,7 +1337,8 @@ async function outer(o, autoPort, release) {
         if (code === HANDOVER && w?.launcherPid === process.pid && fs.existsSync(w.root)) o.dir = w.root;
       } else {
         ran = target;
-        const args = [...serverArgs({ ...opts, agent: o.agent ?? 'claude' }, o.port, false), ...(opts.open ? [] : ['--no-open'])];
+        // the inner launcher's own argv: no folder is its home page
+        const args = [...serverArgs({ ...opts, agent: o.agent ?? 'claude' }, o.port, false).filter((a) => a !== '--home'), ...(opts.open ? [] : ['--no-open'])];
         const env = { ...process.env, NOTA_BENE_INNER: '1', NOTA_BENE_HANDOVER_NONCE: nonce };
         delete env.NOTA_BENE_LOCKED; // the inner launcher watches us as its parent
         delete env.NOTA_BENE_AUTOPORT;

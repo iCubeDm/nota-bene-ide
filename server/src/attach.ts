@@ -41,6 +41,15 @@ function servers(): { port: number; token: string; control: string }[] {
   return out.sort((a, b) => a.port - b.port);
 }
 
+/** The first running server: its port and its home page with the login of its launch. null: none. */
+export async function runningServer(fetchFn: typeof fetch = fetch): Promise<{ port: number; url: string } | null> {
+  for (const s of servers()) {
+    const n = await proveListener({ dial: s.port, timeoutMs: PROVE_MS, token: s.token, fetchFn });
+    if (n !== null) return { port: s.port, url: `http://127.0.0.1:${s.port}/#t=${loginCredential(s.token, s.port, n)}` };
+  }
+  return null;
+}
+
 /**
  * The agent of `ask.root` in the first running server that opens agents: the one it has for that folder and provider, or
  * a new one. null: no such server. Throws when a server refuses the ask itself (400: a bad folder or session).

@@ -29,7 +29,7 @@ Contents
 
 ## Quick start
 
-1. Open a window on a project folder: `/nb` in Claude Code, `$nb` in Codex, `/skill:nb` in omp, or `nota-bene` in a terminal there. The browser opens on it, logged in.
+1. Open a window on a project folder: `/nb` in Claude Code, `$nb` in Codex, `/skill:nb` in omp, or `nota-bene .` in a terminal there. The browser opens on it, logged in.
 2. Ask the agent something. Select a sentence of the reply, press **Comment**, type a note, press Cmd/Ctrl+Enter.
 3. Open an image or a video from **Files**, press **Mark up** (N), draw around what is wrong, press **Comment** (Enter) and type the note. Lines of code and HTML pages take comments the same way.
 4. Press **Send**. The agent gets one message with every fragment, your note on each, and the marked pictures.
@@ -54,25 +54,26 @@ Claude Code does not update the plugin by itself: turn on auto-update for its ma
 
 ```sh
 nota-bene [dir] [options]       # or: npx nota-bene-ide [dir] [options]
+nota-bene .                     # the current folder
 ```
 
-`dir` defaults to the current folder. Your home folder and `/` are refused (on Windows also a drive root `C:\` and a share root `\\server\share`). When Nota Bene is already running, the folder opens in it (any agent), the browser shows it, and the command returns at once; a restart or an update of that server reopens it.
+With no `dir` the home page opens: of the running Nota Bene, or of a new one. There you open a project. With a `dir` that project opens. Your home folder and `/` are refused (on Windows also a drive root `C:\` and a share root `\\server\share`). When Nota Bene is already running, the folder opens in it (any agent), the browser shows it, and the command returns at once; a restart or an update of that server reopens it.
 
 | Option | Meaning |
 |---|---|
 | `--agent claude\|codex\|omp` | The agent (see [Which agent](#which-agent)); state is separate per agent. |
 | `--port N` | A server of its own on port N, never the running one. Default: first free from 4777 to 4799, skipping 4780 and 4790–4795. |
-| `--resume ID` [`--fork`] | Open this session, or with `--fork` a new branch of it. |
-| `--new` | A fresh session (not with `--resume`). |
+| `--resume ID` [`--fork`] | Open this session, or with `--fork` a new branch of it. Needs a `dir`. |
+| `--new` | A fresh session (not with `--resume`). Needs a `dir`. |
 | `--detach` | Run on its own; print `opened URL` or `already-open URL`. Log: `$TMPDIR/nota-bene-PORT.log`. |
 | `--no-open` | Do not open the browser. |
 | `--url PORT` | Print the login URL of the window on PORT, for another browser. |
 | `--front PORT` | Bring the window on PORT to the front, logged in. |
-| `--app` | Open the most recent project, as the app icon does (no `dir`). |
+| `--app` | Open the home page on its own, as the app icon does (no `dir`). |
 
 For a Codex or omp window, add `--agent codex` or `--agent omp` to `--url` and `--front`. Without `--detach` Ctrl+C (on Windows also closing the terminal) stops the window. Script helpers: `--find DIR [--scan]` (port of the live window on DIR, exit 1 if none), `--last DIR` (DIR's last session id), `--version`, `--help`.
 
-**App icon.** `nota-bene shortcut` adds Nota Bene to your apps: `~/Applications/Nota Bene.app` on macOS, a Start menu entry on Windows, a `.desktop` file on Linux. A click opens your most recent project (starting Nota Bene if it is not running), so no terminal is needed. A tab on this computer offers the same in a notification with **Add** while no icon is installed; **Not now** hides the offer for 30 days. The icon runs the launcher that installed it; a moved or removed launcher needs `nota-bene shortcut` again.
+**App icon.** `nota-bene shortcut` adds Nota Bene to your apps: `~/Applications/Nota Bene.app` on macOS, a Start menu entry on Windows, a `.desktop` file on Linux. A click opens the home page (starting Nota Bene if it is not running), so no terminal is needed. A tab on this computer offers the same in a notification with **Add** while no icon is installed; **Not now** hides the offer for 30 days. The icon runs the launcher that installed it; a moved or removed launcher needs `nota-bene shortcut` again.
 
 <details><summary>More</summary>
 
@@ -446,7 +447,7 @@ The mode pill under the box, or Shift+Tab, cycles (saved per project; Codex and 
 
 The model pill in the header sets model and effort (**Auto**, Low … Max, as the model offers; arrows, Home, End step it), with `1M` for the 1M-context variant. Changes apply from the next reply; it warns when that re-reads the whole context. Long lists (OpenRouter) get search, grouped by provider.
 
-**Stop Nota Bene** (⏻, right of the gear) stops every window after a confirmation that warns about running turns. The tab then stays stopped and does not reconnect; sessions stay, and `/nb` or `nota-bene` opens a window again.
+**Stop Nota Bene** (⏻, right of the gear) stops every window after a confirmation that warns about running turns. The tab then stays stopped and does not reconnect; sessions stay, and `/nb` or `nota-bene` starts it again.
 
 ### Settings
 
