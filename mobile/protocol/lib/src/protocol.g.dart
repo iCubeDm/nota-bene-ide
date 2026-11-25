@@ -33,15 +33,7 @@ enum Feature {
   compactOrder(27),
   heldSends(27),
   remoteHosts(28),
-  remoteProjects(29),
-  openAgent(30),
-  hostAgents(31),
-  remoteAgents(32),
-  editOverlap(33),
-  agentBus(34),
-  hostLeads(35),
-  agentPrefixes(36),
-  emptyServers(37);
+  remoteProjects(29);
 
   const Feature(this.protocol);
   final int protocol;

@@ -4,7 +4,7 @@ import { createElement, type ReactNode } from 'react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { events, stubRoutes, testStore } from '@/core/testing';
-import { connectionsOf } from './connections.ts';
+import { connectionOf } from './connections.ts';
 import { defineResource, repositoryOf, send, useResource } from './repository.ts';
 
 type Item = { n: number };
@@ -26,7 +26,7 @@ afterEach(() => {
 
 const setup = (o: Parameters<typeof testStore>[0] = {}) => {
   const t = testStore(o);
-  return { ...t, repo: repositoryOf(connectionsOf(t.store).current()) };
+  return { ...t, repo: repositoryOf(connectionOf(t.store)) };
 };
 const flush = (ms = 0) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
 const hidden = (on: boolean) => {

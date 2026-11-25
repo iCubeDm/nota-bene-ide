@@ -146,7 +146,11 @@ export type Comment = {
 export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) ? c.genImages ?? 2 : isAttachmentAnchor(c.anchor) ? c.genImages ?? 1 : 0);
 
 export { FEATURES, has, type Feature } from './features.ts';
-/** The protocol this server speaks, announced in `hello`: the largest entry of `FEATURES`, where each number's additions are. */
+/**
+ * The protocol this server speaks, announced in `hello`; `FEATURES` names the additions a client gates on. 30 to 37 are
+ * the agents of one server (epic 383, issue 639: `open-agent`, agents in the host stream and the connector's `open`,
+ * every agent under `/a/<id>/`): nothing asks for them by name; a managed connector of an older protocol is replaced.
+ */
 export const PROTOCOL = 37;
 
 /** The form of an agent id (epic 383): `<provider>-<6 base32>`, as in `/a/<id>/`. */

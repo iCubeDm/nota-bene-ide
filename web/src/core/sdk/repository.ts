@@ -7,7 +7,7 @@
 import { useCallback, useContext, useEffect, useRef, useSyncExternalStore } from 'react';
 import { ReactReduxContext } from 'react-redux';
 import type { ServerEvent } from '@nota-bene/shared';
-import { connections, connectionsOf, type AgentConnection, type ConnectionManager, type ConnState, type Route } from './connections.ts';
+import { connectionOf, pageConnection, type AgentConnection, type ConnState, type Route } from './connections.ts';
 
 export interface Resource<A, T> {
   /** its name in the registry (`Plugin.resources`), where a test answers it by name */
@@ -34,7 +34,7 @@ export const defineResource = <A, T>(r: Resource<A, T>): Resource<A, T> => r;
 export function send(route: Route, body?: unknown, o: { method?: 'POST' | 'PUT' | 'DELETE'; type?: string; keepalive?: boolean; signal?: AbortSignal; conn?: AgentConnection } = {}): Promise<Response> {
   const blob = body instanceof Blob;
   const type = o.type ?? (blob ? body.type : body === undefined ? '' : 'application/json');
-  return (o.conn ?? connections.current()).fetch(route, {
+  return (o.conn ?? pageConnection()).fetch(route, {
     method: o.method ?? 'POST',
     ...(type && { headers: { 'content-type': type } }),
     ...(body !== undefined && { body: blob ? body : JSON.stringify(body) }),
@@ -285,17 +285,17 @@ function makeRepository(conn: AgentConnection): Repository {
 
 /** The current connection's repository, for code outside React. */
 export const repository: Repository = {
-  load: (res, args) => repositoryOf(connections.current()).load(res, args),
-  watch: (res, args, o) => repositoryOf(connections.current()).watch(res, args, o),
-  peek: (res, args) => repositoryOf(connections.current()).peek(res, args),
-  subscribe: (res, args, fn) => repositoryOf(connections.current()).subscribe(res, args, fn),
-  invalidate: (res, args) => repositoryOf(connections.current()).invalidate(res, args),
+  load: (res, args) => repositoryOf(pageConnection()).load(res, args),
+  watch: (res, args, o) => repositoryOf(pageConnection()).watch(res, args, o),
+  peek: (res, args) => repositoryOf(pageConnection()).peek(res, args),
+  subscribe: (res, args, fn) => repositoryOf(pageConnection()).subscribe(res, args, fn),
+  invalidate: (res, args) => repositoryOf(pageConnection()).invalidate(res, args),
 };
 
 /** The connection of the store in context; outside a store's Provider, the page's current one. */
 function useAgent(): AgentConnection {
   const store = useContext(ReactReduxContext)?.store;
-  return (store && (connectionsOf(store) as ConnectionManager | undefined)?.current()) || connections.current();
+  return (store && (connectionOf(store) as AgentConnection | undefined)) || pageConnection();
 }
 
 const noop = () => () => {};

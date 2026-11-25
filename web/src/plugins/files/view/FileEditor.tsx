@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { useT, modKey, withKeys, connections, json, routes, storage, send } from '@/sdk';
+import { useT, modKey, withKeys, connection, json, routes, storage, send } from '@/sdk';
 import { useWrapLines } from '../wrap.ts';
 
 type Draft = { text: string; base: string | null };
@@ -39,7 +39,7 @@ export function FileEditor({ path, onClose }: { path: string; onClose: (saved: b
   const fetchDisk = async () => {
     setProblem(null);
     try {
-      const r = await connections.current().fetch(routes.edit(path));
+      const r = await connection.fetch(routes.edit(path));
       if (!r.ok) return setProblem(r.status === 415 ? t('binary') : r.status === 413 ? t('tooLarge') : r.status === 404 ? t('fileGone') : `${r.status} ${r.statusText}`.trim());
       const j = await r.json() as { text: string; base: string };
       const shown = j.text.replace(/\r\n/g, '\n'); // a text box's value has no other line end

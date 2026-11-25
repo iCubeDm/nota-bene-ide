@@ -10,7 +10,7 @@ import { takeVoiceSend, trackVoiceSend, voiceRefused, voiceSendEchoed } from './
  * retry from a bubble) or with no comment to take, the recording goes alone.
  * False when nothing was sent (offline, mid-switch).
  */
-export const sendVoice = (voice: Voice, { id = crypto.randomUUID(), force = false, rides = false }: { id?: string; force?: boolean; rides?: boolean } = {}): AppThunk<boolean> => (d, getState, { connections }) => {
+export const sendVoice = (voice: Voice, { id = crypto.randomUUID(), force = false, rides = false }: { id?: string; force?: boolean; rides?: boolean } = {}): AppThunk<boolean> => (d, getState, { connection }) => {
   const st = getState();
   if (selectConn(st) !== 'open' || st.controls.switching) return false;
   if (rides && selectFeature(st, 'voiceComments')) {
@@ -20,7 +20,7 @@ export const sendVoice = (voice: Voice, { id = crypto.randomUUID(), force = fals
       return r === 'sent';
     }
   }
-  const ok = connections.current().send({ type: 'send', id, text: '', voice: { id: voice.id, ms: voice.ms, wave: voice.wave }, ...dictationAsk(st), ...(force && selectBusy(st) ? { force: true } : {}) });
+  const ok = connection.send({ type: 'send', id, text: '', voice: { id: voice.id, ms: voice.ms, wave: voice.wave }, ...dictationAsk(st), ...(force && selectBusy(st) ? { force: true } : {}) });
   if (ok) trackVoiceSend(id, voice);
   return ok;
 };

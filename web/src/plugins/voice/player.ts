@@ -1,4 +1,4 @@
-import { connections, routes, useStored } from '@/sdk';
+import { connection, routes, useStored } from '@/sdk';
 
 /** What a bubble shows of its recording: playing now, and the position in ms. */
 type PlayState = { playing: boolean; pos: number };
@@ -18,7 +18,7 @@ const set = (id: string, s: PlayState) => {
 };
 
 /** The element for a recording, made on first use: `<audio>` on the same-origin `/voice/<id>` (Range works, the cookie goes along, as for `/attach`); a recording not yet sent plays from its own `src` (a blob URL). */
-function audioOf(id: string, src = connections.current().url(routes.voice(id))): HTMLAudioElement {
+function audioOf(id: string, src = connection.url(routes.voice(id))): HTMLAudioElement {
   let a = audios.get(id);
   if (a) {
     audios.delete(id); // used now: to the young end

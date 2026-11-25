@@ -1,5 +1,5 @@
 import { isAttachmentAnchor } from '@nota-bene/shared';
-import { connections, routes, useAppDispatch, useAppSelector, useT, type AnchorView, addImage, markAttachment, selectImages, mediaTypeOf } from '@/sdk';
+import { connection, routes, useAppDispatch, useAppSelector, useT, type AnchorView, addImage, markAttachment, selectImages, mediaTypeOf } from '@/sdk';
 
 /**
  * A mark on an attached image (protocol 17), on its comment's card: the image, and while it is no longer in the composer
@@ -18,7 +18,7 @@ export const AttachmentCard: NonNullable<AnchorView['Card']> = ({ comment: c, ju
       onClick={go}
       className={`flex items-end gap-2 border-l-2 border-nb-accent pl-2 text-xs text-muted-foreground ${go ? 'cursor-pointer' : ''}`}
     >
-      {c.images?.[0] && <img src={connections.current().url(routes.attach(c.images[0]))} alt="" loading="lazy" draggable={false} className="max-h-24 max-w-[60%] flex-none rounded border border-border-soft object-contain" />}
+      {c.images?.[0] && <img src={connection.url(routes.attach(c.images[0]))} alt="" loading="lazy" draggable={false} className="max-h-24 max-w-[60%] flex-none rounded border border-border-soft object-contain" />}
       {c.status !== 'sent' && !attached && (
         <span className="flex min-w-0 flex-col items-start gap-1">
           <span data-detached className="rounded bg-warn/15 px-1 text-[0.6875rem] text-warn">{t('attachDetached')}</span>

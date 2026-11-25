@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { connections, routes, useT, useAppDispatch, useAppSelector, restartAgent, send } from '@/sdk';
+import { connection, routes, useT, useAppDispatch, useAppSelector, restartAgent, send } from '@/sdk';
 
 /** Authentication stays in the native Codex process. No credential values reach this page. */
 export function AgentAccount() {
@@ -11,7 +11,7 @@ export function AgentAccount() {
   useEffect(() => {
     if (!codex) return;
     let live = true;
-    void connections.current().fetch(routes.agentAccount()).then((r) => r.json()).then((r) => { if (live) { setMissing(!r.signedIn); setError(r.error ?? ''); } }).catch((e) => { if (live) { setMissing(true); setError(String(e)); } });
+    void connection.fetch(routes.agentAccount()).then((r) => r.json()).then((r) => { if (live) { setMissing(!r.signedIn); setError(r.error ?? ''); } }).catch((e) => { if (live) { setMissing(true); setError(String(e)); } });
     return () => { live = false; };
   }, [codex]);
   if (!codex || !missing) return null;
@@ -23,7 +23,7 @@ export function AgentAccount() {
     <button onClick={() => void login()}>{t('agentSignIn')}</button>
     {url && <a href={url} target="_blank" rel="noreferrer" className="underline">ChatGPT ↗</a>}
     <button onClick={() => {
-      void connections.current().fetch(routes.agentAccount()).then((r) => r.json()).then((r) => { setMissing(!r.signedIn); if (r.signedIn) d(restartAgent()); }).catch((e) => setError(String(e)));
+      void connection.fetch(routes.agentAccount()).then((r) => r.json()).then((r) => { setMissing(!r.signedIn); if (r.signedIn) d(restartAgent()); }).catch((e) => setError(String(e)));
     }}>{t('agentRetry')}</button>
   </span>;
 }

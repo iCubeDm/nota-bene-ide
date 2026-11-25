@@ -3,7 +3,7 @@
 // (prefs.json, /system/prefs), cached locally so a reload does not flash. A `hello` adopts its prefs in one place.
 import { useSyncExternalStore } from 'react';
 import { DEFAULT_THEME, isThemeId, isUiLang, isUiScale, type ThemeId, type UiLang, type UiScale } from '@nota-bene/shared';
-import { connections, type HelloEvent } from './connections.ts';
+import { connection, type HelloEvent } from './connections.ts';
 import { pageVisible } from './repository.ts';
 import { routes } from './routes.ts';
 import { send as write } from './repository.ts';
@@ -221,7 +221,7 @@ function makePref<K extends keyof SharedPrefs>(name: K): Pref<SharedPrefs[K]> {
   };
   const read = async (): Promise<T | undefined> => {
     try {
-      const r = await connections.current().fetch(routes.systemPrefs());
+      const r = await connection.fetch(routes.systemPrefs());
       const v: unknown = r.ok ? ((await r.json()) as Record<string, unknown>)[name] : undefined;
       return spec.codec.is(v) ? v : undefined;
     } catch { return undefined; }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GitSwitchAnswer, Source, VcsBranch } from '@nota-bene/shared';
-import { useT, selectSession, selectTurnSeq, useAppDispatch, useAppSelector, routes, defineResource, useResource, loadSources, useSources, connections, useService, send } from '@/sdk';
+import { useT, selectSession, selectTurnSeq, useAppDispatch, useAppSelector, routes, defineResource, useResource, loadSources, useSources, connection, useService, send } from '@/sdk';
 import { Popover, PopoverContent, PopoverTrigger, ICONS, Svg } from '@/sdk/ui';
 import { setHasRepo } from './store.ts';
 
@@ -33,7 +33,7 @@ function useGitStatus(root: string | undefined, turnSeq: number, diskSeq: number
     const fetchNow = async () => {
       last.current = Date.now();
       try {
-        const r = await connections.current().fetch(routes.gitStatus());
+        const r = await connection.fetch(routes.gitStatus());
         if (!r.ok) return; // git timed out (503): keep what is shown
         const v: unknown = await r.json();
         if (mine === gen.current) setStatus(isStatus(v) ? v : null);
