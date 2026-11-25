@@ -483,7 +483,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
         ...projectRoutes({ hub, port: () => s.port(), provider: agent.provider, agent: a.id, repoDir, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
         ...systemRoutes({
           updater: win, newer,
-          hub, root, stateDir: agent.stateDir, modes: a.backend.capabilities.modes, port: () => s.port(), repoDir, agent: a.id,
+          hub, root, stateDir: agent.stateDir, modes: a.backend.capabilities.modes, port: () => s.port(), repoDir,
           control: {
             supervised,
             exiting: s.exiting,

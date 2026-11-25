@@ -13,8 +13,7 @@ import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http
 import os from 'node:os';
 import path from 'node:path';
 import { isThemeId, isUiLang, isUiScale, MODES, type AgentMode as Mode } from '@nota-bene/shared';
-import type { AgentProvider } from './agent/provider.ts';
-import { readSecret, stateSecret } from './auth.ts';
+import { SecretError, stateSecret, verifiedBearer } from './auth.ts';
 import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
 import { DEFAULT_SOUNDS, isShellChoice, isSounds, readPrefs, setAuditPref, setDefaultModePref, setLangPref, setProjectRailPref, setShellPref, setSoundsPref, setThemePref, setUiScalePref, setUpdateCheckPref } from './prefs.ts';
@@ -27,9 +26,7 @@ import { changelog, isNewer, RELEASE, updateCheck, updateCheckForcedOff } from '
 import type { Updater } from './updater.ts';
 import { readVersion } from './version.ts';
 import { wirePath } from './wirePath.ts';
-import { probeServer, registries, type ServerProbe } from './servers.ts';
-import { AGENT_ID } from './state.ts';
-import { pidAlive } from './windows.ts';
+import { pidAlive, readWindows } from './windows.ts';
 
 export const CONTROL_HEADER = 'x-nota-bene-control';
 /** gh-422: `restart-server` waits for the agent's pause; `-now` cuts the turn, `-cancel` drops a pending one */
@@ -193,37 +190,47 @@ function moveToTrash(stateDir: string, kind: 'attachments' | 'history', files: s
   return { moved, bytes, trash, errors };
 }
 
-export type AgentRow = { id: string; provider: AgentProvider; root: string; title: string | null; busy: boolean; /** the asking page's own */ current: boolean };
-export type ServerRow = {
-  /** the provider it was started as: its registry and tokens */
-  provider: AgentProvider; port: number; root: string; pid: number; startedAt: number; current: boolean;
+export type WindowInfo = { root: string; session?: string | null; title?: string | null; supervised?: boolean; busy?: boolean; clients?: number; restartPending?: boolean };
+export type WindowRow = {
+  port: number; root: string; pid: number; startedAt: number; current: boolean;
   /** live: answers with its root; restarting: in a relaunch gap; silent: pid alive, no answer; stale: gone */
   state: 'live' | 'restarting' | 'silent' | 'stale';
-  supervised: boolean; clients: number;
-  /** gh-422: a server restart waits for its agents' pause; absent: a server of a version before that (its restart cuts the turn) */
+  session: string | null; title: string | null; supervised: boolean; busy: boolean; clients: number;
+  /** gh-422: a server restart waits for its pause; absent: a window of a version before that (its restart cuts the turn) */
   restartPending?: boolean;
-  agents: AgentRow[];
 };
 
-/** Every provider's registered servers, each with its agents (issue 682). `own`: the asking page's server and agent. */
-export async function listServers(own: { port: number; agent?: string }, probe: ServerProbe = probeServer): Promise<ServerRow[]> {
-  const rows = await Promise.all(registries().flatMap(({ provider, token, entries }) => entries.map(async ([port, w]): Promise<ServerRow> => {
+export async function probeWindow(port: number, timeoutMs = 700): Promise<WindowInfo | null> {
+  try {
+    // the credential goes only to a listener that proved it holds the token; never follow a redirect: the answer must be that port's own
+    const bearer = await verifiedBearer(port, timeoutMs);
+    if (!bearer) return null;
+    const r = await fetch(`http://127.0.0.1:${port}/info`, { headers: { authorization: bearer }, signal: AbortSignal.timeout(timeoutMs), redirect: 'error' });
+    if (!r.ok) return null;
+    const j = (await r.json()) as WindowInfo;
+    return j && typeof j.root === 'string' ? j : null;
+  } catch (e) {
+    if (e instanceof SecretError) throw e;
+    return null;
+  }
+}
+
+export async function listWindows(own: number, probe = probeWindow): Promise<WindowRow[]> {
+  const rows = await Promise.all(Object.entries(readWindows()).map(async ([key, w]): Promise<WindowRow> => {
+    const port = Number(key);
     const alive = pidAlive(w.pid);
-    const info = alive ? await probe(port, token) : null;
-    const state: ServerRow['state'] = !alive
+    const info = alive ? await probe(port) : null;
+    const state: WindowRow['state'] = !alive
       ? (w.launcherPid !== undefined && pidAlive(w.launcherPid) ? 'restarting' : 'stale')
-      : info?.top?.root === w.root ? 'live' : 'silent';
-    const top = state === 'live' ? info!.top! : {};
+      : info && info.root === w.root ? 'live' : 'silent';
+    const live = state === 'live' && info;
     return {
-      provider, port, root: wirePath(w.root), pid: w.pid, startedAt: w.startedAt, current: port === own.port, state,
-      supervised: !!top.supervised, clients: typeof top.clients === 'number' ? top.clients : 0,
-      ...(typeof top.restartPending === 'boolean' ? { restartPending: top.restartPending } : {}),
-      agents: state !== 'live' ? [] : info!.agents.flatMap((a): AgentRow[] => (typeof a.info?.root !== 'string' ? [] : [{
-        id: a.id, provider: a.provider, root: wirePath(a.info.root), title: typeof a.info.title === 'string' ? a.info.title : null,
-        busy: !!a.info.busy, current: port === own.port && a.id === own.agent,
-      }])),
+      port, root: wirePath(w.root), pid: w.pid, startedAt: w.startedAt, current: port === own, state,
+      session: live ? info.session ?? null : null, title: live ? info.title ?? null : null,
+      supervised: live ? !!info.supervised : false, busy: live ? !!info.busy : false, clients: live ? info.clients ?? 0 : 0,
+      ...(live && typeof info.restartPending === 'boolean' ? { restartPending: info.restartPending } : {}),
     };
-  })));
+  }));
   return rows.sort((a, b) => a.port - b.port);
 }
 
@@ -289,11 +296,19 @@ export function systemRoutes(o: {
   /** the CHANGELOG sections between two versions, or null (tests stub it) */
   changes?: (current: string, latest: string) => Promise<string | null>;
   control: Control;
-  /** the asking page's agent: Settings acts on every agent but it (its controls are in its header) */
-  agent?: string;
+  probe?: (port: number) => Promise<WindowInfo | null>;
   /** the app icon (server/src/shortcut.ts; tests stub it) */
   shortcut?: { path(): string | null; installed(): boolean; install(): string };
+  relay?: (port: number, action: ControlAction, token: string) => Promise<number>;
 }): Record<string, RequestListener> {
+  const probe = o.probe ?? probeWindow;
+  const relay = o.relay ?? (async (port, action, token) => {
+    // the control token goes only to a listener that proved it holds the access token (the probe before may be stale)
+    if (!(await verifiedBearer(port, 1000))) return 502;
+    // redirect: 'error': a 307/308 would carry the token on to wherever it points
+    const r = await fetch(`http://127.0.0.1:${port}/control/${action}`, { method: 'POST', headers: { [CONTROL_HEADER]: token }, signal: AbortSignal.timeout(3000), redirect: 'error' });
+    return r.status;
+  });
   const fail = (res: ServerResponse, where: string, e: unknown) => {
     reportError(o.hub, where, e);
     if (!res.headersSent) text(res, 500, 'internal error');
@@ -451,31 +466,24 @@ export function systemRoutes(o: {
 
     '/system/windows': (req, res) => {
       if (!only('GET', req, res)) return;
-      listServers({ port: o.port(), ...(o.agent ? { agent: o.agent } : {}) }).then((rows) => json(res, 200, rows), (e) => fail(res, '/system/windows', e));
+      listWindows(o.port(), probe).then((rows) => json(res, 200, rows), (e) => fail(res, '/system/windows', e));
     },
 
-    // on a server (restart, stop), or with `agent` on one of its agents (restart-agent)
     '/system/windows/action': (req, res) => {
       if (!only('POST', req, res)) return;
       void readJson(req).then(async (b) => {
-        const { port, action, root, pid, startedAt, agent } = b as { port?: unknown; action?: unknown; root?: unknown; pid?: unknown; startedAt?: unknown; agent?: unknown };
+        const { port, action, root, pid, startedAt } = b as { port?: unknown; action?: unknown; root?: unknown; pid?: unknown; startedAt?: unknown };
         if (!Number.isInteger(port) || !(CONTROL_ACTIONS as readonly unknown[]).includes(action)) return text(res, 400, 'bad request');
-        if (action === 'restart-agent' ? typeof agent !== 'string' || !AGENT_ID.test(agent) : agent !== undefined) return text(res, 400, 'bad request');
-        // this server's and this agent's own controls are in the page's header
-        if (port === o.port() && (!agent || agent === o.agent)) return text(res, 409, 'this window');
-        const found = registries().flatMap((r) => r.entries.flatMap(([p, w]) => (p === port && pidAlive(w.pid) ? [{ r, w }] : [])))[0];
-        if (!found) return text(res, 404, 'no such window');
-        const { r, w } = found;
-        // the server the user saw (and confirmed) must still be the one on that port: a port reused by a newer one
+        if (port === o.port()) return text(res, 409, 'this window'); // its own controls are in its header
+        const w = readWindows()[String(port)];
+        if (!w || !pidAlive(w.pid)) return text(res, 404, 'no such window');
+        // the window the user saw (and confirmed) must still be the one on that port: a port reused by a newer window
         // after the list was loaded is not touched. The list sent the root in the wire form; the stored form is fine too
         if ((w.root !== root && wirePath(w.root) !== root) || w.pid !== pid || w.startedAt !== startedAt) return text(res, 409, 'window changed');
-        // both tokens are its provider's, and go only to a listener that proved it holds the access token
-        const control = readSecret(path.join(r.dir, 'control-token'));
-        const info = control ? await probeServer(port as number, r.token) : null;
-        if (!info || info.top?.root !== w.root || (agent && !info.agents.some((a) => a.id === agent))) return text(res, 409, 'window not answering');
-        // redirect: 'error': a 307/308 would carry the token on to wherever it points
-        const sent = await fetch(`http://127.0.0.1:${port as number}${agent ? `/a/${agent as string}` : ''}/control/${action as ControlAction}`, { method: 'POST', headers: { [CONTROL_HEADER]: control! }, signal: AbortSignal.timeout(3000), redirect: 'error' });
-        json(res, sent.status === 200 ? 200 : 502, { status: sent.status });
+        const info = await probe(port as number);
+        if (!info || info.root !== w.root) return text(res, 409, 'window not answering');
+        const status = await relay(port as number, action as ControlAction, controlToken());
+        json(res, status === 200 ? 200 : 502, { status });
       }).catch((e: unknown) => (e instanceof SyntaxError || (e instanceof Error && e.message === 'body too large') ? text(res, 400, 'bad request') : fail(res, '/system/windows/action', e)));
     },
 

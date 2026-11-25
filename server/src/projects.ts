@@ -11,7 +11,7 @@ import path from 'node:path';
 import { helperCredential, loginCredential, proveListener, readSecret } from './auth.ts';
 import { readHidden, readRecent, type RecentEntry } from './recent.ts';
 import { CONTROL_HEADER } from './system.ts';
-import { infoAt, probeServer, registries } from './servers.ts';
+import { infoAt, registries, serverAgents } from './servers.ts';
 import { AGENT_ID, stateBaseDir } from './state.ts';
 import { pidAlive, readKeptAgents, type WindowEntry } from './windows.ts';
 import { wirePath } from './wirePath.ts';
@@ -48,9 +48,11 @@ const rooted = (i: Record<string, unknown> | null): i is ProbedInfo & Record<str
 
 /** The listener on `port` proved with `token`, then its /info and its other agents' with that launch's helper bearer; null for anything else. */
 export const probeWith: Probe = async (port, token) => {
-  const r = await probeServer(port, token, PROBE_MS);
-  if (!r || !rooted(r.top)) return null;
-  const { top, agents } = r;
+  const n = await proveListener({ dial: port, timeoutMs: PROBE_MS, token });
+  if (n === null) return null;
+  const bearer = `Bearer ${helperCredential(token, port, n)}`;
+  const { top, agents } = await serverAgents(port, bearer);
+  if (!rooted(top)) return null;
   return { ...top, extra: agents.flatMap(({ id, provider, info }) => (id !== top.agent && rooted(info) ? [{ ...info, agent: id, provider }] : [])) };
 };
 

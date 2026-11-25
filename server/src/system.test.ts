@@ -6,10 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WebSocket from 'ws';
 import { fakeBackend } from './agent/fake.ts';
 import { readPrefs } from './prefs.ts';
-import { startServer } from './server.ts';
 import { agentServer } from './testing.ts';
-import { accessToken, verifiedBearer } from './auth.ts';
-import { providerStateDir } from './agent/provider.ts';
+import { accessToken } from './auth.ts';
 import { EventHub } from './hub.ts';
 import type { Updater, UpdateStatus } from './updater.ts';
 import { CLEAN_MIN_AGE_MS, CONTROL_HEADER, cleanAttachments, cleanCandidates, cleanStaleArchives, controlToken, describeVersion, dirSize, staleArchives, systemRoutes } from './system.ts';
@@ -370,66 +368,18 @@ describe('defaults and about', () => {
 });
 
 describe('windows', () => {
-  /** A server started as codex, in codex's registry (its own token and control token). */
-  async function codexServer() {
-    process.env.NOTA_BENE_AGENT = 'codex';
-    try {
-      const backend = fakeBackend([{ text: 'hello' }]);
-      const exits: number[] = [];
-      const root = mkExtra('nb-system-codex-');
-      const s = await startServer({ cwd: root, port: 0, backend, webDist: dist, exit: (c) => void exits.push(c) });
-      closers.push(s.close);
-      const port = Number(new URL(s.url).port);
-      registerWindow(port, root, process.pid);
-      const bearer = (await verifiedBearer(port, 2000))!;
-      const agent = ((await (await fetch(`${s.url}/info`, { headers: { authorization: bearer } })).json()) as { agents: { id: string }[] }).agents[0]!.id;
-      const w = JSON.parse(fs.readFileSync(path.join(providerStateDir(home, 'codex'), 'windows', `${port}.json`), 'utf8')) as { root: string; pid: number; startedAt: number };
-      return { port, agent, backend, exits, row: { port, root: w.root, pid: w.pid, startedAt: w.startedAt } };
-    } finally {
-      delete process.env.NOTA_BENE_AGENT;
-    }
-  }
-  type Row = { provider: string; port: number; state: string; current: boolean; restartPending?: boolean; agents: { id: string; provider: string; root: string; busy: boolean; current: boolean }[] };
-
-  it('issue 682: lists the servers of every provider, each with its agents', async () => {
+  it('lists registered windows with their state; /info carries busy and clients', async () => {
     const a = await boot(proj, true);
-    const second = await a.open({ provider: 'codex', cwd: mkExtra('nb-system-c-'), backend: fakeBackend([]) });
-    registerWindow(a.port, ((await (await af(`${a.server}/info`)).json()) as { root: string }).root, process.pid);
-    const c = await codexServer();
+    const b = await boot(mkExtra('nb-system-b-'), true);
+    const bRoot = ((await (await af(`${b.url}/info`)).json()) as { root: string; busy: boolean; clients: number });
+    expect(bRoot).toMatchObject({ busy: false, clients: 0 });
+    registerWindow(a.port, ((await (await af(`${a.url}/info`)).json()) as { root: string }).root, process.pid);
+    registerWindow(b.port, bRoot.root, process.pid);
     registerWindow(1, '/gone', 999_999_999); // a dead pid
-    const rows = await (await af(`${a.url}/system/windows`)).json() as Row[];
-    expect(rows.map((r) => [r.provider, r.port, r.state, r.current, r.agents.map((x) => [x.id, x.provider, x.busy, x.current])])).toEqual([
-      ['claude', 1, 'stale', false, []],
-      ...[
-        ['claude', a.port, 'live', true, [[a.agent, 'claude', false, true], [second, 'codex', false, false]]],
-        ['codex', c.port, 'live', false, [[c.agent, 'codex', false, false]]],
-      ].sort((x, y) => (x[1] as number) - (y[1] as number)),
-    ]);
-    // gh-422: a live server says whether a restart waits; a stale one says nothing
+    const rows = await (await af(`${a.url}/system/windows`)).json() as { port: number; state: string; current: boolean; restartPending?: boolean }[];
+    expect(rows.map((r) => [r.port, r.state, r.current])).toEqual([[1, 'stale', false], ...[[a.port, 'live', true], [b.port, 'live', false]].sort((x, y) => (x[0] as number) - (y[0] as number))]);
+    // gh-422: a live window says whether a restart waits; a stale one says nothing
     expect(rows.map((r) => r.restartPending)).toEqual([undefined, false, false]);
-  });
-
-  it('issue 682: an agent is restarted on its own server and on another provider\'s; never the page\'s own', async () => {
-    const a = await boot(proj, true);
-    const other = fakeBackend([]);
-    const second = await a.open({ provider: 'codex', cwd: mkExtra('nb-system-c-'), backend: other });
-    registerWindow(a.port, ((await (await af(`${a.server}/info`)).json()) as { root: string }).root, process.pid);
-    const c = await codexServer();
-    const act = (body: unknown) => post(`${a.url}/system/windows/action`, body, { origin: a.origin });
-    // the page's own agent has its controls in its header; an agent the server does not have; an action that takes none
-    expect((await act({ ...rowOf(a.port), action: 'restart-agent', agent: a.agent })).status).toBe(409);
-    expect((await act({ ...rowOf(a.port), action: 'restart-agent', agent: 'codex-zzzzzz' })).status).toBe(409);
-    expect((await act({ ...rowOf(a.port), action: 'restart-agent' })).status).toBe(400);
-    expect((await act({ ...c.row, action: 'stop', agent: c.agent })).status).toBe(400);
-    expect(await (await act({ ...rowOf(a.port), action: 'restart-agent', agent: second })).json()).toEqual({ status: 200 });
-    await until(() => other.starts.length === 2);
-    expect(await (await act({ ...c.row, action: 'restart-agent', agent: c.agent })).json()).toEqual({ status: 200 });
-    await until(() => c.backend.starts.length === 2);
-    // a server of another provider stops with that provider's control token
-    expect(await (await act({ ...c.row, action: 'stop' })).json()).toEqual({ status: 200 });
-    await until(() => c.exits.length > 0);
-    expect(c.exits).toEqual([0]);
-    expect(a.exits).toEqual([]);
   });
 
   it('A stops B through B\'s /control with the token; A refuses to act on itself; a page never reaches /control', async () => {

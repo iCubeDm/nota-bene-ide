@@ -1,26 +1,22 @@
 import { useState } from 'react';
 import { UI_SCALES, type UiScale } from '@nota-bene/shared';
-import { defineResource, routes, useResource, useSettings, storage, systemPrefs, byteSize, percent, getLang, chooseLang, LANGS, t as tNow, useT, type Lang, folderName, shortWinHome, selectCapabilitiesKnown, useAppSelector, theme, THEME_GROUPS, THEME_NAMES, useTheme, PROVIDER_LABEL, uiScale, useUiScale, playCue, type Sounds, type SettingsSection, send } from '@/sdk';
+import { defineResource, routes, useResource, useSettings, storage, systemPrefs, byteSize, percent, getLang, chooseLang, LANGS, t as tNow, useT, type Lang, folderName, shortWinHome, selectCapabilitiesKnown, useAppSelector, theme, THEME_GROUPS, THEME_NAMES, useTheme, uiScale, useUiScale, playCue, type Sounds, type SettingsSection, send } from '@/sdk';
 import { Button, SettingsFail, SettingsRow as Row } from '@/sdk/ui';
 
 type Size = { bytes: number; files: number };
 /** `history`: the archive before compactions (R-M7-1); absent from a server older than M7-12 */
 type Storage = { attachments: Size; comments: Size; history?: Size; trash: Size; marks: Size & { root: string }; unreferenced: Size };
-type Provider = keyof typeof PROVIDER_LABEL;
-type AgentRow = { id: string; provider: Provider; root: string; title: string | null; busy: boolean; current: boolean };
-/** A running server of any provider with its agents (server/src/system.ts) */
-type ServerRow = {
-  provider: Provider; port: number; root: string; pid: number; startedAt: number; current: boolean;
+type WindowRow = {
+  port: number; root: string; pid: number; startedAt: number; current: boolean;
   state: 'live' | 'restarting' | 'silent' | 'stale';
-  supervised: boolean; clients: number;
-  /** gh-422: a server restart waits for its agents; absent: a server of a version before that (its restart cuts the turn) */
+  session: string | null; title: string | null; supervised: boolean; busy: boolean; clients: number;
+  /** gh-422: a server restart waits for its agent; absent: a window of a version before that (its restart cuts the turn) */
   restartPending?: boolean;
-  agents: AgentRow[];
 };
 type About = { version: string; stateDir: string; logs: string[]; node: string; pid: number };
 type Action = 'restart-agent' | 'restart-server' | 'restart-server-now' | 'restart-server-cancel' | 'stop';
 
-const windowsResource = defineResource<void, ServerRow[]>({ id: 'settings.windows', key: () => '', route: () => routes.systemWindows() });
+const windowsResource = defineResource<void, WindowRow[]>({ id: 'settings.windows', key: () => '', route: () => routes.systemWindows() });
 const storageResource = defineResource<void, Storage>({ id: 'settings.storage', key: () => '', route: () => routes.systemStorage() });
 const aboutResource = defineResource<void, About>({ id: 'settings.about', key: () => '', route: () => routes.systemAbout() });
 export const SETTINGS_RESOURCES = [windowsResource, storageResource, aboutResource];
@@ -38,27 +34,27 @@ function WindowsRefresh({ active }: { active: boolean }) {
   return <Button type="button" variant="ghost" size="sm" onClick={windows.refresh}>{t('refresh')}</Button>;
 }
 
-/** Every running server with its agents: restart and stop for the other servers, restart for every agent but this page's. */
+/** Every Nota Bene window, with restart and stop for the others. */
 function Windows({ active }: { active: boolean }) {
   const t = useT();
   const { note, ask } = useSettings();
   const windows = useResource(windowsResource, undefined, { on: active });
-  // the port whose action is in flight: that server's buttons are off until it settles (no double relays)
+  // the port whose action is in flight: that row's buttons are off until it settles (no double relays)
   const [pending, setPending] = useState<number | null>(null);
 
-  const act = (w: ServerRow, action: Action, agent?: AgentRow) => async () => {
+  const act = (w: WindowRow, action: Action) => async () => {
     note(null);
     setPending(w.port);
     try {
-      // the row's identity: the server refuses if another one has taken the port since this list was loaded; the
+      // the row's identity: the server refuses if another window has taken the port since this list was loaded; the
       // refusal's body says why, so this POST reads it itself rather than through the host's
-      const r = await send(routes.systemWindowsAction(), { port: w.port, action, root: w.root, pid: w.pid, startedAt: w.startedAt, ...(agent ? { agent: agent.id } : {}) }).catch(() => null);
+      const r = await send(routes.systemWindowsAction(), { port: w.port, action, root: w.root, pid: w.pid, startedAt: w.startedAt }).catch(() => null);
       if (r?.ok) return note(t('winSent'));
       const body = r ? await r.text().catch(() => '') : '';
       const inner = r?.status === 502 ? (JSON.parse(body || '{}') as { status?: number }).status : undefined;
       note(!r ? t('setLoadFail', 'network')
         : body === 'window changed' ? t('winChanged')
-        : inner === 403 || inner === 404 ? t('winOld') // a server started before the control route existed
+        : inner === 403 || inner === 404 ? t('winOld') // a window started before the control route existed
         : t('setLoadFail', inner ? `${r.status} (${inner})` : `${r.status} ${body}`.trim()));
     } catch (e) {
       note(t('setLoadFail', e instanceof Error ? e.message : String(e)));
@@ -66,15 +62,14 @@ function Windows({ active }: { active: boolean }) {
       setTimeout(() => { setPending(null); windows.refresh(); }, action === 'restart-agent' ? 500 : 1500);
     }
   };
-  // an action that ends a running turn asks first, and Stop always does
-  // a restart of a server that waits for its agents cuts nothing: it goes without asking (gh-422); Restart now always asks
-  const confirmAct = (w: ServerRow, action: Action, label: string, agent?: AgentRow) => {
-    const busy = agent ? agent.busy : w.agents.some((a) => a.busy);
+  // every action on another window ends its running turn: ask first when it is working, and always for Stop
+  // a restart of a window that waits for its agent cuts nothing: it goes without asking (gh-422); Restart now always asks
+  const confirmAct = (w: WindowRow, action: Action, label: string) => {
     if (action === 'restart-server-cancel' || (action === 'restart-server' && w.restartPending !== undefined)) return void act(w, action)();
     if (action === 'restart-server-now') return ask({ title: label, body: t('winRestartNowQ', w.port, short(w.root)), confirm: t('restartNowBtn'), run: act(w, action) });
-    if (action !== 'stop' && !busy) return void act(w, action, agent)();
-    const body = action === 'stop' ? t('winStopQ', w.port, short(w.root)) : t('winBusyQ', label, w.port, short((agent ?? w).root));
-    ask({ title: label, body: busy && action === 'stop' ? `${body}\n${t('winBusyNote')}` : body, confirm: label, run: act(w, action, agent) });
+    if (action !== 'stop' && !w.busy) return void act(w, action)();
+    const body = action === 'stop' ? t('winStopQ', w.port, short(w.root)) : t('winBusyQ', label, w.port, short(w.root));
+    ask({ title: label, body: w.busy && action === 'stop' ? `${body}\n${t('winBusyNote')}` : body, confirm: label, run: act(w, action) });
   };
 
   return (
@@ -83,34 +78,23 @@ function Windows({ active }: { active: boolean }) {
       {windows.data && !windows.data.length && <div className="text-xs text-muted-foreground">{t('winNone')}</div>}
       <div className="flex flex-col gap-2">
         {windows.data?.map((w) => (
-          <div key={`${w.provider}:${w.port}`} data-window={w.port} className="rounded-lg border border-border-soft px-3 py-2 text-[0.8125rem]">
+          <div key={w.port} data-window={w.port} className="rounded-lg border border-border-soft px-3 py-2 text-[0.8125rem]">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <span className="font-semibold text-foreground">{folderName(w.root) || w.root}</span>
               <span className="font-mono text-[0.6875rem] text-muted-foreground">{short(w.root)}</span>
               <span className="font-mono text-[0.6875rem] text-muted-foreground">:{w.port}</span>
-              {w.current && <span className="rounded bg-primary/15 px-1.5 text-[0.6875rem] text-link">{t('winThisServer')}</span>}
+              {w.current && <span className="rounded bg-primary/15 px-1.5 text-[0.6875rem] text-link">{t('winThis')}</span>}
               {w.state !== 'live' && <span className="text-[0.6875rem] text-warn">{t(`win_${w.state}`)}</span>}
             </div>
             {w.state === 'live' && (
               <div className="mt-0.5 text-xs text-muted-foreground">
-                {[w.restartPending ? t('winRestartPending') : null, w.clients ? t('winTabs', w.clients) : t('winHeadless'), t('winUp', uptime(w.startedAt))].filter(Boolean).join(' · ')}
+                {[w.title, w.busy ? t('winBusy') : t('winIdle'), w.restartPending ? t('winRestartPending') : null, w.clients ? t('winTabs', w.clients) : t('winHeadless'), t('winUp', uptime(w.startedAt))].filter(Boolean).join(' · ')}
               </div>
             )}
-            {w.agents.map((a) => (
-              <div key={a.id} data-agent={a.id} className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-soft pt-1.5">
-                <span className="text-foreground">{folderName(a.root) || a.root}</span>
-                <span className="min-w-0 flex-1 text-xs text-muted-foreground">{[PROVIDER_LABEL[a.provider], a.title, a.busy ? t('winBusy') : t('winIdle')].filter(Boolean).join(' · ')}</span>
-                {a.current ? <span className="rounded bg-primary/15 px-1.5 text-[0.6875rem] text-link">{t('winThis')}</span> : (
-                  <span className="flex gap-1.5">
-                    {/* this server's agent is a page of this origin, however the page was reached */}
-                    <Button asChild variant="outline" size="sm"><a href={`${w.current ? '' : `http://127.0.0.1:${w.port}`}/a/${a.id}/`} target="_blank" rel="noopener noreferrer">{t('winOpen')}</a></Button>
-                    <Button type="button" variant="outline" size="sm" disabled={pending === w.port} onClick={() => confirmAct(w, 'restart-agent', t('winRestartAgent'), a)}>{t('winRestartAgent')}</Button>
-                  </span>
-                )}
-              </div>
-            ))}
             {!w.current && w.state === 'live' && (
               <div className="mt-2 flex flex-wrap gap-1.5">
+                <Button asChild variant="outline" size="sm"><a href={`http://127.0.0.1:${w.port}/`} target="_blank" rel="noopener noreferrer">{t('winOpen')}</a></Button>
+                <Button type="button" variant="outline" size="sm" disabled={pending === w.port} onClick={() => confirmAct(w, 'restart-agent', t('winRestartAgent'))}>{t('winRestartAgent')}</Button>
                 {w.supervised && !w.restartPending && <Button type="button" variant="outline" size="sm" disabled={pending === w.port} onClick={() => confirmAct(w, 'restart-server', t('winRestartServer'))}>{t('winRestartServer')}</Button>}
                 {w.supervised && w.restartPending && (
                   <>

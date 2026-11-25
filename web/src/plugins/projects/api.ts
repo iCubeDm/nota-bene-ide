@@ -30,7 +30,7 @@ export const rowRef = (w: RunningRow): { provider: Provider; port: number; root:
 type RecentRow = { root: string; provider: Provider; at: number; running: boolean };
 export type ProjectsList = { running: RunningRow[]; recent: RecentRow[]; /** folders removed from Recent: out of this window's history too */ hidden?: string[] };
 
-export { PROVIDER_LABEL } from '@/sdk';
+export const PROVIDER_LABEL: Record<Provider, string> = { claude: 'Claude', codex: 'Codex', omp: 'omp' };
 
 /** The move to another window: the login URL is used here and nowhere else. A seam for the tests (jsdom cannot navigate). */
 export const nav = { go: (url: string): void => location.assign(url) };

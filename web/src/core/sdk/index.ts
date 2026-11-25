@@ -16,7 +16,6 @@ export { playCue } from '../shell/sounds.ts';
 // helpers
 export { num, compact, compactParts, percent, money, byteSize, ago } from '../lib/format.ts';
 export { folderName, shortWinHome, shortHome } from '../lib/paths.ts';
-export { PROVIDER_LABEL } from '../lib/providers.ts';
 export { keysInScope } from '../lib/keyScope.ts';
 export { editable } from '../lib/editable.ts';
 export { setValueAndCaret, insertPaths, AT_RE } from '../lib/insertText.ts';

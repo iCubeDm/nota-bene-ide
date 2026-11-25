@@ -6,7 +6,7 @@
 // before anything is sent to it. Nothing here creates a token: a provider without one has no servers.
 import path from 'node:path';
 import { PROVIDERS, providerStateDir, type AgentProvider } from './agent/provider.ts';
-import { readPrivateFile, SecretError, verifiedBearer } from './auth.ts';
+import { readPrivateFile, SecretError } from './auth.ts';
 import { AGENT_ID, stateBaseDir } from './state.ts';
 import { readWindows, type WindowEntry } from './windows.ts';
 
@@ -66,11 +66,3 @@ export async function serverAgents(port: number, bearer: string, fetchFn: typeof
   const agents = await Promise.all(agentsOf(top).map(async (a) => ({ ...a, info: a.id === top?.agent ? top : await infoAt(port, `/a/${a.id}`, bearer, fetchFn, ms) })));
   return { top, agents };
 }
-
-export type ServerProbe = (port: number, token: string) => Promise<Awaited<ReturnType<typeof serverAgents>> | null>;
-
-/** `serverAgents` of the listener on `port` once it proved it holds `token`; null, and nothing sent to it, when it did not. */
-export const probeServer = async (port: number, token: string, ms = 700, fetchFn: typeof fetch = fetch): ReturnType<ServerProbe> => {
-  const bearer = await verifiedBearer(port, ms, fetchFn, token);
-  return bearer ? serverAgents(port, bearer, fetchFn, ms) : null;
-};

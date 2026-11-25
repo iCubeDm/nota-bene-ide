@@ -217,7 +217,7 @@ The canonical security model. Nothing on the machine reaches the API or the sock
   and `agents`) and `/control/*`, under the same rules. A page opened at the top goes to the first agent's.
 - **Prove before sending.** A helper first asks `GET /hello?c=<challenge>` and sends no derived value to a port until its
   listener proved it holds the token (`proveListener`, `verifiedBearer`). Every probe goes through it: `--find`, the
-  launcher's checks, Settings → Servers, the project switcher, the remote connector, `--url` and `--front`.
+  launcher's checks, Settings → Windows, the project switcher, the remote connector, `--url` and `--front`.
 - **What prints the login.** `--detach`'s line and `--url` carry `#t=` (the user's own terminal). The foreground
   launcher's lines, every log and everything the `/nb` skill prints do not.
 - **The state folder is never served.** `/file`, `/tree`, `/complete` and every `src=` source refuse whatever really is

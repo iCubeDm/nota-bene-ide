@@ -2,7 +2,6 @@
 
 ## Unreleased
 
-- **Settings → Servers lists every server with its agents.** The section, **Windows** before, showed the servers of one agent kind, each as a single conversation. It now shows the servers of Claude, Codex and omp alike, and under each its agents with **Open** and **Restart agent**; **Restart server** and **Stop** stay on the server.
 - **A session open in another agent is not deleted.** With several agents, on one server or on several, the session list let you delete a conversation another agent had open; the branch list also did not mark a folder whose agent was at work, and let its branch be switched.
 - **Usage limits are recorded for every Claude agent.** Only the agent the server was started with recorded them, and after a server restart none did; the limits chart then had gaps.
 - **An agent with a background task running shows as working.** The project switcher, the home page, the phone and Settings → Windows listed it as idle once its turn ended, though a subagent or a shell still ran; a watcher alone (Monitor) still does not count.
