@@ -1,9 +1,9 @@
 /**
- * What a server understands beyond the base protocol, by name: each entry is the protocol that added it, announced in
- * `hello` on connect. Every window serves the one shared `web/dist`, so a reloaded page can be newer than its server
+ * What a client gates on, by name: each entry is the protocol that added it, announced in `hello` on connect. Every window serves the one shared `web/dist`, so a reloaded page can be newer than its server
  * (until "Restart the server"): a client sends a newer message only to a server that announced it, `has(protocol, name)`,
  * and never compares protocol numbers itself. A protocol that added several gated things has several names with one
- * number. A protocol change adds an entry here and raises `PROTOCOL` (`protocol.ts`) to it.
+ * number. A protocol change raises `PROTOCOL` (`protocol.ts`); it adds an entry here when a client has to ask before it
+ * uses the change.
  */
 export const FEATURES = {
   /** `activity` and `idle-compact` */
@@ -120,31 +120,6 @@ export const FEATURES = {
    * need it: the flag comes from the proxy, the page from the other computer.
    */
   remoteProjects: 29,
-  /**
-   * `open-agent` (epic 383): a page that says `go=1` on the ws url follows the launcher; the server sends that event to the
-   * last such page attached when `/control/open` opens an agent no such page shows. A server of an older protocol never sends it
-   */
-  openAgent: 30,
-  /**
-   * a server's other agents on the phone (epic 383): the channel's host stream may carry `agents`, rows with `agent`. Also
-   * what replaces a managed connector started before it, which never sends them
-   */
-  hostAgents: 31,
-  /**
-   * another computer's switcher lists and opens its server's agents (epic 383): the connector's `open` takes an `agent`.
-   * Also what replaces a managed connector started before it, which drops them
-   */
-  remoteAgents: 32,
-  /** the `edit-overlap` event: two agents of one server edit one file in overlapping turns (epic 383 2e) */
-  editOverlap: 33,
-  /** the agent bus (epic 383 2f): a `user` event may carry `from`, another agent's message */
-  agentBus: 34,
-  /** the host stream's rows carry a helper's `lead` (epic 383 phase 3); also what replaces a managed connector before it */
-  hostLeads: 35,
-  /** issue 639: every agent of a server under `/a/<id>/`, its top the server's own; also what replaces a managed connector before it (issue 646) */
-  agentPrefixes: 36,
-  /** issue 639: a server with no agent is left out of the host stream; also what replaces a managed connector before it */
-  emptyServers: 37,
 } as const;
 
 export type Feature = keyof typeof FEATURES;
