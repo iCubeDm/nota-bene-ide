@@ -80,12 +80,11 @@ class _VideoScreenState extends State<VideoScreen> {
   ) async {
     final ch = widget.tab.connection.link.channel;
     if (ch == null) throw StateError('offline');
+    final at = widget.tab.connection.address;
     final a = await ch.httpStream(
-      widget.tab.connection.port,
+      at.port,
       method,
-      widget.tab.connection.at(
-        '/file?path=${Uri.encodeQueryComponent(widget.path)}',
-      ),
+      at.at('/file?path=${Uri.encodeQueryComponent(widget.path)}'),
       headers: headers,
     );
     final etag = a.headers['etag'];

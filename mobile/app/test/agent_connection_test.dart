@@ -71,8 +71,11 @@ void main() {
       await settle();
       expect(ch.wsOpens.last, containsPair('port', 4791));
       expect(ch.wsOpens.last['path'], startsWith('/a/claude-abcdef/ws?tab='));
-      expect(a.at('/file?path=a.md'), '/a/claude-abcdef/file?path=a.md');
-      expect(c.at('/file?path=a.md'), '/file?path=a.md');
+      expect(
+        a.address.at('/file?path=a.md'),
+        '/a/claude-abcdef/file?path=a.md',
+      );
+      expect(c.address.at('/file?path=a.md'), '/file?path=a.md');
       // two agents of one server, the same file: two clips, not one
       expect(clipKey(a, 'out/voice.m4a'), isNot(clipKey(c, 'out/voice.m4a')));
     },
@@ -98,7 +101,7 @@ void main() {
       );
       addTearDown(a.dispose);
       expect(a.window?.agent, 'codex-abcdef');
-      expect(a.at('/ws'), '/a/codex-abcdef/ws');
+      expect(a.address.at('/ws'), '/a/codex-abcdef/ws');
     },
   );
 

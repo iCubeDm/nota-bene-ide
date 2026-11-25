@@ -107,7 +107,7 @@ class _EmbeddedMediaState extends State<EmbeddedMedia> {
 
   void _read(WindowTab tab, String rel) {
     final key =
-        '${tab.connection.link.host.id}|${tab.connection.port}|$rel|${widget.video}';
+        '${tab.connection.link.host.id}|${tab.connection.address.port}|$rel|${widget.video}';
     if (key == _key) return;
     _key = key;
     _undecodable = false;
