@@ -1,9 +1,10 @@
 import { history, historyKeymap, insertNewline, standardKeymap } from '@codemirror/commands';
-import { markdown } from '@codemirror/lang-markdown';
+import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { Compartment, EditorState, Transaction, type Extension } from '@codemirror/state';
 import { EditorView, keymap, placeholder as placeholderExt } from '@codemirror/view';
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, type ClipboardEventHandler, type KeyboardEventHandler, type Ref } from 'react';
 import { fieldOf, fromHost, type Field, type Listeners } from './field.ts';
+import { livePreview } from './livePreview.ts';
 
 // the host's keys own these: Enter sends (composer), Mod-Enter forces or sends; the newline key is the field's own below
 const HOST_KEYS = new Set(['Enter', 'Mod-Enter', 'Shift-Enter']);
@@ -21,7 +22,7 @@ const bare = EditorView.theme({
  * The message field (issue 724): a CodeMirror editor whose text is the markdown that is sent. `value` comes in from the
  * host (a draft, a recalled prompt) without an `onChange` back; what the person types goes out through `onChange`.
  */
-export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste, readOnly, placeholder, ariaLabel, newline, className }: {
+export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste, readOnly, plain, placeholder, ariaLabel, newline, className }: {
   fieldRef: Ref<Field | null>;
   id?: string;
   value: string;
@@ -29,6 +30,8 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
   onKeyDown?: KeyboardEventHandler<HTMLElement>;
   onPaste?: ClipboardEventHandler<HTMLElement>;
   readOnly?: boolean;
+  /** shows the text as is (a shell command): no markdown drawn */
+  plain?: boolean;
   placeholder?: string;
   ariaLabel?: string;
   /** the key that makes a new line: the composer's Enter sends, so its newline is Shift+Enter */
@@ -41,17 +44,19 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
   const change = useRef(onChange);
   change.current = onChange;
   const lock = useRef(new Compartment());
+  const look = useRef(new Compartment());
 
   useLayoutEffect(() => {
     const ext: Extension[] = [
       history(),
-      markdown(),
+      markdown({ base: markdownLanguage }),
       EditorView.lineWrapping,
       bare,
       keymap.of([{ key: newline, run: insertNewline }, ...historyKeymap, ...BASE_KEYS]),
       EditorView.contentAttributes.of({ role: 'textbox', 'aria-multiline': 'true', ...(id ? { id } : {}), ...(ariaLabel ? { 'aria-label': ariaLabel } : {}) }),
       placeholder ? placeholderExt(placeholder) : [],
       lock.current.of(locked(!!readOnly)),
+      look.current.of(plain ? [] : livePreview),
       EditorView.updateListener.of((u) => {
         if (!u.docChanged && !u.selectionSet) return;
         if (u.docChanged && !u.transactions.some((t) => t.annotation(fromHost))) change.current(u.state.doc.toString());
@@ -76,6 +81,10 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
       annotations: [fromHost.of(true), Transaction.addToHistory.of(false)],
     });
   }, [value]);
+
+  useEffect(() => {
+    view.current?.dispatch({ effects: look.current.reconfigure(plain ? [] : livePreview) });
+  }, [plain]);
 
   useEffect(() => {
     view.current?.dispatch({ effects: lock.current.reconfigure(locked(!!readOnly)) });
