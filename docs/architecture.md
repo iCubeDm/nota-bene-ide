@@ -358,27 +358,26 @@ plugin. `TabKinds` is augmentable the same way. The plugin slices by owner: `com
 
 ```mermaid
 flowchart TB
-  C["AgentConnection (sdk/connections.ts)"] -->|"serverEvent(ev, SELF): the only entry of server data"| MW
+  C["AgentConnection (sdk/connections.ts)"] -->|"serverEvent(ev): the only entry of server data"| MW
   C -->|"connState(s): one dispatch per change"| MW
   subgraph MW["middleware, in order"]
-    LM["listener middleware (prepended)"] --> TH["thunk, extra: connections, registry, sent"] --> TO["toast"] --> PM["plugins' middleware in PLUGINS order: refused, history (composer), compactTiming (feed)"] --> MD["media (last)"]
+    LM["listener middleware (prepended)"] --> TH["thunk, extra: connection, registry, sent"] --> TO["toast"] --> PM["plugins' middleware in PLUGINS order: refused, history (composer), compactTiming (feed)"] --> MD["media (last)"]
   end
   MW --> R["reducers: feed, conn, tabs, jump, controls and the injected plugin slices"]
   R --> LS["listeners: root change (enterRoot), tabs save, send, then each plugin's in PLUGINS order"]
   C -. "onEvent, after the store applied it" .-> REPO["repository: a resource's events read it again"]
   UI["components"] -->|"chat.send, chat.answer, pickMode..."| TH
-  TH -->|"connections.current().send(ClientMessage)"| C
+  TH -->|"connection.send(ClientMessage)"| C
 ```
 
 Principles:
 
-- **One entry.** Server data arrives only as the action `serverEvent(ev)`, which carries `meta.agent` (always `SELF`
-  until issue 383). Several slices handle it through `extraReducers`. The feed reducer `reduce()` is a pure function,
+- **One entry.** Server data arrives only as the action `serverEvent(ev)`. Several slices handle it through `extraReducers`. The feed reducer `reduce()` is a pure function,
   so replay is deterministic.
 - **The connection owns its state.** The store mirrors it into the `conn` slice with one `connState` dispatch per
   change; components read the slice (`useConnState`), non-React code `conn.state()`.
-- **Non-serialisable things stay out of state.** The connection manager lives in the closure of `makeStore` and reaches
-  thunks through the thunk `extra` argument (`{ connections, registry, sent }`: `sent` holds what each unanswered send
+- **Non-serialisable things stay out of state.** The connection lives in the closure of `makeStore` and reaches
+  thunks through the thunk `extra` argument (`{ connection, registry, sent }`: `sent` holds what each unanswered send
   took, given back on a refusal). `MediaController` (which holds DOM elements) lives in a `WeakMap` and is fetched by
   the hook `useMedia`.
 - **Side effects live in middleware and listeners, not in reducers**: toasts, tracking of PiP and pauses (`media`, last,
@@ -482,11 +481,10 @@ combined frame image): the send waits up to `COMPOSITE_MS` with Send off. Then, 
 so a refusal gives back the draft and the comments without either plugin knowing the other. A recording is
 `chat.send` with its `voice`.
 
-**Connection** (`sdk/connections.ts`). `AgentConnection { id; base; state(); subscribe; hello(); send(m);
+**Connection** (`sdk/connections.ts`). `AgentConnection { base; state(); subscribe; hello(); send(m);
 fetch(route, init?); url(route); takeOver(); stop(); onEvent(fn) }` over `net/socket.ts`, whose semantics are
-unchanged. `ConnectionManager { current(); get(id); list() }`; `makeStore` makes exactly one connection, `SELF`
-(`'self'`, issue 383 gives real ids). `onEvent` delivers each event after the store applied it. Hooks:
-`useConnection()`, `useConnState()`, `useFeature(f)`; `connections` serves code outside React. A server capability is
+unchanged. A page shows one agent, so `makeStore` makes one connection. `onEvent` delivers each event after the store applied it. Hooks:
+`useConnection()`, `useConnState()`, `useFeature(f)`; `connection` serves code outside React. A server capability is
 checked one way: `useFeature(f)` in a component, `selectFeature(s, f)` elsewhere, both over the `controls` slice's
 protocol (0 until a hello). A reducer of the `hello` itself reads its `protocol` with `has`.
 

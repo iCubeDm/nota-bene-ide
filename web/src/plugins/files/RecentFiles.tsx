@@ -1,7 +1,7 @@
 import { focusTab, FileIcon } from '@/sdk/ui';
 import { useEffect, useRef, useState } from 'react';
 import { Dialog as DialogPrimitive } from 'radix-ui';
-import { useT, selectSession, useAppDispatch, useAppSelector, openFile, selectTabs, connections, routes, fileTabId, type SavedFile } from '@/sdk';
+import { useT, selectSession, useAppDispatch, useAppSelector, openFile, selectTabs, connection, routes, fileTabId, type SavedFile } from '@/sdk';
 import { readRecent } from './recent.ts';
 import { selectRecentOpen, setRecentOpen } from './slice.ts';
 
@@ -48,7 +48,7 @@ export function RecentFiles() {
     if (!open || !needle) { setFound([]); setAnswered(''); return; }
     const ctl = new AbortController();
     const timer = setTimeout(() => {
-      connections.current().fetch(routes.complete(needle), { signal: ctl.signal })
+      connection.fetch(routes.complete(needle), { signal: ctl.signal })
         .then((r) => (r.ok ? (r.json() as Promise<string[]>) : []))
         .then((hits) => { setFound(hits.filter((p) => !p.endsWith('/'))); setAnswered(needle); }, (e: unknown) => {
           // offline or a server error: say so as "nothing" rather than searching forever (an abort is a newer query)

@@ -1,6 +1,6 @@
 import { AUDIO, IMAGE, VIDEO } from '@nota-bene/shared/cut';
 import { serverSep } from '../lib/paths.ts';
-import { connections } from '../sdk/connections.ts';
+import { connection } from '../sdk/connections.ts';
 import { routes } from '../sdk/routes.ts';
 
 export { AUDIO, IMAGE, VIDEO }; // shared: an edit's sources are these files
@@ -47,7 +47,7 @@ export function fileUrl(p: string, baseDir?: string, src?: string): string {
 }
 
 /** URL of a project-relative path taken as it is, not as a link: `a%20b.mp4` is that file's name (an edit's sources). */
-export const projectFileUrl = (path: string, src?: string): string => connections.current().url(routes.file(path, { src }));
+export const projectFileUrl = (path: string, src?: string): string => connection.url(routes.file(path, { src }));
 
 /** A project-relative path in agent text: never absolute (`/a`; on a Windows server also `C:\a`, `C:/a` or `\\host\share`),
  *  a URL or `~`. */
@@ -55,7 +55,7 @@ export const isPath = (p: string): boolean =>
   !(serverSep() === '\\' ? /^(https?:|~|\/|\\\\|[A-Za-z]:[\\/])/ : /^(https?:|~|\/)/).test(p) &&!/[\n`<>|*]/.test(p) && (/\//.test(p) || /\.[a-z0-9]{1,5}$/i.test(p));
 
 /** The media's ETag (its version for media comments); undefined without one (a branch source) or on any failure. */
-export const headVersion = (url: string, signal: AbortSignal): Promise<string | undefined> => (url.startsWith('/tmpimage') ? connections.current().fetch(url, { method: 'HEAD', signal }) : fetch(url, { method: 'HEAD', signal })).then(
+export const headVersion = (url: string, signal: AbortSignal): Promise<string | undefined> => (url.startsWith('/tmpimage') ? connection.fetch(url, { method: 'HEAD', signal }) : fetch(url, { method: 'HEAD', signal })).then(
   (r) => (r.ok ? r.headers.get('etag') ?? undefined : undefined),
   () => undefined, // no version: the mark simply cannot tell "the file changed"
 );

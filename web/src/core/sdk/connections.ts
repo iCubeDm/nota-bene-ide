@@ -1,5 +1,5 @@
-// The connection manager of issue 511: a page's agents, each one socket with its state, its `hello` and its HTTP base.
-// Today a page has exactly one, SELF; issue 383 opens more. Socket semantics stay in net/socket.ts.
+// The page's connection to its agent (issue 661: a page shows one): one socket with its state, its `hello` and its HTTP
+// base. Socket semantics stay in net/socket.ts.
 import { useSelector, useStore } from 'react-redux';
 import { has, type ClientMessage, type Feature, type ServerEvent } from '@nota-bene/shared';
 import { apiFetch, refusedForAuth, socketProtocols } from '../net/auth.ts';
@@ -8,10 +8,6 @@ import { isLocalPage } from '../net/local.ts';
 import { connect as realConnect, type Connection, type SocketState } from '../net/socket.ts';
 import { coalesceChunks } from '../store/chunks.ts';
 import type { Route } from './routes.ts';
-
-export type AgentId = string;
-/** The one agent of today's page (issue 383 gives real ids). */
-export const SELF: AgentId = 'self';
 
 // unauthorized = the server refused the page's login (the access token, net/auth.ts)
 // connecting = never open yet; closed = dropped after an open; occupied = another tab owns the window; taken = another tab took it from us (M7-15)
@@ -24,8 +20,7 @@ export type { Route } from './routes.ts';
 export type Connect = (url: string | (() => string), onEvent: (ev: ServerEvent) => void, onState: (s: SocketState) => void) => Connection;
 
 export interface AgentConnection {
-  readonly id: AgentId;
-  /** the URL prefix of the agent's routes ('' today) */
+  /** the URL prefix of the agent's routes (`/a/<id>`; '' the server's own) */
   readonly base: string;
   /** for non-React code; components read the `conn` slice (useConnState) */
   state(): ConnState;
@@ -43,12 +38,6 @@ export interface AgentConnection {
   onEvent(fn: (ev: ServerEvent) => void): () => void;
 }
 
-export interface ConnectionManager {
-  current(): AgentConnection;
-  get(id: AgentId): AgentConnection | undefined;
-  list(): AgentConnection[];
-}
-
 // a socket refused for its login stops; one refused because the page's agent is gone takes the page to the top (issue 639)
 const refused = async () => {
   const to = await agentGone();
@@ -58,12 +47,11 @@ const refused = async () => {
 const realConnectFn: Connect = (u, e, st) => realConnect(u, e, st, WebSocket, refused, socketProtocols);
 
 /**
- * One agent's connection. `deliver` applies an event to the store; `mirror` puts a state change into it (one dispatch per
+ * The connection. `deliver` applies an event to the store; `mirror` puts a state change into it (one dispatch per
  * change). The socket opens at `open()`, once the creator has put the connection where thunks find it: a socket may
  * report its first state at once.
  */
 export function agentConnection(o: {
-  id: AgentId;
   base: string;
   url: string;
   connect?: Connect;
@@ -97,7 +85,6 @@ export function agentConnection(o: {
   // «Работать здесь» was pressed: the next `occupied` is answered with `takeover` at once (and never shown)
   let takeoverWanted = false;
   const conn: AgentConnection & { open(): void } = {
-    id: o.id,
     base: o.base,
     state: () => state,
     subscribe: (fn) => (watchers.add(fn), () => void watchers.delete(fn)),
@@ -145,46 +132,37 @@ export function agentConnection(o: {
   return conn;
 }
 
-/** A manager over the page's connections (makeStore gives it exactly one). */
-export function connectionManager(list: () => AgentConnection[]): ConnectionManager {
-  return {
-    current: () => list()[0]!,
-    get: (id) => list().find((c) => c.id === id),
-    list: () => [...list()],
-  };
-}
+const bound = new WeakMap<object, AgentConnection>();
+let page: AgentConnection | undefined;
+let unbound: AgentConnection | undefined;
 
-const managers = new WeakMap<object, ConnectionManager>();
-let page: ConnectionManager | undefined;
-let unbound: ConnectionManager | undefined;
-
-/** Ties a store to its manager (makeStore), so hooks and tests find it; the last one made is the page's. */
-export const bindConnections = (store: object, m: ConnectionManager): void => {
-  managers.set(store, m);
-  page = m;
+/** Ties a store to its connection (makeStore), so hooks and tests find it; the last one made is the page's. */
+export const bindConnection = (store: object, c: AgentConnection): void => {
+  bound.set(store, c);
+  page = c;
 };
 
-const pageManager = (): ConnectionManager => {
-  if (page) return page;
-  // before any store (a module's fetch at import, a unit test without a store): the one agent at base '', never opened
-  if (!unbound) {
-    const self = agentConnection({ id: SELF, base: '', url: '', deliver: () => {}, mirror: () => {} });
-    unbound = connectionManager(() => [self]);
-  }
-  return unbound;
+/** The page's connection itself (the repository keys on it); before any store (a module's fetch at import, a unit test without one): one at base '', never opened. */
+export const pageConnection = (): AgentConnection => page ?? (unbound ??= agentConnection({ base: '', url: '', deliver: () => {}, mirror: () => {} }));
+
+/** The page's connection, for code outside React and thunks (components use useConnection, thunks their `extra`). */
+export const connection: AgentConnection = {
+  get base() { return pageConnection().base; },
+  state: () => pageConnection().state(),
+  subscribe: (fn) => pageConnection().subscribe(fn),
+  hello: () => pageConnection().hello(),
+  send: (m) => pageConnection().send(m),
+  fetch: (route, init) => pageConnection().fetch(route, init),
+  url: (route) => pageConnection().url(route),
+  takeOver: () => pageConnection().takeOver(),
+  stop: () => pageConnection().stop(),
+  onEvent: (fn) => pageConnection().onEvent(fn),
 };
 
-/** The page's connections, for code outside React and thunks (components use useConnection, thunks their `extra`). */
-export const connections: ConnectionManager = {
-  current: () => pageManager().current(),
-  get: (id) => pageManager().get(id),
-  list: () => pageManager().list(),
-};
+/** The connection of a store made by makeStore. */
+export const connectionOf = (store: object): AgentConnection => bound.get(store)!;
 
-/** The connection manager of a store made by makeStore. */
-export const connectionsOf = (store: object): ConnectionManager => managers.get(store)!;
-
-export const useConnection = (): AgentConnection => connectionsOf(useStore()).current();
+export const useConnection = (): AgentConnection => connectionOf(useStore());
 export const useConnState = (): ConnState => useSelector((s: { conn: { state: ConnState } }) => s.conn.state);
 // The one check of a server capability (issue 564): the protocol the store keeps from the current connection's `hello`
 // (the controls slice: 0 until a hello, and after a drop). `selectFeature` outside a component, `useFeature` in one.
