@@ -6,7 +6,7 @@ import { App } from '@/App.tsx';
 import { setLang } from '@/core/i18n/index.ts';
 import { serverEvent } from '@/core/store/store.ts';
 import { makeStore } from '@/core/testing';
-import { openRemote, selectTabs } from '@/core/tabs/slice.ts';
+import { openView, selectTabs } from '@/core/tabs/slice.ts';
 
 const OFF: RemoteState = {
   configured: false, enabled: true, running: false, online: false, relay: null, hostFingerprint: null, devices: [],
@@ -218,7 +218,7 @@ describe('Remote tab', () => {
 
   it('a tab open before the state arrives shows a saved key once it does', () => {
     const store = setup({});
-    act(() => { store.dispatch(openRemote()); });
+    act(() => { store.dispatch(openView('remote')); });
     expect(screen.getByLabelText('Access key')).toBeTruthy();
     act(() => { store.dispatch(serverEvent({ kind: 'remote', state: { ...ONLINE, accessKey: true } })); });
     expect(screen.getByText('Saved')).toBeTruthy();

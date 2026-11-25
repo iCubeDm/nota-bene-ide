@@ -1,8 +1,7 @@
 import { Fragment, useContext, useRef } from 'react';
 import { getLang, chooseLang, LANGS, useT } from '@/core/i18n/index.ts';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, MENU_ROW as row } from '@/core/components/ui/dropdown-menu.tsx';
-import { selectSession, useAppDispatch, useAppSelector } from '@/core/store/store.ts';
-import { openSettings, openUsage } from '@/core/tabs/slice.ts';
+import { selectSession, useAppSelector } from '@/core/store/store.ts';
 import { ICONS, Svg } from '@/core/components/icons.tsx';
 import { shortHome } from '@/core/lib/paths.ts';
 import { toast } from './toast.ts';
@@ -67,13 +66,10 @@ function SessionId() {
 
 function SettingsMenu() {
   const t = useT();
-  const d = useAppDispatch();
   const lang = getLang();
   const scale = useUiScale();
   const themeId = useTheme();
-  // the home page has no tabs (issue 651): Usage and All settings, which open one, are an agent page's
-  const home = useContext(OnHome);
-  // the settings at hand: language and scale here, the rest in the Settings tab
+  // the settings at hand: language, theme and scale here; the plugins' rows after them (none opens a tab on the home page, which has no tabs)
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -139,17 +135,6 @@ function SettingsMenu() {
           </span>
         </div>
         <Slots at="header.menu" />
-        {!home && <>
-          <DropdownMenuItem id="usageMenu" onSelect={() => d(openUsage())} className={`${row} [&>svg]:text-accent-usage`}>
-            <Svg size={15}>{ICONS.usage}</Svg>
-            <span className="flex-1">{t('usage')}</span>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem id="allSettings" onSelect={() => d(openSettings())} className={row}>
-            <Svg size={15}>{ICONS.settings}</Svg>
-            <span className="flex-1">{t('allSettings')}</span>
-          </DropdownMenuItem>
-        </>}
       </DropdownMenuContent>
     </DropdownMenu>
   );

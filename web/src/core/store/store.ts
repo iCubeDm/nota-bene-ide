@@ -156,7 +156,7 @@ export function makeStore(o: {
   });
   // one listener middleware: the core's listeners first, then each plugin's in order (see Plugin.listeners)
   const listeners = createListenerMiddleware<RootState, ThunkDispatch<RootState, Extra, UnknownAction>>();
-  persistListeners(listeners.startListening);
+  persistListeners(listeners.startListening, registered.tabs);
   const sent: SentParts = new Map();
   sendListener(listeners.startListening, sent);
   for (const p of o.plugins) p.listeners?.(listeners.startListening, registered);

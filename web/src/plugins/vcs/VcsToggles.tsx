@@ -1,4 +1,4 @@
-import { selectTabs, useAppDispatch, useAppSelector, useFocusWithin, useT, openChanges, openLog, useService } from '@/sdk';
+import { selectTabs, useAppDispatch, useAppSelector, useFocusWithin, useT, openView, useService } from '@/sdk';
 import { ToolButton, ICONS, Svg } from '@/sdk/ui';
 import { setPanel, useVcsUi } from './store.ts';
 
@@ -18,10 +18,10 @@ export function VcsToggles() {
   if (!ui.hasRepo) return null;
   return (
     <>
-      <ToolButton id="toggleChanges" label={t('vcsChanges')} pressed={ui.panel} focused={inChanges} side="left" onClick={() => { d(setTreeOpen(false)); d(setPanel(!ui.panel)); if (!ui.panel) d(openChanges()); }}>
+      <ToolButton id="toggleChanges" label={t('vcsChanges')} pressed={ui.panel} focused={inChanges} side="left" onClick={() => { d(setTreeOpen(false)); d(setPanel(!ui.panel)); if (!ui.panel) d(openView('changes')); }}>
         <Svg size={16}>{ICONS.changes}</Svg>
       </ToolButton>
-      <ToolButton id="toggleLog" label={t('vcsLog')} pressed={active === 'log'} focused={inLog} side="left" onClick={() => d(openLog())}>
+      <ToolButton id="toggleLog" label={t('vcsLog')} pressed={active === 'log'} focused={inLog} side="left" onClick={() => d(openView('log'))}>
         <Svg size={16}>{ICONS.log}</Svg>
       </ToolButton>
     </>

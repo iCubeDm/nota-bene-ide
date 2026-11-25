@@ -4,7 +4,7 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Comment, MediaAnchor, ServerEvent } from '@nota-bene/shared';
 import { historyPrepended } from '@/core/store/feed.ts';
-import { openSettings } from '@/core/tabs/slice.ts';
+import { openView } from '@/core/tabs/slice.ts';
 import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import { setLang } from '@/core/i18n/index.ts';
 import { serverEvent } from '@/core/store/store.ts';
@@ -378,7 +378,7 @@ describe('a comment whose source went into the archive (R-M7-4)', () => {
     expect(screen.getByText(/1 · до сжатия/)).toBeInTheDocument();
     expect(screen.queryByText(/фрагмент изменился/)).toBeNull();
     // no jump: a click on the quote leaves the open file tab in front (a jump to an action shows the chat first)
-    act(() => void store.dispatch(openSettings()));
+    act(() => void store.dispatch(openView('settings')));
     const active = store.getState().tabs.active;
     expect(active).not.toBe('chat');
     fireEvent.click(screen.getByText('ls'));

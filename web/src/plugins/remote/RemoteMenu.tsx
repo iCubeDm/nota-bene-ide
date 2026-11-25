@@ -1,5 +1,5 @@
 import type { RemoteState } from '@nota-bene/shared';
-import { useT, useAppDispatch, useAppSelector, openRemote, remotePage } from '@/sdk';
+import { useT, useAppDispatch, useAppSelector, openView, remotePage } from '@/sdk';
 import { DropdownMenuItem, MENU_ROW, ICONS, Svg } from '@/sdk/ui';
 import { indicator, selectRemote, type Indicator } from './slice.ts';
 
@@ -27,7 +27,7 @@ export function RemoteMenuRow() {
   const ind = indicator(state);
   const phones = state?.devices.filter((x) => x.online).length ?? 0;
   return (
-    <DropdownMenuItem id="remoteMenu" data-state={ind} onSelect={() => d(openRemote())} className={MENU_ROW}>
+    <DropdownMenuItem id="remoteMenu" data-state={ind} onSelect={() => d(openView('remote'))} className={MENU_ROW}>
       <Svg size={15}>{ICONS.remote}</Svg>
       <span className="flex-1">{t('remoteMenu')}</span>
       <span className={`flex items-center gap-1.5 ${TONE[ind]}`}>

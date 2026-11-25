@@ -123,8 +123,8 @@ export const chat = { send: sendChat, interrupt, answer: answerPermission, takeO
 
 // tabs
 export {
-  openFile, openAgent, openShell, openDiagram, openChanges, openLog, openRemote, openSettings, activate,
-  setAgentTitle, selectTabs, selectActiveTab, enterRoot, fileTabId, type TabKinds, type AgentTab, type SavedFile, type DiagramLang,
+  openFile, openAgent, openShell, openDiagram, openView, activate,
+  setAgentTitle, selectTabs, selectActiveTab, enterRoot, fileTabId, type TabKinds, type ViewTab, type AgentTab, type SavedFile, type DiagramLang,
 } from '../tabs/slice.ts';
 export { requestJump, clearJump, dropJump, selectJump } from '../tabs/jump.ts';
 export { feedRenderer, anchorView, type Registry, type AnchorView, type TabView, type Slot, type SlotName, type Command, type Mods, type AnyFeedRenderer, type Held, type ToolRenderer, type UserPart, type FileView, type SettingsSection, type SendPart, type Taken, type TextFileView, type MediaFileView, type FileBar, type PendingComment, type ImageEntry, type MediaComment, type MediaAnchorPatch, type Services, type CodeBlock, type TreeAction } from './registry.ts';

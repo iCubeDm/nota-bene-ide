@@ -1,5 +1,5 @@
 import type { UnknownAction, WithSlice } from '@reduxjs/toolkit';
-import { definePlugin } from '@/sdk';
+import { definePlugin, type ViewTab } from '@/sdk';
 import { changesTab } from './ChangesView.tsx';
 import { commitResource, logResource, logTab } from './LogView.tsx';
 import { ChangesPanel } from './ChangesPanel.tsx';
@@ -9,6 +9,7 @@ import { diffResource, patchResource, showCommit, vcsListeners, vcsSlice } from 
 
 declare module '@/sdk' {
   interface Services { vcs: VcsService }
+  interface TabKinds { changes: ViewTab<'changes'>; log: ViewTab<'log'> }
   interface PluginState extends WithSlice<typeof vcsSlice> {}
 }
 

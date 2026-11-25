@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { type RootState, openFile, requestJump, type AppThunk, fileKey, isCommitRef, loadSources, srcIdOfRef, enterRoot, openLog } from '@/sdk';
+import { type RootState, openFile, requestJump, type AppThunk, fileKey, isCommitRef, loadSources, srcIdOfRef, enterRoot, openView } from '@/sdk';
 
 /**
  * What an open file view shows, for the comments on it (`FileLoad`), keyed by `fileKey(path, ref)`: the path alone for
@@ -62,7 +62,7 @@ export const selectRecentOpen = (s: RootState): boolean => s.files.recentOpen;
  */
 export const jumpToFileComment = (path: string, id: string, ref?: string): AppThunk => (d, _get, { registry }) => {
   if (isCommitRef(ref)) {
-    d(openLog());
+    d(openView('log'));
     if (registry.vcs) d(registry.vcs.showCommit(ref, path));
     return;
   }

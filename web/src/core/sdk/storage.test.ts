@@ -58,7 +58,7 @@ it('reads every key family as the code before issue 511 wrote it', () => {
   expect(wrapLines.get()).toBe(false);
   expect(seekStep.get()).toBe(0.5);
   expect(expectedCompactMs()).toBe(2000);
-  expect(readSavedTabs('/p')).toEqual({ tabs: [{ file: { path: 'a.md' } }], active: 'file:a.md' });
+  expect(readSavedTabs('/p', new Set())).toEqual({ tabs: [{ file: { path: 'a.md' } }], active: 'file:a.md' });
   expect([readSavedDirs('/p'), readSavedDirs('/p', 'wt')]).toEqual([['src'], ['lib']]);
   expect(readRecent('/p')).toEqual([{ path: 'b.md' }]);
   expect([hasDraft('c.md'), hasDraft('d.md')]).toEqual([true, false]);

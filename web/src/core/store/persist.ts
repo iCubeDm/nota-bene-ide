@@ -9,7 +9,7 @@ import type { StartListening } from './store.ts';
  * (`tabs.root`, set by `enterRoot`); the root-change listener is registered first of all, so its restore is already in
  * place when the others look at the same action.
  */
-export function persistListeners(start: StartListening): void {
+export function persistListeners(start: StartListening, kinds: { has(kind: string): boolean }): void {
   let restoredRoot: string | null = null;
 
   // every root change (the first one, a switch to another folder, a switch back): `enterRoot`, carrying that root's
@@ -23,7 +23,7 @@ export function persistListeners(start: StartListening): void {
       if (!root || root === restoredRoot) return;
       const first = restoredRoot === null;
       restoredRoot = root;
-      api.dispatch(enterRoot({ root, first, tabs: readSavedTabs(root) }));
+      api.dispatch(enterRoot({ root, first, tabs: readSavedTabs(root, kinds) }));
     },
   });
 

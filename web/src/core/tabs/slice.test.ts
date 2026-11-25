@@ -6,7 +6,7 @@ import { MediaController } from '../store/mediaController.ts';
 import { setFileLoad } from '../../plugins/files/slice.ts';
 import { requestJump } from './jump.ts';
 import { setSource, toggleDir } from '../../plugins/files/treeSlice.ts';
-import { activate, CLOSED_MAX, closeAll, closeOthers, closeRight, closeTab, diagramTabId, moveTab, fileTabId, openChanges, openDiagram, openFile, openLog, openRemote, openSettings, openUsage, reopenClosed, selectActiveTab, selectTabs } from './slice.ts';
+import { activate, CLOSED_MAX, closeAll, closeOthers, closeRight, closeTab, diagramTabId, moveTab, fileTabId, openView, openDiagram, openFile, readSavedTabs, reopenClosed, selectActiveTab, selectTabs, tabsKey } from './slice.ts';
 
 function mk() {
   let onEvent!: (e: ServerEvent) => void;
@@ -318,9 +318,9 @@ it('the order of mixed tabs and the active one survive a reload', () => {
 it('the Settings, Usage, Remote, Changes and Log tabs survive a reload in their place, the active one too', () => {
   const a = mk();
   a.session('/p');
-  a.store.dispatch(openUsage());
+  a.store.dispatch(openView('usage'));
   a.store.dispatch(openFile('a.md'));
-  [openSettings, openRemote, openChanges, openLog].forEach((o) => a.store.dispatch(o()));
+  (['settings', 'remote', 'changes', 'log'] as const).forEach((v) => a.store.dispatch(openView(v)));
   a.store.dispatch(activate('usage'));
   expect(JSON.parse(localStorage.getItem('tabs:/p')!).tabs).toEqual([{ view: 'usage' }, { file: { path: 'a.md' } }, { view: 'settings' }, { view: 'remote' }, { view: 'changes' }, { view: 'log' }]);
   const b = mk(); // a reload
@@ -391,4 +391,9 @@ it('the first root keeps the ref cache; another root drops it (its paths get oth
   expect(heads()).toBe(2);
   net.restore();
   clearRefCache();
+});
+
+it('a saved view no plugin shows is dropped; a view named as one of the core\'s own kinds is no view', () => {
+  localStorage.setItem(tabsKey('/v'), JSON.stringify({ tabs: [{ view: 'usage' }, { view: 'gone' }, { view: 'file' }, { view: 'chat' }], active: 'usage' }));
+  expect(readSavedTabs('/v', new Set(['usage', 'file', 'chat']))?.tabs).toEqual([{ view: 'usage' }]);
 });

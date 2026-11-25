@@ -42,7 +42,7 @@ it('each slot lists the plugins\' parts in the frame\'s order', () => {
     'header.title': ['10 ProjectTitle', '20 HomeTitle'],
     'header.center': ['10 GitBranch'],
     'header.end': ['10 ConnNote', '20 UpdateNotice', '30 CompactPending', '40 RestartMenu', '50 ModelPill', '80 StopButton'],
-    'header.menu': ['10 RemoteMenuRow'],
+    'header.menu': ['10 RemoteMenuRow', '20 UsageMenuRow', '90 SettingsMenuRow'],
     'header.badge': ['10 RemoteDot'],
     'strip.left': ['5 ProjectsToggle', '10 FilesToggle', '20 VcsToggles'],
     'strip.right': ['10 CommentsToggle'],
