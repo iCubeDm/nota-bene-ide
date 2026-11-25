@@ -31,6 +31,7 @@ export const toastMiddleware: Middleware = () => (next) => (action) => {
   if (serverEvent.match(action) && action.payload.kind === 'server-error' && action.payload.where !== 'busy') {
     // a warning the server names by `where` is shown in the page's language, not as the server's English text
     if (action.payload.where === 'git-bash') toast(t('gitBashTitle'), t('gitBashMissing'));
+    else if (action.payload.where === 'history-too-large') toast(t('historyTooLargeTitle'), t('historyTooLarge'));
     else toast(t('serverError', action.payload.where), action.payload.message);
   }
   return next(action);

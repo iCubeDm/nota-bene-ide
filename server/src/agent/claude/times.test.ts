@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
-import { projectFolder, transcriptTimes } from './times.ts';
+import { fileTimes, projectFolder, transcriptFile, transcriptTimes } from './times.ts';
 
 const dirs: string[] = [];
 afterAll(() => {
@@ -102,5 +102,19 @@ describe('the project folder of a cwd', () => {
     fs.mkdirSync(path.join(dir, '-elsewhere'));
     fs.writeFileSync(path.join(dir, '-elsewhere', 's1.jsonl'), line({ uuid: 'u', timestamp: '2026-11-15T01:00:00.000Z' }));
     expect((await transcriptTimes(dir, 's1', { cwd: '/work/app' })).get('u')).toBe(Date.parse('2026-11-15T01:00:00.000Z'));
+  });
+});
+
+describe('transcriptFile and fileTimes', () => {
+  it('finds the session in any project folder; times from a byte offset on', async () => {
+    const dir = projects();
+    fs.mkdirSync(path.join(dir, '-proj'));
+    const first = line({ type: 'user', uuid: 'u1', timestamp: '2026-11-15T09:30:00.000Z' });
+    fs.writeFileSync(path.join(dir, '-proj', 's1.jsonl'), first + line({ type: 'user', uuid: 'u2', timestamp: '2026-11-15T09:31:00.000Z' }));
+    const file = await transcriptFile(dir, 's1');
+    expect(file).toBe(path.join(dir, '-proj', 's1.jsonl'));
+    expect([...(await fileTimes(file!, Buffer.byteLength(first))).keys()]).toEqual(['u2']);
+    expect(await transcriptFile(dir, 'gone')).toBeNull();
+    expect(await transcriptFile(dir, '../s1')).toBeNull();
   });
 });

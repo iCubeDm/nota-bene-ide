@@ -27,6 +27,8 @@ export const es: Dict = {
   serverError: (w) => `Error del servidor${w ? ' · ' + w : ''}`,
   gitBashTitle: 'Se recomienda Git Bash',
   gitBashMissing: 'No se encontró Git Bash, así que Claude Code ejecuta los comandos de shell en PowerShell, sin su herramienta Bash. Para tenerla, instala Git for Windows (o define CLAUDE_CODE_GIT_BASH_PATH con la ruta de su bash.exe) y reinicia Nota Bene.',
+  historyTooLargeTitle: 'Historial no mostrado',
+  historyTooLarge: 'Esta conversación es demasiado grande para mostrarla aquí. El agente la sigue continuando; inicia una conversación nueva para volver a ver el chat.',
   you: 'tú',
   /** a day separator in the chat */
   today: 'Hoy',
