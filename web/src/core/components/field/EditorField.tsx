@@ -1,9 +1,10 @@
-import { history, historyKeymap, insertNewline, standardKeymap } from '@codemirror/commands';
+import { history, historyKeymap, standardKeymap } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { Compartment, EditorState, Transaction, type Extension } from '@codemirror/state';
 import { EditorView, keymap, placeholder as placeholderExt } from '@codemirror/view';
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, type ClipboardEventHandler, type KeyboardEventHandler, type Ref } from 'react';
 import { fieldOf, fromHost, type Field, type Listeners } from './field.ts';
+import { blockKeys } from './blockKeys.ts';
 import { livePreview } from './livePreview.ts';
 
 // the host's keys own these: Enter sends (composer), Mod-Enter forces or sends; the newline key is the field's own below
@@ -52,7 +53,8 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
       markdown({ base: markdownLanguage }),
       EditorView.lineWrapping,
       bare,
-      keymap.of([{ key: newline, run: insertNewline }, ...historyKeymap, ...BASE_KEYS]),
+      blockKeys(newline),
+      keymap.of([...historyKeymap, ...BASE_KEYS]),
       EditorView.contentAttributes.of({ role: 'textbox', 'aria-multiline': 'true', ...(id ? { id } : {}), ...(ariaLabel ? { 'aria-label': ariaLabel } : {}) }),
       placeholder ? placeholderExt(placeholder) : [],
       lock.current.of(locked(!!readOnly)),
