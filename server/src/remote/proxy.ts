@@ -11,7 +11,7 @@ import { randomBytes } from 'node:crypto';
 import http from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { AGENT_ID, isUiLang, type UiLang } from '@nota-bene/shared';
+import { AGENT_ID, agentPath, isUiLang, type UiLang } from '@nota-bene/shared';
 import { authenticated, cookieRoute, KEY_PROTOCOL, loginCredential, loginRoute, newNonce } from '../auth.ts';
 import { FORWARDED, goodPath, MAX_BODY, unprefixed } from './device.ts';
 import { CLOSED, collect, TOO_LARGE, UNREACHABLE, type Stream } from './mux.ts';
@@ -114,7 +114,7 @@ export class WindowProxy {
 
   /** The address that logs a tab in (its fragment is the login of this listener only). */
   get url(): string {
-    return `${this.#origin}${this.#o.agent ? `/a/${this.#o.agent}` : ''}/#t=${loginCredential(this.#token, this.#port, this.#nonce)}`;
+    return `${this.#origin}${this.#o.agent ? agentPath(this.#o.agent) : ''}/#t=${loginCredential(this.#token, this.#port, this.#nonce)}`;
   }
 
   /**

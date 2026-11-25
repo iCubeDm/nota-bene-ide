@@ -151,6 +151,11 @@ export const PROTOCOL = 37;
 
 /** The form of an agent id (epic 383): `<provider>-<6 base32>`, as in `/a/<id>/`. */
 export const AGENT_ID = /^[a-z]+-[a-z2-7]{6}$/;
+/** Where a server answers for its agent `id`: the prefix of every route of that agent. */
+export const agentPath = (id: string): string => `/a/${id}`;
+const AGENT_PATH = new RegExp(`^${agentPath(`(${AGENT_ID.source.slice(1, -1)})`)}(?:/|$)`);
+/** The agent a URL path is under, or null: the server's own top, or no agent id after the prefix. */
+export const agentOf = (pathname: string): string | null => AGENT_PATH.exec(pathname)?.[1] ?? null;
 
 /** protocol 27: a send the server holds behind a pending restart or compaction (issue 499), as the feed shows it */
 
