@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Usage limits are recorded for every Claude agent.** Only the agent the server was started with recorded them, and after a server restart none did; the limits chart then had gaps.
 - **An agent with a background task running shows as working.** The project switcher, the home page, the phone and Settings → Windows listed it as idle once its turn ended, though a subagent or a shell still ran; a watcher alone (Monitor) still does not count.
 - **Phone: the model changes again with a long list of models.** The model sheet's list scrolls; the effort and **Apply** stay on screen, where before they fell below its edge and a pick was never sent.
 - **A long Claude conversation opens at once.** Its history is read from the last compaction, not from the whole transcript: one of 2.1 GB now opens in a few milliseconds instead of minutes.

@@ -223,6 +223,24 @@ it('issue 667: an agent whose turn ended but whose background task runs is busy 
   expect(await busy()).toBe(true);
 });
 
+it('issue 675: an agent opened later records its usage too, by its provider', async () => {
+  const seen: string[] = [];
+  const s = await startServer({
+    insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, webDist: path.join(tmp, 'dist'), backend: fakeBackend([]),
+    usage: (provider) => (provider === 'claude' ? { onStats: () => { seen.push(provider); } } : {}),
+  });
+  closers.push(s.close);
+  const turn = async (id: string) => {
+    const { ws, events } = await socket(`${s.url}/a/${id}`);
+    ws.send(JSON.stringify({ type: 'send', id: 'm', text: 'hi' }));
+    await until(() => events.some((e) => e.kind === 'agent' && e.e.t === 'turn-end'));
+  };
+  await turn(await s.open({ provider: 'codex', cwd: path.join(tmp, 'b'), backend: fakeBackend([]) }));
+  expect(seen).toEqual([]);
+  await turn(await s.open({ provider: 'claude', cwd: path.join(tmp, 'b'), backend: fakeBackend([]) }));
+  expect(seen.length).toBeGreaterThan(0);
+});
+
 it('issue 639: /a/<id>/control/close closes any agent, the first one too, but not the server\'s last; the folder stays', async () => {
   let closedA = false;
   const one = fakeBackend([]);
