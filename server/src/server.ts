@@ -18,7 +18,7 @@ import { AGENT_ID, agentContext, envAgentContext, newAgentId, stateBaseDir, type
 import { AuditLog } from './audit.ts';
 import { moveWindow, readKeptAgents, writeKeptAgents } from './windows.ts';
 import { pidAlive, samePath } from './platform.ts';
-import { type SelfAgent } from './projects.ts';
+import type { SelfAgent } from './projects.ts';
 import { controlRoute, controlToken, describeVersion } from './system.ts';
 import { RESTART, restartGate } from './restartGate.ts';
 import { projectRoutes } from './projectRoutes.ts';
