@@ -303,7 +303,7 @@ describe('SessionManager characterization', () => {
     expect(events.slice(mark)).toEqual([{ kind: 'mode', mode: 'auto', ack: 'ack-1' }]);
     expect(s.mode()).toBe('auto');
     expect(inner.setModes).toEqual([]);
-    expect(readPrefs().modes[prefsKey(home)]).toBeUndefined();
+    expect(readPrefs().modes[prefsKey('claude', home)]).toBeUndefined();
     g.release();
     await p;
     expect(s.mode()).toBe('auto');
@@ -450,7 +450,7 @@ describe('SessionManager characterization', () => {
     release();
     await p;
     expect(s.mode()).toBe('auto');
-    expect(readPrefs().modes[prefsKey(home)]).toBeUndefined();
+    expect(readPrefs().modes[prefsKey('claude', home)]).toBeUndefined();
     expect(events.filter((e) => e.kind === 'mode' && e.mode === 'plan')).toEqual([]);
     expect(events).toContainEqual({ kind: 'mode', mode: 'auto', ack: 'ack-1' }); // it is still answered, with the mode as it stands
     expect(inner.startModes).toEqual(['auto', 'auto']);

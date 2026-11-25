@@ -126,7 +126,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     const control = controlToken();
     // the agent's folder is made and checked here too, so a refused one stops the start as the secrets do
     const agent = o.agent ?? envAgentContext();
-    // a picture per project folder, shared by every provider's windows of it: the base state folder, never the project
+    // a picture per project folder, shared by every agent on it: the state folder, never the project
     const projectIcons = new ProjectIconStore({ dir: path.join(stateBaseDir(), 'project-icons') });
     // supervised = our launcher is still our parent: an orphan (launcher killed) must not offer a restart nobody catches.
     // Windows never reparents, so the parent must also still be there: its IPC channel open (main.ts watchLauncher), or
@@ -283,7 +283,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       info: homeInfo,
       extra: {
         // the switcher's, the starter's: the home page lists the projects and opens them (issue 639)
-        ...projectRoutes({ hub: homeHub, port: () => s.port(), provider: agent.provider, self: s.self, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
+        ...projectRoutes({ hub: homeHub, port: () => s.port(), self: s.self, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
         '/control/': controlRoute({
           hub: homeHub,
           control: {

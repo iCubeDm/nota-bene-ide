@@ -1,18 +1,18 @@
-// The project switcher's server side (phase 1, over today's one-process windows): every provider's windows with their
-// agent's state, the recent folders, and the login a tab needs to move to one of them.
+// The project switcher's server side: the servers' agents with their state, the recent folders, and the login a tab needs
+// to move to one of them.
 //
-// Each provider has its own registry and token (state dir per provider), so a window is proved with its own provider's token
-// before anything is sent to it, as the remote connector does (remote/discover.ts). The login is the launcher's (`loginTarget`
-// in bin/nota-bene.mjs): derived from that token, that port and the nonce the listener proved. It goes only into the JSON
+// A server is proved with the token (servers.ts) before anything is sent to it, as the remote connector does
+// (remote/discover.ts). The login is the launcher's (`loginTarget` in bin/nota-bene.mjs): derived from the token, that port
+// and the nonce the listener proved. It goes only into the JSON
 // answer to the page, which navigates to it; never into a log, an error or a URL query.
 import type { HostWindow, LastMessage } from '@nota-bene/shared';
-import { PROVIDERS, providerStateDir, type AgentProvider } from './agent/provider.ts';
+import { PROVIDERS, type AgentProvider } from './agent/provider.ts';
 import path from 'node:path';
 import { helperCredential, loginCredential, proveListener, readSecret } from './auth.ts';
 import { readHidden, readRecent, type RecentEntry } from './recent.ts';
 import { CONTROL_HEADER } from './system.ts';
-import { infoAt, registries, serverAgents } from './servers.ts';
-import { AGENT_ID, agentPath, stateBaseDir } from './state.ts';
+import { infoAt, registry, SERVER_PROVIDER, serverAgents } from './servers.ts';
+import { AGENT_ID, agentPath, serverStateDir, stateBaseDir } from './state.ts';
 import { pidAlive, readKeptAgents, type WindowEntry } from './windows.ts';
 import { wirePath } from './wirePath.ts';
 import type { OpenAsk } from './session/permissions.ts';
@@ -78,34 +78,33 @@ export type SelfAgent = {
   close(): void;
 };
 
-/** The page asking (projectRoutes): its server's port, its provider and, for an agent beside the window's, its id. */
-export type Own = { port: number; provider: AgentProvider; agent?: string; self?: Self };
+/** The page asking (projectRoutes): its server's port and, for an agent's page, its id. */
+export type Own = { port: number; agent?: string; self?: Self };
 
 export async function listProjects(own: Own, probe: Probe = probeWith, warn: (m: string) => void = () => {}): Promise<ProjectsList> {
   const rows: RunningRow[] = [];
-  await Promise.all(registries((e) => warn(e.message)).map(async ({ provider, token, entries }) => {
-    await Promise.all(entries.map(async ([port, w]) => {
-      const alive = pidAlive(w.pid);
-      if (!alive && !(w.launcherPid !== undefined && pidAlive(w.launcherPid))) return; // stale: gone
-      const info = !alive ? null : port === own.port && own.self ? own.self.info() : await probe(port, token);
-      const live = info && info.root === w.root ? info : null;
-      const stateOf = (i: ProbedInfo): ProjectState => (i.pending ? 'waiting' : i.busy ? 'working' : 'idle');
-      const row = (p: AgentProvider, root: string, i: ProbedInfo | null, state: ProjectState, agent?: string): RunningRow => ({
-        provider: p, port, root: wirePath(root), title: i?.title ?? null, session: i?.session ?? null, state,
-        current: port === own.port && (agent ? agent === own.agent : provider === own.provider && !own.agent), clients: i?.clients ?? 0,
-        unseen: typeof i?.unseen === 'number' ? i.unseen : 0, last: i?.last ?? null, ...(agent ? { agent } : {}),
-        ...(port === own.port && Array.isArray(i?.asks) && i.asks.length ? { asks: i.asks } : {}),
-      });
-      // its agents, each its own row (issue 639: the top is the server's home): as they answer, or while it restarts the
-      // ones it keeps (they come back with it). The server's own row only for a server that is not answering, or an older
-      // one whose top is its first agent
-      const kept = alive ? null : readKeptAgents(port, providerStateDir(stateBaseDir(), provider));
-      // only its launcher's: the file outlives a Stop, and a later launch on this port does not reopen them
-      const back = kept && kept.launcherPid === w.launcherPid ? kept.agents : [];
-      if (live ? typeof live.agent === 'string' : !back.length) rows.push(row(provider, w.root, live, !alive ? 'restarting' : !live ? 'silent' : stateOf(live)));
-      if (live) for (const x of live.extra ?? []) rows.push(row(x.provider, x.root, x, stateOf(x), x.agent));
-      for (const x of back) rows.push(row(x.provider, x.root, null, 'restarting', x.id));
-    }));
+  const { token = '', entries = [] } = registry((e) => warn(e.message)) ?? {};
+  await Promise.all(entries.map(async ([port, w]) => {
+    const alive = pidAlive(w.pid);
+    if (!alive && !(w.launcherPid !== undefined && pidAlive(w.launcherPid))) return; // stale: gone
+    const info = !alive ? null : port === own.port && own.self ? own.self.info() : await probe(port, token);
+    const live = info && info.root === w.root ? info : null;
+    const stateOf = (i: ProbedInfo): ProjectState => (i.pending ? 'waiting' : i.busy ? 'working' : 'idle');
+    const row = (p: AgentProvider, root: string, i: ProbedInfo | null, state: ProjectState, agent?: string): RunningRow => ({
+      provider: p, port, root: wirePath(root), title: i?.title ?? null, session: i?.session ?? null, state,
+      current: port === own.port && agent === own.agent, clients: i?.clients ?? 0,
+      unseen: typeof i?.unseen === 'number' ? i.unseen : 0, last: i?.last ?? null, ...(agent ? { agent } : {}),
+      ...(port === own.port && Array.isArray(i?.asks) && i.asks.length ? { asks: i.asks } : {}),
+    });
+    // its agents, each its own row (issue 639: the top is the server's home): as they answer, or while it restarts the
+    // ones it keeps (they come back with it). The server's own row only for a server that is not answering, or an older
+    // one whose top is its first agent
+    const kept = alive ? null : readKeptAgents(port);
+    // only its launcher's: the file outlives a Stop, and a later launch on this port does not reopen them
+    const back = kept && kept.launcherPid === w.launcherPid ? kept.agents : [];
+    if (live ? typeof live.agent === 'string' : !back.length) rows.push(row(SERVER_PROVIDER, w.root, live, !alive ? 'restarting' : !live ? 'silent' : stateOf(live)));
+    if (live) for (const x of live.extra ?? []) rows.push(row(x.provider, x.root, x, stateOf(x), x.agent));
+    for (const x of back) rows.push(row(x.provider, x.root, null, 'restarting', x.id));
   }));
   rows.sort((a, b) => folder(a.root).localeCompare(folder(b.root)) || a.root.localeCompare(b.root) || PROVIDERS.indexOf(a.provider) - PROVIDERS.indexOf(b.provider));
   const up = new Set(rows.filter((r) => r.state !== 'restarting').map((r) => `${r.provider} ${r.root}`));
@@ -150,22 +149,18 @@ function mine(o: Window, own: Own | undefined): SelfAgent | null | undefined {
   const a = o.agent ? own.self.agent(o.agent) : null;
   return a && sameRoot(a.root, o.root) ? a : null;
 }
-type Proved = { provider: AgentProvider; token: string; nonce: string; bearer: string; root: string; base: string } | { error: 'no such window' | 'window not answering' };
+type Proved = { token: string; nonce: string; bearer: string; root: string; base: string } | { error: 'no such window' | 'window not answering' };
 
-/** The registry entry on `port` and its token: of `provider`, or for an agent of whichever provider's server holds the port. */
-function entryOf(o: Window): { provider: AgentProvider; token: string; w: WindowEntry } | null {
-  // a window's own provider with an unusable token is the asker's to hear of; an agent's server may be any provider's
-  for (const { provider, token, entries } of registries((e, p) => { if (!o.agent && p === o.provider) throw e; })) {
-    if (!o.agent && provider !== o.provider) continue;
-    const w = entries.find(([port]) => port === o.port)?.[1];
-    if (w && pidAlive(w.pid)) return { provider, token, w };
-  }
-  return null;
+/** The live registry entry on `o.port`, with the token. An unusable token file throws: the asker hears of it. */
+function entryOf(o: Window): { token: string; w: WindowEntry } | null {
+  const r = registry();
+  const w = r?.entries.find(([port]) => port === o.port)?.[1];
+  return r && w && pidAlive(w.pid) ? { token: r.token, w } : null;
 }
 
 /**
- * A registered window of `provider` on `port` that still holds `root`, or that server's agent `agent` on `root`: proved
- * with its provider's token, the /info there checked.
+ * A registered server on `port` that still holds `root`, or its agent `agent` on `root`: proved with the token, the /info
+ * there checked.
  */
 async function proved(o: Window, fetchFn: typeof fetch): Promise<Proved> {
   const e = entryOf(o);
@@ -176,7 +171,7 @@ async function proved(o: Window, fetchFn: typeof fetch): Promise<Proved> {
   const base = o.agent ? agentPath(o.agent) : '';
   const j = await infoAt(o.port, base, bearer, fetchFn, 1500);
   if (!rooted(j) || (o.agent ? !sameRoot(j.root, o.root) : j.root !== e.w.root)) return { error: 'window not answering' };
-  return { provider: e.provider, token: e.token, nonce: n, bearer, root: j.root, base };
+  return { token: e.token, nonce: n, bearer, root: j.root, base };
 }
 
 /** The login URL of that window; with `session`, the page there opens that session once logged in (web landing.ts). */
@@ -215,9 +210,9 @@ export async function sessionsOf(o: Window, fetchFn: typeof fetch = fetch, own?:
 export type StopResult = { ok: true } | { error: 'no such window' | 'window not answering' | 'refused' };
 
 /**
- * Stops that window (its POST /control/stop, with its provider's control token): its agent and launcher stop, the session
+ * Stops that window (its POST /control/stop, with the control token): its agent and launcher stop, the session
  * stays; an agent beside a window's closes alone (POST /a/<id>/control/close). The listener is proved first, so the token
- * goes only to one that holds that provider's access token.
+ * goes only to one that holds the access token.
  */
 export async function stopAt(o: Window, fetchFn: typeof fetch = fetch, own?: Own): Promise<StopResult> {
   const a = mine(o, own);
@@ -227,8 +222,7 @@ export async function stopAt(o: Window, fetchFn: typeof fetch = fetch, own?: Own
   }
   const r = await proved(o, fetchFn);
   if ('error' in r) return r;
-  // the server's provider's: an agent's provider may be another
-  const control = readSecret(path.join(providerStateDir(stateBaseDir(), r.provider), 'control-token'));
+  const control = readSecret(path.join(serverStateDir(), 'control-token'));
   if (!control) return { error: 'refused' };
   try {
     // redirect: 'error': a 307/308 would carry the token on to wherever it points
@@ -239,14 +233,12 @@ export async function stopAt(o: Window, fetchFn: typeof fetch = fetch, own?: Own
   }
 }
 
-/** Header ⏻, before this window stops itself: every other live window of every provider; how many stopped and failed. */
+/** Header ⏻, before this server stops itself: every other live server; how many stopped and failed. */
 export async function stopOthers(own: Own, fetchFn: typeof fetch = fetch): Promise<{ stopped: number; failed: number }> {
   const targets: Window[] = [];
-  for (const { provider, entries } of registries()) {
-    for (const [port, w] of entries) {
-      if (port === own.port || !pidAlive(w.pid)) continue; // one listener a port: this page's own server, whichever agent asks
-      targets.push({ provider, port, root: w.root });
-    }
+  for (const [port, w] of registry(() => {})?.entries ?? []) {
+    if (port === own.port || !pidAlive(w.pid)) continue; // one listener a port: this page's own server, whichever agent asks
+    targets.push({ provider: SERVER_PROVIDER, port, root: w.root });
   }
   const results = await Promise.all(targets.map((w) => stopAt(w, fetchFn)));
   const stopped = results.filter((r) => 'ok' in r).length;

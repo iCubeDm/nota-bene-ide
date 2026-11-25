@@ -78,8 +78,9 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
   });
   // root changes only in a switch
   const who = new SessionIdentity({ root: o.cwd, stateDir, resume: o.resume, fork: o.fork, title: () => titles.title, emit: (ev) => hub.emit(ev), report });
-  const modes = new ModeKeeper({ modes: backend.capabilities.modes, dir: who.root, emit: (ev) => hub.emit(ev, { store: false }), report });
-  const models = new ModelKeeper({ provider: o.provider ?? envAgentContext().provider, dir: who.root, emit: (ev) => hub.emit(ev, { store: false }), report });
+  const provider = o.provider ?? envAgentContext().provider;
+  const modes = new ModeKeeper({ provider, modes: backend.capabilities.modes, dir: who.root, emit: (ev) => hub.emit(ev, { store: false }), report });
+  const models = new ModelKeeper({ provider, dir: who.root, emit: (ev) => hub.emit(ev, { store: false }), report });
   const cmds = new CommandKeeper((ev) => hub.emit(ev, { store: false }));
   const switchListeners: ((id: string | null, o: { restart: boolean }) => void)[] = [];
 
@@ -108,7 +109,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
     onError: (e) => report('stats', e),
   });
   const { idle, state: idleState } = idleCompaction({
-    config: o.idle, offInSettings: backend.nativeSessions ? () => false : o.idleOffInSettings, root: () => who.root, capabilities: backend.capabilities,
+    config: o.idle, offInSettings: backend.nativeSessions ? () => false : o.idleOffInSettings, provider, root: () => who.root, capabilities: backend.capabilities,
     // no agent (it died): starting one only to compact, with nobody watching, is not ours to do
     busy: () => phase.kind !== 'live' || slot.agent === null || busy(),
     contextUsed: () => stats.current().context?.used ?? null,
@@ -478,7 +479,7 @@ export async function createSessionManager(o: SessionOptions): Promise<SessionMa
     activity: () => idle.touch(),
     idleCompact: idleState,
     setIdleCompact(on) {
-      try { setIdleCompactPref(who.root, on); } catch (e) { report('prefs', e); }
+      try { setIdleCompactPref(provider, who.root, on); } catch (e) { report('prefs', e); }
       hub.emit({ kind: 'idle-compact', state: idleState() }, { store: false });
     },
     onSwitch: (cb) => void switchListeners.push(cb),

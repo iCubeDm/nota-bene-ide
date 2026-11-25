@@ -5,15 +5,16 @@ import type { AgentEffort as EffortLevel, AgentMode as Mode, AgentProvider, Mode
 import { withLock, writeJsonAtomic } from './atomicFile.ts';
 import { serverStateDir } from './state.ts';
 
-/** `idleCompact[root]`: idle compaction per project dir; absent = on (the default) */
+/** `idleCompact[prefsKey(provider, root)]`: idle compaction of that agent's sessions in a project dir; absent = on (the default) */
 /** `defaultMode`: the mode of a project with no entry in `modes` (Settings → Defaults; absent = auto) */
 /** `updateCheck`: asking npm for a newer version (Settings → Defaults; absent = on) */
 /** `audit`: the audit log of system events (Settings → Defaults; absent = on) */
 /** `sounds`: which events a tab nobody looks at sounds for (Settings → Defaults; absent = `ask` only) */
 /**
- * `models[modelKey(provider, root)]`: the model (and effort) a project's next session of that agent starts with; absent = the
+ * `models[prefsKey(provider, root)]`: the model (and effort) a project's next session of that agent starts with; absent = the
  * agent's default. Issue 662: an entry keyed by the folder alone (before it) is never read: it cannot say whose model it is
  */
+/** `modes[prefsKey(provider, root)]`: the mode that agent's sessions in a project dir start in; absent = `defaultMode` */
 /** `shell`: the shell of `! cmd` runs on Windows (Settings → Defaults; absent = auto); other systems run $SHELL whatever it says */
 /** ask: a permission, a plan or a question waits for the user; done: a turn ended (or failed). */
 export type Sounds = { ask: boolean; done: boolean };
@@ -36,17 +37,19 @@ const isEffort = (v: unknown): v is EffortLevel => (EFFORT_LEVELS as readonly un
 const isMode = (v: unknown): v is Mode => (ALL_MODES as readonly unknown[]).includes(v);
 let reported = false; // a broken file is reported once per process, not on every read
 
-/** Keys are real project dirs, so a symlinked path and its target share one setting. */
-export function prefsKey(dir: string): string {
-  try {
-    return fs.realpathSync.native(dir);
-  } catch {
-    return path.resolve(dir);
-  }
-}
+/** The per-project settings are an agent's: a server holds agents of several providers on one folder. */
+export const PER_AGENT = ['modes', 'models', 'idleCompact'] as const;
 
-/** the key of `provider`'s model choice for `dir` in `models` */
-export const modelKey = (provider: AgentProvider, dir: string): string => `${provider}:${prefsKey(dir)}`;
+/** The key of `provider`'s setting for `dir` in each of PER_AGENT. The dir is the real one: a symlinked path and its target share it. */
+export function prefsKey(provider: AgentProvider, dir: string): string {
+  let real: string;
+  try {
+    real = fs.realpathSync.native(dir);
+  } catch {
+    real = path.resolve(dir);
+  }
+  return `${provider}:${real}`;
+}
 
 function file(): string {
   return path.join(serverStateDir(), 'prefs.json');
@@ -122,11 +125,11 @@ function loadRaw(): Record<string, unknown> {
   return {};
 }
 
-export function setModePref(dir: string, mode: Mode): void {
+export function setModePref(provider: AgentProvider, dir: string, mode: Mode): void {
   // merge into the raw object: unknown top-level keys and other projects' entries survive the save
   updateRawPrefs((raw) => {
     const modes = raw.modes && typeof raw.modes === 'object' && !Array.isArray(raw.modes) ? (raw.modes as Record<string, unknown>) : {};
-    modes[prefsKey(dir)] = mode;
+    modes[prefsKey(provider, dir)] = mode;
     raw.modes = modes;
   });
 }
@@ -135,15 +138,15 @@ export function setModePref(dir: string, mode: Mode): void {
 export function setModelPref(provider: AgentProvider, dir: string, choice: ModelChoice): void {
   updateRawPrefs((raw) => {
     const m = raw.models && typeof raw.models === 'object' && !Array.isArray(raw.models) ? (raw.models as Record<string, unknown>) : {};
-    m[modelKey(provider, dir)] = { model: choice.model, ...(choice.effort ? { effort: choice.effort } : {}) };
+    m[prefsKey(provider, dir)] = { model: choice.model, ...(choice.effort ? { effort: choice.effort } : {}) };
     raw.models = m;
   });
 }
 
-export function setIdleCompactPref(dir: string, on: boolean): void {
+export function setIdleCompactPref(provider: AgentProvider, dir: string, on: boolean): void {
   updateRawPrefs((raw) => {
     const m = raw.idleCompact && typeof raw.idleCompact === 'object' && !Array.isArray(raw.idleCompact) ? (raw.idleCompact as Record<string, unknown>) : {};
-    m[prefsKey(dir)] = on;
+    m[prefsKey(provider, dir)] = on;
     raw.idleCompact = m;
   });
 }
@@ -163,37 +166,37 @@ export function setDefaultModePref(mode: Mode): void {
   updateRawPrefs((raw) => void (raw.defaultMode = mode));
 }
 
-/** Settings → Defaults: one for every window of this provider, like the language. */
+/** Settings → Defaults: one for every agent, like the language. */
 export function setUpdateCheckPref(on: boolean): void {
   updateRawPrefs((raw) => void (raw.updateCheck = on));
 }
 
-/** Dictation with Whisper on the host: on only after the install; one for every window of this provider. */
+/** Dictation with Whisper on the host: on only after the install; one for every agent. */
 export function setWhisperPref(on: boolean): void {
   updateRawPrefs((raw) => void (raw.whisper = on));
 }
 
-/** The spoken language of dictation and voice messages: `auto` (detect it) or an ISO 639 code. One for every window of this provider, like `whisper`. */
+/** The spoken language of dictation and voice messages: `auto` (detect it) or an ISO 639 code. One for every agent, like `whisper`. */
 export function setDictationLangPref(lang: string): void {
   updateRawPrefs((raw) => void (raw.dictationLang = lang));
 }
 
-/** Settings → Defaults: the shell of `! cmd` on Windows, one for every window of this provider, like the language. */
+/** Settings → Defaults: the shell of `! cmd` on Windows, one for every agent, like the language. */
 export function setShellPref(shell: ShellChoice): void {
   updateRawPrefs((raw) => void (raw.shell = shell));
 }
 
-/** Settings → Defaults: the sounds, one for every window of this provider. */
+/** Settings → Defaults: the sounds, one for every agent. */
 export function setSoundsPref(sounds: Sounds): void {
   updateRawPrefs((raw) => void (raw.sounds = { ask: sounds.ask, done: sounds.done }));
 }
 
-/** Settings → Defaults: the open projects in a rail on the left, one for every window of this provider. */
+/** Settings → Defaults: the open projects in a rail on the left, one for every agent. */
 export function setProjectRailPref(on: boolean): void {
   updateRawPrefs((raw) => void (raw.projectRail = on));
 }
 
-/** Settings → Defaults: the audit log, one for every window of this provider. */
+/** Settings → Defaults: the audit log, one for every agent. */
 export function setAuditPref(on: boolean): void {
   updateRawPrefs((raw) => void (raw.audit = on));
 }

@@ -252,8 +252,8 @@ describe('device channel', () => {
     let list: ProvedWindow[] = [];
     const ev = new EventEmitter();
     const stub = Object.assign(ev, { list: () => list, get: (p: number) => list.find((w) => w.port === p) }) as unknown as Windows;
-    const set = (next: { port: number; root: string; provider?: 'claude' | 'codex' }[]) => {
-      list = next.map((w) => ({ provider: 'claude', bearer: 'Bearer x', nonce: 'n', ...w }));
+    const set = (next: { port: number; root: string }[]) => {
+      list = next.map((w) => ({ bearer: 'Bearer x', nonce: 'n', ...w }));
       ev.emit('change', list);
     };
     return { ports, stub, set };
@@ -273,14 +273,14 @@ describe('device channel', () => {
     ]);
   });
 
-  it('two windows of one folder and agent: the lower port keeps the bare id, the other gets `<id>:<port>`', async () => {
+  it('two servers of one folder: the lower port keeps the bare id, the other gets `<id>:<port>`', async () => {
     const { ports: [p1, p2, p3], stub, set } = await stubWindows();
-    set([{ port: p1!, root: '/p' }, { port: p2!, root: '/p' }, { port: p3!, root: '/p', provider: 'codex' }]);
+    set([{ port: p1!, root: '/p' }, { port: p2!, root: '/p' }, { port: p3!, root: '/q' }]);
     const l = await paired(stub);
     const h = l.phone.host();
     await until(() => h.lists.length > 0);
     const id = windowKey('claude', '/p');
-    expect(h.lists[0]!.map((w) => w.id)).toEqual([id, `${id}:${p2}`, windowKey('codex', '/p')]);
+    expect(h.lists[0]!.map((w) => w.id)).toEqual([id, `${id}:${p2}`, windowKey('claude', '/q')]);
   });
 
   it('the host stream passes the pending, last and replies of a window', async () => {
@@ -398,7 +398,7 @@ describe('device channel', () => {
     await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
     closers.push(() => new Promise<void>((r) => srv.close(() => r())));
     const port = (srv.address() as AddressInfo).port;
-    const w = { port, provider: 'claude' as const, root: tmp, bearer: 'Bearer x', nonce: 'n' };
+    const w = { port, root: tmp, bearer: 'Bearer x', nonce: 'n' };
     const stub = { get: () => w, list: () => [w], reprove: async () => w, on() {}, off() {} } as unknown as Windows;
     const key = generateKeyPair();
     const l = link({ windows: stub, host: hostKey(), listed: new Set([b64u(key.pub)]), key });

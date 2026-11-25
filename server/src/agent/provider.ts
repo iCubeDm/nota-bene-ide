@@ -12,7 +12,7 @@ export function parseProvider(value: string | undefined): AgentProvider {
   throw new Error(`Invalid agent: ${value}. Expected claude, codex or omp.`);
 }
 
-/** Legacy Claude storage is unchanged; all Codex-owned data/secrets are separate. */
+/** Where an agent of `provider` keeps its data: Claude in the base itself (as before the others came), the others apart. */
 export function providerStateDir(base: string, provider: AgentProvider): string {
   return provider === 'claude' ? base : path.join(base, 'providers', provider);
 }

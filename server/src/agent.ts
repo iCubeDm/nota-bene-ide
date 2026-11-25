@@ -226,7 +226,7 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     // this server's agents and the other servers' (issue 680), each with its folder, session and work
     const running = async (): Promise<{ id?: string; root: string; session: string | null; working: boolean }[]> => [
       ...s.live(),
-      ...(await listProjects({ port: s.port(), provider: a.agent.provider, agent: a.id, self: s.self })).running
+      ...(await listProjects({ port: s.port(), agent: a.id, self: s.self })).running
         .filter((r) => r.port !== s.port()).map((r) => ({ root: r.root, session: r.session, working: r.state === 'working' || r.state === 'waiting' })),
     ];
     // issue 499: a compaction ordered while the agent works waits for the next pause, after a pending restart; the sends
@@ -421,7 +421,7 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
         ...dictationRoutes({ hub }),
         ...cutRoutes({ hub, exporter: cutExporter, peaks: cutPeaks, reverse: cutReverse, root }),
         ...remoteRoutes({ hub, keeper: o.remote }),
-        ...projectRoutes({ hub, port: () => s.port(), provider: agent.provider, agent: a.id, self: s.self, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
+        ...projectRoutes({ hub, port: () => s.port(), agent: a.id, self: s.self, ...(o.remote ? { computers: () => o.remote!.computers() } : {}) }),
         ...systemRoutes({
           updater: win, newer,
           hub, root, stateDir: agent.stateDir, modes: a.backend.capabilities.modes, port: () => s.port(), repoDir,

@@ -654,7 +654,7 @@ Run the Mobile workflow by hand (Actions → Mobile → Run workflow), download 
 
 ## Codex and omp: what is supported
 
-Choose the agent at launch (`--agent codex`, `--agent omp`, or [Which agent](#which-agent)). Each keeps its own secrets, settings, windows, sessions and comments (under `providers/codex`, `providers/omp`; see [State on disk](#state-on-disk)). Nothing is converted between agents.
+Choose the agent at launch (`--agent codex`, `--agent omp`, or [Which agent](#which-agent)). Each keeps its own sessions, comments and history (under `providers/codex`, `providers/omp`; see [State on disk](#state-on-disk)); the settings are kept per agent and folder. Nothing is converted between agents.
 
 | Feature | Claude Code | Codex | omp |
 |---|---|---|---|
@@ -704,15 +704,15 @@ Everything is in `~/.nota-bene/` (`NOTA_BENE_HOME` to move it; `npm run dev` use
 
 | Path | Holds |
 |---|---|
-| `token`, `control-token` | *per agent*: the access token (delete to rotate) and the secret for controls between windows |
-| `open/` | *per agent*: short-lived login pages |
+| `token`, `control-token` | the access token (delete to rotate) and the secret for controls between servers |
+| `open/` | short-lived login pages |
 | `sessions.json` | *per agent*: each folder's last session |
-| `prefs.json` | *per agent*: mode per project, language, theme, Whisper on and spoken language |
+| `prefs.json` | language, theme, Whisper on and spoken language; per agent and project: mode, model, idle compaction |
 | `archived-sessions.json`, `seen-sessions.json` | *per agent*: the sessions the Sessions menu hides; when you last saw each session |
 | `comments/<sessionId>.v2.json` | *per agent*: comments, pending and sent |
 | `prompts/<sessionId>.jsonl` | *per agent*: the prompts you sent (↑/↓ and Alt+H) |
 | `attachments/<sha256>.<ext>` | *per agent*: pasted images and recordings (`.wav`) |
-| `windows/<port>.json`, `locks/` | *per agent*: running windows, launch locks |
+| `windows/<port>.json`, `locks/` | running servers, launch locks |
 | `history/<sessionId>.jsonl` | *per agent*: conversation before each compaction |
 | `voice.jsonl` | *per agent*: which messages were voice messages, and their transcripts |
 | `turns-open/` | *per agent*: a mark per session while the agent works, so a restart mid-turn offers **Continue** |

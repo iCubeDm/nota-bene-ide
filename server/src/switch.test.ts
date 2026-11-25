@@ -244,7 +244,7 @@ describe('switch', () => {
   });
 
   it('a new session in a dir starts fresh there, in the mode saved for that dir', async () => {
-    fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ modes: { [B]: 'plan' } }));
+    fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ modes: { [`claude:${B}`]: 'plan' } }));
     const s = await boot({ resume: SA });
     const c = await connect(s.url);
     await until(() => lastOf(c, 'comments') !== undefined);

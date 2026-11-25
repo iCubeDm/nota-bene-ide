@@ -20,7 +20,7 @@ afterEach(() => {
 const config = { afterMs: 120_000, awayMs: 60_000, retryMs: 30, cacheMs: 5000, minTokens: 100 };
 const make = (o: { blocked?: boolean; caps?: Partial<typeof CLAUDE_CAPABILITIES>; root?: string } = {}) =>
   idleCompaction({
-    config, offInSettings: () => o.blocked ?? false, root: () => o.root ?? '/p',
+    config, offInSettings: () => o.blocked ?? false, provider: 'claude', root: () => o.root ?? '/p',
     capabilities: { ...CLAUDE_CAPABILITIES, ...o.caps }, busy: () => false, contextUsed: () => 1000, compact: () => {},
   });
 
@@ -28,7 +28,7 @@ describe('idleCompaction', () => {
   it('the state: on by default per project, the settings block, the timing in minutes', () => {
     const { state } = make();
     expect(state()).toEqual({ on: true, blocked: false, minutes: 2, awayMinutes: 1, minTokens: 100 });
-    setIdleCompactPref('/p', false);
+    setIdleCompactPref('claude', '/p', false);
     expect(state().on).toBe(false);
     expect(make({ root: '/other' }).state().on).toBe(true);
     expect(make({ blocked: true }).state().blocked).toBe(true);
@@ -39,7 +39,7 @@ describe('idleCompaction', () => {
     expect(make({ blocked: true }).enabled()).toBe(false);
     expect(make({ caps: { idleCompact: false } }).enabled()).toBe(false);
     expect(make({ caps: { compact: false } }).enabled()).toBe(false);
-    setIdleCompactPref('/p', false);
+    setIdleCompactPref('claude', '/p', false);
     expect(make().enabled()).toBe(false);
   });
 });

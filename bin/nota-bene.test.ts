@@ -182,10 +182,10 @@ function openerStub(d: string, log: string, fail = false): Record<string, string
 
 describe('checkout dev command', () => {
   it('defaults to dev state even when the production state is inherited, and forwards the provider', () => {
-    const r = spawnSync(process.execPath, [DEV_BIN, '--agent', 'codex', '--find', project], {
+    const r = spawnSync(process.execPath, [DEV_BIN, '--agent', 'codex', '--last', project], {
       env: env({ HOME: tmp, USERPROFILE: tmp, NOTA_BENE_DEV_HOME: '' }), encoding: 'utf8', // Windows: the home is USERPROFILE
     });
-    expect(r.status).toBe(1); // no window yet
+    expect(r.status).toBe(1); // no session yet
     expect(r.stderr).toBe('');
     expect(fs.existsSync(path.join(tmp, '.nota-bene-dev', 'providers', 'codex'))).toBe(true);
     expect(fs.readdirSync(home)).toEqual([]);
@@ -270,18 +270,16 @@ const bin = (args: string[], extra: Record<string, string> = {}) =>
   spawnSync(process.execPath, [BIN, ...args], { env: env(extra), encoding: 'utf8', timeout: 10000 });
 
 describe('nota-bene launcher', () => {
-  it('keeps Claude and Codex windows separate in the same project', async () => {
-    const claude = launch(['--port', '4791']);
+  it('issue 706: one registry and one token, so a Codex launch of a folder a server holds opens there as its agent', async () => {
+    launch(['--port', '4791']);
     await waitFor(() => windows()['4791']);
     const codex = launch(['--port', '4792', '--agent', 'codex']);
-    await waitFor(() => fs.existsSync(path.join(home, 'providers', 'codex', 'windows', '4792.json')));
-    expect(codex.out()).not.toContain('already open');
-    expect(bin(['--find', project]).stdout.trim()).toBe('4791');
-    const foundCodex = bin(['--find', project, '--agent', 'codex']);
-    expect({ code: foundCodex.status, error: foundCodex.stderr }).toEqual({ code: 0, error: '' });
-    expect(foundCodex.stdout.trim()).toBe('4792');
-    expect(fs.existsSync(path.join(home, 'providers', 'codex', 'token'))).toBe(true);
-    expect(fs.readFileSync(path.join(home, 'providers', 'codex', 'token'), 'utf8')).not.toBe(tokenOf());
+    expect(await codex.exited).toBe(0);
+    expect(codex.out()).toMatch(/^nota-bene: opened at http:\/\/127\.0\.0\.1:4791\/a\/codex-[a-z2-7]{6}\/\n$/);
+    expect(Object.keys(windows())).toEqual(['4791']);
+    expect(bin(['--find', project, '--agent', 'codex']).stdout.trim()).toBe('4791');
+    expect(fs.existsSync(path.join(home, 'providers', 'codex', 'token'))).toBe(false);
+    expect(fs.existsSync(path.join(home, 'providers', 'codex', 'windows'))).toBe(false);
   }, 15000);
 
   it('starts, /info answers supervised, the registry has the entry with both pids; --find reports it', async () => {

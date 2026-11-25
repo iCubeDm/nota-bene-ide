@@ -1,4 +1,4 @@
-// The window registry: one file per port, <stateDir>/windows/<port>.json = { root, pid, launcherPid?, startedAt }.
+// The registry of running servers: one file per port, <stateDir>/windows/<port>.json = { root, pid, launcherPid?, startedAt }.
 // Written by the launcher (bin/nota-bene.mjs, which imports this file directly) when a server answers /info, and by
 // a supervised server itself when its root changes (a folder switch); read by `nota-bene --find`. One file per port
 // keeps writers of different ports from ever touching each other's entries; each file is replaced atomically.
@@ -38,23 +38,23 @@ export const rootHash = (root: string): string => createHash('sha1').update(root
  */
 export const windowKey = (provider: AgentProvider, root: string): string => `${provider}:${rootHash(root)}`;
 
-const dir = (base?: string) => path.join(base ?? serverStateDir(), 'windows');
-const fileOf = (port: number | string, base?: string) => path.join(dir(base), `${port}.json`);
+const dir = () => path.join(serverStateDir(), 'windows');
+const fileOf = (port: number | string) => path.join(dir(), `${port}.json`);
 
-function readEntry(port: number | string, base?: string): WindowEntry | undefined {
+function readEntry(port: number | string): WindowEntry | undefined {
   try {
-    const w: unknown = JSON.parse(fs.readFileSync(fileOf(port, base), 'utf8'));
+    const w: unknown = JSON.parse(fs.readFileSync(fileOf(port), 'utf8'));
     return w && typeof w === 'object' && typeof (w as WindowEntry).root === 'string' ? (w as WindowEntry) : undefined;
   } catch {
     return undefined;
   }
 }
 
-/** The entries of this provider's registry, or of the state dir `base` (the remote connector reads every provider's). */
-export function readWindows(base?: string): Record<string, WindowEntry> {
+/** The registry's entries, by port. */
+export function readWindows(): Record<string, WindowEntry> {
   let names: string[];
   try {
-    names = fs.readdirSync(dir(base));
+    names = fs.readdirSync(dir());
   } catch {
     return {};
   }
@@ -62,7 +62,7 @@ export function readWindows(base?: string): Record<string, WindowEntry> {
   for (const n of names) {
     const m = /^(\d+)\.json$/.exec(n);
     if (!m) continue;
-    const w = readEntry(m[1]!, base);
+    const w = readEntry(m[1]!);
     if (w) out[m[1]!] = w;
   }
   return out;
@@ -115,18 +115,18 @@ export function unregisterWindow(port: number, pid: number): void {
 /** `session`: the agent's own conversation, resumed on the relaunch; none yet: the folder's last */
 export type KeptAgent = { id: string; provider: AgentProvider; root: string; session?: string };
 export type KeptAgents = { launcherPid?: number; nonce: string; agents: KeptAgent[] };
-const keptFile = (port: number, base?: string) => path.join(dir(base), `${port}.agents.json`);
+const keptFile = (port: number) => path.join(dir(), `${port}.agents.json`);
 
 /** The server's own file beside its entry (the launcher never writes it), replaced whole. */
-export function writeKeptAgents(port: number, k: KeptAgents, base?: string): void {
-  fs.mkdirSync(dir(base), { recursive: true });
-  writeJsonAtomic(keptFile(port, base), k, { space: 2 });
+export function writeKeptAgents(port: number, k: KeptAgents): void {
+  fs.mkdirSync(dir(), { recursive: true });
+  writeJsonAtomic(keptFile(port), k, { space: 2 });
 }
 
 /** The port's kept agents; null when there is no file or it is not one of ours. */
-export function readKeptAgents(port: number, base?: string): KeptAgents | null {
+export function readKeptAgents(port: number): KeptAgents | null {
   try {
-    const k = JSON.parse(fs.readFileSync(keptFile(port, base), 'utf8')) as KeptAgents;
+    const k = JSON.parse(fs.readFileSync(keptFile(port), 'utf8')) as KeptAgents;
     const good = (a: KeptAgent) => !!a && typeof a.id === 'string' && typeof a.provider === 'string' && typeof a.root === 'string';
     if (!k || typeof k.nonce !== 'string' || !Array.isArray(k.agents) || !k.agents.every(good)) return null;
     return { ...(typeof k.launcherPid === 'number' ? { launcherPid: k.launcherPid } : {}), nonce: k.nonce, agents: k.agents.map(({ id, provider, root, session }) => ({ id, provider, root, ...(isSessionId(session) ? { session } : {}) })) };

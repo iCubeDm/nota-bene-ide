@@ -20,26 +20,26 @@ afterEach(() => {
 
 function make(modes: Mode[] = ['default', 'acceptEdits', 'plan', 'auto']) {
   const events: EmitInput[] = [];
-  const m = new ModeKeeper({ modes, dir: '/p', emit: (ev) => events.push(ev), report: () => {} });
+  const m = new ModeKeeper({ provider: 'claude', modes, dir: '/p', emit: (ev) => events.push(ev), report: () => {} });
   return { m, events };
 }
 
 describe('ModeKeeper', () => {
   it('starts in the project pref, else the default pref, else auto', () => {
     expect(make().m.mode).toBe('auto');
-    setModePref('/p', 'plan');
+    setModePref('claude', '/p', 'plan');
     expect(make().m.mode).toBe('plan');
   });
 
   it("the start mode is clamped to the agent's modes; the pref stays as the user set it", () => {
-    setModePref('/p', 'plan');
+    setModePref('claude', '/p', 'plan');
     expect(make(['default', 'auto']).m.mode).toBe('default');
-    expect(readPrefs().modes[prefsKey('/p')]).toBe('plan');
+    expect(readPrefs().modes[prefsKey('claude', '/p')]).toBe('plan');
   });
 
   it('enter: a switch takes the new dir\'s start mode, without announcing it', () => {
     const { m, events } = make();
-    setModePref('/q', 'acceptEdits');
+    setModePref('claude', '/q', 'acceptEdits');
     expect(m.enter('/q')).toBe('acceptEdits');
     expect(m.mode).toBe('acceptEdits');
     expect(events).toEqual([]);
@@ -50,7 +50,7 @@ describe('ModeKeeper', () => {
     m.adopt('plan', '/p');
     m.adopt('plan', '/p');
     expect(m.mode).toBe('plan');
-    expect(readPrefs().modes[prefsKey('/p')]).toBe('plan');
+    expect(readPrefs().modes[prefsKey('claude', '/p')]).toBe('plan');
     expect(events).toEqual([{ kind: 'mode', mode: 'plan' }]);
   });
 
@@ -58,7 +58,7 @@ describe('ModeKeeper', () => {
     const { m, events } = make();
     m.set('plan', '/p');
     expect(m.mode).toBe('plan');
-    expect(readPrefs().modes[prefsKey('/p')]).toBe('plan');
+    expect(readPrefs().modes[prefsKey('claude', '/p')]).toBe('plan');
     expect(events).toEqual([]);
     m.ack('a1');
     m.ack();

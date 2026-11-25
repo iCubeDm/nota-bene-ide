@@ -102,9 +102,6 @@ export async function startServer(work, script, name, { codex, whisper } = {}) {
   }
   fs.mkdirSync(home, { recursive: true, mode: 0o700 });
   fs.writeFileSync(path.join(home, 'token'), TOKEN, { mode: 0o600 });
-  const state = codex ? path.join(home, 'providers/codex') : home;
-  fs.mkdirSync(state, { recursive: true, mode: 0o700 });
-  fs.writeFileSync(path.join(state, 'token'), TOKEN, { mode: 0o600 });
   if (whisper) {
     try { execFileSync('cp', ['-cR', whisper, path.join(home, 'whisper')]); } catch { fs.cpSync(whisper, path.join(home, 'whisper'), { recursive: true }); }
     fs.writeFileSync(path.join(home, 'prefs.json'), JSON.stringify({ whisper: true, dictationLang: 'en' }));
@@ -125,7 +122,7 @@ export async function startServer(work, script, name, { codex, whisper } = {}) {
     fs.mkdirSync(path.join(dir, 'windows'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'windows', `${port}.json`), JSON.stringify({ root, pid, startedAt: Date.now() }));
   };
-  register(state, PORT, PROJECT, children[0].pid);
+  register(home, PORT, PROJECT, children[0].pid);
   SIBLINGS.forEach((s, i) => register(home, s.port, s.root, children[i + 1].pid));
   for (const port of [PORT, ...SIBLINGS.map((s) => s.port)]) {
     for (let i = 0; i < 100; i++) {

@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseProvider, providerStateDir } from './provider.ts';
-import { lastSession, saveSession, serverStateDir } from '../state.ts';
+import { envAgentContext, lastSession, saveSession, serverStateDir } from '../state.ts';
 import { underState } from '../stateGuard.ts';
 import { parseArgs } from '../main.ts';
 // @ts-expect-error plain launcher ESM has no declarations
@@ -18,7 +18,7 @@ describe('provider identity', () => {
     expect(() => parseProvider('../codex')).toThrow(/agent/i);
   });
 
-  it('keeps legacy state exactly where it was and isolates Codex', () => {
+  it('issue 706: the server\'s state is the state folder whichever agent it started as; an agent\'s is its provider\'s', () => {
     const base = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-provider-'));
     try {
       vi.stubEnv('NOTA_BENE_HOME', base);
@@ -26,12 +26,13 @@ describe('provider identity', () => {
       expect(serverStateDir()).toBe(base);
       saveSession(serverStateDir(), '/project', 'claude-session');
       vi.stubEnv('NOTA_BENE_AGENT', 'codex');
-      expect(serverStateDir()).toBe(providerStateDir(base, 'codex'));
-      expect(lastSession(serverStateDir(), '/project')).toBeUndefined();
-      saveSession(serverStateDir(), '/project', 'codex-session');
+      expect(serverStateDir()).toBe(base);
+      const codex = envAgentContext().stateDir;
+      expect(codex).toBe(providerStateDir(base, 'codex'));
+      expect(lastSession(codex, '/project')).toBeUndefined();
+      saveSession(codex, '/project', 'codex-session');
       expect(underState(path.join(base, 'token'))).toBe(true);
-      expect(underState(path.join(serverStateDir(), 'token'))).toBe(true);
-      vi.stubEnv('NOTA_BENE_AGENT', 'claude');
+      expect(underState(path.join(codex, 'token'))).toBe(true);
       expect(lastSession(serverStateDir(), '/project')).toBe('claude-session');
     } finally { fs.rmSync(base, { recursive: true, force: true }); }
   });

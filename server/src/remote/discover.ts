@@ -1,20 +1,18 @@
-// The windows the connector can reach: every provider's registry (`windows/` in its state dir), each entry proved with
-// that provider's token (GET /hello) before anything is sent to it, and the helper bearer derived for its launch.
+// The servers the connector can reach: the registry (`windows/` in the state dir), each entry proved with the token
+// (GET /hello) before anything is sent to it, and the helper bearer derived for its launch.
 // Registry entries are only hints, and the connector never edits them (that stays with the launcher and liveWindows).
-// It never creates a token either: a provider without one has no windows.
+// It never creates a token either: without one there are no servers.
 import { EventEmitter } from 'node:events';
-import { PROVIDERS, providerStateDir, type AgentProvider } from '../agent/provider.ts';
 import { helperCredential, proveListener } from '../auth.ts';
-import { providerToken, registries } from '../servers.ts';
-import { stateBaseDir } from '../state.ts';
+import { registry, serverToken } from '../servers.ts';
 import { pidAlive } from '../windows.ts';
 
 /** A listed window the host proved (its /hello) and can reach: the bearer for its launch. Never sent to a phone. */
-export type ProvedWindow = { port: number; provider: AgentProvider; root: string; bearer: string; nonce: string };
+export type ProvedWindow = { port: number; root: string; bearer: string; nonce: string };
 
 const PROVE_MS = 1000;
 
-const same = (a: ProvedWindow, b: ProvedWindow) => a.port === b.port && a.provider === b.provider && a.nonce === b.nonce && a.root === b.root;
+const same = (a: ProvedWindow, b: ProvedWindow) => a.port === b.port && a.nonce === b.nonce && a.root === b.root;
 
 /** Events: `change(list)` when the set of windows or a launch changes, `warn(message)` for an unusable token file. */
 export class Windows extends EventEmitter {
@@ -60,9 +58,9 @@ export class Windows extends EventEmitter {
     if (!old) return undefined;
     let token: string | null = null;
     try {
-      token = providerToken(providerStateDir(stateBaseDir(), old.provider));
+      token = serverToken();
     } catch { /* reported by the poll */ }
-    const w = token ? await this.#prove(old.port, old.provider, old.root, token) : undefined;
+    const w = token ? await this.#prove(old.port, old.root, token) : undefined;
     const next = new Map(this.#list);
     if (w) next.set(port, w);
     else next.delete(port);
@@ -70,20 +68,15 @@ export class Windows extends EventEmitter {
     return w;
   }
 
-  async #prove(port: number, provider: AgentProvider, root: string, token: string): Promise<ProvedWindow | undefined> {
+  async #prove(port: number, root: string, token: string): Promise<ProvedWindow | undefined> {
     const nonce = await proveListener({ dial: port, timeoutMs: PROVE_MS, token, ...(this.#fetchFn ? { fetchFn: this.#fetchFn } : {}) });
-    return nonce === null ? undefined : { port, provider, root, nonce, bearer: `Bearer ${helperCredential(token, port, nonce)}` };
+    return nonce === null ? undefined : { port, root, nonce, bearer: `Bearer ${helperCredential(token, port, nonce)}` };
   }
 
   async #poll(): Promise<void> {
-    const found: ProvedWindow[] = [];
-    await Promise.all(registries((e) => this.emit('warn', e.message)).map(async ({ provider, token, entries }) => {
-      const proved = await Promise.all(entries.filter(([, w]) => pidAlive(w.pid)).map(([port, w]) => this.#prove(port, provider, w.root, token)));
-      for (const w of proved) if (w) found.push(w);
-    }));
-    const next = new Map<number, ProvedWindow>();
-    for (const w of found.sort((a, b) => PROVIDERS.indexOf(a.provider) - PROVIDERS.indexOf(b.provider))) if (!next.has(w.port)) next.set(w.port, w);
-    this.#set(next);
+    const r = registry((e) => this.emit('warn', e.message));
+    const proved = await Promise.all((r?.entries ?? []).filter(([, w]) => pidAlive(w.pid)).map(([port, w]) => this.#prove(port, w.root, r!.token)));
+    this.#set(new Map(proved.flatMap((w) => (w ? [[w.port, w] as const] : []))));
   }
 
   #set(next: Map<number, ProvedWindow>): void {

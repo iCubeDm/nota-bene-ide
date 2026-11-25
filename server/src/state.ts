@@ -52,11 +52,11 @@ export function envAgentContext(): AgentContext {
 }
 
 /**
- * The window process's own folder: its token, control token, prefs and window registry. Chosen by NOTA_BENE_AGENT, as the
- * agent's folder is; step 2b of epic 383 moves each of these to the one server.
+ * The server's own folder, the state folder itself: its token, control token, prefs and registry. One server holds agents of
+ * every provider, so none of these is a provider's (prefsMigration.ts brings in the prefs a `providers/<p>` folder held).
  */
 export function serverStateDir(): string {
-  return envAgentContext().stateDir;
+  return ensureStateDir(stateBaseDir());
 }
 
 /** Created 700 and checked once per process: ours (owner), and on Windows inside the user profile. */

@@ -220,7 +220,7 @@ describe('connector', () => {
     await until(() => exits.length === 1, 2000);
     expect(exits).toEqual(['idle']);
     await m.stop();
-    const one = new (class extends Windows { override list(): ProvedWindow[] { return [{ port: 4790, provider: 'claude', root: '/p', bearer: 'b', nonce: 'n' }]; } })();
+    const one = new (class extends Windows { override list(): ProvedWindow[] { return [{ port: 4790, root: '/p', bearer: 'b', nonce: 'n' }]; } })();
     const kept = await connector({ managed: true, idleExitMs: 80, windows: one });
     const later: string[] = [];
     kept.on('exit', (w: string) => later.push(`managed ${w}`));

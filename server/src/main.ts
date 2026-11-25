@@ -13,6 +13,7 @@ import { HANDOVER } from './updater.ts';
 import { hitRecorder, limitRecorder } from './usage/routes.ts';
 import { UsageStore } from './usage/store.ts';
 import { launchTarget } from './sessions.ts';
+import { migratePrefs } from './prefsMigration.ts';
 import { AGENT_ID, agentContext, serverStateDir } from './state.ts';
 import { parseProvider, type AgentProvider } from './agent/provider.ts';
 import { pidAlive, realpathNative, samePath } from './platform.ts';
@@ -139,6 +140,11 @@ async function main(): Promise<void> {
     process.exit(2);
   }
   process.env.NOTA_BENE_AGENT = args.agent ?? 'claude'; // child launches still read it
+  try {
+    migratePrefs();
+  } catch (e) {
+    console.error('[prefs] could not bring in the older settings:', e);
+  }
   const agent = agentContext(parseProvider(args.agent));
   // a backend per agent, as a window had its own (the ACP one keeps a session slot per instance)
   const backendFor = (p: AgentProvider) => (p === 'codex' ? codexBackend({ stateDir: agentContext(p).stateDir }) : p === 'omp' ? ompBackend() : sdkBackend());

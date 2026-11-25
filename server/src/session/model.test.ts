@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AgentEffort as EffortLevel, ModelOption } from '@nota-bene/shared';
 import type { EmitInput } from '../hub.ts';
-import { modelKey, readPrefs, setModelPref } from '../prefs.ts';
+import { prefsKey, readPrefs, setModelPref } from '../prefs.ts';
 import { toModelOption } from '../agent/claude/sdk.ts';
 import { ModelKeeper } from './model.ts';
 import probe from '../../test/fixtures/model-probe.json' with { type: 'json' };
@@ -42,7 +42,7 @@ function make() {
   return { k, events };
 }
 const yes = () => true;
-const pref = () => readPrefs().models[modelKey('claude', '/p')];
+const pref = () => readPrefs().models[prefsKey('claude', '/p')];
 
 describe('ModelKeeper', () => {
   it('no pref: the agent starts without a model option', () => {
@@ -56,7 +56,7 @@ describe('ModelKeeper', () => {
     expect(make().k.forStart('/p')).toEqual({});
     setModelPref('claude', '/p', { model: 'opus' });
     expect(make().k.forStart('/p')).toEqual({ model: 'opus' });
-    expect(readPrefs().models[modelKey('codex', '/p')]).toEqual({ model: 'gpt-x' });
+    expect(readPrefs().models[prefsKey('codex', '/p')]).toEqual({ model: 'gpt-x' });
   });
 
   it('starts with the pref model and effort', () => {

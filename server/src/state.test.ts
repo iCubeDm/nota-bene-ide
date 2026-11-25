@@ -91,12 +91,23 @@ describe('Windows: a state folder outside the user profile is refused (its defau
   });
 });
 
-it('only process-wide modules use the env-chosen folder (epic 383, step 2a)', () => {
+it('issue 706: the server\'s folder is the state folder itself, whichever agent it was launched as', () => {
+  const prev = process.env.NOTA_BENE_AGENT;
+  try {
+    for (const p of ['claude', 'codex', 'omp']) {
+      process.env.NOTA_BENE_AGENT = p;
+      expect(serverStateDir()).toBe(home);
+    }
+  } finally {
+    if (prev === undefined) delete process.env.NOTA_BENE_AGENT; else process.env.NOTA_BENE_AGENT = prev;
+  }
+});
+
+it('only process-wide modules use the env-chosen agent (epic 383, step 2a)', () => {
   const src = path.resolve(import.meta.dirname);
   const files = fs.readdirSync(src, { recursive: true, encoding: 'utf8' }).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'));
   const using = (re: RegExp) => files.filter((f) => re.test(fs.readFileSync(path.join(src, f), 'utf8'))).map((f) => f.split(path.sep).join('/')).sort();
   expect(using(/\bstateDir\(\)/)).toEqual([]);
-  expect(using(/\bserverStateDir\(/)).toEqual(['auth.ts', 'main.ts', 'prefs.ts', 'state.ts', 'stateGuard.ts', 'windows.ts']);
   // per-agent code gets its folder passed in; these fall back to the env only where no context was given (tests)
   expect(using(/\benvAgentContext\(/)).toEqual(['agent/codex/backend.ts', 'server.ts', 'session.ts', 'state.ts']);
   expect(using(/process\.env\.NOTA_BENE_AGENT\b/)).toEqual(['main.ts', 'state.ts']);

@@ -3,9 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeBackend } from '../agent/fake.ts';
-import { providerStateDir } from '../agent/provider.ts';
-import { writePrivateFile } from '../auth.ts';
-import { readWindows, registerWindow } from '../windows.ts';
+import { registerWindow } from '../windows.ts';
 import { infoAt } from '../servers.ts';
 import { Windows } from './discover.ts';
 import { launchServer } from '../testing.ts';
@@ -29,7 +27,7 @@ afterEach(async () => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
-/** An in-process window of `provider`, registered in that provider's registry. */
+/** An in-process server started as `provider`, registered. */
 async function window(provider: 'claude' | 'codex', dir: string) {
   process.env.NOTA_BENE_AGENT = provider;
   try {
@@ -49,17 +47,14 @@ async function window(provider: 'claude' | 'codex', dir: string) {
 }
 
 describe('window discovery', () => {
-  it('lists the windows of every provider, each proved with its own token', async () => {
+  it('lists the servers, whichever provider each started as, proved with the one token', async () => {
     const a = await window('claude', 'a');
     const b = await window('codex', 'b');
     const w = new Windows({ pollMs: 60_000 });
     await w.start();
     try {
-      const list = w.list().map(({ port, provider, root }) => ({ port, provider, root }));
-      expect(list).toEqual([
-        { port: a.port, provider: 'claude', root: path.join(tmp, 'a') },
-        { port: b.port, provider: 'codex', root: path.join(tmp, 'b') },
-      ].sort((x, y) => x.port - y.port));
+      const list = w.list().map(({ port, root }) => ({ port, root }));
+      expect(list).toEqual([{ port: a.port, root: path.join(tmp, 'a') }, { port: b.port, root: path.join(tmp, 'b') }].sort((x, y) => x.port - y.port));
       const info = await infoAt(b.port, '', w.get(b.port)!.bearer);
       expect(info?.root).toBe(path.join(tmp, 'b'));
       expect(w.get(a.port)!.bearer).toMatch(/^Bearer [0-9a-f]{64}$/);
@@ -68,17 +63,16 @@ describe('window discovery', () => {
     }
   });
 
-  it('does not list an entry whose port answers another provider\'s proof', async () => {
+  it('does not list an entry whose port answers another token\'s proof', async () => {
+    process.env.NOTA_BENE_HOME = path.join(tmp, 'other');
+    const far = await window('claude', 'b');
+    process.env.NOTA_BENE_HOME = home;
     const a = await window('claude', 'a');
-    const omp = providerStateDir(home, 'omp');
-    fs.mkdirSync(path.join(omp, 'windows'), { recursive: true, mode: 0o700 });
-    writePrivateFile(path.join(omp, 'token'), 'ab'.repeat(32));
-    fs.writeFileSync(path.join(omp, 'windows', `${a.port}.json`), JSON.stringify({ root: path.join(tmp, 'a'), pid: process.pid, startedAt: 1 }));
-    expect(Object.keys(readWindows(omp))).toEqual([String(a.port)]);
+    registerWindow(far.port, path.join(tmp, 'b'), process.pid); // filed here, but the port is another state folder's server
     const w = new Windows({ pollMs: 60_000 });
     await w.start();
     try {
-      expect(w.list().map((x) => [x.port, x.provider])).toEqual([[a.port, 'claude']]);
+      expect(w.list().map((x) => x.port)).toEqual([a.port]);
     } finally {
       w.stop();
     }
@@ -103,35 +97,44 @@ describe('window discovery', () => {
     }
   });
 
-  // no mode bits on Windows (the profile's ACL is trusted): there a token in place of a link is what is reported
-  it.skipIf(process.platform === 'win32')('a provider without a token is skipped quietly; a loose token is reported', async () => {
-    await window('claude', 'a');
-    const codex = providerStateDir(home, 'codex');
-    fs.mkdirSync(codex, { recursive: true });
-    fs.writeFileSync(path.join(codex, 'token'), 'cd'.repeat(32), { mode: 0o644 });
+  it('no token: nothing is listed, quietly, and none is made', async () => {
+    registerWindow(4794, path.join(tmp, 'a'), process.pid);
     const w = new Windows({ pollMs: 60_000 });
     const warnings: string[] = [];
     w.on('warn', (m: string) => warnings.push(m));
     await w.start();
     w.stop();
-    expect(w.list()).toHaveLength(1);
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toMatch(/readable by other users/);
+    expect([w.list(), warnings, fs.existsSync(path.join(home, 'token'))]).toEqual([[], [], false]);
   });
 
-  it.runIf(process.platform === 'win32')('a provider without a token is skipped quietly; a junction as the token is reported', async () => {
-    await window('claude', 'a');
-    const codex = providerStateDir(home, 'codex');
-    fs.mkdirSync(codex, { recursive: true });
-    const target = path.join(tmp, 'elsewhere');
-    fs.mkdirSync(target);
-    fs.symlinkSync(target, path.join(codex, 'token'), 'junction'); // no Developer Mode or admin needed
+  // no mode bits on Windows (the profile's ACL is trusted): there a token in place of a link is what is reported
+  it.skipIf(process.platform === 'win32')('a loose token is reported, and nothing is listed', async () => {
+    const a = await window('claude', 'a');
+    fs.chmodSync(path.join(home, 'token'), 0o644);
     const w = new Windows({ pollMs: 60_000 });
     const warnings: string[] = [];
     w.on('warn', (m: string) => warnings.push(m));
     await w.start();
     w.stop();
-    expect(w.list()).toHaveLength(1);
+    expect(w.list()).toHaveLength(0);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/readable by other users/);
+    fs.chmodSync(path.join(home, 'token'), 0o600);
+    await a.close();
+  });
+
+  it.runIf(process.platform === 'win32')('a junction as the token is reported, and nothing is listed', async () => {
+    registerWindow(4794, path.join(tmp, 'a'), process.pid);
+    const target = path.join(tmp, 'elsewhere');
+    fs.mkdirSync(target);
+    fs.mkdirSync(home, { recursive: true });
+    fs.symlinkSync(target, path.join(home, 'token'), 'junction'); // no Developer Mode or admin needed
+    const w = new Windows({ pollMs: 60_000 });
+    const warnings: string[] = [];
+    w.on('warn', (m: string) => warnings.push(m));
+    await w.start();
+    w.stop();
+    expect(w.list()).toHaveLength(0);
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toMatch(/symbolic link/);
   });

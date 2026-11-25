@@ -1,38 +1,40 @@
 // Which servers run on this machine and which agents each has (issue 680): the one reading the switcher (projects.ts), the
 // remote connector (remote/discover.ts, remote/device.ts) and the launcher's attach (attach.ts) share.
 //
-// Each provider has its own registry and token (state dir per provider; a server keeps the token of the provider it
-// started as). Registry entries are only hints: a caller proves the listener with that provider's token (GET /hello)
-// before anything is sent to it. Nothing here creates a token: a provider without one has no servers.
+// One registry and one token, in the server's state folder. Registry entries are only hints: a caller proves the listener
+// with the token (GET /hello) before anything is sent to it. Nothing here creates a token: without one there are no servers.
 import path from 'node:path';
-import { PROVIDERS, providerStateDir, type AgentProvider } from './agent/provider.ts';
+import { PROVIDERS, type AgentProvider } from './agent/provider.ts';
 import { readPrivateFile, SecretError } from './auth.ts';
-import { AGENT_ID, agentPath, stateBaseDir } from './state.ts';
+import { AGENT_ID, agentPath, serverStateDir } from './state.ts';
 import { readWindows, type WindowEntry } from './windows.ts';
 
 const TOKEN_RE = /^[0-9a-f]{64}$/;
 
-/** A provider state dir's access token, or null when it has none; throws SecretError for an unusable file. */
-export function providerToken(dir: string): string | null {
-  return readPrivateFile(path.join(dir, 'token'), TOKEN_RE, 'a token (64 hex characters)', 'delete it to make a new token (every open window then has to be reopened)');
+/** The access token, or null when there is none yet; throws SecretError for an unusable file. */
+export function serverToken(): string | null {
+  return readPrivateFile(path.join(serverStateDir(), 'token'), TOKEN_RE, 'a token (64 hex characters)', 'delete it to make a new token (every open window then has to be reopened)');
 }
 
-export type Registry = { provider: AgentProvider; dir: string; token: string; entries: [port: number, w: WindowEntry][] };
+/**
+ * What a server's own row names as its agent. A server has none: the row is a server that does not answer, or an older one
+ * whose top is its only agent.
+ */
+export const SERVER_PROVIDER: AgentProvider = 'claude';
 
-/** Every provider's registry with its token, in PROVIDERS' order. `bad`: a provider whose token file is unusable (it is left out). */
-export function registries(bad: (e: SecretError, provider: AgentProvider) => void = () => {}): Registry[] {
-  return PROVIDERS.flatMap((provider): Registry[] => {
-    const dir = providerStateDir(stateBaseDir(), provider);
-    let token: string | null;
-    try {
-      token = providerToken(dir);
-    } catch (e) {
-      if (!(e instanceof SecretError)) throw e;
-      bad(e, provider);
-      return [];
-    }
-    return token ? [{ provider, dir, token, entries: Object.entries(readWindows(dir)).map(([port, w]) => [Number(port), w]) }] : [];
-  });
+export type Registry = { token: string; entries: [port: number, w: WindowEntry][] };
+
+/** The registry with its token; null: no token, so no servers. An unusable token file goes to `bad` (then null), else it throws. */
+export function registry(bad?: (e: SecretError) => void): Registry | null {
+  let token: string | null;
+  try {
+    token = serverToken();
+  } catch (e) {
+    if (!bad || !(e instanceof SecretError)) throw e;
+    bad(e);
+    return null;
+  }
+  return token ? { token, entries: Object.entries(readWindows()).map(([port, w]) => [Number(port), w]) } : null;
 }
 
 /** GET /info at `base` ('' the server's, `/a/<id>` an agent's) with a proved listener's `bearer`: its fields, or null. */

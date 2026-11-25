@@ -8,7 +8,7 @@ import { HOST_WINDOW_INFO, type AgentProvider, type HostStreamMessage, type Host
 import WebSocket from 'ws';
 import { agentPrefix } from '../http.ts';
 import { windowKey } from '../windows.ts';
-import { serverAgents } from '../servers.ts';
+import { SERVER_PROVIDER, serverAgents } from '../servers.ts';
 import type { ProvedWindow, Windows } from './discover.ts';
 import { BAD_FRAME, Mux, TOO_LARGE, UNKNOWN_WINDOW, UNREACHABLE, type Stream } from './mux.ts';
 import { CipherState, Handshake, MAX_PLAINTEXT, PROLOGUE, type KeyPair } from './noise.ts';
@@ -53,7 +53,7 @@ export function computerName(raw: string = os.hostname()): string | undefined {
  * rule, not an invariant (an unlocked or inner launch, a dev server), so among windows of one key the lowest port keeps
  * the bare id and the others get `<id>:<port>`: every phone sees the same ids.
  */
-function windowIds(list: readonly Pick<ProvedWindow, 'port' | 'provider' | 'root'>[]): string[] {
+function windowIds(list: readonly Pick<HostWindow, 'port' | 'provider' | 'root'>[]): string[] {
   const keys = list.map((w) => windowKey(w.provider, w.root));
   const lowest = new Map<string, number>();
   list.forEach((w, i) => lowest.set(keys[i]!, Math.min(w.port, lowest.get(keys[i]!) ?? Infinity)));
@@ -233,7 +233,7 @@ export class DeviceChannel {
       const shown = list.flatMap((w, i): (Pick<HostWindow, 'port' | 'agent' | 'provider' | 'root'> & { info?: Record<string, unknown> })[] => {
         const first = answered[i]![0];
         if (first) return [{ port: w.port, agent: first.id, provider: first.provider, root: first.info.root, info: first.info }];
-        return Array.isArray(tops[i]?.agents) && !(tops[i]!.agents as unknown[]).length ? [] : [{ port: w.port, provider: w.provider, root: w.root }];
+        return Array.isArray(tops[i]?.agents) && !(tops[i]!.agents as unknown[]).length ? [] : [{ port: w.port, provider: SERVER_PROVIDER, root: w.root }];
       });
       const ids = windowIds(shown);
       const windows = shown.map(({ info, ...w }, i): HostWindow => ({ id: ids[i]!, ...w, ...(info ? fields(info) : {}) }));

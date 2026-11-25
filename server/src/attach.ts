@@ -1,15 +1,14 @@
 // The launcher's way into a running server (epic 383, step 2c): a folder opens as an agent of a server that is already up,
 // through its POST /control/open, instead of as a window of its own.
 //
-// Every provider's registry is looked at (a server keeps the token of the provider it started as), each live entry proved
-// with that provider's token before its control token is sent, as the switcher does (projects.ts). A server of an older
-// version has no /control/open (404) and is passed over. The answer's URL carries the login of that server's launch; the
+// Each live entry of the registry is proved with the token before the control token is sent, as the switcher does
+// (projects.ts). A server of an older version has no /control/open (404) and is passed over. The answer's URL carries the login of that server's launch; the
 // caller opens it or prints it to the one that asked (never to a log).
 import path from 'node:path';
 import type { AgentProvider } from './agent/provider.ts';
 import { loginCredential, proveListener, readSecret, SecretError } from './auth.ts';
-import { registries } from './servers.ts';
-import { AGENT_ID, agentPath } from './state.ts';
+import { registry } from './servers.ts';
+import { AGENT_ID, agentPath, serverStateDir } from './state.ts';
 import { CONTROL_HEADER } from './system.ts';
 import { pidAlive } from './windows.ts';
 
@@ -24,21 +23,17 @@ export type Attached = { port: number; agent: string; opened: boolean; shown: bo
  */
 export type AttachAsk = { root: string; provider: AgentProvider; mode: 'resume' | 'new'; session?: string; fork?: boolean; port?: number; under?: number; show?: boolean };
 
-/** The running servers to try, by port: every provider's live entries with that provider's tokens. */
+/** The running servers to try, by port: the live entries, with the tokens. None when a token file is unusable (the launcher reports that). */
 function servers(): { port: number; token: string; control: string }[] {
-  const out: { port: number; token: string; control: string }[] = [];
-  for (const { dir, token, entries } of registries()) {
-    let control: string | null;
-    try {
-      control = readSecret(path.join(dir, 'control-token'));
-    } catch (e) {
-      if (e instanceof SecretError) continue; // that provider's windows are the launcher's to report on, not ours
-      throw e;
-    }
-    if (!control) continue;
-    for (const [port, w] of entries) if (pidAlive(w.pid)) out.push({ port, token, control });
+  const r = registry(() => {});
+  let control: string | null = null;
+  try {
+    control = r && readSecret(path.join(serverStateDir(), 'control-token'));
+  } catch (e) {
+    if (!(e instanceof SecretError)) throw e;
   }
-  return out.sort((a, b) => a.port - b.port);
+  if (!r || !control) return [];
+  return r.entries.flatMap(([port, w]) => (pidAlive(w.pid) ? [{ port, token: r.token, control }] : [])).sort((a, b) => a.port - b.port);
 }
 
 /** The first running server: its port and its home page with the login of its launch. null: none. */
