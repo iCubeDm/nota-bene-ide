@@ -153,7 +153,11 @@ void main() {
     );
     expect(part.status, 206);
     expect(utf8.decode(part.body), 'remote-cross-content');
-    final big = await ch.http(port, 'GET', win.address.at('/file?path=big.bin'));
+    final big = await ch.http(
+      port,
+      'GET',
+      win.address.at('/file?path=big.bin'),
+    );
     expect(big.status, 200);
     expect(big.body.length, 700 * 1024);
     expect(
