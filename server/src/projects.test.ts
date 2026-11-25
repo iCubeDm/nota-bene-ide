@@ -67,6 +67,21 @@ it('lists the windows of every provider with their state', async () => {
   expect(seenTokens.size).toBe(2); // each provider's window probed with its own token
 });
 
+it('issue 691: the asking server answers for its own agents itself; only the others are probed', async () => {
+  const a = mk('nb-proj-own-'), b = mk('nb-proj-far-');
+  const pa = await windowOf('claude', a);
+  const pb = await windowOf('claude', b);
+  const probed: number[] = [];
+  const self = {
+    info: (): ProbedInfo => ({ root: a, extra: [{ root: a, agent: 'codex-aaaaaa', provider: 'codex', busy: true, session: 's1' }] }),
+    agent: () => null, open: async () => { throw new Error('unused'); },
+  };
+  const list = await listProjects({ port: pa, provider: 'claude', self }, async (port) => { probed.push(port); return { root: b, agent: 'claude-bbbbbb' }; });
+  expect(probed).toEqual([pb]);
+  expect(list.running.map((r) => [r.port, r.id, r.state])).toEqual(expect.arrayContaining([[pa, 'codex-aaaaaa', 'working'], [pb, 'claude-bbbbbb', 'idle']]));
+  expect(list.running).toHaveLength(2);
+});
+
 it('a restarting entry and a silent one are listed without a session', async () => {
   const a = mk('nb-proj-a-');
   const pa = await windowOf('claude', a);

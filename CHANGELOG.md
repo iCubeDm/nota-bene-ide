@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **A project opens from the page at once.** **Open folder…**, **New project…** and Recent no longer start a launcher process to open the folder: the server opens it itself.
 - **`nota-bene` with no folder opens the home page.** A start of the app is its home page, where you open a project: of the running Nota Bene, or of a new one with no agent yet. The app icon opens it too (it opened the most recent project). `nota-bene <folder>` opens that project as before; for the current folder it is now `nota-bene .`, and `--resume`, `--new` and `--continue` need a folder.
 - **Settings has no Windows section.** The project switcher and the home page list every agent, open and close it; a server is restarted from its own page (▾ next to ↻ Agent).
 - **A session open in another agent is not deleted.** With several agents, on one server or on several, the session list let you delete a conversation another agent had open; the branch list also did not mark a folder whose agent was at work, and let its branch be switched.

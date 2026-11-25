@@ -1,45 +1,27 @@
 // The project switcher's and the starter's routes (phase 1): the projects list, the move to another window, the folder
 // picker, the installed agents, and opening or creating a folder in a new window.
 //
-// A new window is started the way a terminal does it: this server runs its own launcher (`bin/nota-bene.mjs --detach
-// --no-open`), which prints one line, `opened URL` or `already-open URL`, the URL carrying the window's login. That line goes
-// only into the answer to the page; neither it nor the launcher's other output is ever logged or reported.
-import { execFile, spawn } from 'node:child_process';
+// A folder opens as an agent of this server, which opens it itself (issue 691). The URL it answers carries the login: it
+// goes only into the answer to the page, never into a log or a report.
+import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { defaultChoice, detectAgents } from './agent/choice.ts';
+import { defaultChoice, detectAgents, rememberAgent } from './agent/choice.ts';
 import { PROVIDERS, type AgentProvider } from './agent/provider.ts';
 import { isSessionId } from '@nota-bene/shared';
 import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
-import { HIDDEN } from './platform.ts';
-import { enterUrl, listProjects, remoteRows, sessionsOf, stopAt, stopOthers, type Computer } from './projects.ts';
-import { forgetRecent, readRecent } from './recent.ts';
+import { HIDDEN, notAProject } from './platform.ts';
+import { enterUrl, listProjects, remoteRows, sessionsOf, stopAt, stopOthers, type Computer, type Self } from './projects.ts';
+import { forgetRecent, readRecent, recordRecent } from './recent.ts';
 import { AGENT_ID, stateBaseDir } from './state.ts';
 import { readJson } from './system.ts';
 
-/** Runs the launcher with `args`; resolves to its exit code and the first line it printed. */
-export type Launch = (args: string[], env: NodeJS.ProcessEnv) => Promise<{ code: number; firstLine: string }>;
 export type Agents = () => Promise<{ agents: AgentProvider[]; default: AgentProvider }>;
 
-const LAUNCH_MS = 30_000;
-const STILL_STARTING = 'still starting';
 const MAX_DIRS = 500;
-/** What a launcher this server started must not inherit: they describe this server's own launch. */
-const LAUNCH_STATE = ['NOTA_BENE_SUPERVISED', 'NOTA_BENE_LAUNCHER_PID', 'NOTA_BENE_NONCE', 'NOTA_BENE_AGENT', 'NOTA_BENE_INNER', 'NOTA_BENE_LOCKED',
-  'NOTA_BENE_AUTOPORT', 'NOTA_BENE_HANDOVER', 'NOTA_BENE_HANDOVER_NONCE', 'NOTA_BENE_UPDATED_FROM',
-  'NOTA_BENE_PLUGIN_VERSION']; // issue 457: a window opened from the projects rail was not opened by /nb
-// an agent of the running server (epic 383) is under its /a/<id>/
-const OPENED = /^(?:opened|already-open) (http:\/\/127\.0\.0\.1:\d+\/(?:a\/[a-z]+-[a-z2-7]{6}\/)?#t=[0-9a-f]{64})$/;
-
-export function launchEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const out = { ...env };
-  for (const k of LAUNCH_STATE) delete out[k];
-  return out;
-}
-
 /**
  * A folder name the starter may create: one path segment, no edge spaces, at most 255 bytes, and nothing Windows refuses
  * (its reserved characters and device names, control characters, a trailing dot), on every system, so a project moves.
@@ -51,30 +33,6 @@ export function validName(name: unknown): name is string {
 }
 
 const isProvider = (p: unknown): p is AgentProvider => (PROVIDERS as unknown[]).includes(p);
-
-/**
- * The launcher of `repoDir`. Its line is read to the end of its stdout ('close', not 'exit': the output may still be in
- * flight when the process ends). A launch slower than `waitMs` (a rebuild, a lock wait) is left running: its window comes
- * up by itself and shows under Running; killing it would stop only the launcher in front, not its detached child.
- */
-export function launcherOf(repoDir: string, waitMs = LAUNCH_MS): Launch {
-  const bin = path.join(repoDir, 'bin', 'nota-bene.mjs');
-  return (args, env) => new Promise((resolve) => {
-    const p = spawn(process.execPath, [bin, ...args], { env, stdio: ['ignore', 'pipe', 'pipe'], ...HIDDEN });
-    let out = '', err = '';
-    p.stdout.on('data', (d: Buffer) => { if (out.length < 8192) out += d; });
-    p.stderr.on('data', (d: Buffer) => { if (err.length < 8192) err += d; });
-    const timer = setTimeout(() => {
-      p.stdout.destroy();
-      p.stderr.destroy();
-      p.unref();
-      resolve({ code: -1, firstLine: STILL_STARTING });
-    }, waitMs);
-    const first = (s: string) => s.split(/\r?\n/).find((l) => l.trim() !== '')?.trim() ?? '';
-    p.on('error', (e) => { clearTimeout(timer); resolve({ code: -1, firstLine: e.message }); });
-    p.on('close', (code) => { clearTimeout(timer); resolve({ code: code ?? -1, firstLine: first(out) || first(err) }); });
-  });
-}
 
 function defaultAgents(): Agents {
   let found: Promise<AgentProvider[]> | null = null;
@@ -131,17 +89,15 @@ export function projectRoutes(o: {
   provider: AgentProvider;
   /** epic 383: this agent's id when it is not the window's own (its rows are told apart by it) */
   agent?: string;
-  /** the checkout or package the server runs from: its launcher starts the new windows */
-  repoDir: string;
-  launch?: Launch;
+  /** this server: it opens the folders and answers for its own agents */
+  self: Self;
   agents?: Agents;
   /** issue 297: the paired computers online and their windows (the connector's, remote/keeper.ts); none when absent */
   computers?: () => Promise<Computer[]>;
 }): Record<string, RequestListener> {
-  const launch = o.launch ?? launcherOf(o.repoDir);
   const agents = o.agents ?? defaultAgents();
   const warned = new Set<string>();
-  const own = () => ({ port: o.port(), provider: o.provider, ...(o.agent ? { agent: o.agent } : {}) });
+  const own = () => ({ port: o.port(), provider: o.provider, self: o.self, ...(o.agent ? { agent: o.agent } : {}) });
   /** a row of the list as the page sends it back: a window, or an agent with its id; null for anything else */
   const rowOf = (b: Record<string, unknown>) => {
     if (!isProvider(b.provider) || !Number.isInteger(b.port) || typeof b.root !== 'string') return null;
@@ -157,13 +113,24 @@ export function projectRoutes(o: {
     if (!only('POST', req, res)) return;
     void readJson(req).then((b) => handle(b as Record<string, unknown>, res)).catch((e: unknown) => (badBody(e) ? text(res, 400, 'bad request') : fail(res, where, e)));
   };
-  const open = async (res: ServerResponse, dir: string, provider: AgentProvider, fresh: boolean) => {
-    const r = await launch([dir, '--agent', provider, ...(fresh ? ['--new'] : []), '--detach', '--no-open'], launchEnv(process.env));
-    const m = r.code === 0 ? OPENED.exec(r.firstLine) : null;
-    if (m) return json(res, 200, { url: m[1] });
-    if (r.code === -1 && r.firstLine === STILL_STARTING) return text(res, 504, STILL_STARTING);
-    // never echo a line that carries a login: an unexpected success line is a failure without its text
-    text(res, 502, r.firstLine && !r.firstLine.includes('#t=') ? r.firstLine : `the launcher exited with ${r.code}`);
+  const open = async (res: ServerResponse, given: string, provider: AgentProvider, fresh: boolean) => {
+    let dir: string;
+    try {
+      dir = fs.realpathSync.native(given);
+    } catch {
+      return text(res, 404, 'not a folder');
+    }
+    if (notAProject(dir, given)) return text(res, 400, 'not a project folder');
+    let url: string;
+    try {
+      url = (await o.self.open(dir, provider, fresh)).url();
+    } catch (e) {
+      return text(res, 502, e instanceof Error ? e.message : String(e));
+    }
+    // as a launch from a terminal: the folder's agent for next time, and the folder under Recent
+    rememberAgent(stateBaseDir(), dir, provider);
+    recordRecent(stateBaseDir(), dir, provider);
+    json(res, 200, { url });
   };
 
   return {
@@ -181,7 +148,7 @@ export function projectRoutes(o: {
       if (!w) return text(res, 400, 'bad request');
       // a session id, or `new`: the page there starts a new session (web landing.ts)
       if (b.session !== undefined && b.session !== 'new' && !isSessionId(b.session)) return text(res, 400, 'bad request');
-      const r = await enterUrl({ ...w, ...(b.session ? { session: b.session } : {}) });
+      const r = await enterUrl({ ...w, ...(b.session ? { session: b.session } : {}) }, undefined, own());
       if ('url' in r) return json(res, 200, r);
       text(res, r.error === 'no such window' ? 404 : 409, r.error);
     }),
@@ -189,7 +156,7 @@ export function projectRoutes(o: {
     '/system/projects/sessions': post('/system/projects/sessions', async (b, res) => {
       const w = rowOf(b);
       if (!w) return text(res, 400, 'bad request');
-      const r = await sessionsOf(w);
+      const r = await sessionsOf(w, undefined, own());
       if (!('error' in r)) return json(res, 200, r);
       text(res, r.error === 'no such window' ? 404 : 409, r.error);
     }),
@@ -200,7 +167,7 @@ export function projectRoutes(o: {
       if (!w) return text(res, 400, 'bad request');
       // this page's server stops from its header; any of its agents closes from here, this page's own too (issue 639)
       if (w.port === o.port() && !w.agent) return text(res, 409, 'this window');
-      const r = await stopAt(w);
+      const r = await stopAt(w, undefined, own());
       if ('ok' in r) return json(res, 200, r);
       text(res, r.error === 'no such window' ? 404 : r.error === 'refused' ? 502 : 409, r.error);
     }),

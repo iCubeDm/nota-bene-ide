@@ -5,6 +5,7 @@
 // name (`npm`, `npx`, `codex`), signal a group with `process.kill(-pid)` or compare paths with `===`: they use these.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 type Platform = NodeJS.Platform;
@@ -180,6 +181,16 @@ export function pathKey(p: string, platform: Platform = process.platform): strin
 
 /** Whether two paths name the same location, lexically (see `pathKey`); symlinks are not resolved. */
 export const samePath = (a: string, b: string, platform: Platform = process.platform): boolean => pathKey(a, platform) === pathKey(b, platform);
+
+/**
+ * A folder no project can be: the home folder, or a file system root (`/`, `C:\\`, `\\\\host\\share\\`). `dir` is the real path,
+ * `given` the path as typed (resolved): a drive root that resolves to a folder (a `subst` or mapped drive on Windows) is
+ * still a root.
+ */
+export function notAProject(dir: string, given = dir): boolean {
+  const isRoot = (p: string) => samePath(p, path.parse(p).root);
+  return samePath(dir, realpathNative(os.homedir())) || isRoot(dir) || isRoot(given);
+}
 
 /** The real path with the OS's own spelling (`realpathSync.native`: on Windows the on-disk case and long names, which the
  *  JS `realpathSync` does not give); `path.resolve(p)` for a path that does not exist. */

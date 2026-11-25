@@ -286,6 +286,25 @@ it('home: the server starts with no agent and opens one when asked', async () =>
   expect(await (await fetch(`${s.url}/info`)).json()).toMatchObject({ agents: [{ id: agent, provider: 'claude', root: path.join(tmp, 'a') }] });
 });
 
+it('issue 691: the home page opens a folder, lists its sessions and closes it, the server answering for its own agent', async () => {
+  const s = await startServer({ insecureNoAuth: true, cwd: tmp, home: true, port: 0, webDist: path.join(tmp, 'dist'), backends: () => fakeBackend([]) });
+  closers.push(s.close);
+  const port = Number(new URL(s.url).port);
+  const post = (p: string, body: unknown) => fetch(`${s.url}${p}`, { method: 'POST', headers: { 'content-type': 'application/json', origin: s.url }, body: JSON.stringify(body) });
+  const dir = path.join(tmp, 'a');
+  const { url } = (await (await post('/system/projects/open', { dir, provider: 'claude' })).json()) as { url: string };
+  const id = /^http:\/\/127\.0\.0\.1:\d+\/a\/(claude-[a-z2-7]{6})\/#$/.exec(url)![1]!;
+  expect(url.startsWith(`${s.url}/a/`)).toBe(true);
+  // the same folder again is the agent it has
+  expect(await (await post('/system/projects/open', { dir, provider: 'claude' })).json()).toEqual({ url });
+  const row = { provider: 'claude', port, root: dir, agent: id };
+  expect(await (await post('/system/projects/enter', { ...row, session: 'new' })).json()).toEqual({ url: `${url}s=new` });
+  expect(await (await post('/system/projects/sessions', row)).json()).toEqual({ current: null, sessions: [] });
+  expect((await post('/system/projects/stop', row)).status).toBe(200);
+  expect(await (await fetch(`${s.url}/info`)).json()).toMatchObject({ agents: [] });
+  expect((await post('/system/projects/enter', row)).status).toBe(404);
+});
+
 it('issue 639: /a/<id>/control/close closes any agent, the server\'s last too; the folder stays', async () => {
   let closedA = false;
   const one = fakeBackend([]);
