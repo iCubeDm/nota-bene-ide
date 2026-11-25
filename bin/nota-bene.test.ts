@@ -199,7 +199,7 @@ describe('checkout dev command', () => {
     const prod = path.join(tmp, 'production');
     const e = env({ NOTA_BENE_HOME: prod, NOTA_BENE_DEV_HOME: path.relative(cwd, home) });
     // Windows runs no script by its shebang: node runs the link
-    const r = spawnSync(WIN ? process.execPath : link, [...(WIN ? [link] : []), '--agent', 'claude', '--port', '4793', '--detach', '--fake', FAKE, '--no-open'], {
+    const r = spawnSync(WIN ? process.execPath : link, [...(WIN ? [link] : []), '.', '--agent', 'claude', '--port', '4793', '--detach', '--fake', FAKE, '--no-open'], {
       cwd, env: e, encoding: 'utf8', timeout: 20000,
     });
     expect(r.status, r.stderr).toBe(0);
@@ -712,21 +712,20 @@ describe('nota-bene launcher', () => {
     for (const dir of [tmp, '/']) { // Windows: `/` is the current drive's root
       const r = bin([dir, '--no-open'], { HOME: tmp, USERPROFILE: tmp });
       expect(r.status).toBe(1);
-      expect(r.stderr).toMatch(/refusing to open the whole .* as a project — cd into a project first/);
+      expect(r.stderr).toMatch(/refusing to open the whole .* as a project — name a project folder/);
     }
   });
 
-  it('--app opens the most recent project that still exists, detached; with none it says to open one first', async () => {
-    const none = bin(['--app', '--no-open']);
-    expect(none.status).toBe(1);
-    expect(none.stderr).toMatch(/no recent project — open one once with `nota-bene <folder>`/);
-    const gone = path.join(tmp, 'gone');
-    fs.writeFileSync(path.join(home, 'recent.json'), JSON.stringify([
-      { root: gone, provider: 'claude', at: 2 }, { root: project, provider: 'claude', at: 1 }]));
+  it('no folder (--app: the app icon) opens the home page: a server with no agent, which the next start finds; a folder opens in it', async () => {
     const r = spawnSync(process.execPath, [BIN, '--app', '--port', '4793', '--fake', FAKE, '--no-open'], { env: env(), encoding: 'utf8', timeout: 25000 });
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toBe(`opened ${await loginUrlOf(4793)}\n`);
-    expect(windows()['4793']!.root).toBe(project);
+    const top = `http://127.0.0.1:4793/#t=${await loginOf(4793)}`;
+    expect(r.stdout).toBe(`opened ${top}\n`);
+    expect((await info(4793))!.agents).toEqual([]);
+    expect(bin(['--detach', '--no-open']).stdout).toBe(`already-open ${top}\n`);
+    expect(bin([project, '--detach', '--no-open']).stdout).toMatch(/^opened http:\/\/127\.0\.0\.1:4793\/a\/claude-[a-z2-7]{6}\/#t=/);
+    // a session is a folder's
+    for (const a of [['--new'], ['--continue'], ['--resume', 'x']]) expect(bin(a).status, a.join(' ')).toBe(2);
   }, 30000);
 
   it.skipIf(WIN)('shortcut installs the app icon and prints where (this checkout\'s: Nota Bene Dev)', () => {

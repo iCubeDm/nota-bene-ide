@@ -87,6 +87,8 @@ export type ServerOptions = {
   port: number;
   resume?: string;
   fork?: boolean;
+  /** a start with no agent: the server's home page, where a project is opened (`nota-bene` with no folder); `cwd` is then no project */
+  home?: boolean;
   /** the launch agent's id (main.ts --id: the e2e fixtures' page address is fixed); default: a minted one */
   id?: string;
   /** called by POST /restart-server and /control/stop (tests stub it) */
@@ -965,7 +967,7 @@ async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
 
 /**
  * The server: one listener, login and process for its agents (epic 383), each under `/a/<id>/`. It starts with the agent
- * of `o.cwd`; `open` adds another.
+ * of `o.cwd`, or (`o.home`) with none; `open` adds another.
  */
 export async function startServer(o: ServerOptions): Promise<{ url: string; close(): Promise<void>; open(x: { provider: AgentProvider; cwd: string; backend: AgentBackend; resume?: string; fork?: boolean }): Promise<string> }> {
   installProcessHandlers();
@@ -1117,7 +1119,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
       provider: agent.provider, cwd: o.cwd, backend: o.backends(agent.provider),
       ...(o.resume ? { resume: o.resume } : {}), ...(o.fork ? { fork: true } : {}), ...(o.id ? { id: o.id } : {}),
     });
-    if (!same) await launchAgent();
+    if (!same && !o.home) await launchAgent();
     // issue 639: what has no agent prefix is the server's own: the app shell, the login, its folder and agents, /control/*
     const homeHub = new EventHub();
     const home = httpHandler({
@@ -1309,7 +1311,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
         settled.get(k.id)!.resolve();
       }
     }
-    if (reopen.length && !agents.size) await launchAgent(); // none came back: the launch's own, as a fresh launch
+    if (reopen.length && !agents.size && !o.home) await launchAgent(); // none came back: the launch's own, as a fresh launch
     keep();
     return { url: `http://127.0.0.1:${port}`, close: () => close!(), open: openAgent };
   } catch (e) {

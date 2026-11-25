@@ -8,6 +8,7 @@ import type { ServerEvent } from '@nota-bene/shared';
 import { fakeBackend } from './agent/fake.ts';
 import { CONTROL_HEADER, controlToken } from './system.ts';
 import { readKeptAgents } from './windows.ts';
+import { startServer } from './server.ts';
 import { launchServer } from './testing.ts';
 
 // Several agents in one server (epic 383, step 2c): each its own folder, session, socket and one-tab rule, under /a/<id>/;
@@ -274,6 +275,15 @@ it('issue 675: an agent opened later records its usage too, by its provider', as
   expect(seen).toEqual([]);
   await turn(await s.open({ provider: 'claude', cwd: path.join(tmp, 'b'), backend: fakeBackend([]) }));
   expect(seen.length).toBeGreaterThan(0);
+});
+
+it('home: the server starts with no agent and opens one when asked', async () => {
+  const s = await startServer({ insecureNoAuth: true, cwd: tmp, home: true, port: 0, webDist: path.join(tmp, 'dist'), backends: () => fakeBackend([]) });
+  closers.push(s.close);
+  expect(await (await fetch(`${s.url}/info`)).json()).toMatchObject({ root: tmp, agents: [] });
+  const r = await fetch(`${s.url}/control/open`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() }, body: JSON.stringify({ root: path.join(tmp, 'a') }) });
+  const { agent } = (await r.json()) as { agent: string };
+  expect(await (await fetch(`${s.url}/info`)).json()).toMatchObject({ agents: [{ id: agent, provider: 'claude', root: path.join(tmp, 'a') }] });
 });
 
 it('issue 639: /a/<id>/control/close closes any agent, the server\'s last too; the folder stays', async () => {

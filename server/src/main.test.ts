@@ -58,6 +58,9 @@ describe('launch options', () => {
     expect(parseArgs(['--new'], cwd)).toMatchObject({ new: true });
     expect(() => parseArgs(['--fork'], cwd)).toThrow(/--fork needs --resume/);
     expect(() => parseArgs(['--new', '--resume', 'a'], cwd)).toThrow(/--new/);
+    // --home: no agent, so no folder and no session; a relaunch's --continue is let through
+    expect(parseArgs(['--home', '--continue'], cwd)).toMatchObject({ home: true, dir: fs.realpathSync.native(os.homedir()) });
+    for (const bad of [['--home', '.'], ['--home', '--new'], ['--home', '--resume', 'a']]) expect(() => parseArgs(bad, cwd)).toThrow(/--home/);
   });
 
   describe('launchTarget', () => {
