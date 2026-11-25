@@ -30,8 +30,6 @@ export type RunningRow = {
   remote?: { host: string; name: string };
   /** epic 383: an agent the server on `port` opened beside its window's, at `/a/<agent>/` */
   agent?: string;
-  /** epic 383 2g: its agent id (the window's own too) */
-  id?: string;
   /** issue 651: its open asks (clipped), for an agent of the asking page's server only: the page answers it there */
   asks?: OpenAsk[];
 };
@@ -96,7 +94,6 @@ export async function listProjects(own: Own, probe: Probe = probeWith, warn: (m:
         provider: p, port, root: wirePath(root), title: i?.title ?? null, session: i?.session ?? null, state,
         current: port === own.port && (agent ? agent === own.agent : provider === own.provider && !own.agent), clients: i?.clients ?? 0,
         unseen: typeof i?.unseen === 'number' ? i.unseen : 0, last: i?.last ?? null, ...(agent ? { agent } : {}),
-        ...(typeof i?.agent === 'string' ? { id: i.agent } : agent ? { id: agent } : {}),
         ...(port === own.port && Array.isArray(i?.asks) && i.asks.length ? { asks: i.asks } : {}),
       });
       // its agents, each its own row (issue 639: the top is the server's home): as they answer, or while it restarts the
