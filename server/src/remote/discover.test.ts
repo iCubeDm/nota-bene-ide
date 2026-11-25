@@ -5,10 +5,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fakeBackend } from '../agent/fake.ts';
 import { providerStateDir } from '../agent/provider.ts';
 import { writePrivateFile } from '../auth.ts';
-import { startServer } from '../server.ts';
 import { readWindows, registerWindow } from '../windows.ts';
 import { infoAt } from '../servers.ts';
 import { Windows } from './discover.ts';
+import { launchServer } from '../testing.ts';
 
 let tmp: string;
 let home: string;
@@ -33,7 +33,7 @@ afterEach(async () => {
 async function window(provider: 'claude' | 'codex', dir: string) {
   process.env.NOTA_BENE_AGENT = provider;
   try {
-    const s = await startServer({ cwd: path.join(tmp, dir), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'), exit: () => {} });
+    const s = await launchServer({ cwd: path.join(tmp, dir), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'), exit: () => {} });
     const port = Number(new URL(s.url).port);
     registerWindow(port, path.join(tmp, dir), process.pid);
     let open = true;

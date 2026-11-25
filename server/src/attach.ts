@@ -61,7 +61,7 @@ export async function attachAgent(ask: AttachAsk, fetchFn: typeof fetch = fetch)
       continue;
     }
     if (r.status === 400) throw new Error(await r.text());
-    if (!r.ok) continue; // 404: an older server; 501: one that opens no other agents; 503: still starting
+    if (!r.ok) continue; // 404, 501: an older server; 503: still starting
     const j = (await r.json().catch(() => null)) as { agent?: unknown; opened?: unknown; shown?: unknown } | null;
     if (typeof j?.agent !== 'string' || !AGENT_ID.test(j.agent)) continue;
     return { port: s.port, agent: j.agent, opened: j.opened === true, shown: j.shown === true, url: `http://127.0.0.1:${s.port}/a/${j.agent}/#t=${loginCredential(s.token, s.port, n)}` };

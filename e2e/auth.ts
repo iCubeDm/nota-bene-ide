@@ -19,12 +19,10 @@ export const e2eCookie = (fixture: string, port: number): string => mac(e2eToken
 export const e2eLogin = (fixture: string, port: number): string => mac(e2eToken(fixture), 'login', port, e2eNonce(fixture));
 export const e2eKey = (fixture: string, port: number): string => mac(e2eToken(fixture), 'key', port, e2eNonce(fixture));
 
-const B32 = 'abcdefghijklmnopqrstuvwxyz234567';
-/** The fixture server's launch agent id (server/src/state.ts launchAgentId): its page is `/a/<id>/` (issue 639). */
-export const e2eAgent = (fixture: string, provider = 'claude'): string =>
-  `${provider}-${[...createHash('sha256').update(`nota-bene:agent:${e2eNonce(fixture)}`).digest().subarray(0, 6)].map((b) => B32[b & 31]).join('')}`;
-/** The fixture's `baseURL`: its launch agent's page. A spec's paths are relative to it (`''`, `'info'`), not `/`-rooted. */
-export const agentURL = (fixture: string, port: number, provider?: string): string => `http://127.0.0.1:${port}/a/${e2eAgent(fixture, provider)}/`;
+/** The fixture server's agent id (its serve script passes it as --id): its page is `/a/<id>/` (issue 639). */
+export const e2eAgent = (provider = 'claude'): string => `${provider}-eeeeee`;
+/** The fixture's `baseURL`: its agent's page. A spec's paths are relative to it (`''`, `'info'`), not `/`-rooted. */
+export const agentURL = (port: number, provider?: string): string => `http://127.0.0.1:${port}/a/${e2eAgent(provider)}/`;
 
 /** A Playwright storage state holding the login cookie and the page's key for `fixture`'s server. */
 export function loggedIn(fixture: string, port: number) {

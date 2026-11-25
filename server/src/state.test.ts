@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { forgetSession, lastSession, launchAgentId, saveSession, SecretError, serverStateDir, sharedHomeRefusal } from './state.ts';
+import { forgetSession, lastSession, saveSession, SecretError, serverStateDir, sharedHomeRefusal } from './state.ts';
 
 let home: string;
 const prevHome = process.env.NOTA_BENE_HOME;
@@ -100,13 +100,4 @@ it('only process-wide modules use the env-chosen folder (epic 383, step 2a)', ()
   // per-agent code gets its folder passed in; these fall back to the env only where no context was given (tests)
   expect(using(/\benvAgentContext\(/)).toEqual(['agent/codex/backend.ts', 'server.ts', 'session.ts', 'state.ts']);
   expect(using(/process\.env\.NOTA_BENE_AGENT\b/)).toEqual(['main.ts', 'state.ts']);
-});
-
-it('a window\'s agent id: <provider>-<6 base32>, the same for one launch nonce, another for the next (epic 383, step 2b)', () => {
-  const n1 = '11'.repeat(16);
-  const id = launchAgentId('codex', n1);
-  expect(id).toMatch(/^codex-[a-z2-7]{6}$/);
-  expect(launchAgentId('codex', n1)).toBe(id);
-  expect(launchAgentId('claude', n1)).toBe(`claude-${id.slice('codex-'.length)}`);
-  expect(launchAgentId('codex', '22'.repeat(16))).not.toBe(id);
 });

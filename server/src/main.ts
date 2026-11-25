@@ -12,19 +12,19 @@ import { HANDOVER } from './updater.ts';
 import { hitRecorder, limitRecorder } from './usage/routes.ts';
 import { UsageStore } from './usage/store.ts';
 import { launchTarget } from './sessions.ts';
-import { agentContext, serverStateDir } from './state.ts';
+import { AGENT_ID, agentContext, serverStateDir } from './state.ts';
 import { parseProvider, type AgentProvider } from './agent/provider.ts';
 import { pidAlive, realpathNative, samePath } from './platform.ts';
 import { packageVersion } from './version.ts';
 
 const USAGE =
-  'Usage: node server/src/main.ts [dir] [--agent claude|codex|omp] [--port N] [--resume ID [--fork]] [--new] [--continue] [--fake script.json] [--allow-origin URL]';
+  'Usage: node server/src/main.ts [dir] [--agent claude|codex|omp] [--port N] [--resume ID [--fork]] [--new] [--continue] [--fake script.json] [--id AGENT_ID] [--allow-origin URL]';
 
 export function parseArgs(
   argv: string[],
   cwd: string,
 ): {
-  dir: string; port: number; resume?: string; fork: boolean; new: boolean; continue: boolean; fake?: string; allowOrigins: string[]; agent?: AgentProvider;
+  dir: string; port: number; resume?: string; fork: boolean; new: boolean; continue: boolean; fake?: string; id?: string; allowOrigins: string[]; agent?: AgentProvider;
 } {
   let dirArg: string | undefined;
   let port = 4777;
@@ -33,6 +33,7 @@ export function parseArgs(
   let fork = false;
   let fresh = false;
   let fake: string | undefined;
+  let id: string | undefined;
   let agent: AgentProvider | undefined;
   const allowOrigins: string[] = [];
   const value = (i: number): string => {
@@ -52,6 +53,7 @@ export function parseArgs(
     else if (a === '--fork') fork = true;
     else if (a === '--new') fresh = true;
     else if (a === '--fake') fake = path.resolve(cwd, value(++i)); // same base as the project dir
+    else if (a === '--id') id = value(++i); // the e2e fixtures: their page address is fixed in the Playwright config
     else if (a === '--allow-origin') allowOrigins.push(value(++i));
     else if (a.startsWith('--')) throw new Error(`${USAGE}\nUnknown option: ${a}`);
     else if (dirArg === undefined) dirArg = a;
@@ -60,7 +62,8 @@ export function parseArgs(
   const dir = fs.realpathSync.native(path.resolve(cwd, dirArg ?? '.'));
   if (fork && resume === undefined) throw new Error(`${USAGE}\n--fork needs --resume`);
   if (fresh && resume !== undefined) throw new Error(`${USAGE}\n--new cannot be combined with --resume`);
-  return { dir, port, resume, fork, new: fresh, continue: cont, fake, allowOrigins, ...(agent ? { agent } : {}) };
+  if (id !== undefined && (!AGENT_ID.test(id) || !id.startsWith(`${agent ?? 'claude'}-`))) throw new Error(`${USAGE}\nInvalid agent id: ${id}`);
+  return { dir, port, resume, fork, new: fresh, continue: cont, fake, ...(id ? { id } : {}), allowOrigins, ...(agent ? { agent } : {}) };
 }
 
 /**
@@ -138,7 +141,6 @@ async function main(): Promise<void> {
   // --fake (the launcher's tests): every agent plays the same script
   const script = args.fake ? JSON.parse(fs.readFileSync(args.fake, 'utf8')) : undefined;
   const backends = script ? () => fakeFromScript(script, args.dir) : backendFor;
-  const backend = backends(agent.provider);
   const native = args.agent === 'codex' || args.agent === 'omp';
   // the launcher's launch nonce (public, but it stays out of the agent's and the `!` commands' environment all the same)
   const nonce = isNonce(process.env.NOTA_BENE_NONCE) ? process.env.NOTA_BENE_NONCE : undefined;
@@ -153,7 +155,7 @@ async function main(): Promise<void> {
     started = await startServer({
       cwd: args.dir,
       port: args.port,
-      backend,
+      ...(args.id ? { id: args.id } : {}),
       ...launchTarget({ ...args, native }, agent.stateDir),
       agent,
       backends,

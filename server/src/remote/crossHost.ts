@@ -9,12 +9,12 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
 import { fakeBackend } from '../agent/fake.ts';
-import { startServer } from '../server.ts';
 import { registerWindow } from '../windows.ts';
 import { Connector } from './connector.ts';
 import { controlClient, type ControlClient } from './control.ts';
 import { readDevices } from './store.ts';
 import { startRelay } from './testRelay.ts';
+import { launchServer } from '../testing.ts';
 
 const say = (m: object) => process.stdout.write(`${JSON.stringify(m)}\n`);
 
@@ -27,7 +27,7 @@ export async function main(): Promise<void> {
   fs.writeFileSync(path.join(tmp, 'proj', 'big.bin'), Buffer.from(Array.from({ length: 700 * 1024 }, (_, i) => i % 251)));
 
   const relay = await startRelay();
-  const s = await startServer({ cwd: path.join(tmp, 'proj'), port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: path.join(tmp, 'dist'), exit: () => {} });
+  const s = await launchServer({ cwd: path.join(tmp, 'proj'), port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: path.join(tmp, 'dist'), exit: () => {} });
   const port = Number(new URL(s.url).port);
   registerWindow(port, path.join(tmp, 'proj'), process.pid);
   const c = new Connector({ relay: relay.url, backoff: { minMs: 50, maxMs: 300 } });
