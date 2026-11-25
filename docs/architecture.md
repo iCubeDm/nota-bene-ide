@@ -375,7 +375,7 @@ Principles:
 - **One entry.** Server data arrives only as the action `serverEvent(ev)`. Several slices handle it through `extraReducers`. The feed reducer `reduce()` is a pure function,
   so replay is deterministic.
 - **The connection owns its state.** The store mirrors it into the `conn` slice with one `connState` dispatch per
-  change; components read the slice (`useConnState`), non-React code `conn.state()`.
+  change; components read the slice (`selectConn`), non-React code `conn.state()`.
 - **Non-serialisable things stay out of state.** The connection lives in the closure of `makeStore` and reaches
   thunks through the thunk `extra` argument (`{ connection, registry, sent }`: `sent` holds what each unanswered send
   took, given back on a refusal). `MediaController` (which holds DOM elements) lives in a `WeakMap` and is fetched by
@@ -483,8 +483,7 @@ so a refusal gives back the draft and the comments without either plugin knowing
 
 **Connection** (`sdk/connections.ts`). `AgentConnection { base; state(); subscribe; hello(); send(m);
 fetch(route, init?); url(route); takeOver(); stop(); onEvent(fn) }` over `net/socket.ts`, whose semantics are
-unchanged. A page shows one agent, so `makeStore` makes one connection. `onEvent` delivers each event after the store applied it. Hooks:
-`useConnection()`, `useConnState()`, `useFeature(f)`; `connection` serves code outside React. A server capability is
+unchanged. A page shows one agent, so `makeStore` makes one connection. `onEvent` delivers each event after the store applied it. `connection` is the page's, for a plugin and code outside React; a thunk takes its own from `extra`. A server capability is
 checked one way: `useFeature(f)` in a component, `selectFeature(s, f)` elsewhere, both over the `controls` slice's
 protocol (0 until a hello). A reducer of the `hello` itself reads its `protocol` with `has`.
 

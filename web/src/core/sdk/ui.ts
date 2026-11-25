@@ -7,16 +7,12 @@ export {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
   MENU_ROW,
 } from '../components/ui/dropdown-menu.tsx';
 export { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '../components/ui/context-menu.tsx';
 export { Dialog, DialogContent, DialogTitle } from '../components/ui/dialog.tsx';
 export { ConfirmDialog } from '../components/ConfirmDialog.tsx';
-export { PermissionCard, type CardAsk } from '../components/PermissionCard.tsx';
+export { PermissionCard } from '../components/PermissionCard.tsx';
 export { ViewPane } from '../components/ViewPane.tsx';
 export { ToolButton } from '../components/ToolButton.tsx';
 export { PanelResizer, usePanelWidth } from '../shell/PanelResizer.tsx';

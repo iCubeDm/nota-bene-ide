@@ -1,6 +1,6 @@
 // The page's connection to its agent (issue 661: a page shows one): one socket with its state, its `hello` and its HTTP
 // base. Socket semantics stay in net/socket.ts.
-import { useSelector, useStore } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { has, type ClientMessage, type Feature, type ServerEvent } from '@nota-bene/shared';
 import { apiFetch, refusedForAuth, socketProtocols } from '../net/auth.ts';
 import { agentGone } from '../net/home.ts';
@@ -22,7 +22,7 @@ export type Connect = (url: string | (() => string), onEvent: (ev: ServerEvent) 
 export interface AgentConnection {
   /** the URL prefix of the agent's routes (`/a/<id>`; '' the server's own) */
   readonly base: string;
-  /** for non-React code; components read the `conn` slice (useConnState) */
+  /** for non-React code; components read the `conn` slice (selectConn) */
   state(): ConnState;
   subscribe(fn: () => void): () => void;
   hello(): HelloEvent | null;
@@ -145,7 +145,7 @@ export const bindConnection = (store: object, c: AgentConnection): void => {
 /** The page's connection itself (the repository keys on it); before any store (a module's fetch at import, a unit test without one): one at base '', never opened. */
 export const pageConnection = (): AgentConnection => page ?? (unbound ??= agentConnection({ base: '', url: '', deliver: () => {}, mirror: () => {} }));
 
-/** The page's connection, for code outside React and thunks (components use useConnection, thunks their `extra`). */
+/** The page's connection, for code outside React and thunks (thunks use their `extra`). */
 export const connection: AgentConnection = {
   get base() { return pageConnection().base; },
   state: () => pageConnection().state(),
@@ -162,8 +162,6 @@ export const connection: AgentConnection = {
 /** The connection of a store made by makeStore. */
 export const connectionOf = (store: object): AgentConnection => bound.get(store)!;
 
-export const useConnection = (): AgentConnection => connectionOf(useStore());
-export const useConnState = (): ConnState => useSelector((s: { conn: { state: ConnState } }) => s.conn.state);
 // The one check of a server capability (issue 564): the protocol the store keeps from the current connection's `hello`
 // (the controls slice: 0 until a hello, and after a drop). `selectFeature` outside a component, `useFeature` in one.
 export const selectFeature = (s: { controls: { protocol: number } }, f: Feature): boolean => has(s.controls.protocol, f);

@@ -3,8 +3,8 @@ import { act, screen } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { PROTOCOL } from '@nota-bene/shared';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/core/components/ui/tooltip.tsx';
-import { connectionOf, useConnState } from '@/sdk/connections.ts';
-import { selectConn, selectSession } from '@/core/store/store.ts';
+import { connectionOf } from '@/sdk/connections.ts';
+import { selectConn, selectSession, useAppSelector } from '@/core/store/store.ts';
 import { events, renderWith, stubResources, stubRoutes, testStore } from './index.tsx';
 
 let routes: ReturnType<typeof stubRoutes> | undefined;
@@ -59,7 +59,7 @@ it('sent records what the store sends; without a hello the protocol is 0, with a
 it('renderWith wraps the store and tooltips, also on rerender', () => {
   const View = ({ label }: { label: string }) => (
     <Tooltip>
-      <TooltipTrigger>{`${label} ${useConnState()}`}</TooltipTrigger>
+      <TooltipTrigger>{`${label} ${useAppSelector(selectConn)}`}</TooltipTrigger>
       <TooltipContent>tip</TooltipContent>
     </Tooltip>
   );
