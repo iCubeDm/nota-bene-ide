@@ -19,23 +19,24 @@ export type AgentTab = { id: `agent:${string}`; kind: 'agent'; tool: string; tit
  * description at the time it was opened (a task the server no longer knows still has a name).
  */
 export type ShellTab = { id: `shell:${string}`; kind: 'shell'; task: string; title: string };
-/** The views with one tab each (M6-15, R-M6-4): its id is its kind; saved with the other tabs (issue 500). */
-const VIEWS = ['settings', 'usage', 'remote', 'changes', 'log'] as const;
-export type View = (typeof VIEWS)[number];
-type ViewTab = { [K in View]: { id: K; kind: K } }[View];
+/** A view with one tab (M6-15, R-M6-4): its id is its kind; saved with the other tabs by its name (issue 500). */
+export type ViewTab<K extends string> = { id: K; kind: K };
 /**
- * Every tab kind, by its `kind` (issue 511). The data lives in the core, because the tabs' actions open them from
- * several plugins (the feed opens agent and diagram tabs, the header Settings); how a kind looks and what it shows is a
- * plugin's `TabView`. A plugin's own new kind is added by declaration merging, as `PluginState` is.
+ * Every tab kind, by its `kind` (issue 511). The data of these lives in the core, because the tabs' actions open them
+ * from several plugins (the feed opens agent and diagram tabs); how a kind looks and what it shows is a plugin's
+ * `TabView`. A plugin's own kind is added by declaration merging, as `PluginState` is: a view as `ViewTab<'name'>`.
  */
-export interface TabKinds extends ViewTabs {
+export interface TabKinds {
   chat: { id: 'chat'; kind: 'chat' };
   file: FileTab;
   diagram: DiagramTab;
   agent: AgentTab;
   shell: ShellTab;
 }
-type ViewTabs = { [K in View]: { id: K; kind: K } };
+/** The kinds the core builds from their own data; any other kind a plugin shows is a view. */
+const OWN_KINDS: ReadonlySet<string> = new Set(['chat', 'file', 'diagram', 'agent', 'shell']);
+/** The plugins' views, by name. */
+export type View = Exclude<keyof TabKinds, 'chat' | 'file' | 'diagram' | 'agent' | 'shell'>;
 export type Tab = TabKinds[keyof TabKinds];
 /**
  * open[0] is always the chat. `root`: the project the file tabs belong to (null until the first session event).
@@ -89,7 +90,7 @@ const diagramTab = ({ source, lang }: SavedDiagram): DiagramTab => ({
  */
 export const enterRoot = createAction<{ root: string; first: boolean; tabs: SavedTabs | null }>('tabs/enterRoot');
 
-const viewTab = (v: View) => ({ id: v, kind: v }) as ViewTab;
+const viewTab = (v: View) => ({ id: v, kind: v }) as Tab;
 const idx = (s: TabsState, id: string) => s.open.findIndex((t) => t.id === id);
 
 export const tabsSlice = createSlice({
@@ -101,28 +102,11 @@ export const tabsSlice = createSlice({
       if (idx(s, tab.id) < 0) s.open.push(tab);
       s.active = tab.id;
     },
-    /** Opens (once) and activates the Settings tab. */
-    openSettings: (s) => {
-      if (idx(s, 'settings') < 0) s.open.push({ id: 'settings', kind: 'settings' });
-      s.active = 'settings';
-    },
-    /** Opens (once) and activates the Remote tab. */
-    openRemote: (s) => {
-      if (idx(s, 'remote') < 0) s.open.push({ id: 'remote', kind: 'remote' });
-      s.active = 'remote';
-    },
-    /** Opens (once) and activates the Usage tab. */
-    openUsage: (s) => {
-      if (idx(s, 'usage') < 0) s.open.push({ id: 'usage', kind: 'usage' });
-      s.active = 'usage';
-    },
-    openChanges: (s) => {
-      if (idx(s, 'changes') < 0) s.open.push({ id: 'changes', kind: 'changes' });
-      s.active = 'changes';
-    },
-    openLog: (s) => {
-      if (idx(s, 'log') < 0) s.open.push({ id: 'log', kind: 'log' });
-      s.active = 'log';
+    /** Opens (once) and activates a view's tab. */
+    openView: (s, a: PayloadAction<View>) => {
+      const tab = viewTab(a.payload);
+      if (idx(s, tab.id) < 0) s.open.push(tab);
+      s.active = tab.id;
     },
     /** Opens (once per source) and activates a diagram's tab. */
     openDiagram: (s, a: PayloadAction<SavedDiagram>) => {
@@ -224,7 +208,7 @@ function restore(s: TabsState, saved: SavedTabs, merge: boolean): void {
   if (idx(s, saved.active) >= 0) s.active = saved.active as Tab['id'];
 }
 
-export const { openFile, openSettings, openUsage, openRemote, openChanges, openLog, openDiagram, openAgent, openShell, setAgentTitle, activate, moveTab, closeTab, closeOthers, closeRight, closeAll, reopenClosed, restoreTabs } = tabsSlice.actions;
+export const { openFile, openView, openDiagram, openAgent, openShell, setAgentTitle, activate, moveTab, closeTab, closeOthers, closeRight, closeAll, reopenClosed, restoreTabs } = tabsSlice.actions;
 
 export const selectTabs = (s: RootState): TabsState => s.tabs;
 export const selectActiveTab = (s: RootState): Tab => s.tabs.open.find((t) => t.id === s.tabs.active) ?? CHAT;
@@ -272,18 +256,23 @@ const isSavedShell = (a: unknown): a is SavedShell => {
   const o = a as SavedShell;
   return !!o && typeof o.task === 'string' && TASK_ID.test(o.task) && typeof o.title === 'string';
 };
-const isSavedTab = (t: unknown): t is SavedTab => {
+const isSavedTab = (t: unknown, kinds: Kinds): t is SavedTab => {
   if (!t || typeof t !== 'object') return false;
   const o = t as Record<string, unknown>;
-  return ('file' in o && isSavedFile(o.file)) || ('view' in o && (VIEWS as readonly unknown[]).includes(o.view)) || ('diagram' in o && isSavedDiagram(o.diagram)) || ('agent' in o && isSavedAgent(o.agent)) || ('shell' in o && isSavedShell(o.shell));
+  return ('file' in o && isSavedFile(o.file)) || ('view' in o && typeof o.view === 'string' && !OWN_KINDS.has(o.view) && kinds.has(o.view)) || ('diagram' in o && isSavedDiagram(o.diagram)) || ('agent' in o && isSavedAgent(o.agent)) || ('shell' in o && isSavedShell(o.shell));
 };
-/** Reads `{ tabs, active }`, or the older `{ files, active }`, or the older `{ paths, active }` (this folder only). */
-export function readSavedTabs(root: string): SavedTabs | null {
+/** The tab kinds the plugins show (the registry's `tabs`). */
+type Kinds = { has(kind: string): boolean };
+/**
+ * Reads `{ tabs, active }`, or the older `{ files, active }`, or the older `{ paths, active }` (this folder only).
+ * `kinds`: a saved view no plugin shows is dropped.
+ */
+export function readSavedTabs(root: string, kinds: Kinds): SavedTabs | null {
   try {
     const v = storage.local(tabsKey(root), json<any>(), null).get();
     const active = typeof v?.active === 'string' ? v.active : 'chat';
     // per entry: one bad tab is dropped, the others keep their place (an active id that was dropped falls back in restore)
-    if (Array.isArray(v?.tabs)) return { tabs: v.tabs.filter((t: unknown) => isSavedTab(t)), active };
+    if (Array.isArray(v?.tabs)) return { tabs: v.tabs.filter((t: unknown) => isSavedTab(t, kinds)), active };
     if (Array.isArray(v?.files) && v.files.every(isSavedFile)) return { tabs: v.files.map((file: SavedFile) => ({ file })), active };
     if (Array.isArray(v?.paths) && v.paths.every((p: unknown) => typeof p === 'string')) return { tabs: v.paths.map((path: string) => ({ file: { path } })), active };
     return null;

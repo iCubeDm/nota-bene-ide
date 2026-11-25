@@ -1,10 +1,11 @@
 import type { WithSlice } from '@reduxjs/toolkit';
-import { definePlugin } from '@/sdk';
+import { definePlugin, type ViewTab } from '@/sdk';
 import { remoteSlice } from './slice.ts';
 import { remoteTab } from './RemoteView.tsx';
 import { RemoteDot, RemoteMenuRow } from './RemoteMenu.tsx';
 
 declare module '@/sdk' {
+  interface TabKinds { remote: ViewTab<'remote'> }
   interface PluginState extends WithSlice<typeof remoteSlice> {}
 }
 

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
 import { USAGE_PERIODS, type UsageHit, type UsagePeriod, type UsageProvider, type UsageReport, type UsageTank, type UsageTaskRow } from '@nota-bene/shared';
-import { useAppSelector, getLang, useT, defineResource, routes, useResource, compact, compactParts, money, num, percent, type TabView, send } from '@/sdk';
-import { ViewPane } from '@/sdk/ui';
+import { useAppDispatch, useAppSelector, getLang, openView, useT, defineResource, routes, useResource, compact, compactParts, money, num, percent, type TabView, send } from '@/sdk';
+import { DropdownMenuItem, ICONS, MENU_ROW, Svg, ViewPane } from '@/sdk/ui';
 
 const POLL_MS = 2000;
 export const usageResource = defineResource<{ provider: UsageProvider; period: UsagePeriod }, UsageReport>({
@@ -394,6 +394,18 @@ export function UsageView({ active }: { active: boolean }) {
       {!shown && !error && <p className="text-[0.8125rem] text-muted-foreground">{t('usageLoading')}</p>}
       {shown && (live(shown) ? <Report r={shown} view={spent} setView={setSpent} /> : <p className="text-[0.8125rem] text-muted-foreground">{t('usageEmpty')}</p>)}
     </div>
+  );
+}
+
+/** Usage in the header's settings menu: opens the tab. */
+export function UsageMenuRow() {
+  const t = useT();
+  const d = useAppDispatch();
+  return (
+    <DropdownMenuItem id="usageMenu" onSelect={() => d(openView('usage'))} className={`${MENU_ROW} [&>svg]:text-accent-usage`}>
+      <Svg size={15}>{ICONS.usage}</Svg>
+      <span className="flex-1">{t('usage')}</span>
+    </DropdownMenuItem>
   );
 }
 

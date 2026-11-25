@@ -8,7 +8,7 @@ import { jumpToFileComment } from '@/plugins/files/slice.ts';
 import { setLang } from '@/core/i18n/index.ts';
 import { serverEvent } from '@/core/store/store.ts';
 import { makeStore } from '@/core/testing';
-import { openChanges, openLog, selectTabs } from '@/core/tabs/slice.ts';
+import { openView, selectTabs } from '@/core/tabs/slice.ts';
 import { pickSource } from '@/plugins/files/treeSlice.ts';
 import { ChangesPanel } from './ChangesPanel.tsx';
 import { ChangesView } from './ChangesView.tsx';
@@ -151,7 +151,7 @@ it('a ref that is a branch stays a branch, whatever it looks like', () => {
   const store = setup(<div />);
   act(() => void store.dispatch(jumpToFileComment('x.md', 'c1', 'abcdef0')));
   expect(selectTabs(store.getState()).active).toBe('file:ref:abcdef0:x.md');
-  act(() => { store.dispatch(openChanges()); store.dispatch(openLog()); });
+  act(() => { store.dispatch(openView('changes')); store.dispatch(openView('log')); });
   expect(selectTabs(store.getState()).open.map((t) => t.id)).toEqual(expect.arrayContaining(['changes', 'log']));
 });
 

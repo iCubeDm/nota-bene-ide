@@ -25,5 +25,5 @@ it('an agent tab closes like the others and is not remembered for Alt+Shift+T', 
 it('saved agent tabs round-trip through storage; an entry with a path-like id is dropped, the others keep their place', () => {
   const s = run(fresh(), openAgent({ tool: 'toolu_A', title: 'a' }));
   localStorage.setItem(tabsKey('/r'), JSON.stringify({ ...serializeTabs(s), tabs: [...serializeTabs(s).tabs, { agent: { tool: '../x', title: 'bad' } }, { agent: { tool: 'toolu_B', title: 'b' } }] }));
-  expect(readSavedTabs('/r')?.tabs).toEqual([{ agent: { tool: 'toolu_A', title: 'a' } }, { agent: { tool: 'toolu_B', title: 'b' } }]);
+  expect(readSavedTabs('/r', new Set())?.tabs).toEqual([{ agent: { tool: 'toolu_A', title: 'a' } }, { agent: { tool: 'toolu_B', title: 'b' } }]);
 });

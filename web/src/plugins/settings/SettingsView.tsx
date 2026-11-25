@@ -1,6 +1,6 @@
 import { useMemo, useState, type FC, type ReactNode } from 'react';
-import { SettingsContext, useRegistry, useT, t as tNow, type Route, type SettingsHost, type TabView, send } from '@/sdk';
-import { ConfirmDialog, ViewPane } from '@/sdk/ui';
+import { SettingsContext, openView, useAppDispatch, useRegistry, useT, t as tNow, type Route, type SettingsHost, type TabView, send } from '@/sdk';
+import { ConfirmDialog, DropdownMenuItem, DropdownMenuSeparator, ICONS, MENU_ROW, Svg, ViewPane } from '@/sdk/ui';
 
 type Ask = Parameters<SettingsHost['ask']>[0];
 
@@ -55,6 +55,21 @@ export function SettingsView({ active }: { active: boolean }) {
         )}
       </div>
     </SettingsContext.Provider>
+  );
+}
+
+/** All settings, the last row of the header's settings menu: opens the tab. */
+export function SettingsMenuRow() {
+  const t = useT();
+  const d = useAppDispatch();
+  return (
+    <>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem id="allSettings" onSelect={() => d(openView('settings'))} className={MENU_ROW}>
+        <Svg size={15}>{ICONS.settings}</Svg>
+        <span className="flex-1">{t('allSettings')}</span>
+      </DropdownMenuItem>
+    </>
   );
 }
 
