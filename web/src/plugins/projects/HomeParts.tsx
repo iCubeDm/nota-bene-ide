@@ -47,7 +47,7 @@ export function ProjectsPanel() {
       className="relative flex flex-none flex-col border-r border-border-soft bg-chrome">
       <PanelResizer edge="right" width={size.width} onWidth={size.set} onReset={size.reset} min={PANEL_MIN} label={t('projProjects')} />
       <div className="flex h-10 flex-none items-center border-b border-border-soft pl-3.5 text-[0.8125rem] font-medium text-foreground">{t('projProjects')}</div>
-      <div className="flex min-h-0 flex-1 flex-col p-1.5"><ProjectsList onDone={done} home /></div>
+      <div className="flex min-h-0 flex-1 flex-col p-1.5"><ProjectsList onDone={done} allOpen /></div>
     </aside>
   );
 }

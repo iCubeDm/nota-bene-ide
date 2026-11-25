@@ -71,16 +71,17 @@ export function ProjectSwitcher({ project, windowTitle }: { project: string; win
 }
 
 /**
- * The projects, Recent and the starter's entries: the switcher's menu, and the server's home page (`home`, issue 639), which
- * has no agent of its own (no sessions of its own, nothing current). `onDone`: a choice was made (the menu closes).
+ * The projects, Recent and the starter's entries: the switcher's menu, and the server's home page (issue 639), where
+ * every project starts open on its agents (`allOpen`, issue 651). `onDone`: a choice was made (the menu closes).
  */
-export function ProjectsList({ onDone: close, home = false }: { onDone: () => void; home?: boolean }) {
+export function ProjectsList({ onDone: close, allOpen = false }: { onDone: () => void; allOpen?: boolean }) {
   const t = useT();
   const { data, reload } = useProjects(true);
   const session = useAppSelector(selectSession);
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // the rows opened or closed by hand; any other is open when it starts so (this project's, or every one with `allOpen`)
+  const [toggled, setToggled] = useState<Map<string, boolean>>(new Map());
   const [local, setLocal] = useState<SessionRow[]>([]);
   const [stopAsk, setStopAsk] = useState<ProjectRow | null>(null);
   // removed here before the next poll says so
@@ -93,12 +94,13 @@ export function ProjectsList({ onDone: close, home = false }: { onDone: () => vo
 
   // this window's sessions (every folder of its agent): this project's list, and the Recent folders its history knows
   useEffect(() => {
-    setExpanded(new Set(session?.root ? [rowKey(session.root, here?.host)] : []));
-    if (home) return;
+    setToggled(new Map());
+    // a page with no agent of its own (the home page) has no sessions to ask for
+    if (!session) return;
     let gone = false;
     void repository.load(sessionsResource, undefined).then((v) => { if (!gone && v) setLocal(v.sessions); });
     return () => { gone = true; };
-  }, [session?.root, home]);
+  }, [session?.root]);
 
   const needle = q.trim().toLowerCase();
   const hit = (...s: (string | null | undefined)[]) => !needle || s.some((x) => x?.toLowerCase().includes(needle));
@@ -112,7 +114,10 @@ export function ProjectsList({ onDone: close, home = false }: { onDone: () => vo
     if (!runningRoots.has(s.cwd) && !hidden.has(s.cwd) && !recentAll.has(s.cwd)) recentAll.set(s.cwd, { root: s.cwd, provider: myProvider, at: s.at });
   }
   const recent = here ? [] : [...recentAll.values()].filter((e) => hit(e.root, ...local.filter((s) => s.cwd === e.root).map((s) => s.title))).slice(0, RECENT_SHOWN);
-  const toggle = (root: string) => setExpanded((s) => { const n = new Set(s); if (n.has(root)) n.delete(root); else n.add(root); return n; });
+  const mineKey = session?.root ? rowKey(session.root, here?.host) : null;
+  const startsOpen = (key: string) => (allOpen ? rows.some((r) => r.key === key) : key === mineKey);
+  const opens = (key: string) => toggled.get(key) ?? startsOpen(key);
+  const toggle = (key: string) => setToggled((m) => new Map(m).set(key, !(m.get(key) ?? startsOpen(key))));
   const openRecent = async (e: RecentItem, sessionId?: string) => {
     setBusy(true);
     const why = await openFolder(e.root, e.provider, undefined, sessionId);
@@ -157,8 +162,7 @@ export function ProjectsList({ onDone: close, home = false }: { onDone: () => vo
               const folder = folderOf(r.root);
               const detail = [r.remote?.name, top.title || (top.session ? t('untitled') : null), PROVIDER_LABEL[top.provider], r.state === 'idle' ? null : t(STATE_KEY[r.state]), r.current ? t('projThis') : null].filter(Boolean).join(' · ');
               const b = rowBadge(r);
-              // the home page's tree (issue 651): every project open on its agents, unless closed
-              const isOpen = home ? !expanded.has(r.key) : expanded.has(r.key);
+              const isOpen = opens(r.key);
               // another window's sessions come through this computer's switcher: none of another computer's
               const sessions = r.current || (!r.remote && !here);
               return (
@@ -196,7 +200,7 @@ export function ProjectsList({ onDone: close, home = false }: { onDone: () => vo
             <div className={sectionCls}>{t('projRecent')}</div>
             {recent.map((e) => {
               const folder = folderOf(e.root);
-              const isOpen = expanded.has(e.root);
+              const isOpen = opens(e.root);
               const mine = local.some((s) => s.cwd === e.root);
               return (
                 <div key={e.root}>
