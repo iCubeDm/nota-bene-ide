@@ -4,7 +4,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { providerStateDir, type AgentProvider } from './agent/provider.ts';
+import { PROVIDERS, providerStateDir } from './agent/provider.ts';
 import { breakLock, updateJson, writeAtomic } from './atomicFile.ts';
 import { HIDDEN, isWindows, killTree, npmSpec, resolveBin, spawnSpec, type SpawnSpec } from './platform.ts';
 import { stateBaseDir } from './state.ts';
@@ -202,7 +202,7 @@ export async function installRelease(version: string, o: { npm?: string; node?: 
 /** Versions that live windows (or their restarting launchers) run, from every provider's registry. */
 function versionsInUse(): Set<string> {
   const used = new Set<string>();
-  for (const p of ['claude', 'codex', 'omp'] as AgentProvider[]) {
+  for (const p of PROVIDERS) {
     const dir = path.join(providerStateDir(stateBaseDir(), p), 'windows');
     let names: string[] = [];
     try { names = fs.readdirSync(dir); } catch { continue; }

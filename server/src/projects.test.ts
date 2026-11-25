@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { fakeBackend } from './agent/fake.ts';
+import { verifiedBearer } from './auth.ts';
 import { providerStateDir } from './agent/provider.ts';
 import { recordRecent } from './recent.ts';
 import { bareRow, enterUrl, listProjects, remoteRows, sessionsOf, stopAt, stopOthers, type ProbedInfo } from './projects.ts';
@@ -216,6 +217,25 @@ it('stopOthers stops every window but this one, of every provider', async () => 
   expect(await stopOthers({ port: own, provider: 'claude' })).toEqual({ stopped: 2, failed: 0 });
   expect(await Promise.all([ea.code, eb.code])).toEqual([0, 0]);
   expect(ownStopped).toBe(false);
+});
+
+it('issue 680: a session open in an agent of another server is not deleted', async () => {
+  const a = mk('nb-proj-a-'), b = mk('nb-proj-b-');
+  const open = '11111111-2222-4333-8444-555555555555';
+  const deleted: string[] = [];
+  const one = fakeBackend([]);
+  one.capabilities.deleteSession = true;
+  one.deleteSession = async (id) => { deleted.push(id); };
+  const x = await agentServer({ cwd: a, port: 0, backend: one, webDist: dist, exit: () => {} });
+  closers.push(x.close);
+  registerWindow(Number(new URL(x.url).port), a, process.pid);
+  const y = await startServer({ cwd: b, port: 0, backend: fakeBackend([]), webDist: dist, exit: () => {}, resume: open });
+  closers.push(y.close);
+  registerWindow(Number(new URL(y.url).port), b, process.pid);
+  const bearer = (await verifiedBearer(Number(new URL(x.url).port), 2000))!;
+  const r = await fetch(`${x.url}/sessions/delete`, { method: 'POST', headers: { authorization: bearer, 'content-type': 'application/json', origin: x.server }, body: JSON.stringify({ id: open }) });
+  expect(await r.text()).toBe('the session is open in another window');
+  expect(deleted).toEqual([]);
 });
 
 /** A claude window on `a` with a codex agent opened in it on `b` (epic 383): the port, the agent's id and the first one's. */
