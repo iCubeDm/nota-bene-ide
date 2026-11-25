@@ -88,9 +88,9 @@ export function searchPrompts(items: PromptEntry[], query: string): PromptEntry[
 const warn = (what: string, e: unknown) => console.warn(`prompt history: ${what}`, e);
 
 /** Asks the server for the session's stored prompts; an answer for a session that is not the current one any more is dropped. */
-const loadHistory = (): AppThunk => (d, getState, { connections }) => {
+const loadHistory = (): AppThunk => (d, getState, { connection }) => {
   const sid = getState().promptHistory.sid;
-  connections.current().fetch(routes.prompts(sid ?? undefined))
+  connection.fetch(routes.prompts(sid ?? undefined))
     .then((r) => (r.ok ? (r.json() as Promise<{ session: string | null; prompts: PromptEntry[] }>) : Promise.reject(new Error(`/prompts ${r.status}`))))
     // the answer must be for the session asked about and still the current one
     .then((body) => { if (getState().promptHistory.sid === sid && body.session === sid) d(historySlice.actions.loaded(body.prompts)); })
@@ -98,12 +98,12 @@ const loadHistory = (): AppThunk => (d, getState, { connections }) => {
 };
 
 /** Shows the entry at once and tells the server in the background (a failure only logs: the list is a convenience). */
-const record = (entry: Omit<PromptEntry, 'ts'>): AppThunk => (d, getState, { connections }) => {
+const record = (entry: Omit<PromptEntry, 'ts'>): AppThunk => (d, getState, { connection }) => {
   if (!entry.text.trim() || entry.text.length > PROMPT_MAX) return;
   const full: PromptEntry = { ...entry, ts: Date.now() };
   const session = getState().feed.session?.id ?? null;
   d(historySlice.actions.appended(full));
-  send(routes.prompts(), { session, id: full.id, text: full.text, src: full.src }, { conn: connections.current() })
+  send(routes.prompts(), { session, id: full.id, text: full.text, src: full.src }, { conn: connection })
     .then((r) => { if (!r.ok) warn('save failed', r.status); })
     .catch((e: unknown) => warn('save failed', e));
 };

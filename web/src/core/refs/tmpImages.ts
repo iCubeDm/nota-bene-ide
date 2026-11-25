@@ -1,5 +1,5 @@
 import { isDrivePath, isServerDrivePath, underDir, wireAbs } from '../lib/paths.ts';
-import { connections } from '../sdk/connections.ts';
+import { connection } from '../sdk/connections.ts';
 import { routes } from '../sdk/routes.ts';
 
 /**
@@ -50,7 +50,7 @@ type TmpFetched = { s: 'ok'; blob: Blob } | { s: 'gone' } | { s: 'big' } | { s: 
 
 /** GET `/tmpimage?...` with the key into bytes; the status maps to what the view says. */
 export async function fetchTmpImage(url: string, signal: AbortSignal): Promise<TmpFetched> {
-  const r = await connections.current().fetch(url, { signal, cache: 'no-store' });
+  const r = await connection.fetch(url, { signal, cache: 'no-store' });
   if (r.status === 404) return { s: 'gone' };
   if (r.status === 413) return { s: 'big' };
   if (!r.ok) return { s: 'error' };

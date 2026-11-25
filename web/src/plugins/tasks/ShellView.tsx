@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { type TaskOutputView } from '@nota-bene/shared';
-import { useT, useAppSelector, connections, byteSize, routes, type TabKinds, type TabView, useFeature } from '@/sdk';
+import { useT, useAppSelector, connection, byteSize, routes, type TabKinds, type TabView, useFeature } from '@/sdk';
 import { plainOutput } from './ansi.ts';
 import { selectTaskControls } from './slice.ts';
 import { StopButton } from './TaskButtons.tsx';
@@ -51,7 +51,7 @@ export function ShellView({ tab, active }: { tab: TabKinds['shell']; active: boo
     const tick = async () => {
       let next = RETRY_MS;
       try {
-        const r = await connections.current().fetch(routes.taskOutput(session, task), { signal: ctl.signal });
+        const r = await connection.fetch(routes.taskOutput(session, task), { signal: ctl.signal });
         if (ctl.signal.aborted) return;
         if (r.status === 404 || r.status === 409) {
           final.current = true;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useT, connections, routes, type UserPart } from '@/sdk';
+import { useT, connection, routes, type UserPart } from '@/sdk';
 import type { PendingThumb } from './useImageIntake.ts';
 
 /** Full-size view. Esc / click closes; this Esc is consumed here (preventDefault + stop), so nothing else acts on it. */
@@ -24,7 +24,7 @@ function Lightbox({ id, onClose }: { id: string; onClose: () => void }) {
       onClick={onClose}
       className="fixed inset-0 z-50 grid cursor-zoom-out place-items-center bg-scrim/80"
     >
-      <img src={connections.current().url(routes.attach(id))} alt="" className="max-h-[92vh] max-w-[92vw] rounded-lg object-contain" />
+      <img src={connection.url(routes.attach(id))} alt="" className="max-h-[92vh] max-w-[92vw] rounded-lg object-contain" />
     </div>,
     document.body,
   );
@@ -52,7 +52,7 @@ export function Attachments({ ids, pending = [], onRemove, onMark, onCancel, cou
       {ids.map((id) => (
         <div key={id} className="relative">
           <img
-            src={connections.current().url(routes.attach(id))}
+            src={connection.url(routes.attach(id))}
             loading="lazy"
             alt=""
             onClick={() => setOpen(id)}
