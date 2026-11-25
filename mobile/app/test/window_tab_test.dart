@@ -238,7 +238,7 @@ void main() {
       ch.push([window(4795, '/p', id: id)]);
       await settle();
       expect(ch.wsOpens.last['port'], 4795);
-      expect((own.connection.key, own.connection.port), (id, 4795));
+      expect((own.connection.key, own.connection.address.port), (id, 4795));
       expect(own.windowState.feed.items, hasLength(1), reason: 'the same chat');
       own.dispose();
     },
@@ -264,7 +264,7 @@ void main() {
           window(4792, '/p', id: '$id:4792'),
         ]);
         await settle();
-        expect(own.connection.port, 4792);
+        expect(own.connection.address.port, 4792);
         expect(own.connection.window!.port, 4792);
         own.dispose();
       },
@@ -296,7 +296,7 @@ void main() {
         await settle();
         ch.push([window(4795, '/p', id: id)]);
         await settle();
-        expect(own.connection.port, 4795);
+        expect(own.connection.address.port, 4795);
         expect(ch.wsOpens.last['port'], 4795);
         own.dispose();
       },

@@ -16,8 +16,9 @@ import 'project_icon.dart';
 WindowHttp? _httpOf(HostLink link, HostWindow w) {
   final ch = link.channel;
   if (ch == null) return null;
+  final a = w.address;
   return (method, path, {headers, body}) =>
-      ch.http(w.port, method, w.at(path), headers: headers, body: body);
+      ch.http(a.port, method, a.at(path), headers: headers, body: body);
 }
 
 /// Asks where the picture comes from, then sets it as the icon of [w]'s project folder. Errors end in a snackbar.

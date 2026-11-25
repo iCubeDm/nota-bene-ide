@@ -304,8 +304,7 @@ class _SessionRow extends StatelessWidget {
                     ProjectIconAvatar(
                       icons: icons,
                       link: link,
-                      port: w.port,
-                      agent: w.agent,
+                      address: w.address,
                       icon: w.icon,
                       size: 54,
                       semanticLabel: providerName(w.provider),

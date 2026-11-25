@@ -23,14 +23,25 @@ class ChannelError implements Exception {
       'ChannelError($message${relayCode == null ? '' : ', $relayCode'})';
 }
 
+/// Where an agent's streams open on its host: its server's port and, on that port, the agent's prefix (epic 383,
+/// issue 639). No agent on a host before them, whose one agent answers at the top. The one place that writes the prefix.
+class AgentAddress {
+  const AgentAddress(this.port, [this.agent]);
+  final int port;
+  final String? agent;
+
+  /// A path of the agent's streams.
+  String at(String path) => agent == null ? path : '/a/$agent$path';
+}
+
 /// The phone's names for a window of the host stream (its generated `HostWindow`, shared/src/host.ts).
 extension HostWindowKey on HostWindow {
   /// The window's identity on its host (issue 511): its stable id, or `port:<n>` from a host before ids. Nothing else
   /// in the app reads `id` or `port` for identity; `port` only opens the window's streams.
   String get key => id ?? 'port:$port';
 
-  /// A path of this window's streams: a server's agent (epic 383, issue 639) answers under `/a/<agent>`.
-  String at(String path) => agent == null ? path : '/a/$agent$path';
+  /// Where this window's streams open.
+  AgentAddress get address => AgentAddress(port, agent);
 
   /// This window with another picture version.
   HostWindow withIcon(String? icon) => HostWindow(

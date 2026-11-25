@@ -149,12 +149,16 @@ void main() {
     final part = await ch.http(
       port,
       'GET',
-      win.at('/file?path=notes.md'),
+      win.address.at('/file?path=notes.md'),
       headers: {'range': 'bytes=9-28'},
     );
     expect(part.status, 206);
     expect(utf8.decode(part.body), 'remote-cross-content');
-    final big = await ch.http(port, 'GET', win.at('/file?path=big.bin'));
+    final big = await ch.http(
+      port,
+      'GET',
+      win.address.at('/file?path=big.bin'),
+    );
     expect(big.status, 200);
     expect(big.body.length, 700 * 1024);
     expect(
@@ -169,7 +173,7 @@ void main() {
     final a = await ch.httpStream(
       port,
       'GET',
-      win.at('/file?path=big.bin'),
+      win.address.at('/file?path=big.bin'),
       headers: {'range': 'bytes=1000-599999'},
     );
     expect(a.status, 206);
@@ -192,7 +196,7 @@ void main() {
 
   test('a ws tab gets replay and hello', () async {
     final ch = await Channel.connect(relay: relay, hostPub: hostPub, key: key);
-    final s = ch.ws(port, win.at('/ws?tab=${uuid()}'));
+    final s = ch.ws(port, win.address.at('/ws?tab=${uuid()}'));
     final events = s.messages
         .where((m) => !m.binary)
         .map((m) => ServerEvent.fromJson(jsonDecode(utf8.decode(m.data))));

@@ -9,7 +9,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
-import 'package:nb_channel/nb_channel.dart' show WindowHttp;
+import 'package:nb_channel/nb_channel.dart' show AgentAddress, WindowHttp;
 import 'package:nb_protocol/nb_protocol.dart'
     show AgentProvider, ProjectIconAnswer;
 
@@ -97,8 +97,7 @@ class ProjectIconAvatar extends StatefulWidget {
   const ProjectIconAvatar({
     super.key,
     required this.link,
-    required this.port,
-    this.agent,
+    required this.address,
     required this.icon,
     required this.size,
     required this.fallback,
@@ -108,10 +107,9 @@ class ProjectIconAvatar extends StatefulWidget {
   });
 
   final HostLink link;
-  final int port;
 
-  /// One of a server's other agents (epic 383): its picture is under `/a/<agent>`.
-  final String? agent;
+  /// Where the window's picture is asked for.
+  final AgentAddress address;
 
   /// The version the window list names; null: no picture.
   final String? icon;
@@ -169,10 +167,9 @@ class _ProjectIconAvatarState extends State<ProjectIconAvatar> {
   WindowHttp? get _http {
     final ch = widget.link.channel;
     if (ch == null) return null;
-    final port = widget.port;
-    final under = widget.agent == null ? '' : '/a/${widget.agent}';
+    final a = widget.address;
     return (method, path, {headers, body}) =>
-        ch.http(port, method, '$under$path', headers: headers, body: body);
+        ch.http(a.port, method, a.at(path), headers: headers, body: body);
   }
 
   void _load() {

@@ -74,8 +74,8 @@ void main() {
     () {
       final w = HostWindow.fromJson(raw({'agent': 'claude-abcdef'}));
       expect(w.withIcon('v1').agent, 'claude-abcdef');
-      expect(w.at('/ws?tab=1'), '/a/claude-abcdef/ws?tab=1');
-      expect(HostWindow.fromJson(raw()).at('/info'), '/info');
+      expect(w.address.at('/ws?tab=1'), '/a/claude-abcdef/ws?tab=1');
+      expect(HostWindow.fromJson(raw()).address.at('/info'), '/info');
     },
   );
 

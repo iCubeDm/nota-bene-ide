@@ -37,8 +37,7 @@ class AgentConnection extends ChangeNotifier {
   }) : _key = w.key,
        root = w.root,
        provider = w.provider,
-       _port = w.port,
-       _agent = w.agent,
+       _address = w.address,
        _retry = retry ?? ((d) => Future<void>.delayed(d));
 
   final HostLink link;
@@ -59,8 +58,7 @@ class AgentConnection extends ChangeNotifier {
 
   /// The agent the window runs: a server may hold the folder under two (epic 383), on one port.
   final AgentProvider provider;
-  int _port;
-  String? _agent;
+  AgentAddress _address;
 
   /// The window as its host lists it now; null while it is not listed. The one on the tab's port first: a second
   /// window of the folder and agent on a lower port takes the bare id (issue 511), and the chat must not move to it.
@@ -71,27 +69,20 @@ class AgentConnection extends ChangeNotifier {
       (w) => w.root == root && w.provider == provider,
     );
     final w =
-        same.where((w) => w.port == _port).firstOrNull ??
+        same.where((w) => w.port == _address.port).firstOrNull ??
         same.where((w) => w.key == _key).firstOrNull;
     if (w != null) {
-      _port = w.port;
+      _address = w.address;
       _key = w.key;
-      _agent = w.agent;
     }
     return w;
   }
 
-  /// Transport only: where the window's streams open (the port it was last listed on).
-  int get port {
+  /// Transport only: where the window's streams open, as it was last listed (a restart moves its port, and a folder
+  /// that moved into a server keeps its chat there, under that server's agent).
+  AgentAddress get address {
     window;
-    return _port;
-  }
-
-  /// A path of the window's streams, as it was last listed: one of a server's other agents (epic 383) answers under
-  /// `/a/<agent>`, and a folder that moved into a server keeps its chat there.
-  String at(String path) {
-    window;
-    return _agent == null ? path : '/a/$_agent$path';
+    return _address;
   }
 
   final Future<void> Function(Duration) _retry;
@@ -109,8 +100,10 @@ class AgentConnection extends ChangeNotifier {
   WindowHttp? get http {
     final ch = link.channel;
     if (ch == null) return null;
-    return (method, path, {headers, body}) =>
-        ch.http(port, method, at(path), headers: headers, body: body);
+    return (method, path, {headers, body}) {
+      final a = address;
+      return ch.http(a.port, method, a.at(path), headers: headers, body: body);
+    };
   }
 
   TabState _state = TabState.connecting;
@@ -169,10 +162,11 @@ class AgentConnection extends ChangeNotifier {
     _stream?.close(1000);
     onSocket?.call();
     _on = ch;
+    final a = address;
     final s = _stream = ch.ws(
-      port,
+      a.port,
       // held=1 (issue 499): the phone knows `send-held`, so its messages may wait behind a pending restart or compaction
-      at('/ws?tab=$tabId&held=1${_passive ? '&passive=1' : ''}'),
+      a.at('/ws?tab=$tabId&held=1${_passive ? '&passive=1' : ''}'),
     );
     _set(TabState.connecting);
     s.messages.listen((m) {

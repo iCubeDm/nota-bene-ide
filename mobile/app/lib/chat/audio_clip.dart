@@ -139,10 +139,11 @@ Future<Written> fetchSound(
   final ch = tab.connection.link.channel;
   if (ch == null) return failed(FetchFail.unreadable);
   try {
+    final a = tab.connection.address;
     final r = await ch.httpStream(
-      tab.connection.port,
+      a.port,
       'GET',
-      tab.connection.at('/file?path=${Uri.encodeQueryComponent(rel)}'),
+      a.at('/file?path=${Uri.encodeQueryComponent(rel)}'),
     );
     final bad = fetchFailOf(r.status);
     final length = int.tryParse(r.headers['content-length'] ?? '');
