@@ -106,10 +106,9 @@ describe('a computer as a device of another', () => {
 });
 
 describe('hostStreamWindows: what a host stream message lists', () => {
-  it('the windows, then the server\'s other agents (epic 383) with their ids; malformed entries and messages dropped', () => {
-    expect(hostStreamWindows({ t: 'windows', windows: [{ port: 4777, provider: 'claude', root: '/p/a' }, { port: 'x' }], agents: [
-      { port: 4777, provider: 'codex', root: '/p/b', agent: 'codex-k3f7qz' }, { port: 4777, provider: 'codex', root: '/p/c' },
-    ] })).toEqual([{ port: 4777, provider: 'claude', root: '/p/a' }, { port: 4777, provider: 'codex', root: '/p/b', agent: 'codex-k3f7qz' }]);
+  it('its rows, a server\'s agents with their ids (epic 383); malformed entries and messages dropped', () => {
+    expect(hostStreamWindows({ t: 'windows', windows: [{ port: 4777, provider: 'claude', root: '/p/a' }, { port: 'x' }, { port: 4777, provider: 'codex', root: '/p/b', agent: 'codex-k3f7qz' }] }))
+      .toEqual([{ port: 4777, provider: 'claude', root: '/p/a' }, { port: 4777, provider: 'codex', root: '/p/b', agent: 'codex-k3f7qz' }]);
     expect(hostStreamWindows({ t: 'windows', windows: [] })).toEqual([]);
     expect(hostStreamWindows({ t: 'other' })).toBeNull();
     expect(hostStreamWindows(null)).toBeNull();

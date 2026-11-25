@@ -80,39 +80,16 @@ void main() {
   );
 
   test(
-    'hostRows: a server\'s other agents follow its windows, each with its agent id (epic 383)',
+    'a server\'s agents are rows of the one list, each with its agent id (epic 383)',
     () {
-      final list = parseWindows(
-        hostRows({
-          't': 'windows',
-          'windows': [
-            raw({'id': 'claude:a'}),
-          ],
-          'agents': [
-            raw({'id': 'claude:b', 'root': '/other', 'agent': 'claude-abcdef'}),
-          ],
-        }),
-        null,
-      );
+      final list = parseWindows([
+        raw({'id': 'claude:a'}),
+        raw({'id': 'claude:b', 'root': '/other', 'agent': 'claude-abcdef'}),
+      ], null);
       expect(list.map((w) => (w.key, w.agent)), [
         ('claude:a', null),
         ('claude:b', 'claude-abcdef'),
       ]);
-      expect(
-        hostRows({
-          't': 'windows',
-          'windows': [raw()],
-        }),
-        hasLength(1),
-      );
-      expect(
-        hostRows({
-          't': 'windows',
-          'windows': [raw()],
-          'agents': 'x',
-        }),
-        hasLength(1),
-      );
     },
   );
 

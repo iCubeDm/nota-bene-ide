@@ -227,18 +227,16 @@ export class DeviceChannel {
       const fields = (info: Record<string, unknown>) => Object.fromEntries(HOST_WINDOW_INFO.filter((k) => info[k] !== undefined).map((k) => [k, info[k]]));
       // an agent that went between the two reads, or answers no folder, is left out until the next look
       const answered = each.map((x) => x.agents.filter(({ info }) => info && typeof info.root === 'string') as { id: string; provider: AgentProvider; info: Record<string, unknown> & { root: string } }[]);
-      // `windows`: each server by its first agent (issue 639: every one under its prefix), keyed by that agent's folder
-      // (issue 646: the server's own may be closed); `agents`: the others
-      // a server that answers with no agent (its last one closed, issue 639) has nothing open: it is left out
+      // one row per agent of every server (epic 383), each under its prefix (issue 639) and keyed by its folder
+      // a server that answers with no agent (its last one closed, issue 639) has nothing open: it is left out; one whose
+      // agents could not be read is listed by itself
       const shown = list.flatMap((w, i): (Pick<HostWindow, 'port' | 'agent' | 'provider' | 'root'> & { info?: Record<string, unknown> })[] => {
-        const first = answered[i]![0];
-        if (first) return [{ port: w.port, agent: first.id, provider: first.provider, root: first.info.root, info: first.info }];
+        if (answered[i]!.length) return answered[i]!.map(({ id, provider, info }) => ({ port: w.port, agent: id, provider, root: info.root, info }));
         return Array.isArray(tops[i]?.agents) && !(tops[i]!.agents as unknown[]).length ? [] : [{ port: w.port, provider: SERVER_PROVIDER, root: w.root }];
       });
       const ids = windowIds(shown);
       const windows = shown.map(({ info, ...w }, i): HostWindow => ({ id: ids[i]!, ...w, ...(info ? fields(info) : {}) }));
-      const agents = list.flatMap((w, i) => answered[i]!.slice(1).map(({ id, provider, info }): HostWindow => ({ id: windowKey(provider, info.root), port: w.port, agent: id, provider, root: info.root, ...fields(info) })));
-      const m = JSON.stringify({ t: 'windows', windows, ...(agents.length ? { agents } : {}) } satisfies HostStreamMessage);
+      const m = JSON.stringify({ t: 'windows', windows } satisfies HostStreamMessage);
       if (m === last) return;
       last = m;
       s.write(Buffer.from(m));

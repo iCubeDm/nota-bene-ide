@@ -174,14 +174,13 @@ const isWindow = (w: Partial<HostWindow> | null): w is HostWindow =>
   typeof w?.port === 'number' && typeof w.provider === 'string' && typeof w.root === 'string';
 
 /**
- * What a host stream message lists, the parse boundary's shape check (CHANNEL.md: every other field is optional): its
- * windows, then its server's other agents (epic 383), each with its agent id. Null for any other message.
+ * What a host stream message lists, the parse boundary's shape check (CHANNEL.md: every other field is optional). Null
+ * for any other message.
  */
 export function hostStreamWindows(m: unknown): HostWindow[] | null {
   const h = m as Partial<HostStreamMessage> | null;
   if (h?.t !== 'windows' || !Array.isArray(h.windows)) return null;
-  const agents = Array.isArray(h.agents) ? h.agents.filter((w) => isWindow(w) && typeof w.agent === 'string') : [];
-  return [...h.windows.filter(isWindow), ...agents];
+  return h.windows.filter(isWindow);
 }
 
 export class HostLink extends EventEmitter {
