@@ -1,12 +1,13 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { createElement, type ReactNode } from 'react';
 import { act, renderHook } from '@testing-library/react';
-import { Provider } from 'react-redux';
+import { Provider, useSelector } from 'react-redux';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
 import { makeStore } from '@/core/testing';
 import { cancelRestart } from '../store/controls.ts';
+import { selectConn } from '../store/store.ts';
 import type { SocketState } from '../net/socket.ts';
-import { agentConnection, connectionOf, useConnection, useConnState, useFeature, type AgentConnection, type ConnState } from './connections.ts';
+import { agentConnection, connectionOf, useFeature, type AgentConnection, type ConnState } from './connections.ts';
 
 // the comment flush, called through, records which connection it found (the open-after-registration test below)
 const flushed = vi.hoisted(() => [] as AgentConnection[]);
@@ -95,9 +96,8 @@ it('hello is adopted in one place: hello() and the feature hook follow it; a dro
   const store = makeStore({ url: 'u', connect: f.connect });
   const conn = connectionOf(store);
   const wrapper = ({ children }: { children: ReactNode }) => createElement(Provider, { store, children });
-  const hook = renderHook(() => ({ state: useConnState(), models: useFeature('models'), conn: useConnection() }), { wrapper });
+  const hook = renderHook(() => ({ state: useSelector(selectConn), models: useFeature('models') }), { wrapper });
   expect(conn.hello()).toBeNull();
-  expect(hook.result.current.conn).toBe(conn);
   act(() => { f.state('open'); f.ev({ kind: 'hello', protocol: 6 }); });
   expect(conn.hello()).toEqual({ kind: 'hello', protocol: 6 });
   expect(hook.result.current).toMatchObject({ state: 'open', models: true });

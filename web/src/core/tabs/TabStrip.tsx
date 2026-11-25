@@ -1,12 +1,11 @@
 import { useT, useStored } from '@/sdk';
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { shallowEqual } from 'react-redux';
 import { useAppDispatch, useAppSelector, useMedia, useRegistry } from '@/core/store/store.ts';
 import { tabLabel, tabView } from '@/sdk/registry.ts';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/core/components/ui/context-menu.tsx';
 import { activate, closeAll, closeOthers, closeRight, closeTab, moveTab, selectTabs, type Tab } from './slice.ts';
 import { DROP_MARK, useDragOrder } from '../lib/dragOrder.ts';
-import { ChatTabContext } from './chatTab.ts';
 import { TabsMenu } from './TabsMenu.tsx';
 import { ICONS, Svg } from '../components/icons.tsx';
 import { focusTab } from './focus.ts';
@@ -26,7 +25,7 @@ function useLabels(open: Tab[]): string[] {
 }
 
 /** A tab, no tooltip (issue 463): its label says it. Its view adds its own parts (a chip, a badge, a picker, an edit). */
-function TabItem({ tab, label, active, last, playing, end }: { tab: Tab; label: string; active: boolean; last: boolean; playing: boolean; end?: ReactNode }) {
+function TabItem({ tab, label, active, last, playing }: { tab: Tab; label: string; active: boolean; last: boolean; playing: boolean }) {
   const t = useT();
   const d = useAppDispatch();
   const view = tabView(useRegistry(), tab);
@@ -73,7 +72,7 @@ function TabItem({ tab, label, active, last, playing, end }: { tab: Tab; label: 
               <Svg size={10}><path d="M18 6 6 18M6 6l12 12" /></Svg>
             </button>
           )}
-          {end}
+          {isChat && <Slots at="tabs.chat" />}
         </div>
       </ContextMenuTrigger>
       {/* the menu gives the focus back when it closes: to the title being edited, if that is what was picked */}
@@ -110,7 +109,6 @@ export function TabStrip() {
   const strip = useRef<HTMLDivElement>(null);
   const names = useLabels(open);
   const labels = new Map(open.map((tab, i) => [tab.id, names[i]!]));
-  const placed = !!useRegistry().slots.get('tabs.chat')?.length;
   // after a switch, an open or a close (not on a resize: that would undo the user's own scroll of the strip)
   useEffect(() => {
     [...(strip.current?.querySelectorAll<HTMLElement>('[data-tab]') ?? [])].find((n) => n.dataset.tab === active)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
@@ -129,11 +127,7 @@ export function TabStrip() {
       >
         {open.map((tab, i) => (
           // the dot marks a background tab that still plays; the active tab shows its own player
-          <Fragment key={tab.id}>
-            {tab.kind === 'chat' && placed
-              ? <ChatTabContext.Provider value={(end) => <TabItem tab={tab} label={names[i]!} active={tab.id === active} last={i === open.length - 1} playing={tab.id === playing && tab.id !== active} end={end} />}><Slots at="tabs.chat" /></ChatTabContext.Provider>
-              : <TabItem tab={tab} label={names[i]!} active={tab.id === active} last={i === open.length - 1} playing={tab.id === playing && tab.id !== active} />}
-          </Fragment>
+          <TabItem key={tab.id} tab={tab} label={names[i]!} active={tab.id === active} last={i === open.length - 1} playing={tab.id === playing && tab.id !== active} />
         ))}
       </div>
       <TabsMenu strip={strip} labels={labels} />

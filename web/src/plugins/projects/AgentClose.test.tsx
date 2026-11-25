@@ -8,8 +8,6 @@ import { page } from '@/core/net/local.ts';
 import type { ProjectsList } from './api.ts';
 import { nav } from './api.ts';
 import { AgentClose } from './AgentClose.tsx';
-import { ChatTabContext } from '@/core/tabs/chatTab.ts';
-import type { ReactNode } from 'react';
 
 const HERE = 'claude-q2w3e4';
 const LIST: ProjectsList = {
@@ -38,8 +36,8 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); page.remote = null; });
 
-const CHAT = (end?: ReactNode) => <div role="tab" aria-selected>chat{end}</div>;
-const setup = () => render(<Provider store={makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) })}><TooltipProvider><ChatTabContext.Provider value={CHAT}><AgentClose /></ChatTabContext.Provider></TooltipProvider></Provider>);
+const onTab = vi.fn();
+const setup = () => render(<Provider store={makeStore({ url: 'ws://x', connect: () => ({ send: () => true, close() {} }) })}><TooltipProvider><div role="tab" aria-selected onClick={onTab} onContextMenu={onTab}>chat<AgentClose /></div></TooltipProvider></Provider>);
 const closeX = () => screen.findByRole('button', { name: `${t('agentClose')}: Claude · Fix the login form` });
 
 it('issue 661: the strip has the chat\'s tab only, not the folder\'s other agents', async () => {
@@ -59,6 +57,16 @@ it('✕ closes this page\'s agent after a confirm, then goes to the server\'s ho
   fireEvent.click(await screen.findByRole('button', { name: t('agentClose') }));
   await waitFor(() => expect(nav.go).toHaveBeenCalledWith('/'));
   expect(calls.filter((c) => c.url === '/system/projects/stop').map((c) => c.body)).toEqual([{ provider: 'claude', port: 4791, root: '/w/site', agent: HERE }]);
+});
+
+it('the confirm is not the tab: a click or a right click in it does not reach the tab', async () => {
+  setup();
+  fireEvent.click(await closeX());
+  onTab.mockClear();
+  const cancel = await screen.findByRole('button', { name: t('cancel') });
+  fireEvent.contextMenu(cancel);
+  fireEvent.click(cancel);
+  expect(onTab).not.toHaveBeenCalled();
 });
 
 it('on another computer\'s page: no ✕', async () => {

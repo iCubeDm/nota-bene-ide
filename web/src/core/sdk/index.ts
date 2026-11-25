@@ -6,7 +6,7 @@ export { t, tIn, useT, getLang, setLang, chooseLang, LANGS, type Lang } from '..
 export { dismissToast, toast } from '../shell/toast.ts';
 
 // storage
-export { storage, useStored, bool, string, json, oneOf, type Codec, type Stored, type Pref, type SharedPrefs, type Sounds } from './storage.ts';
+export { storage, useStored, bool, string, json, type Stored, type Sounds } from './storage.ts';
 
 // the frame's prefs: theme, scale, sounds
 export { theme, THEME_GROUPS, THEME_NAMES, useTheme } from '../shell/theme.ts';
@@ -19,13 +19,11 @@ export { folderName, shortWinHome, shortHome } from '../lib/paths.ts';
 export { keysInScope } from '../lib/keyScope.ts';
 export { editable } from '../lib/editable.ts';
 export { setValueAndCaret, insertPaths, AT_RE } from '../lib/insertText.ts';
-export { ComposerFieldContext, useComposerField, type ComposerField } from './composerField.ts';
+export { ComposerFieldContext, useComposerField } from './composerField.ts';
 export { useAutosize } from '../lib/autosize.ts';
 export { placeListFor, revealSelected } from '../lib/placeList.ts';
 export { useNote, REFUSED } from '../lib/useNote.ts';
 export { PATHS_MIME, draggedPaths, hasFiles, downloadUrl } from '../lib/drag.ts';
-export { useDragOrder, DROP_MARK } from '../lib/dragOrder.ts';
-export { useChatTab } from '../tabs/chatTab.ts';
 export { prepareImage, uploadImage, encodeImage, mediaTypeOf } from '../lib/image.ts';
 export { useFocusWithin } from '../shell/focusWithin.ts';
 export { useOnHome } from '../shell/Slots.tsx';
@@ -37,18 +35,13 @@ export { anchorLine, batchQuote, mediaTime, cutWhere, cutLine } from '../anchors
 // the connection
 export {
   connection,
-  useConnection,
-  useConnState,
   useFeature,
   selectFeature,
-  type AgentConnection,
-  type ConnState,
-  type HelloEvent,
   type Route,
 } from './connections.ts';
 export { routes } from './routes.ts';
-export { defineResource, send, useResource, repository, pageVisible, type Resource, type Snapshot } from './repository.ts';
-export { SettingsContext, useSettings, systemPrefs, type SettingsHost, type SystemPrefs } from './settings.ts';
+export { defineResource, send, useResource, repository, pageVisible } from './repository.ts';
+export { SettingsContext, useSettings, systemPrefs, type SettingsHost } from './settings.ts';
 
 // where the project's files are: their kinds and URLs, the sources they are read from, the temp images, a media tab's start
 export { HTML, kindOf, fileUrl, projectFileUrl, headVersion, type FileKind } from '../refs/kinds.ts';
@@ -133,4 +126,4 @@ export {
   setAgentTitle, selectTabs, selectActiveTab, enterRoot, fileTabId, type TabKinds, type AgentTab, type SavedFile, type DiagramLang,
 } from '../tabs/slice.ts';
 export { requestJump, clearJump, dropJump, selectJump } from '../tabs/jump.ts';
-export { feedRenderer, anchorView, type Registry, type AnchorView, type AnchorKind, type TabView, type Slot, type SlotName, type Command, type KeyId, type Mods, type FeedRenderer, type AnyFeedRenderer, type FeedKind, type Held, type ToolRenderer, type ToolItem, type UserPart, type FileView, type SettingsSection, type SendPart, type Taken, type SendResult, type TextFileView, type MediaFileView, type MediaLoad, type FileBar, type PendingComment, type ImageEntry, type MediaComment, type MediaAnchorPatch, type Services, type MediaService, type CodeBlock, type TreeAction } from './registry.ts';
+export { feedRenderer, anchorView, type Registry, type AnchorView, type TabView, type Slot, type SlotName, type Command, type Mods, type AnyFeedRenderer, type Held, type ToolRenderer, type UserPart, type FileView, type SettingsSection, type SendPart, type Taken, type TextFileView, type MediaFileView, type FileBar, type PendingComment, type ImageEntry, type MediaComment, type MediaAnchorPatch, type Services, type CodeBlock, type TreeAction } from './registry.ts';
