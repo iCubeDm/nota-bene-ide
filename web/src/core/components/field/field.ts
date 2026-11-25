@@ -15,17 +15,24 @@ export interface Field {
   replace(from: number, to: number, insert: string, caret?: number): void;
   setCaret(pos: number): void;
   focus(opts?: FocusOptions): void;
-  /** a change of the text or the selection; returns the unsubscribe */
-  onUpdate(fn: (u: { doc: boolean; selection: boolean }) => void): () => void;
+  /** a change of the text or the selection made in the field, not the host's value coming in (`pointer`: a click or a
+   * drag put it there); returns the unsubscribe */
+  onUpdate(fn: (u: FieldUpdate) => void): () => void;
 }
 
 /** Marks a transaction that brings the host's value in: not the person's edit, so no `onChange` and no undo step. */
 export const fromHost = Annotation.define<boolean>();
 
-export type Listeners = Set<(u: { doc: boolean; selection: boolean }) => void>;
+export interface FieldUpdate { doc: boolean; selection: boolean; pointer: boolean }
+export type Listeners = Set<(u: FieldUpdate) => void>;
+
+const byElement = new WeakMap<Element, Field>();
+
+/** The field whose editable element is `el` (a field found by its id, as the keymap finds the composer's). */
+export const fieldFor = (el: Element | null): Field | null => (el && byElement.get(el)) ?? null;
 
 export function fieldOf(view: EditorView, listeners: Listeners): Field {
-  return {
+  const field: Field = {
     element: view.contentDOM,
     text: () => view.state.doc.toString(),
     selection: () => ({ from: view.state.selection.main.from, to: view.state.selection.main.to }),
@@ -45,4 +52,6 @@ export function fieldOf(view: EditorView, listeners: Listeners): Field {
       return () => listeners.delete(fn);
     },
   };
+  byElement.set(view.contentDOM, field);
+  return field;
 }

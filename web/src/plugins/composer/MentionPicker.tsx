@@ -1,7 +1,7 @@
 import { FileIcon } from '@/sdk/ui';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useStore } from 'react-redux';
-import { useT, connection, routes, setValueAndCaret, placeListFor, revealSelected, AT_RE, useComposerField, type RootState } from '@/sdk';
+import { useT, connection, routes, placeListFor, revealSelected, AT_RE, useComposerField, type Field, type RootState } from '@/sdk';
 import { selectShellMode } from './shellMode.ts';
 
 // the `:` shortcode trigger (ShortcodePicker); when it is closer to the caret than the `@`, it owns the keys
@@ -24,7 +24,7 @@ export function highlight(text: string, q: string): ReactNode[] {
 const shellWord = (p: string): string => (/^[\w@%+=:,./-]+$/.test(p) ? p : `'${p.replaceAll("'", "'\\''")}'`);
 
 /** `shell`: the field holds a `! cmd` draft right now; the pick is then the plain path (a shell word), not an `@` mention the shell would not know. */
-export function MentionPicker({ target, shell }: { target: RefObject<HTMLTextAreaElement | null>; shell?: () => boolean }) {
+export function MentionPicker({ target, shell }: { target: RefObject<Field | null>; shell?: () => boolean }) {
   const t = useT();
   const [state, setState] = useState<Open | null>(null);
   const live = useRef<Open | null>(null);
@@ -34,8 +34,8 @@ export function MentionPicker({ target, shell }: { target: RefObject<HTMLTextAre
   const set = (s: Open | null) => { live.current = s; setState(s); };
 
   useEffect(() => {
-    const ta = target.current;
-    if (!ta) return;
+    const f = target.current;
+    if (!f) return;
     let seq = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let ctl: AbortController | undefined;
@@ -62,7 +62,7 @@ export function MentionPicker({ target, shell }: { target: RefObject<HTMLTextAre
         .catch(() => { if (mine === seq) close(); }); // network error: close silently
     };
     const update = () => {
-      const before = ta.value.slice(0, ta.selectionStart);
+      const before = f.text().slice(0, f.selection().from);
       const m = AT_RE.exec(before);
       // the closer trigger wins: a live `:code` after the `@` belongs to ShortcodePicker
       if (!m || SHORTCODE.test(before)) return close();
@@ -73,19 +73,18 @@ export function MentionPicker({ target, shell }: { target: RefObject<HTMLTextAre
       asked = `${start}:${q}`;
       timer = setTimeout(() => run(start, q), DEBOUNCE_MS);
     };
-    const onSel = () => { if (document.activeElement === ta && live.current) update(); };
     const insert = (p: string, start: number) => {
-      const end = ta.selectionStart;
+      const end = f.selection().from;
       const ref = shell?.() ? shellWord(p) : /\s/.test(p) ? `@"${p}"` : `@${p}`;
       const tail = p.endsWith('/') && !shell?.() ? '' : ' '; // a folder keeps the picker going for its files (not in a shell command: the word is done)
       close();
-      // an input event follows, which re-queries for a folder and closes for a file
-      setValueAndCaret(ta, ta.value.slice(0, start) + ref + tail + ta.value.slice(end), start + ref.length + tail.length);
+      // the update that follows re-queries for a folder and closes for a file
+      f.replace(start, end, ref + tail);
     };
     inserter.current = insert;
     const onKey = (e: KeyboardEvent) => {
       const s = live.current;
-      if (!s || e.target !== ta || e.isComposing) return;
+      if (!s || e.target !== f.element || e.isComposing) return;
       const plainEnter = e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey;
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) return close(); // send / add: let it through
       if (e.key === 'Tab' && e.shiftKey) return close(); // the composer's mode cycle: close, let it through
@@ -100,26 +99,23 @@ export function MentionPicker({ target, shell }: { target: RefObject<HTMLTextAre
       else handled = false;
       if (handled) { e.preventDefault(); e.stopPropagation(); }
     };
-    ta.addEventListener('input', update);
-    ta.addEventListener('click', update);
-    ta.addEventListener('blur', close);
+    // typing and a click look again; a caret moved by keys only while the list is open
+    const off = f.onUpdate((u) => { if (u.doc || u.pointer || live.current) update(); });
+    f.element.addEventListener('blur', close);
     window.addEventListener('keydown', onKey, true);
-    document.addEventListener('selectionchange', onSel);
     return () => {
       cancel();
-      document.removeEventListener('selectionchange', onSel);
-      ta.removeEventListener('input', update);
-      ta.removeEventListener('click', update);
-      ta.removeEventListener('blur', close);
+      off();
+      f.element.removeEventListener('blur', close);
       window.removeEventListener('keydown', onKey, true);
     };
   }, [target]);
 
   // above the field when it fits, else the roomier side, height capped to that side (placeList)
   useLayoutEffect(() => {
-    const ta = target.current;
-    if (!state || !ta || !menu.current) return;
-    setPos(placeListFor(menu.current, ta));
+    const f = target.current;
+    if (!state || !f || !menu.current) return;
+    setPos(placeListFor(menu.current, f.element));
   }, [state?.items, target]);
   // the selected option scrolls into view inside the list only: scrollIntoView would scroll the document too
   useLayoutEffect(() => {
@@ -148,7 +144,7 @@ export function MentionPicker({ target, shell }: { target: RefObject<HTMLTextAre
             key={p}
             role="option"
             aria-selected={k === state.sel}
-            onMouseDown={(e) => e.preventDefault() /* keep focus in the textarea */}
+            onMouseDown={(e) => e.preventDefault() /* keep focus in the field */}
             onClick={() => pick(k)}
               className={`flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-[0.78125rem] text-foreground ${k === state.sel ? 'bg-primary/15' : 'hover:bg-accent'}`}
           >

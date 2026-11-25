@@ -1,11 +1,5 @@
+import type { Field } from '../components/field/field.ts';
 import { AUDIO, IMAGE, VIDEO, isPath } from '../refs/kinds.ts';
-
-/** Set a textarea's value through the native setter and fire a bubbling `input`, so a controlled React textarea picks it up. */
-export function setValueAndCaret(ta: HTMLTextAreaElement, value: string, caret: number): void {
-  Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(ta, value);
-  ta.setSelectionRange(caret, caret);
-  ta.dispatchEvent(new Event('input', { bubbles: true }));
-}
 
 /** An `@mention` being typed (copied from the prototype): `@` at a word start, up to the caret. */
 export const AT_RE = /(^|\s)@("[^"]*|[^\s"]*)$/;
@@ -34,11 +28,12 @@ export function pathText(p: string): string {
 }
 
 /** Puts `paths` at the caret (over a selection) as one run, spaced from the words around it; the caret goes after it. */
-export function insertPaths(ta: HTMLTextAreaElement, paths: readonly string[]): void {
+export function insertPaths(field: Field, paths: readonly string[]): void {
   if (!paths.length) return;
-  const { selectionStart: a, selectionEnd: b, value } = ta;
+  const { from: a, to: b } = field.selection();
+  const value = field.text();
   const before = a > 0 && !/\s/.test(value[a - 1]!) ? ' ' : '';
   const after = b < value.length && !/\s/.test(value[b]!) ? ' ' : '';
   const run = before + paths.map(pathText).join(' ');
-  setValueAndCaret(ta, value.slice(0, a) + run + after + value.slice(b), a + run.length);
+  field.replace(a, b, run + after, a + run.length);
 }

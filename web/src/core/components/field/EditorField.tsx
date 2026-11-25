@@ -2,7 +2,7 @@ import { history, historyKeymap, standardKeymap } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { Compartment, EditorState, Transaction, type Extension } from '@codemirror/state';
 import { EditorView, keymap, placeholder as placeholderExt } from '@codemirror/view';
-import { useEffect, useImperativeHandle, useLayoutEffect, useRef, type ClipboardEventHandler, type KeyboardEventHandler, type Ref } from 'react';
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, type ClipboardEventHandler, type MouseEvent, type KeyboardEventHandler, type Ref } from 'react';
 import { fieldOf, fromHost, type Field, type Listeners } from './field.ts';
 import { blockKeys } from './blockKeys.ts';
 import { livePreview } from './livePreview.ts';
@@ -46,6 +46,8 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
   change.current = onChange;
   const lock = useRef(new Compartment());
   const look = useRef(new Compartment());
+  const naming = useRef(new Compartment());
+  const names = (): Extension => named(id, ariaLabel, placeholder);
 
   useLayoutEffect(() => {
     const ext: Extension[] = [
@@ -55,24 +57,30 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
       bare,
       blockKeys(newline),
       keymap.of([...historyKeymap, ...BASE_KEYS]),
-      EditorView.contentAttributes.of({ role: 'textbox', 'aria-multiline': 'true', ...(id ? { id } : {}), ...(ariaLabel ? { 'aria-label': ariaLabel } : {}) }),
-      placeholder ? placeholderExt(placeholder) : [],
+      naming.current.of(names()),
       lock.current.of(locked(!!readOnly)),
       look.current.of(plain ? [] : livePreview),
       EditorView.updateListener.of((u) => {
-        if (!u.docChanged && !u.selectionSet) return;
-        if (u.docChanged && !u.transactions.some((t) => t.annotation(fromHost))) change.current(u.state.doc.toString());
-        for (const fn of listeners.current) fn({ doc: u.docChanged, selection: u.selectionSet });
+        // the host's own value coming in is neither an edit nor something the pickers look at (a textarea's `input` was not either)
+        if ((!u.docChanged && !u.selectionSet) || u.transactions.some((t) => t.annotation(fromHost))) return;
+        if (u.docChanged) change.current(u.state.doc.toString());
+        const pointer = u.transactions.some((t) => t.isUserEvent('select.pointer'));
+        for (const fn of listeners.current) fn({ doc: u.docChanged, selection: u.selectionSet, pointer });
       }),
     ];
     const v = new EditorView({ parent: host.current!, state: EditorState.create({ doc: value, extensions: ext }) });
     view.current = v;
     return () => { v.destroy(); view.current = null; };
-    // one editor per mount: the value and the lock follow through the effects below
+    // one editor per mount: the value, the names and the switches follow through the effects below
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [newline, id, ariaLabel, placeholder]);
+  }, [newline]);
 
-  useImperativeHandle(fieldRef, () => fieldOf(view.current!, listeners.current), [newline, id, ariaLabel, placeholder]);
+  useImperativeHandle(fieldRef, () => fieldOf(view.current!, listeners.current), [newline]);
+
+  useEffect(() => {
+    view.current?.dispatch({ effects: naming.current.reconfigure(names()) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, ariaLabel, placeholder]);
 
   useEffect(() => {
     const v = view.current;
@@ -92,7 +100,25 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
     view.current?.dispatch({ effects: lock.current.reconfigure(locked(!!readOnly)) });
   }, [readOnly]);
 
-  return <div ref={host} onKeyDown={onKeyDown} onPaste={onPaste} className={className} />;
+  // a press on the padding around the text is a press in the field
+  const toText = (e: MouseEvent) => {
+    if (e.target !== host.current || !view.current) return;
+    e.preventDefault();
+    view.current.focus();
+  };
+  return <div ref={host} onKeyDown={onKeyDown} onPaste={onPaste} onMouseDown={toText} className={className} />;
 }
+
+/** The field's id, its name (the label, else the placeholder, as a textarea's) and its placeholder. */
+const named = (id: string | undefined, label: string | undefined, placeholder: string | undefined): Extension => [
+  EditorView.contentAttributes.of({
+    role: 'textbox',
+    'aria-multiline': 'true',
+    ...(id ? { id } : {}),
+    ...(label ?? placeholder ? { 'aria-label': (label ?? placeholder)! } : {}),
+    ...(placeholder ? { 'aria-placeholder': placeholder } : {}),
+  }),
+  placeholder ? placeholderExt(placeholder) : [],
+];
 
 const locked = (on: boolean): Extension => [EditorState.readOnly.of(on), EditorView.editable.of(!on)];

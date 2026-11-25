@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, type KeyboardEvent, type RefObject } from 'react';
 import type { PromptEntry } from '@nota-bene/shared';
-import { useAppDispatch } from '@/sdk';
+import { useAppDispatch, type Field } from '@/sdk';
 import { recallList } from './history.ts';
 import { setDraft } from './slice.ts';
 
@@ -8,7 +8,7 @@ import { setDraft } from './slice.ts';
  * ↑/↓ through the prompts sent before (newest first), and a prompt picked in the history list. `text` is the draft,
  * `ref` the field.
  */
-export function usePromptRecall({ items, sid, text, ref }: { items: PromptEntry[]; sid: string | null; text: string; ref: RefObject<HTMLTextAreaElement | null> }) {
+export function usePromptRecall({ items, sid, text, ref }: { items: PromptEntry[]; sid: string | null; text: string; ref: RefObject<Field | null> }) {
   const dispatch = useAppDispatch();
   // `id` is the recalled one (null = not browsing), `stash` the draft it replaced (a list choice or a search makes one);
   // `query` is the text a search walk started from (null = the whole list is walked)
@@ -43,10 +43,12 @@ export function usePromptRecall({ items, sid, text, ref }: { items: PromptEntry[
   // prompts containing it; ↓ past the newest brings the draft back); it goes on while the draft is still exactly the recalled
   // prompt: any edit ends it. `always` (Alt+↑/↓) ignores the caret, a selection and a multi-line draft: a multi-line draft
   // is stashed and the whole list walked
-  const stepHistory = (e: KeyboardEvent<HTMLTextAreaElement>, always: boolean): boolean => {
-    const el = e.currentTarget;
+  const stepHistory = (e: KeyboardEvent<HTMLElement>, always: boolean): boolean => {
+    const el = ref.current;
+    if (!el) return false;
     const b = browse.current;
-    const { selectionStart: from, selectionEnd: to, value } = el;
+    const { from, to } = el.selection();
+    const value = el.text();
     let list = walkList();
     const at = placeOf(value);
     if (at < 0) { b.id = null; b.query = null; list = recallRef.current; }
@@ -58,7 +60,7 @@ export function usePromptRecall({ items, sid, text, ref }: { items: PromptEntry[
       // the controlled value lands on the next render; the caret goes after it, unless typing changed the value meanwhile
       requestAnimationFrame(() => {
         const el = ref.current;
-        if (el?.value === draft) el.setSelectionRange(draft.length, draft.length);
+        if (el?.text() === draft) el.setCaret(draft.length);
       });
     };
     if (e.key === 'ArrowUp') {
@@ -103,7 +105,7 @@ export function usePromptRecall({ items, sid, text, ref }: { items: PromptEntry[
     dispatch(setDraft(picked));
     requestAnimationFrame(() => {
       ref.current?.focus({ preventScroll: true });
-      ref.current?.setSelectionRange(picked.length, picked.length);
+      ref.current?.setCaret(picked.length);
     });
   };
 

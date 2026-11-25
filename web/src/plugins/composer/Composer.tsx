@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat, sendCount, sendWaiting, nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching, useAutosize, draggedPaths, useSeekStep, insertPaths, hasFiles, ComposerFieldContext, addImage, selectBuilding, selectImages, selectUploading, uploadFinished, uploadStarted, PLAYER_HELP, useService, useFeature } from '@/sdk';
+import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat, sendCount, sendWaiting, nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching, draggedPaths, useSeekStep, insertPaths, hasFiles, ComposerFieldContext, addImage, selectBuilding, selectImages, selectUploading, uploadFinished, uploadStarted, PLAYER_HELP, useService, useFeature, type Field } from '@/sdk';
 import { Button, MessageInput, MicButton, SendIcon, Slots, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { SlashPicker } from './SlashPicker.tsx';
 import { selectShellMode } from './shellMode.ts';
@@ -47,7 +47,9 @@ export function Composer() {
   useEffect(() => {
     if (!busy) setAskForce(false);
   }, [busy]);
-  const ref = useRef<HTMLTextAreaElement>(null);
+  const ref = useRef<Field>(null);
+  // the field's element, for what anchors to it (the Whisper prompt)
+  const fieldEl = useMemo(() => ({ get current() { return ref.current?.element ?? null; } }), []);
   const fieldBox = useRef<HTMLDivElement>(null);
   const host = useMemo(() => ({ kind: 'chat' as const, field: ref }), []);
   // ↑/↓ through the prompts sent before, and a prompt picked in the history list
@@ -190,9 +192,6 @@ export function Composer() {
     };
   }, []);
 
-  // autosize; max-height (40vh) is applied by CSS. Empty: stay one line — a long placeholder would otherwise wrap and grow the field
-  useAutosize(ref, text, !text);
-
   // a send that failed while offline is forgotten once the socket is back, so a later drop shows no stale label
   useEffect(() => {
     if (conn === 'open') setFailed(false);
@@ -269,8 +268,9 @@ export function Composer() {
       <ComposerAttachments pending={intake.pending} onCancel={intake.cancel} />
       <div data-record-scope data-dropping={dropping || undefined} className="flex items-end gap-2 pt-2.5 pb-1.5 data-[dropping]:rounded-[10px] data-[dropping]:outline data-[dropping]:outline-2 data-[dropping]:outline-dashed data-[dropping]:outline-primary">
         <MessageInput
-          textareaRef={ref}
+          fieldRef={ref}
           id="composer-input"
+          newline="Shift-Enter"
           value={text}
           onChange={(v) => {
             dispatch(setDraft(v));
@@ -281,7 +281,8 @@ export function Composer() {
           placeholder={showSug ? suggestion : onAgentTab ? t('composerPhAgent') : t('composerPh')}
           dataShell={shellMode}
           endPad={showSug ? 'pr-28' : undefined}
-          fieldClass={showSug ? 'placeholder:text-foreground placeholder:opacity-45' : 'placeholder:truncate'}
+          // empty: one line, a long placeholder is cut rather than wrapped
+          fieldClass={showSug ? '[&_.cm-placeholder]:text-foreground [&_.cm-placeholder]:opacity-45' : '[&_.cm-placeholder]:block [&_.cm-placeholder]:truncate'}
           bar={recording ? <RecordBar state={rec.st as Exclude<typeof rec.st, { phase: 'idle' }>} busy={busy} onCancel={rec.cancel} onEscape={escQuestion} onStop={() => void rec.stop()} onSend={voiceSubmit} /> : undefined}
           overlay={<>
             {shellMode && (
@@ -334,9 +335,9 @@ export function Composer() {
           }
         >
           <ComposerFieldContext.Provider value={host}><Slots at="composer.pickers" /></ComposerFieldContext.Provider>
-          <SlashPicker target={ref} suppress={() => placeOf(ref.current?.value ?? '') >= 0} />
+          <SlashPicker target={ref} suppress={() => placeOf(ref.current?.text() ?? '') >= 0} />
         </MessageInput>
-        {voiceOk && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={hasText ? ref : micBox} />}
+        {voiceOk && !whisper && <WhisperPrompt open={setup} onOpenChange={setSetup} anchor={hasText ? fieldEl : micBox} />}
       </div>
       <div data-tools-row className="flex min-h-[30px] flex-wrap items-center gap-x-2 gap-y-1 pb-2">
         <input

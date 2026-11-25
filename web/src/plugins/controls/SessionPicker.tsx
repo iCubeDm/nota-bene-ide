@@ -305,7 +305,7 @@ export function SessionPicker() {
             }
           }}
           onCancel={() => { confirmed.current = false; setAsk(null); }}
-          focusAfter={() => (confirmed.current ? composer.field() : null)}
+          focusAfter={() => (confirmed.current ? composer.field()?.element ?? null : null)}
         />
       )}
       {del && (

@@ -18,9 +18,9 @@ export { num, compact, compactParts, percent, money, byteSize, ago } from '../li
 export { folderName, shortWinHome, shortHome } from '../lib/paths.ts';
 export { keysInScope } from '../lib/keyScope.ts';
 export { editable } from '../lib/editable.ts';
-export { setValueAndCaret, insertPaths, AT_RE } from '../lib/insertText.ts';
+export { insertPaths, AT_RE } from '../lib/insertText.ts';
+export { fieldFor, type Field } from '../components/field/field.ts';
 export { ComposerFieldContext, useComposerField } from './composerField.ts';
-export { useAutosize } from '../lib/autosize.ts';
 export { placeListFor, revealSelected } from '../lib/placeList.ts';
 export { useNote, REFUSED } from '../lib/useNote.ts';
 export { PATHS_MIME, draggedPaths, hasFiles, downloadUrl } from '../lib/drag.ts';

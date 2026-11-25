@@ -1,9 +1,9 @@
 import type { KeyboardEvent, RefObject } from 'react';
-import { useAppDispatch } from '@/sdk';
+import { useAppDispatch, type Field } from '@/sdk';
 import { setDraft } from './slice.ts';
 
 export interface ComposerKeys {
-  ref: RefObject<HTMLTextAreaElement | null>;
+  ref: RefObject<Field | null>;
   /** the suggestion shown in the empty field, null when none is */
   suggestion: string | null;
   /** Shift+Tab: the next of the agent's modes, null when there is no other */
@@ -11,20 +11,22 @@ export interface ComposerKeys {
   /** the question before a forced send interrupts the agent is open */
   askForce: boolean;
   setAskForce: (v: boolean) => void;
-  stepHistory: (e: KeyboardEvent<HTMLTextAreaElement>, always: boolean) => boolean;
+  stepHistory: (e: KeyboardEvent<HTMLElement>, always: boolean) => boolean;
   submit: (force: boolean) => void;
 }
 
 /** The composer field's keys: Tab takes the suggestion, Shift+Tab the next mode, Esc, ↑/↓ the history, Enter sends. */
 export function useComposerKeys({ ref, suggestion, pickNextMode, askForce, setAskForce, stepHistory, submit }: ComposerKeys) {
   const dispatch = useAppDispatch();
-  return (e: KeyboardEvent<HTMLTextAreaElement>) => {
+  return (e: KeyboardEvent<HTMLElement>) => {
+    // a key the field took (Enter in a code block) is done: it must not also send
+    if (e.defaultPrevented) return;
     // an open @ / : / picker takes Tab at window capture and stops it, so this is only reached with no picker to serve
     if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !e.nativeEvent.isComposing && suggestion !== null) {
       e.preventDefault();
       dispatch(setDraft(suggestion));
       // the controlled value lands on the next render; put the caret after it
-      requestAnimationFrame(() => ref.current?.setSelectionRange(suggestion.length, suggestion.length));
+      requestAnimationFrame(() => ref.current?.setCaret(suggestion.length));
       return;
     }
     if (e.key === 'Tab' && e.shiftKey && !e.nativeEvent.isComposing && pickNextMode) {

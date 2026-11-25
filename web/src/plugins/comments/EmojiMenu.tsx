@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { getLang, json, storage, useT, setValueAndCaret } from '@/sdk';
+import { getLang, json, storage, useT, type Field } from '@/sdk';
 import { emojiGroups, loadEmoji, searchShortcodes } from './emoji.ts';
 
 const RECENT_KEY = 'emoji:recent';
@@ -19,9 +19,9 @@ function pushRecent(emoji: string): void {
 }
 
 /** Replace the selection (or insert at the caret). */
-function insertAtCaret(ta: HTMLTextAreaElement, emoji: string): void {
-  const { selectionStart: a, selectionEnd: b, value } = ta;
-  setValueAndCaret(ta, value.slice(0, a) + emoji + value.slice(b), a + emoji.length);
+function insertAtCaret(f: Field, emoji: string): void {
+  const { from, to } = f.selection();
+  f.replace(from, to, emoji);
 }
 
 /**
@@ -30,7 +30,7 @@ function insertAtCaret(ta: HTMLTextAreaElement, emoji: string): void {
  * capture so only the menu closes. ~1800 plain buttons render in one pass; each group uses
  * `content-visibility: auto`, so the browser skips layout/paint of the off-screen ones.
  */
-export function EmojiMenu({ target }: { target: RefObject<HTMLTextAreaElement | null> }) {
+export function EmojiMenu({ target }: { target: RefObject<Field | null> }) {
   const t = useT();
   const lang = getLang();
   const [open, setOpen] = useState(false);
@@ -121,11 +121,11 @@ export function EmojiMenu({ target }: { target: RefObject<HTMLTextAreaElement | 
   }, [all, labels, needle, recent, lang, needle ? 0 : shown]);
 
   const pick = (emoji: string) => {
-    const ta = target.current;
-    if (!ta) return;
+    const f = target.current;
+    if (!f) return;
     pushRecent(emoji);
     close();
-    insertAtCaret(ta, emoji);
+    insertAtCaret(f, emoji);
   };
 
   return (

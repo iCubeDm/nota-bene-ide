@@ -4,6 +4,8 @@ import type { ReactElement, ReactNode } from 'react';
 import { render } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { PROTOCOL, type ClientMessage, type ServerEvent, type WireAgentEvent } from '@nota-bene/shared';
+import { EditorView } from '@codemirror/view';
+import { fieldFor, type Field } from '@/core/components/field/field.ts';
 import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import type { HelloEvent } from '@/sdk/connections.ts';
 import type { SocketState } from '@/core/net/socket.ts';
@@ -99,4 +101,23 @@ export function renderWith(ui: ReactElement, o: TestStoreOptions = {}) {
   const { store, conn } = testStore(o);
   const wrapper = ({ children }: { children: ReactNode }) => <Provider store={store}><TooltipProvider>{children}</TooltipProvider></Provider>;
   return { ...render(ui, { wrapper }), store, conn };
+}
+
+/** A message field's text (what a textarea's `value` was). */
+export const valueOf = (el: Element): string => fieldOf(el).text();
+/** Puts `text` in a message field as one edit of the person's, the caret at its end. */
+export function setValue(el: Element, text: string): void {
+  const f = fieldOf(el);
+  f.replace(0, f.text().length, text);
+}
+/** Selects [from, to) in a message field (`to` defaults to `from`: a caret). */
+export const select = (el: Element, from: number, to = from): void => {
+  const f = fieldOf(el);
+  if (from === to) f.setCaret(from);
+  else EditorView.findFromDOM(f.element)!.dispatch({ selection: { anchor: from, head: to } });
+};
+function fieldOf(el: Element): Field {
+  const f = fieldFor(el);
+  if (!f) throw new Error('not a message field');
+  return f;
 }
