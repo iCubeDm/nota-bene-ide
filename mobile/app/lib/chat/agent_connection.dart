@@ -15,9 +15,9 @@ import '../hosts/host_link.dart';
 
 enum TabState { connecting, open, occupied, taken, gone, offline, old }
 
-/// The oldest window protocol the app works with (voice messages with language detection): everything up to it is
-/// used without asking, and a window below it is not opened ([TabState.old]).
-const protocolFloor = 18;
+/// The app's floor, protocol 18 (voice messages with language detection): everything up to it is used without asking,
+/// and a window that lacks it is not opened ([TabState.old]).
+const floor = Feature.voiceDetect;
 
 const takenOverCode = 4001;
 
@@ -240,7 +240,7 @@ class AgentConnection extends ChangeNotifier {
         onOpen?.call();
       case ServerEventHello(:final protocol):
         this.protocol = protocol;
-        if (protocol < protocolFloor) {
+        if (!has(floor)) {
           // not ours any more: its close must not start a retry
           final s = _stream;
           _stream = null;

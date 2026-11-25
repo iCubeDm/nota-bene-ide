@@ -141,7 +141,7 @@ void main() {
       'a window below the protocol floor is not opened: old, its socket closed, nothing passed on',
       () async {
         final id = ch.lastWsId;
-        ch.event(id, {'kind': 'hello', 'protocol': protocolFloor - 1});
+        ch.event(id, {'kind': 'hello', 'protocol': floor.protocol - 1});
         ch.event(id, {'kind': 'replay', 'events': <Object?>[]});
         await settle();
         expect(c.state, TabState.old);
