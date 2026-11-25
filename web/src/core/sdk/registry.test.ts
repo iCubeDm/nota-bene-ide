@@ -52,7 +52,7 @@ it('each slot lists the plugins\' parts in the frame\'s order', () => {
     chat: ['10 ChatFeed', '20 HighlightLayer'],
     panes: ['10 TasksDrawer'],
     footer: ['5 HomeFooter', '10 TasksIndicator', '20 Composer'],
-    overlay: ['10 SelectionComment', '20 CommentCardPopover', '40 RecentFiles', '50 Starter', '60 Activity', '70 Seen', '75 AppIcon'],
+    overlay: ['10 SelectionComment', '20 CommentCardPopover', '40 RecentFiles', '50 Starter', '60 Activity', '70 Seen', '72 Arrival', '75 AppIcon'],
     home: ['10 Inbox'],
     // the composer's (issue 545); the pickers serve the comment popup's field as well
     'composer.status': ['10 CtxNudge'],

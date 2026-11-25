@@ -9,6 +9,7 @@ import { ProjectRail } from './ProjectRail.tsx';
 import { HomeFooter, HomeTitle, ProjectsPanel, ProjectsToggle } from './HomeParts.tsx';
 import { Starter } from './Starter.tsx';
 import { Seen } from './seen.ts';
+import { Arrival } from './landing.ts';
 import { installedResource, nav, openFolder, othersWorking, projectsResource, projectsSlice, reasonText, selectProjectsMenu, setProjectsMenu } from './api.ts';
 import { projectsSettings } from './settings.tsx';
 
@@ -45,6 +46,7 @@ export const projectsPlugin = definePlugin({
     // epic 383: the app icon's offer, a notification
     { slot: 'overlay', order: 75, render: AppIcon },
     { slot: 'overlay', order: 70, render: Seen },
+    { slot: 'overlay', order: 72, render: Arrival, on: 'both' },
   ],
   // Alt+P, in a field too (also on a Mac, where Option+P types π): the project switcher in the header
   commands: [
