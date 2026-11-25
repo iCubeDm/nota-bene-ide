@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { generatedImages, isAttachmentAnchor, isCutAnchor, parseClientMessage, POLYGON_MAX_POINTS, SHELL_CMD_MAX, toAnchor, type MediaAnchor } from './protocol.ts';
+import { agentOf, agentPath, generatedImages, isAttachmentAnchor, isCutAnchor, parseClientMessage, POLYGON_MAX_POINTS, SHELL_CMD_MAX, toAnchor, type MediaAnchor } from './protocol.ts';
 
 test('accepts a send', () => expect(parseClientMessage('{"type":"send","id":"u1","text":"hi"}')).toEqual({ type: 'send', id: 'u1', text: 'hi' }));
 test('rejects bad json', () => expect(parseClientMessage('{nope')).toHaveProperty('error'));
@@ -566,4 +566,9 @@ test('comment-op: an add may carry before and restore; anything else in them is 
   expect(parseClientMessage(op({ op: 'add', comment: c, before: 3 }))).toHaveProperty('error');
   expect(parseClientMessage(op({ op: 'add', comment: c, restore: false }))).toHaveProperty('error');
   expect(parseClientMessage(op({ op: 'edit', comment: c, before: 'c0' }))).toEqual({ type: 'comment-op', opId: 'o1', sessionId: null, ops: [{ op: 'edit', comment: c }] });
+});
+
+test('agentOf reads the id agentPath writes; a path with no agent id has none', () => {
+  for (const tail of ['', '/', '/ws', '/deep/link']) expect(agentOf(`${agentPath('codex-m2x7aa')}${tail}`), tail).toBe('codex-m2x7aa');
+  for (const p of ['/', '/a/', '/a/claude-K3F7QZ/', '/a/claude-k3f7qz0/', '/ab/claude-k3f7qz/', '/x/a/claude-k3f7qz/']) expect(agentOf(p), p).toBeNull();
 });

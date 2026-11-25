@@ -12,7 +12,7 @@ import { helperCredential, loginCredential, proveListener, readSecret } from './
 import { readHidden, readRecent, type RecentEntry } from './recent.ts';
 import { CONTROL_HEADER } from './system.ts';
 import { infoAt, registries, serverAgents } from './servers.ts';
-import { AGENT_ID, stateBaseDir } from './state.ts';
+import { AGENT_ID, agentPath, stateBaseDir } from './state.ts';
 import { pidAlive, readKeptAgents, type WindowEntry } from './windows.ts';
 import { wirePath } from './wirePath.ts';
 import type { OpenAsk } from './session/permissions.ts';
@@ -176,7 +176,7 @@ async function proved(o: Window, fetchFn: typeof fetch): Promise<Proved> {
   const n = await proveListener({ dial: o.port, timeoutMs: 1500, token: e.token, fetchFn });
   if (n === null) return { error: 'window not answering' };
   const bearer = `Bearer ${helperCredential(e.token, o.port, n)}`;
-  const base = o.agent ? `/a/${o.agent}` : '';
+  const base = o.agent ? agentPath(o.agent) : '';
   const j = await infoAt(o.port, base, bearer, fetchFn, 1500);
   if (!rooted(j) || (o.agent ? !sameRoot(j.root, o.root) : j.root !== e.w.root)) return { error: 'window not answering' };
   return { provider: e.provider, token: e.token, nonce: n, bearer, root: j.root, base };

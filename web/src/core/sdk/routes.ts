@@ -1,6 +1,8 @@
 // The server's routes, built in one place (issue 511): a builder returns a Route (path and query, no base), which goes to
 // `conn.fetch(route)`, or to `conn.url(route)` for an img, video or iframe src. Query values are percent-encoded;
 // an undefined one is left out.
+import { agentPath } from '@nota-bene/shared';
+
 /** A route: path and query, no base. */
 export type Route = string;
 
@@ -53,7 +55,7 @@ export const routes = {
   prompts: (session?: string) => q('/prompts', { session }),
   seen: () => '/seen',
   /** POST: answers an agent's open ask from the server's home page (issue 651), whose base is the top */
-  agentPermission: (agent: string) => `/a/${seg(agent)}/permission`,
+  agentPermission: (agent: string) => `${agentPath(seg(agent))}/permission`,
   stop: () => '/stop',
   restartServer: (what?: 'pause' | 'cancel') => (what ? `/restart-server/${what}` : '/restart-server'),
   agentAccount: () => '/agent-account',
