@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ago, useT, selectBusy, selectSession, useAppDispatch, useAppSelector, connections, byteSize, routes, selectSwitching, switchSession, REFUSED, useNote, archiveSession, brief, deleteSession, renameSession, useService } from '@/sdk';
+import { ago, useT, selectBusy, selectSession, useAppDispatch, useAppSelector, connection, byteSize, routes, selectSwitching, switchSession, REFUSED, useNote, archiveSession, brief, deleteSession, renameSession, useService } from '@/sdk';
 import { Popover, PopoverContent, PopoverTrigger, ConfirmDialog, ArchiveIcon } from '@/sdk/ui';
 
 /** GET /sessions (server/src/sessions.ts SessionsView). */
@@ -98,7 +98,7 @@ export function SessionPicker() {
   /** (Re)loads the list; the filter and the archive view stay as they are. */
   const load = () => {
     const seq = ++loadSeq.current;
-    void connections.current().fetch(routes.sessions())
+    void connection.fetch(routes.sessions())
       .then(async (r) => {
         if (!r.ok) throw new Error(brief(r.status, await r.text().catch(() => '')));
         const v: unknown = await r.json();

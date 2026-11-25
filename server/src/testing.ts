@@ -2,6 +2,7 @@
 import type { ProviderBackend as AgentBackend } from './agent/types.ts';
 import { verifiedBearer } from './auth.ts';
 import { startServer } from './server.ts';
+import { agentPath } from './state.ts';
 
 type Options = Parameters<typeof startServer>[0];
 
@@ -23,5 +24,5 @@ export async function agentServer(o: Parameters<typeof launchServer>[0]): Promis
   const info = (await (await fetch(`${s.url}/info`, bearer ? { headers: { authorization: bearer } } : {})).json()) as { agents?: { id: string }[] };
   const agent = info.agents?.[0]?.id;
   if (!agent) throw new Error('no agent in /info');
-  return { ...s, url: `${s.url}/a/${agent}`, server: s.url, agent };
+  return { ...s, url: `${s.url}${agentPath(agent)}`, server: s.url, agent };
 }

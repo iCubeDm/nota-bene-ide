@@ -3,20 +3,19 @@ import { createElement, type ReactNode } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
-import { serverEvent } from '../store/store.ts';
 import { makeStore } from '@/core/testing';
 import { cancelRestart } from '../store/controls.ts';
 import type { SocketState } from '../net/socket.ts';
-import { agentConnection, connectionsOf, SELF, useConnection, useConnState, useFeature, type ConnState, type ConnectionManager } from './connections.ts';
+import { agentConnection, connectionOf, useConnection, useConnState, useFeature, type AgentConnection, type ConnState } from './connections.ts';
 
 // the comment flush, called through, records which connection it found (the open-after-registration test below)
-const flushed = vi.hoisted(() => [] as string[]);
+const flushed = vi.hoisted(() => [] as AgentConnection[]);
 vi.mock('../../plugins/comments/slice.ts', async (orig) => {
   const real = await orig<typeof import('../../plugins/comments/slice.ts')>();
   return {
     ...real,
-    flushComments: () => (d: never, g: never, x: { connections: ConnectionManager }) => {
-      flushed.push(x.connections.current().id);
+    flushComments: () => (d: never, g: never, x: { connection: AgentConnection }) => {
+      flushed.push(x.connection);
       return (real.flushComments() as (d: never, g: never, x: unknown) => void)(d, g, x);
     },
   };
@@ -37,29 +36,24 @@ function fake() {
 
 afterEach(() => { vi.unstubAllGlobals(); });
 
-it('the page has exactly one connection, SELF', () => {
+it('a store has one connection, opened once', () => {
   const f = fake();
   const store = makeStore({ url: 'ws://x/ws', connect: f.connect });
-  const m = connectionsOf(store);
   expect(f.connect).toHaveBeenCalledTimes(1);
-  expect(m.list()).toEqual([m.current()]);
-  expect(m.current().id).toBe(SELF);
-  expect(m.get(SELF)).toBe(m.current());
-  expect(m.get('other')).toBeUndefined();
-  expect(m.current().base).toBe('');
+  expect(connectionOf(store).base).toBe('');
 });
 
 it('a socket that reports open inside connect already finds the connection, and the comment flush runs', () => {
   flushed.length = 0;
   const store = makeStore({ url: 'u', connect: (_u, _e, onState) => (onState('open'), { send: () => true, close() {} }) });
   expect(store.getState().conn.state).toBe('open');
-  expect(flushed).toEqual([SELF]);
+  expect(flushed).toEqual([connectionOf(store)]);
 });
 
 it('the connection owns its state; the store mirrors each change with one connState dispatch', () => {
   const f = fake();
   const store = makeStore({ url: 'u', connect: f.connect });
-  const conn = connectionsOf(store).current();
+  const conn = connectionOf(store);
   const seen: ConnState[] = [];
   const off = conn.subscribe(() => seen.push(conn.state()));
   const mirrored: ConnState[] = [];
@@ -87,7 +81,7 @@ it('the connection owns its state; the store mirrors each change with one connSt
 it('onEvent sees each event after the store applied it', () => {
   const f = fake();
   const store = makeStore({ url: 'u', connect: f.connect });
-  const conn = connectionsOf(store).current();
+  const conn = connectionOf(store);
   const items: number[] = [];
   const off = conn.onEvent((ev) => { if (ev.kind === 'user') items.push(store.getState().feed.items.length); });
   f.ev({ kind: 'user', id: 'u1', text: 'hi', ts: 1 });
@@ -96,22 +90,10 @@ it('onEvent sees each event after the store applied it', () => {
   expect(items).toEqual([1]);
 });
 
-it('a server event carries the agent it came from', () => {
-  expect(serverEvent({ kind: 'occupied' }).meta).toEqual({ agent: SELF });
-  expect(serverEvent({ kind: 'occupied' }, 'a2').meta).toEqual({ agent: 'a2' });
-  const f = fake();
-  const store = makeStore({ url: 'u', connect: f.connect });
-  const metas: unknown[] = [];
-  const spy = vi.spyOn(store, 'dispatch');
-  f.ev({ kind: 'occupied' });
-  for (const [a] of spy.mock.calls) if (serverEvent.match(a)) metas.push(a.meta);
-  expect(metas).toEqual([{ agent: SELF }]);
-});
-
 it('hello is adopted in one place: hello() and the feature hook follow it; a drop forgets it', () => {
   const f = fake();
   const store = makeStore({ url: 'u', connect: f.connect });
-  const conn = connectionsOf(store).current();
+  const conn = connectionOf(store);
   const wrapper = ({ children }: { children: ReactNode }) => createElement(Provider, { store, children });
   const hook = renderHook(() => ({ state: useConnState(), models: useFeature('models'), conn: useConnection() }), { wrapper });
   expect(conn.hello()).toBeNull();
@@ -127,7 +109,7 @@ it('hello is adopted in one place: hello() and the feature hook follow it; a dro
 it('stop parks the connection: the socket closes and a later drop does not turn stopped into closed', () => {
   const f = fake();
   const store = makeStore({ url: 'u', connect: f.connect });
-  const conn = connectionsOf(store).current();
+  const conn = connectionOf(store);
   f.state('open');
   conn.stop();
   expect(f.close).toHaveBeenCalledTimes(1);
@@ -141,7 +123,7 @@ it('fetch and url put the agent base in front of the route; fetch carries the ke
   const calls: [string, RequestInit | undefined][] = [];
   vi.stubGlobal('fetch', vi.fn(async (u: string, init?: RequestInit) => (calls.push([u, init]), new Response('ok'))));
   const f = fake();
-  const conn = agentConnection({ id: 'a2', base: '/agents/a2', url: 'ws://x/ws', connect: f.connect, deliver: () => {}, mirror: () => {} });
+  const conn = agentConnection({ base: '/agents/a2', url: 'ws://x/ws', connect: f.connect, deliver: () => {}, mirror: () => {} });
   expect(conn.url('/file?path=a.png')).toBe('/agents/a2/file?path=a.png');
   await conn.fetch('/info', { method: 'POST' });
   expect(calls[0]![0]).toBe('/agents/a2/info');
@@ -150,26 +132,26 @@ it('fetch and url put the agent base in front of the route; fetch carries the ke
   localStorage.removeItem('nb.key');
 });
 
-it('the page connections: before any store the one agent at base "", never opened; then the last store made', async () => {
+it('the page\'s connection: before any store one at base "", never opened; then the last store made\'s', async () => {
   vi.resetModules();
   vi.stubGlobal('fetch', vi.fn(async () => new Response('ok')));
   const sock = vi.fn();
   vi.stubGlobal('WebSocket', sock);
   const fresh = await import('./connections.ts');
-  expect(fresh.connections.current().id).toBe(fresh.SELF);
-  await fresh.connections.current().fetch('/info');
+  expect(fresh.connection.base).toBe('');
+  await fresh.connection.fetch('/info');
   expect(vi.mocked(fetch).mock.calls[0]![0]).toBe('/info');
   expect(sock).not.toHaveBeenCalled();
   const { makeStore: make } = await import('../store/store.ts');
   const store = make({ url: 'ws://x/ws', connect: fake().connect, plugins: [] });
-  expect(fresh.connections.current()).toBe(fresh.connectionsOf(store).current());
+  expect(fresh.pageConnection()).toBe(fresh.connectionOf(store));
 });
 
 it('a thunk fetches through its own store\'s connection, not the page\'s last one', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => new Response('ok')));
   const a = makeStore({ url: 'ws://x/ws', connect: fake().connect });
   makeStore({ url: 'ws://x/ws', connect: fake().connect });
-  const conn = connectionsOf(a).current();
+  const conn = connectionOf(a);
   const spy = vi.spyOn(conn, 'fetch');
   expect(await a.dispatch(cancelRestart())).toBe(true);
   expect(spy).toHaveBeenCalledWith('/restart-server/cancel', { method: 'POST' });

@@ -4,7 +4,7 @@
 // being browsed). "New folder here" creates one in the folder being browsed and opens it. Either way in a window of the
 // chosen agent, and this tab moves there.
 import { useEffect, useRef, useState } from 'react';
-import { useT, connections, routes, send } from '@/sdk';
+import { useT, connection, routes, send } from '@/sdk';
 import { Dialog, DialogContent, DialogTitle } from '@/sdk/ui';
 import { isAbsolute, onPageRestore, openFolder, PROVIDER_LABEL, reasonOf, reasonText, setStarter, validName, type Provider } from './api.ts';
 
@@ -85,7 +85,7 @@ export function Starter() {
       setRunning(false);
       setHidden(false);
       void browse(last.current, false);
-      void connections.current().fetch(routes.systemAgents()).then((r) => (r.ok ? r.json() : null)).then((j: { agents?: Provider[]; default?: Provider } | null) => {
+      void connection.fetch(routes.systemAgents()).then((r) => (r.ok ? r.json() : null)).then((j: { agents?: Provider[]; default?: Provider } | null) => {
         if (!j || !Array.isArray(j.agents)) return;
         setAgents(j.agents);
         if (j.default) setAgent(j.default);

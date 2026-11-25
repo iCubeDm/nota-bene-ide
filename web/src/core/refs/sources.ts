@@ -1,7 +1,7 @@
 import { useStored } from '../sdk/storage.ts';
 import type { Source } from '@nota-bene/shared';
 import { underDir, wireAbs } from '../lib/paths.ts';
-import { connections } from '../sdk/connections.ts';
+import { connection } from '../sdk/connections.ts';
 import { routes } from '../sdk/routes.ts';
 
 /**
@@ -63,7 +63,7 @@ export function loadSources(force = false): Promise<Source[]> {
   const mine = ++seq;
   const p = (async () => {
     try {
-      const r = await connections.current().fetch(routes.sources());
+      const r = await connection.fetch(routes.sources());
       const v: unknown = r.ok ? await r.json() : null;
       if (mine === seq && Array.isArray(v) && v.every(isSource)) setSources(v);
     } catch {

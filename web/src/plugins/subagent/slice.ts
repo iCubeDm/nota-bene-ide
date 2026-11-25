@@ -14,7 +14,7 @@ type FetchResult = 'running' | 'done' | 'gone' | 'error' | 'stale';
  * anything else wrong is `error` with a short text, never a silent empty pane. An answer arriving after the
  * conversation changed is dropped.
  */
-export const fetchSubagent = (tool: string, signal?: AbortSignal): AppThunk<Promise<FetchResult>> => async (dispatch, getState, { connections }) => {
+export const fetchSubagent = (tool: string, signal?: AbortSignal): AppThunk<Promise<FetchResult>> => async (dispatch, getState, { connection }) => {
   const session = getState().feed.session?.id;
   if (!session) return 'stale';
   dispatch(requested({ tool, session }));
@@ -24,7 +24,7 @@ export const fetchSubagent = (tool: string, signal?: AbortSignal): AppThunk<Prom
   const { protocol } = getState().controls;
   if (knownOld(protocol)) return old(); // known old: not even asked
   try {
-    const r = await connections.current().fetch(routes.subagent(session, tool), { signal });
+    const r = await connection.fetch(routes.subagent(session, tool), { signal });
     if (stale()) return 'stale';
     if (r.status === 404 || r.status === 409) return (dispatch(failed({ tool, session, status: 'gone' })), 'gone');
     if (!r.ok) return (dispatch(failed({ tool, session, status: 'error', error: `HTTP ${r.status}` })), 'error');

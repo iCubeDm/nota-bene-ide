@@ -14,7 +14,7 @@ import { agentPrefix, httpHandler, isAllowedHost, pathOf } from './http.ts';
 import type { IdleConfig } from './idle.ts';
 import { launchTarget } from './sessions.ts';
 import { codeChecker } from './codeStamp.ts';
-import { AGENT_ID, agentContext, envAgentContext, newAgentId, stateBaseDir, type AgentContext } from './state.ts';
+import { AGENT_ID, agentContext, agentPath, envAgentContext, newAgentId, stateBaseDir, type AgentContext } from './state.ts';
 import { AuditLog } from './audit.ts';
 import { moveWindow, readKeptAgents, writeKeptAgents } from './windows.ts';
 import { pidAlive, samePath } from './platform.ts';
@@ -218,7 +218,7 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     const selfAgent = (x: Agent): SelfAgent => ({
       root: x.root(),
       // the login of this launch, as the launcher's (attach.ts): the page may be asking from another origin
-      url: (session) => `http://127.0.0.1:${ownPort}/a/${x.id}/#${[...(token === null ? [] : [`t=${loginCredential(token, ownPort, nonce)}`]), ...(session ? [`s=${session}`] : [])].join('&')}`,
+      url: (session) => `http://127.0.0.1:${ownPort}${agentPath(x.id)}/#${[...(token === null ? [] : [`t=${loginCredential(token, ownPort, nonce)}`]), ...(session ? [`s=${session}`] : [])].join('&')}`,
       sessions: x.sessions,
       close: () => void s.closeAgent(x.id),
     });

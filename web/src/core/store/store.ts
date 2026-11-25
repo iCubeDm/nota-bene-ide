@@ -4,7 +4,7 @@ import type { ImageRef, ServerEvent, Voice } from '@nota-bene/shared';
 
 /** A recording a message carries, with what its dictation asks about the language (`dictationAsk`, store/controls.ts). */
 export type VoiceSend = { voice: Voice; ask: { lang: string; detect?: true } };
-import { agentConnection, bindConnections, connectionManager, SELF, type AgentConnection, type AgentId, type Connect, type ConnectionManager, type ConnState } from '../sdk/connections.ts';
+import { agentConnection, bindConnection, type AgentConnection, type Connect, type ConnState } from '../sdk/connections.ts';
 import { t } from '../i18n/index.ts';
 import { activate, tabsSlice, type Tab, type TabsState } from '../tabs/slice.ts';
 import { jumpSlice } from '../tabs/jump.ts';
@@ -37,8 +37,8 @@ export const toastMiddleware: Middleware = () => (next) => (action) => {
   return next(action);
 };
 
-/** The only way server data enters the store; `meta.agent` names the connection it came from (reducers ignore it until issue 383). */
-export const serverEvent = createAction('server/event', (ev: ServerEvent, agent: AgentId = SELF) => ({ payload: ev, meta: { agent } }));
+/** The only way server data enters the store. */
+export const serverEvent = createAction<ServerEvent>('server/event');
 export const connState = createAction<ConnState>('conn/state');
 
 // reduce() is pure and returns a new object. Returning a new state from an Immer case reducer is
@@ -63,7 +63,7 @@ export const connSlice = createSlice({
   extraReducers: (b) => b.addCase(connState, (_s, a) => ({ state: a.payload })),
 });
 
-type Extra = { connections: ConnectionManager; registry: Registry; sent: SentParts };
+type Extra = { connection: AgentConnection; registry: Registry; sent: SentParts };
 
 /** The core's slices; the plugins' are injected by makeStore. */
 const coreReducer = () => combineSlices(feedSlice, connSlice, tabsSlice, jumpSlice, controlsSlice, messageSlice, statsSlice, tasksSlice, subagentsSlice).withLazyLoadedSlices<PluginState>();
@@ -127,7 +127,7 @@ const mediaMiddleware = (media: MediaController): Middleware => (api) => {
 };
 
 /**
- * Creates the store and its connection manager with exactly one connection (SELF). The connection lives only in this
+ * Creates the store and its connection. The connection lives only in this
  * closure (reached by thunks through the thunk `extra` argument), never in Redux state: it is not serializable; the store
  * mirrors its state into the `conn` slice. `plugins`: the app's `PLUGINS`. A test may pass a subset, but `RootState`
  * still names every plugin's slice: a subset suits only code that reads the core's state and that subset's.
@@ -144,8 +144,6 @@ export function makeStore(o: {
 }) {
   // first: a contribution claimed twice fails here, before anything is made
   const registered = buildRegistry(o.plugins, CORE_COMMANDS);
-  const conns: AgentConnection[] = [];
-  const connections = connectionManager(() => conns);
   // one media controller per store; it holds DOM elements, so it lives here and not in state (components reach it via useMedia)
   const media: MediaController = new MediaController({
     pip: o.pip ?? browserPip,
@@ -162,17 +160,8 @@ export function makeStore(o: {
   const sent: SentParts = new Map();
   sendListener(listeners.startListening, sent);
   for (const p of o.plugins) p.listeners?.(listeners.startListening, registered);
-  const store = configureStore({
-    reducer: rootReducer(o.plugins),
-    middleware: (gdm) => gdm({ thunk: { extraArgument: { connections, registry: registered, sent } satisfies Extra } }).prepend(listeners.middleware).concat(...middlewareOf(o.plugins, mediaMiddleware(media))),
-    devTools: devToolsEnabled(),
-  });
-  mediaByStore.set(store, media);
-  pluginsByStore.set(store, o.plugins);
-  registryByStore.set(store, registered);
-  bindConnections(store, connections);
-  const self = agentConnection({
-    id: SELF,
+  // made before the store, which thunks reach it through; its events come only once it is open, below
+  const self: AgentConnection & { open(): void } = agentConnection({
     base: o.base ?? '',
     url: o.url,
     ...(o.connect ? { connect: o.connect } : {}),
@@ -181,11 +170,19 @@ export function makeStore(o: {
       // the server's separator, for paths in agent text (lib/paths.ts serverSep): from its first absolute path
       if (ev.kind === 'hello') learnServerSep(ev.tmpDirs?.[0]);
       if (ev.kind === 'session') learnServerSep(ev.root);
-      store.dispatch(serverEvent(ev, SELF));
+      store.dispatch(serverEvent(ev));
     },
     mirror: (s) => store.dispatch(connState(s)),
   });
-  conns.push(self);
+  const store = configureStore({
+    reducer: rootReducer(o.plugins),
+    middleware: (gdm) => gdm({ thunk: { extraArgument: { connection: self as AgentConnection, registry: registered, sent } satisfies Extra } }).prepend(listeners.middleware).concat(...middlewareOf(o.plugins, mediaMiddleware(media))),
+    devTools: devToolsEnabled(),
+  });
+  mediaByStore.set(store, media);
+  pluginsByStore.set(store, o.plugins);
+  registryByStore.set(store, registered);
+  bindConnection(store, self);
   if (o.socket !== false) self.open();
   return store;
 }
@@ -218,10 +215,10 @@ export const selectSession = (s: RootState) => s.feed.session;
 
 export const sendMessage =
   (text: string, force: boolean, commentIds?: string[], images?: ImageRef[], id: string = crypto.randomUUID(), voice?: VoiceSend): AppThunk<boolean> =>
-  (_d, getState, { connections }) => {
+  (_d, getState, { connection }) => {
     const st = getState();
     if (selectConn(st) !== 'open') return false;
-    return connections.current().send({
+    return connection.send({
       type: 'send', id, text, force: force && selectBusy(st),
       ...(commentIds?.length ? { commentIds } : {}),
       ...(images?.length ? { images } : {}),
@@ -233,13 +230,13 @@ export const sendMessage =
 export const refusedWhy = (reason: Extract<ServerEvent, { kind: 'send-refused' }>['reason']): string =>
   t(reason === 'busy' ? 'sendRefusedBusy' : reason === 'detached' ? 'sendRefusedDetached' : 'sendRefused');
 
-export const interrupt = (): AppThunk => (_d, getState, { connections }) => {
-  if (selectBusy(getState())) connections.current().send({ type: 'interrupt' });
+export const interrupt = (): AppThunk => (_d, getState, { connection }) => {
+  if (selectBusy(getState())) connection.send({ type: 'interrupt' });
 };
 
 /** «Работать здесь»: take the window over from the other tab (R-M7-5/8). */
-export const takeOver = (): AppThunk => (_d, _g, { connections }) => connections.current().takeOver();
+export const takeOver = (): AppThunk => (_d, _g, { connection }) => connection.takeOver();
 
-export const answerPermission = (id: string, allow: boolean, response?: import('@nota-bene/shared').InteractionAnswer): AppThunk => (_d, _g, { connections }) => {
-  connections.current().send({ type: 'permission', id, allow, ...(response ? { response } : {}) });
+export const answerPermission = (id: string, allow: boolean, response?: import('@nota-bene/shared').InteractionAnswer): AppThunk => (_d, _g, { connection }) => {
+  connection.send({ type: 'permission', id, allow, ...(response ? { response } : {}) });
 };

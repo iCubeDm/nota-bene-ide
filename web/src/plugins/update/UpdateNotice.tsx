@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useT, routes, storage, string, defineResource, useResource, usePagePause, connections, send } from '@/sdk';
+import { useT, routes, storage, string, defineResource, useResource, usePagePause, connection, send } from '@/sdk';
 import { reloadPage } from './reloadPage.ts';
 import { Popover, PopoverContent, PopoverTrigger, Markdown } from '@/sdk/ui';
 
@@ -73,7 +73,7 @@ function UpdatedTo({ v, from, stale }: { v: string; from: string; stale: boolean
   if (gone && !stale) return null;
   const open = (on: boolean) => {
     if (on) {
-      void connections.current().fetch(routes.systemUpdateChanges(from))
+      void connection.fetch(routes.systemUpdateChanges(from))
         .then(async (r) => (r.ok ? ((await r.json()) as { text: string | null }).text : null))
         .then((text) => { if (text) setChanges(text); }, () => {});
     } else {
@@ -255,7 +255,7 @@ export function UpdateNotice() {
   if (!update.latest || update.latest === seen) return updated;
   const open = (on: boolean) => {
     if (!on || changes?.v === latest) return;
-    void connections.current().fetch(routes.systemUpdateChanges())
+    void connection.fetch(routes.systemUpdateChanges())
       .then(async (r) => (r.ok ? ((await r.json()) as { text: string | null }).text : null))
       .then((text) => { if (text) setChanges({ v: latest, text }); }, () => {});
   };

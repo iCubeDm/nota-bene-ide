@@ -9,7 +9,7 @@ import path from 'node:path';
 import type { AgentProvider } from './agent/provider.ts';
 import { loginCredential, proveListener, readSecret, SecretError } from './auth.ts';
 import { registries } from './servers.ts';
-import { AGENT_ID } from './state.ts';
+import { AGENT_ID, agentPath } from './state.ts';
 import { CONTROL_HEADER } from './system.ts';
 import { pidAlive } from './windows.ts';
 
@@ -73,7 +73,7 @@ export async function attachAgent(ask: AttachAsk, fetchFn: typeof fetch = fetch)
     if (!r.ok) continue; // 404, 501: an older server; 503: still starting
     const j = (await r.json().catch(() => null)) as { agent?: unknown; opened?: unknown; shown?: unknown } | null;
     if (typeof j?.agent !== 'string' || !AGENT_ID.test(j.agent)) continue;
-    return { port: s.port, agent: j.agent, opened: j.opened === true, shown: j.shown === true, url: `http://127.0.0.1:${s.port}/a/${j.agent}/#t=${loginCredential(s.token, s.port, n)}` };
+    return { port: s.port, agent: j.agent, opened: j.opened === true, shown: j.shown === true, url: `http://127.0.0.1:${s.port}${agentPath(j.agent)}/#t=${loginCredential(s.token, s.port, n)}` };
   }
   return null;
 }

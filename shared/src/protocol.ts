@@ -146,11 +146,20 @@ export type Comment = {
 export const generatedImages = (c: Comment): number => (isMediaAnchor(c.anchor) ? c.genImages ?? 2 : isAttachmentAnchor(c.anchor) ? c.genImages ?? 1 : 0);
 
 export { FEATURES, has, type Feature } from './features.ts';
-/** The protocol this server speaks, announced in `hello`: the largest entry of `FEATURES`, where each number's additions are. */
+/**
+ * The protocol this server speaks, announced in `hello`; `FEATURES` names the additions a client gates on. 30 to 37 are
+ * the agents of one server (epic 383, issue 639: `open-agent`, agents in the host stream and the connector's `open`,
+ * every agent under `/a/<id>/`): nothing asks for them by name; a managed connector of an older protocol is replaced.
+ */
 export const PROTOCOL = 37;
 
 /** The form of an agent id (epic 383): `<provider>-<6 base32>`, as in `/a/<id>/`. */
 export const AGENT_ID = /^[a-z]+-[a-z2-7]{6}$/;
+/** Where a server answers for its agent `id`: the prefix of every route of that agent. */
+export const agentPath = (id: string): string => `/a/${id}`;
+const AGENT_PATH = new RegExp(`^${agentPath(`(${AGENT_ID.source.slice(1, -1)})`)}(?:/|$)`);
+/** The agent a URL path is under, or null: the server's own top, or no agent id after the prefix. */
+export const agentOf = (pathname: string): string | null => AGENT_PATH.exec(pathname)?.[1] ?? null;
 
 /** protocol 27: a send the server holds behind a pending restart or compaction (issue 499), as the feed shows it */
 

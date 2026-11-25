@@ -1,7 +1,7 @@
 import { FileIcon } from '@/sdk/ui';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useStore } from 'react-redux';
-import { useT, connections, routes, setValueAndCaret, placeListFor, revealSelected, AT_RE, useComposerField, type RootState } from '@/sdk';
+import { useT, connection, routes, setValueAndCaret, placeListFor, revealSelected, AT_RE, useComposerField, type RootState } from '@/sdk';
 import { selectShellMode } from './shellMode.ts';
 
 // the `:` shortcode trigger (ShortcodePicker); when it is closer to the caret than the `@`, it owns the keys
@@ -53,7 +53,7 @@ export function MentionPicker({ target, shell }: { target: RefObject<HTMLTextAre
       const mine = ++seq;
       ctl?.abort();
       ctl = new AbortController();
-      connections.current().fetch(routes.complete(q), { signal: ctl.signal })
+      connection.fetch(routes.complete(q), { signal: ctl.signal })
         .then((r) => (r.ok ? (r.json() as Promise<string[]>) : Promise.reject(new Error(String(r.status)))))
         .then((items) => {
           if (mine !== seq) return; // a newer keystroke won

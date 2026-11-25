@@ -45,7 +45,7 @@ import { SecretError, accessToken, isNonce, loginCredential, newNonce, proveList
 import { HIDDEN, killTree, notAProject, npmSpec, realpathNative, samePath } from '../server/src/platform.ts';
 import { launcherOf, patchUpdateState, readCurrent, runtimeDir, writeCurrent } from '../server/src/runtime.ts';
 import { transcriptExists } from '../server/src/sessions.ts';
-import { envAgentContext, lastSession, serverStateDir, stateBaseDir } from '../server/src/state.ts';
+import { agentPath, envAgentContext, lastSession, serverStateDir, stateBaseDir } from '../server/src/state.ts';
 import { defaultChoice, detectAgents, lastAgent, menu, parseChoice, rememberAgent } from '../server/src/agent/choice.ts';
 import { attachAgent, runningServer } from '../server/src/attach.ts';
 import { recordRecent } from '../server/src/recent.ts';
@@ -603,7 +603,7 @@ export async function loginTarget(base, dir) {
   if (dev && (await proveListener({ dial: port, bound, host: 'localhost', timeoutMs: 1500 })) === null) return null;
   // `dir`: the folder's page, its agent's (issue 639: the server's top is its home page)
   const agent = dir === undefined || dev ? undefined : (await probeInfo(port, 1500))?.agents.find((a) => samePath(a.root, dir))?.id;
-  return `${base}${agent ? `/a/${agent}` : ''}/#t=${loginCredential(accessToken(), bound, n)}`;
+  return `${base}${agent ? agentPath(agent) : ''}/#t=${loginCredential(accessToken(), bound, n)}`;
 }
 
 function last(dir) {
