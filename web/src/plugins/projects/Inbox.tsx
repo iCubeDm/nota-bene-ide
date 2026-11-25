@@ -52,7 +52,7 @@ export function Inbox() {
           <section key={id} aria-label={t(head, rows.length)} className="pb-3">
             <h2 className="pt-3 pb-2 text-[0.6875rem] font-semibold tracking-[0.06em] text-muted-foreground uppercase">{t(head, rows.length)}</h2>
             <div className="flex flex-col gap-2">
-              {rows.map((r) => <Item key={`${r.port} ${r.id ?? r.provider} ${r.remote?.host ?? ''}`} r={r} group={id} onAnswer={answer} />)}
+              {rows.map((r) => <Item key={`${r.port} ${r.agent ?? r.provider} ${r.remote?.host ?? ''}`} r={r} group={id} onAnswer={answer} />)}
             </div>
           </section>
         );

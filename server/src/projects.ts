@@ -12,7 +12,7 @@ import { helperCredential, loginCredential, proveListener, readSecret } from './
 import { readHidden, readRecent, type RecentEntry } from './recent.ts';
 import { CONTROL_HEADER } from './system.ts';
 import { infoAt, registries, serverAgents } from './servers.ts';
-import { AGENT_ID, stateBaseDir } from './state.ts';
+import { AGENT_ID, agentPath, stateBaseDir } from './state.ts';
 import { pidAlive, readKeptAgents, type WindowEntry } from './windows.ts';
 import { wirePath } from './wirePath.ts';
 import type { OpenAsk } from './session/permissions.ts';
@@ -30,8 +30,6 @@ export type RunningRow = {
   remote?: { host: string; name: string };
   /** epic 383: an agent the server on `port` opened beside its window's, at `/a/<agent>/` */
   agent?: string;
-  /** epic 383 2g: its agent id (the window's own too) */
-  id?: string;
   /** issue 651: its open asks (clipped), for an agent of the asking page's server only: the page answers it there */
   asks?: OpenAsk[];
 };
@@ -96,7 +94,6 @@ export async function listProjects(own: Own, probe: Probe = probeWith, warn: (m:
         provider: p, port, root: wirePath(root), title: i?.title ?? null, session: i?.session ?? null, state,
         current: port === own.port && (agent ? agent === own.agent : provider === own.provider && !own.agent), clients: i?.clients ?? 0,
         unseen: typeof i?.unseen === 'number' ? i.unseen : 0, last: i?.last ?? null, ...(agent ? { agent } : {}),
-        ...(typeof i?.agent === 'string' ? { id: i.agent } : agent ? { id: agent } : {}),
         ...(port === own.port && Array.isArray(i?.asks) && i.asks.length ? { asks: i.asks } : {}),
       });
       // its agents, each its own row (issue 639: the top is the server's home): as they answer, or while it restarts the
@@ -176,7 +173,7 @@ async function proved(o: Window, fetchFn: typeof fetch): Promise<Proved> {
   const n = await proveListener({ dial: o.port, timeoutMs: 1500, token: e.token, fetchFn });
   if (n === null) return { error: 'window not answering' };
   const bearer = `Bearer ${helperCredential(e.token, o.port, n)}`;
-  const base = o.agent ? `/a/${o.agent}` : '';
+  const base = o.agent ? agentPath(o.agent) : '';
   const j = await infoAt(o.port, base, bearer, fetchFn, 1500);
   if (!rooted(j) || (o.agent ? !sameRoot(j.root, o.root) : j.root !== e.w.root)) return { error: 'window not answering' };
   return { provider: e.provider, token: e.token, nonce: n, bearer, root: j.root, base };

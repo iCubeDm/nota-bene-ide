@@ -39,7 +39,7 @@ export function agentContext(provider: AgentProvider, base: string = stateBaseDi
 
 const B32 = 'abcdefghijklmnopqrstuvwxyz234567';
 
-export { AGENT_ID } from '@nota-bene/shared';
+export { AGENT_ID, agentPath } from '@nota-bene/shared';
 
 /** An agent's id (epic 383): `<provider>-<6 base32>`, what `/a/<id>/` addresses. */
 export function newAgentId(provider: AgentProvider): string {

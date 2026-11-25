@@ -78,7 +78,7 @@ it('issue 691: the asking server answers for its own agents itself; only the oth
   };
   const list = await listProjects({ port: pa, provider: 'claude', self }, async (port) => { probed.push(port); return { root: b, agent: 'claude-bbbbbb' }; });
   expect(probed).toEqual([pb]);
-  expect(list.running.map((r) => [r.port, r.id, r.state])).toEqual(expect.arrayContaining([[pa, 'codex-aaaaaa', 'working'], [pb, 'claude-bbbbbb', 'idle']]));
+  expect(list.running.map((r) => [r.port, r.agent, r.state])).toEqual(expect.arrayContaining([[pa, 'codex-aaaaaa', 'working'], [pb, undefined, 'idle']]));
   expect(list.running).toHaveLength(2);
 });
 

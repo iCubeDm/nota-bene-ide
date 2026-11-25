@@ -1,4 +1,4 @@
-import { TAKEN_OVER_CODE, type ClientMessage, type ServerEvent } from '@nota-bene/shared';
+import { agentOf, agentPath, TAKEN_OVER_CODE, type ClientMessage, type ServerEvent } from '@nota-bene/shared';
 
 const RECONNECT_MS = 1000;
 
@@ -8,8 +8,8 @@ export type Connection = { send(m: ClientMessage): boolean; close(): void; recon
 
 /** The page's agent (epic 383): `/a/<id>` when the page was opened under one, else '' (the window's top, today's URLs). */
 export function agentBase(loc: Location | URL): string {
-  const m = /^\/a\/((?:claude|codex|omp)-[a-z2-7]{6})(?:\/|$)/.exec(loc.pathname);
-  return m ? `/a/${m[1]}` : '';
+  const id = agentOf(loc.pathname);
+  return id ? agentPath(id) : '';
 }
 
 export function defaultSocketUrl(loc: Location | URL): string {

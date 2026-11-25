@@ -14,19 +14,25 @@ const projects = () => {
   return d;
 };
 const line = (o: Record<string, unknown>) => JSON.stringify(o) + '\n';
+/** The file of subagent `a1` of `session` in project folder `folder`, its folders made. */
+const sub = (dir: string, folder: string, session: string) => {
+  const d = path.join(dir, folder, session, 'subagents');
+  fs.mkdirSync(d, { recursive: true });
+  return path.join(d, 'agent-a1.jsonl');
+};
 
 describe('transcriptTimes', () => {
   it('maps each record uuid to its timestamp, found in any project folder', async () => {
     const dir = projects();
     fs.mkdirSync(path.join(dir, '-other'));
     fs.mkdirSync(path.join(dir, '-proj'));
-    fs.writeFileSync(path.join(dir, '-proj', 's1.jsonl'),
+    fs.writeFileSync(sub(dir, '-proj', 's1'),
       line({ type: 'user', uuid: 'u1', timestamp: '2026-11-15T09:30:00.000Z', message: { role: 'user', content: 'a "uuid":"x" in text' } })
       + line({ type: 'assistant', uuid: 'a1', timestamp: '2026-11-15T09:31:05.500Z', message: { role: 'assistant', content: [] } })
       + 'not json\n'
       + line({ type: 'summary', summary: 'no uuid' })
       + line({ type: 'user', uuid: 'u2', timestamp: 'garbage' }));
-    const times = await transcriptTimes(dir, 's1');
+    const times = await transcriptTimes(dir, 's1', { agentId: 'a1' });
     expect(Object.fromEntries(times)).toEqual({ u1: Date.parse('2026-11-15T09:30:00.000Z'), a1: Date.parse('2026-11-15T09:31:05.500Z') });
   });
 
@@ -39,9 +45,9 @@ describe('transcriptTimes', () => {
 
   it('no file, no projects folder or an unsafe id: no times, never a throw', async () => {
     const dir = projects();
-    expect((await transcriptTimes(dir, 'missing')).size).toBe(0);
-    expect((await transcriptTimes(path.join(dir, 'nope'), 's1')).size).toBe(0);
-    expect((await transcriptTimes(dir, '../s1')).size).toBe(0);
+    expect((await transcriptTimes(dir, 'missing', { agentId: 'a1' })).size).toBe(0);
+    expect((await transcriptTimes(path.join(dir, 'nope'), 's1', { agentId: 'a1' })).size).toBe(0);
+    expect((await transcriptTimes(dir, '../s1', { agentId: 'a1' })).size).toBe(0);
     expect((await transcriptTimes(dir, 's1', { agentId: '../x' })).size).toBe(0);
   });
 });
@@ -53,7 +59,7 @@ describe('transcriptTimes on big files', () => {
     const dir = projects();
     fs.mkdirSync(path.join(dir, '-proj'));
     const t0 = Date.parse('2026-11-15T00:00:00.000Z');
-    const out = fs.createWriteStream(path.join(dir, '-proj', 'big.jsonl'));
+    const out = fs.createWriteStream(sub(dir, '-proj', 'big'));
     const n = 20_000;
     for (let i = 0; i < n; i++) out.write(line({ parentUuid: i ? `r${i - 1}` : null, type: 'user', message: { role: 'user', content: `m ${i}` }, uuid: `r${i}`, timestamp: new Date(t0 + i * 1000).toISOString() }));
     // a pasted image: one line of several megabytes before its uuid
@@ -61,7 +67,7 @@ describe('transcriptTimes on big files', () => {
     await new Promise((r) => out.end(r));
     const readFile = vi.spyOn(fs.promises, 'readFile');
     const readFileSync = vi.spyOn(fs, 'readFileSync');
-    const times = await transcriptTimes(dir, 'big');
+    const times = await transcriptTimes(dir, 'big', { agentId: 'a1' });
     expect(readFile).not.toHaveBeenCalled();
     expect(readFileSync).not.toHaveBeenCalled();
     expect(times.size).toBe(n + 1);
@@ -73,10 +79,10 @@ describe('transcriptTimes on big files', () => {
   it('a record whose keys are in another order, or that names a uuid inside, is still read right (by JSON.parse)', async () => {
     const dir = projects();
     fs.mkdirSync(path.join(dir, '-proj'));
-    fs.writeFileSync(path.join(dir, '-proj', 's.jsonl'),
+    fs.writeFileSync(sub(dir, '-proj', 's'),
       line({ timestamp: '2026-11-15T01:00:00.000Z', uuid: 'swapped' })
       + line({ type: 'user', toolUseResult: { uuid: 'inner', timestamp: '2020-01-01T00:00:00.000Z' }, uuid: 'outer', timestamp: '2026-11-15T02:00:00.000Z' }));
-    expect(Object.fromEntries(await transcriptTimes(dir, 's'))).toEqual({ swapped: Date.parse('2026-11-15T01:00:00.000Z'), outer: Date.parse('2026-11-15T02:00:00.000Z') });
+    expect(Object.fromEntries(await transcriptTimes(dir, 's', { agentId: 'a1' }))).toEqual({ swapped: Date.parse('2026-11-15T01:00:00.000Z'), outer: Date.parse('2026-11-15T02:00:00.000Z') });
   });
 });
 
@@ -90,9 +96,9 @@ describe('the project folder of a cwd', () => {
     const dir = projects();
     const cwd = '/work/app';
     fs.mkdirSync(path.join(dir, projectFolder(cwd)));
-    fs.writeFileSync(path.join(dir, projectFolder(cwd), 's1.jsonl'), line({ uuid: 'u', timestamp: '2026-11-15T01:00:00.000Z' }));
+    fs.writeFileSync(sub(dir, projectFolder(cwd), 's1'), line({ uuid: 'u', timestamp: '2026-11-15T01:00:00.000Z' }));
     const readdir = vi.spyOn(fs.promises, 'readdir');
-    expect((await transcriptTimes(dir, 's1', { cwd })).get('u')).toBe(Date.parse('2026-11-15T01:00:00.000Z'));
+    expect((await transcriptTimes(dir, 's1', { agentId: 'a1', cwd })).get('u')).toBe(Date.parse('2026-11-15T01:00:00.000Z'));
     expect(readdir).not.toHaveBeenCalled();
     vi.restoreAllMocks();
   });
@@ -100,8 +106,8 @@ describe('the project folder of a cwd', () => {
   it('a cwd whose folder does not hold it falls back to the scan', async () => {
     const dir = projects();
     fs.mkdirSync(path.join(dir, '-elsewhere'));
-    fs.writeFileSync(path.join(dir, '-elsewhere', 's1.jsonl'), line({ uuid: 'u', timestamp: '2026-11-15T01:00:00.000Z' }));
-    expect((await transcriptTimes(dir, 's1', { cwd: '/work/app' })).get('u')).toBe(Date.parse('2026-11-15T01:00:00.000Z'));
+    fs.writeFileSync(sub(dir, '-elsewhere', 's1'), line({ uuid: 'u', timestamp: '2026-11-15T01:00:00.000Z' }));
+    expect((await transcriptTimes(dir, 's1', { agentId: 'a1', cwd: '/work/app' })).get('u')).toBe(Date.parse('2026-11-15T01:00:00.000Z'));
   });
 });
 

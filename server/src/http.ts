@@ -41,25 +41,13 @@ export function isAllowedHost(host: string | undefined, allowed: readonly string
 
 /**
  * `/a/<id>/…` (epic 383): the agent's id and the path below it, which always starts with `/` (`/a/<id>?x` is `/?x`);
- * null when `url` has no prefix. The window (stripAgent) and the remote channel (remote/device.ts) read it the same way.
+ * null when `url` has no prefix. The server and the remote channel (remote/device.ts) read it the same way.
  */
 export function agentPrefix(url: string): { id: string; rest: string } | null {
   const m = /^\/a\/([^/?]*)/.exec(url);
   if (!m) return null;
   const rest = url.slice(m[0].length);
   return { id: m[1]!, rest: rest.startsWith('/') ? rest : `/${rest}` };
-}
-
-/**
- * The agent's prefix comes off `req.url` before anything reads the path, so every rule (Host and Origin, the control
- * token, the login tiers, the routes) sees what it sees at the top. False: another agent's prefix.
- */
-export function stripAgent(req: { url?: string }, id: string): boolean {
-  const p = agentPrefix(req.url ?? '/');
-  if (!p) return true;
-  if (p.id !== id) return false;
-  req.url = p.rest;
-  return true;
 }
 
 /** The path of a request URL without its query, as it came (no parsing, no normalising). */

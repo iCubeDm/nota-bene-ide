@@ -1,4 +1,4 @@
-import { AGENT_ID, type AgentProvider } from '@nota-bene/shared';
+import { AGENT_ID, agentPath, type AgentProvider } from '@nota-bene/shared';
 import type { WithSlice } from '@reduxjs/toolkit';
 import { definePlugin, serverEvent } from '@/sdk';
 import { AgentClose } from './AgentClose.tsx';
@@ -52,7 +52,7 @@ export const projectsPlugin = definePlugin({
   resources: [projectsResource, shortcutResource],
   // epic 383: `nota-bene` or `/nb` opened another agent of this tab's server: the tab moves to it (same origin, logged in)
   listeners: (start) => {
-    start({ actionCreator: serverEvent, effect: ({ payload: ev }) => { if (ev.kind === 'open-agent' && AGENT_ID.test(ev.agent)) nav.go(`/a/${ev.agent}/`); } });
+    start({ actionCreator: serverEvent, effect: ({ payload: ev }) => { if (ev.kind === 'open-agent' && AGENT_ID.test(ev.agent)) nav.go(`${agentPath(ev.agent)}/`); } });
   },
   projects: { openFolder: async (dir, provider) => { const why = await openFolder(dir, provider); return why && reasonText(why); } },
 });

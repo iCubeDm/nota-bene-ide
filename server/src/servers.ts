@@ -7,7 +7,7 @@
 import path from 'node:path';
 import { PROVIDERS, providerStateDir, type AgentProvider } from './agent/provider.ts';
 import { readPrivateFile, SecretError } from './auth.ts';
-import { AGENT_ID, stateBaseDir } from './state.ts';
+import { AGENT_ID, agentPath, stateBaseDir } from './state.ts';
 import { readWindows, type WindowEntry } from './windows.ts';
 
 const TOKEN_RE = /^[0-9a-f]{64}$/;
@@ -63,6 +63,6 @@ export function agentsOf(info: Record<string, unknown> | null): { id: string; pr
  */
 export async function serverAgents(port: number, bearer: string, fetchFn: typeof fetch = fetch, ms?: number): Promise<{ top: Record<string, unknown> | null; agents: { id: string; provider: AgentProvider; info: Record<string, unknown> | null }[] }> {
   const top = await infoAt(port, '', bearer, fetchFn, ms);
-  const agents = await Promise.all(agentsOf(top).map(async (a) => ({ ...a, info: a.id === top?.agent ? top : await infoAt(port, `/a/${a.id}`, bearer, fetchFn, ms) })));
+  const agents = await Promise.all(agentsOf(top).map(async (a) => ({ ...a, info: a.id === top?.agent ? top : await infoAt(port, agentPath(a.id), bearer, fetchFn, ms) })));
   return { top, agents };
 }
