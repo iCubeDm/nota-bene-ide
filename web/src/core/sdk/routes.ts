@@ -79,8 +79,6 @@ export const routes = {
   systemShortcut: (action?: 'install') => (action ? `/system/shortcut/${action}` : '/system/shortcut'),
   systemStorage: () => '/system/storage',
   systemStorageClean: () => '/system/storage/clean',
-  systemWindows: () => '/system/windows',
-  systemWindowsAction: () => '/system/windows/action',
   systemAgents: () => '/system/agents',
   systemFolders: () => '/system/folders',
   /** the switcher's list; with an action a POST */

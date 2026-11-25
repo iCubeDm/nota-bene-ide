@@ -94,9 +94,9 @@ sequenceDiagram
 
 - **Supervision runs both ways.** The launcher restarts the server. The server exits by itself if the launcher is gone (`watchLauncher`): it is spawned with an IPC channel and stops when the channel closes, which also carries the launcher's stop message (Windows has no SIGTERM). A foreground launcher in turn stops when the shell that started it is gone (`watchParent`), unless it is a `--detach` child. Launcher environment variables that were not inherited from the direct parent are dropped (`dropInheritedLauncherEnv`), so a test server started from inside a window does not think it is supervised.
 - **The launcher's secrets.** A per-launch nonce, kept by exit 75 and replaced after a crash ([Access token](agent-reference.md#access-token)).
-- **The window registry** `~/.nota-bene/windows/<port>.json` serves "one window per folder per provider" and Settings, Windows. Codex and omp keep theirs under `providers/<provider>/`, with their own locks and tokens. A launch takes a per-folder lock (`locks/<hash>`), then gives way to a window already serving the folder, waiting up to 10 s for one that is in its restart gap.
+- **The window registry** `~/.nota-bene/windows/<port>.json` serves "one window per folder per provider". Codex and omp keep theirs under `providers/<provider>/`, with their own locks and tokens. A launch takes a per-folder lock (`locks/<hash>`), then gives way to a window already serving the folder, waiting up to 10 s for one that is in its restart gap.
 - **The Whisper host.** Dictation and voice messages share one detached `host.js` process per state folder (`server/src/dictation/hostMain.ts`), which holds the one Whisper model, takes every window's jobs over a private unix socket (Windows: a named pipe) in one round-robin queue, and exits after 10 minutes idle. A window that cannot use it runs the model itself. Details: [Whisper host](agent-reference.md#whisper-host).
-- **Control between windows.** Window A sends `POST /system/windows/action`; its server proxies the request to `127.0.0.1:<port B>/control/<action>` with the token from `<stateDir>/control-token` (mode 600). `/control/*` rejects any request that has an `Origin` header, so only a server can reach it, never a page.
+- **Control between servers.** A server (the project switcher's stop, the launcher) sends `POST 127.0.0.1:<port B>/control/<action>` with the token from `<stateDir>/control-token` (mode 600). `/control/*` rejects any request that has an `Origin` header, so only a server can reach it, never a page.
 
 **Invoking-host lifetime.** Claude's `/nb` owns a background launcher tied to its
 calling session. The Codex skill uses an owned background process in CLI, or
@@ -434,7 +434,7 @@ App
 | `controls/AgentAccount.tsx` | `GET/POST /agent-account` | Codex account status and native sign-in URL; retry restarts the session. |
 | `controls/SessionPicker.tsx` | `/sessions` | Sessions of the window's provider with their cwd; native Codex list or Claude SDK list. |
 | `controls/RestartMenu.tsx`, `store/controls.ts` | `/info`, `POST /restart-server` | The "Restart the server" item (only under the launcher). |
-| `settings/SettingsView.tsx` and the plugins' `settings` sections | `/system/*` | Windows, storage, defaults, about. |
+| `settings/SettingsView.tsx` and the plugins' `settings` sections | `/system/*` | Storage, defaults, about. |
 | `usage/UsageView.tsx` | `/usage`, `/usage/reset` | The token report; polls while the first import runs. |
 | `net/auth.ts` | `POST /auth`, then the key header on every `apiFetch` (`AgentConnection.fetch`) | Login ([Access token](agent-reference.md#access-token)). |
 

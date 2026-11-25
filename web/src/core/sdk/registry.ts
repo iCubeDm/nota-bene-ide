@@ -312,8 +312,6 @@ export interface SettingsSection {
   in?: string;
   /** `active`: the tab is shown, so a part reads its data now; none: a section of rows only */
   render?: FC<{ active: boolean }>;
-  /** beside a section's heading (its refresh) */
-  aside?: FC<{ active: boolean }>;
 }
 
 /** What the plugins contribute, built once per store from its plugins and frozen. */
