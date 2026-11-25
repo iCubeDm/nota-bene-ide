@@ -129,7 +129,7 @@ describe('device channel', () => {
     // issue 461: Show in Finder / Open act on this computer's desktop: never from the phone
     for (const p of ['/os/reveal', '/os/open', '/OS/open', '/os?x']) expect(goodPath(p)).toBe(false);
     expect(goodPath('/osx.md')).toBe(true);
-    expect(goodPath('/system/windows')).toBe(true);
+    expect(goodPath('/system/storage')).toBe(true);
     for (const p of ['/remotely.md', '/file?path=remote/a.md', '/info']) expect(goodPath(p)).toBe(true);
     // epic 383: an agent's prefix comes off before the rules, as the window takes it off
     for (const p of ['/a/claude-abcdef/control/stop', '/a/claude-abcdef/remote/pair', '/a/x/system/projects/open', '/a/x/os/open', '/a/claude-abcdef/REMOTE', '/a/x//evil.example/y', '/a/x/\\y']) expect(goodPath(p), p).toBe(false);

@@ -2,9 +2,10 @@
 
 ## Unreleased
 
+- **Settings has no Windows section.** The project switcher and the home page list every agent, open and close it; a server is restarted from its own page (▾ next to ↻ Agent).
 - **A session open in another agent is not deleted.** With several agents, on one server or on several, the session list let you delete a conversation another agent had open; the branch list also did not mark a folder whose agent was at work, and let its branch be switched.
 - **Usage limits are recorded for every Claude agent.** Only the agent the server was started with recorded them, and after a server restart none did; the limits chart then had gaps.
-- **An agent with a background task running shows as working.** The project switcher, the home page, the phone and Settings → Windows listed it as idle once its turn ended, though a subagent or a shell still ran; a watcher alone (Monitor) still does not count.
+- **An agent with a background task running shows as working.** The project switcher, the home page and the phone listed it as idle once its turn ended, though a subagent or a shell still ran; a watcher alone (Monitor) still does not count.
 - **Phone: the model changes again with a long list of models.** The model sheet's list scrolls; the effort and **Apply** stay on screen, where before they fell below its edge and a pick was never sent.
 - **A long Claude conversation opens at once.** Its history is read from the last compaction, not from the whole transcript: one of 2.1 GB now opens in a few milliseconds instead of minutes.
 - **A huge conversation no longer freezes the window.** Opening a Claude session whose transcript is past 512 MiB used to hang the server and every agent in it; now its history is not shown, the page says why, and the agent continues the conversation as usual.

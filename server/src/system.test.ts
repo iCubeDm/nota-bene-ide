@@ -11,7 +11,6 @@ import { accessToken } from './auth.ts';
 import { EventHub } from './hub.ts';
 import type { Updater, UpdateStatus } from './updater.ts';
 import { CLEAN_MIN_AGE_MS, CONTROL_HEADER, cleanAttachments, cleanCandidates, cleanStaleArchives, controlToken, describeVersion, dirSize, staleArchives, systemRoutes } from './system.ts';
-import { registerWindow } from './windows.ts';
 import { serverStateDir } from './state.ts';
 
 let home: string;
@@ -46,15 +45,9 @@ async function boot(cwd = proj, auth = false) {
   const port = Number(new URL(s.url).port);
   return { ...s, port, exits, origin: s.server };
 }
-/** The row identity the Settings page sends with an action (the registry entry of that port). */
-const rowOf = (port: number) => {
-  const w = JSON.parse(fs.readFileSync(path.join(home, 'windows', `${port}.json`), 'utf8')) as { root: string; pid: number; startedAt: number };
-  return { port, root: w.root, pid: w.pid, startedAt: w.startedAt };
-};
-// the raw token is accepted as a Bearer; servers booted with auth on (the windows tests: the cross-window probe needs it) want it
+// the raw token is accepted as a Bearer; servers booted with auth on want it
 const post = (url: string, body: unknown, headers: Record<string, string> = {}) =>
   fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${accessToken()}`, ...headers }, body: JSON.stringify(body) });
-const af = (url: string) => fetch(url, { headers: { authorization: `Bearer ${accessToken()}` } });
 async function until(cond: () => boolean, ms = 4000): Promise<void> {
   const end = Date.now() + ms;
   while (!cond()) {
@@ -175,23 +168,6 @@ describe('storage', () => {
     expect((await post(`${s.url}/system/storage/clean`, {})).status).toBe(403); // no Origin
     const r = await post(`${s.url}/system/storage/clean`, {}, { origin: s.origin });
     expect(await r.json()).toMatchObject({ moved: 1, bytes: 20 });
-  });
-});
-
-describe('the row the user saw', () => {
-  it('a port taken by a newer window after the list was loaded is not touched (409 window changed)', async () => {
-    const a = await boot();
-    const b = await boot(mkExtra('nb-system-b-'));
-    const bRoot = ((await (await fetch(`${b.url}/info`)).json()) as { root: string }).root;
-    registerWindow(b.port, bRoot, process.pid);
-    const seen = rowOf(b.port);
-    await new Promise((r) => setTimeout(r, 5));
-    registerWindow(b.port, bRoot, process.pid); // re-registered: another start on the same port (a new startedAt)
-    const r = await post(`${a.url}/system/windows/action`, { ...seen, action: 'stop' }, { origin: a.origin });
-    expect(r.status).toBe(409);
-    expect(await r.text()).toBe('window changed');
-    await new Promise((res) => setTimeout(res, 150));
-    expect(b.exits).toEqual([]);
   });
 });
 
@@ -367,70 +343,27 @@ describe('defaults and about', () => {
   });
 });
 
-describe('windows', () => {
-  it('lists registered windows with their state; /info carries busy and clients', async () => {
-    const a = await boot(proj, true);
-    const b = await boot(mkExtra('nb-system-b-'), true);
-    const bRoot = ((await (await af(`${b.url}/info`)).json()) as { root: string; busy: boolean; clients: number });
-    expect(bRoot).toMatchObject({ busy: false, clients: 0 });
-    registerWindow(a.port, ((await (await af(`${a.url}/info`)).json()) as { root: string }).root, process.pid);
-    registerWindow(b.port, bRoot.root, process.pid);
-    registerWindow(1, '/gone', 999_999_999); // a dead pid
-    const rows = await (await af(`${a.url}/system/windows`)).json() as { port: number; state: string; current: boolean; restartPending?: boolean }[];
-    expect(rows.map((r) => [r.port, r.state, r.current])).toEqual([[1, 'stale', false], ...[[a.port, 'live', true], [b.port, 'live', false]].sort((x, y) => (x[0] as number) - (y[0] as number))]);
-    // gh-422: a live window says whether a restart waits; a stale one says nothing
-    expect(rows.map((r) => r.restartPending)).toEqual([undefined, false, false]);
-  });
-
-  it('A stops B through B\'s /control with the token; A refuses to act on itself; a page never reaches /control', async () => {
-    const a = await boot(proj, true);
-    const b = await boot(mkExtra('nb-system-b-'), true);
-    for (const s of [a, b]) registerWindow(s.port, ((await (await af(`${s.url}/info`)).json()) as { root: string }).root, process.pid);
-    // a page (with an Origin, even its own) is refused at /control, with or without the token
+describe('control', () => {
+  it('a page never reaches /control; the control token stops the server', async () => {
+    const b = await boot(proj, true);
+    // a page (with an Origin, even its own) is refused, with or without the token
     expect((await post(`${b.url}/control/stop`, {}, { origin: b.origin })).status).toBe(403);
     expect((await post(`${b.url}/control/stop`, {}, { origin: b.origin, [CONTROL_HEADER]: controlToken() })).status).toBe(403);
     // no token, or a wrong one: refused
     expect((await post(`${b.url}/control/stop`, {})).status).toBe(403);
     expect((await post(`${b.url}/control/stop`, {}, { [CONTROL_HEADER]: 'f'.repeat(64) })).status).toBe(403);
-    // A's own window and bad input
-    expect((await post(`${a.url}/system/windows/action`, { ...rowOf(a.port), action: 'stop' }, { origin: a.origin })).status).toBe(409);
-    expect((await post(`${a.url}/system/windows/action`, { ...rowOf(b.port), action: 'rm -rf' }, { origin: a.origin })).status).toBe(400);
-    expect((await post(`${a.url}/system/windows/action`, { port: 2, action: 'stop' }, { origin: a.origin })).status).toBe(404);
-    // a page of another origin, a missing Origin, a null or array body
-    expect((await post(`${a.url}/system/windows/action`, { ...rowOf(b.port), action: 'stop' }, { origin: 'http://evil.test' })).status).toBe(403);
-    expect((await post(`${a.url}/system/windows/action`, { ...rowOf(b.port), action: 'stop' })).status).toBe(403);
-    for (const body of [null, [1]]) expect((await post(`${a.url}/system/windows/action`, body, { origin: a.origin })).status).toBe(400);
     // a header with a non-ASCII byte is a 403, not a 500
     expect((await post(`${b.url}/control/stop`, {}, { [CONTROL_HEADER]: 'é'.repeat(32) + 'a'.repeat(31) })).status).toBe(403);
-    // restart-server on an unsupervised window: B says 409, A reports it
-    const rs = await post(`${a.url}/system/windows/action`, { ...rowOf(b.port), action: 'restart-server' }, { origin: a.origin });
-    expect(await rs.json()).toEqual({ status: 409 });
+    // without a launcher a restart is refused; a cancel of nothing pending is fine
+    expect((await post(`${b.url}/control/restart-server`, {}, { [CONTROL_HEADER]: controlToken() })).status).toBe(409);
+    expect((await post(`${b.url}/control/restart-server-now`, {}, { [CONTROL_HEADER]: controlToken() })).status).toBe(409);
+    expect((await post(`${b.url}/control/restart-server-cancel`, {}, { [CONTROL_HEADER]: controlToken() })).status).toBe(200);
     expect(b.exits).toEqual([]);
-    // gh-422: restart now needs a launcher too; a cancel of nothing pending is fine
-    const rn = await post(`${a.url}/system/windows/action`, { ...rowOf(b.port), action: 'restart-server-now' }, { origin: a.origin });
-    expect(await rn.json()).toEqual({ status: 409 });
-    const rc = await post(`${a.url}/system/windows/action`, { ...rowOf(b.port), action: 'restart-server-cancel' }, { origin: a.origin });
-    expect(await rc.json()).toEqual({ status: 200 });
-    expect(b.exits).toEqual([]);
-    // the real thing: B exits with 0 (the launcher's "stop")
-    const r = await post(`${a.url}/system/windows/action`, { ...rowOf(b.port), action: 'stop' }, { origin: a.origin });
-    expect(r.status).toBe(200);
+    // the real thing: it exits with 0 (the launcher's "stop"), once
+    expect((await post(`${b.url}/control/stop`, {}, { [CONTROL_HEADER]: controlToken() })).status).toBe(200);
     await until(() => b.exits.length > 0);
-    expect(b.exits).toEqual([0]);
-    expect(a.exits).toEqual([]);
-    // the server closes its port on the way out (no second action can land); the exit happens once
     await new Promise((r) => setTimeout(r, 300));
     expect(b.exits).toEqual([0]);
-  });
-
-  it('a registered port that answers with another root gets no token', async () => {
-    const a = await boot(proj, true);
-    const b = await boot(mkExtra('nb-system-b-'), true);
-    registerWindow(b.port, '/some/other/root', process.pid); // the port was reused by another window/app
-    const r = await post(`${a.url}/system/windows/action`, { ...rowOf(b.port), action: 'stop' }, { origin: a.origin });
-    expect(r.status).toBe(409);
-    await new Promise((res) => setTimeout(res, 150));
-    expect(b.exits).toEqual([]);
   });
 });
 

@@ -13,7 +13,7 @@ import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http
 import os from 'node:os';
 import path from 'node:path';
 import { isThemeId, isUiLang, isUiScale, MODES, type AgentMode as Mode } from '@nota-bene/shared';
-import { SecretError, stateSecret, verifiedBearer } from './auth.ts';
+import { stateSecret } from './auth.ts';
 import { reportError } from './errors.ts';
 import type { EventHub } from './hub.ts';
 import { DEFAULT_SOUNDS, isShellChoice, isSounds, readPrefs, setAuditPref, setDefaultModePref, setLangPref, setProjectRailPref, setShellPref, setSoundsPref, setThemePref, setUiScalePref, setUpdateCheckPref } from './prefs.ts';
@@ -25,8 +25,6 @@ import { installShortcut, shortcutInstalled, shortcutPath } from './shortcut.ts'
 import { changelog, isNewer, RELEASE, updateCheck, updateCheckForcedOff } from './update.ts';
 import type { Updater } from './updater.ts';
 import { readVersion } from './version.ts';
-import { wirePath } from './wirePath.ts';
-import { pidAlive, readWindows } from './windows.ts';
 
 export const CONTROL_HEADER = 'x-nota-bene-control';
 /** gh-422: `restart-server` waits for the agent's pause; `-now` cuts the turn, `-cancel` drops a pending one */
@@ -190,50 +188,6 @@ function moveToTrash(stateDir: string, kind: 'attachments' | 'history', files: s
   return { moved, bytes, trash, errors };
 }
 
-export type WindowInfo = { root: string; session?: string | null; title?: string | null; supervised?: boolean; busy?: boolean; clients?: number; restartPending?: boolean };
-export type WindowRow = {
-  port: number; root: string; pid: number; startedAt: number; current: boolean;
-  /** live: answers with its root; restarting: in a relaunch gap; silent: pid alive, no answer; stale: gone */
-  state: 'live' | 'restarting' | 'silent' | 'stale';
-  session: string | null; title: string | null; supervised: boolean; busy: boolean; clients: number;
-  /** gh-422: a server restart waits for its pause; absent: a window of a version before that (its restart cuts the turn) */
-  restartPending?: boolean;
-};
-
-export async function probeWindow(port: number, timeoutMs = 700): Promise<WindowInfo | null> {
-  try {
-    // the credential goes only to a listener that proved it holds the token; never follow a redirect: the answer must be that port's own
-    const bearer = await verifiedBearer(port, timeoutMs);
-    if (!bearer) return null;
-    const r = await fetch(`http://127.0.0.1:${port}/info`, { headers: { authorization: bearer }, signal: AbortSignal.timeout(timeoutMs), redirect: 'error' });
-    if (!r.ok) return null;
-    const j = (await r.json()) as WindowInfo;
-    return j && typeof j.root === 'string' ? j : null;
-  } catch (e) {
-    if (e instanceof SecretError) throw e;
-    return null;
-  }
-}
-
-export async function listWindows(own: number, probe = probeWindow): Promise<WindowRow[]> {
-  const rows = await Promise.all(Object.entries(readWindows()).map(async ([key, w]): Promise<WindowRow> => {
-    const port = Number(key);
-    const alive = pidAlive(w.pid);
-    const info = alive ? await probe(port) : null;
-    const state: WindowRow['state'] = !alive
-      ? (w.launcherPid !== undefined && pidAlive(w.launcherPid) ? 'restarting' : 'stale')
-      : info && info.root === w.root ? 'live' : 'silent';
-    const live = state === 'live' && info;
-    return {
-      port, root: wirePath(w.root), pid: w.pid, startedAt: w.startedAt, current: port === own, state,
-      session: live ? info.session ?? null : null, title: live ? info.title ?? null : null,
-      supervised: live ? !!info.supervised : false, busy: live ? !!info.busy : false, clients: live ? info.clients ?? 0 : 0,
-      ...(live && typeof info.restartPending === 'boolean' ? { restartPending: info.restartPending } : {}),
-    };
-  }));
-  return rows.sort((a, b) => a.port - b.port);
-}
-
 /**
  * The version About shows. A git checkout (`.git` right in `dir`, a directory or a worktree's file) says `git describe`;
  * an installed package has no checkout, so it says its own package.json version. Never `git describe` there: it would
@@ -296,19 +250,9 @@ export function systemRoutes(o: {
   /** the CHANGELOG sections between two versions, or null (tests stub it) */
   changes?: (current: string, latest: string) => Promise<string | null>;
   control: Control;
-  probe?: (port: number) => Promise<WindowInfo | null>;
   /** the app icon (server/src/shortcut.ts; tests stub it) */
   shortcut?: { path(): string | null; installed(): boolean; install(): string };
-  relay?: (port: number, action: ControlAction, token: string) => Promise<number>;
 }): Record<string, RequestListener> {
-  const probe = o.probe ?? probeWindow;
-  const relay = o.relay ?? (async (port, action, token) => {
-    // the control token goes only to a listener that proved it holds the access token (the probe before may be stale)
-    if (!(await verifiedBearer(port, 1000))) return 502;
-    // redirect: 'error': a 307/308 would carry the token on to wherever it points
-    const r = await fetch(`http://127.0.0.1:${port}/control/${action}`, { method: 'POST', headers: { [CONTROL_HEADER]: token }, signal: AbortSignal.timeout(3000), redirect: 'error' });
-    return r.status;
-  });
   const fail = (res: ServerResponse, where: string, e: unknown) => {
     reportError(o.hub, where, e);
     if (!res.headersSent) text(res, 500, 'internal error');
@@ -462,29 +406,6 @@ export function systemRoutes(o: {
       } catch (e) {
         fail(res, '/system/storage/clean', e);
       }
-    },
-
-    '/system/windows': (req, res) => {
-      if (!only('GET', req, res)) return;
-      listWindows(o.port(), probe).then((rows) => json(res, 200, rows), (e) => fail(res, '/system/windows', e));
-    },
-
-    '/system/windows/action': (req, res) => {
-      if (!only('POST', req, res)) return;
-      void readJson(req).then(async (b) => {
-        const { port, action, root, pid, startedAt } = b as { port?: unknown; action?: unknown; root?: unknown; pid?: unknown; startedAt?: unknown };
-        if (!Number.isInteger(port) || !(CONTROL_ACTIONS as readonly unknown[]).includes(action)) return text(res, 400, 'bad request');
-        if (port === o.port()) return text(res, 409, 'this window'); // its own controls are in its header
-        const w = readWindows()[String(port)];
-        if (!w || !pidAlive(w.pid)) return text(res, 404, 'no such window');
-        // the window the user saw (and confirmed) must still be the one on that port: a port reused by a newer window
-        // after the list was loaded is not touched. The list sent the root in the wire form; the stored form is fine too
-        if ((w.root !== root && wirePath(w.root) !== root) || w.pid !== pid || w.startedAt !== startedAt) return text(res, 409, 'window changed');
-        const info = await probe(port as number);
-        if (!info || info.root !== w.root) return text(res, 409, 'window not answering');
-        const status = await relay(port as number, action as ControlAction, controlToken());
-        json(res, status === 200 ? 200 : 502, { status });
-      }).catch((e: unknown) => (e instanceof SyntaxError || (e instanceof Error && e.message === 'body too large') ? text(res, 400, 'bad request') : fail(res, '/system/windows/action', e)));
     },
 
     '/control/': controlRoute({ hub: o.hub, control: o.control }),

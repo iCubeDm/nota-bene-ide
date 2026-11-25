@@ -452,7 +452,6 @@ The model pill in the header sets model and effort (**Auto**, Low … Max, as th
 
 The gear: language, theme, interface scale (− +; Alt+=, Alt+−, Alt+0 anywhere), **Usage**, **Remote access**, **All settings…**:
 
-- **Windows**: this agent's running windows (folder, port, state, tabs, uptime) with Open, Restart agent, Restart server, Stop. A restart waiting for its agent shows *restart pending* with Restart the server now and Cancel.
 - **Storage**: disk use; **Clean unreferenced files** moves unused images and recordings over a day old, and history of deleted sessions, to `trash/` (nothing is deleted).
 - **Voice messages (Whisper)**: **Install Whisper** downloads the `whisper-small` model and its runtime from npm and Hugging Face (about 430 MB, 770 MB on disk) into the state folder after a confirmation naming the path; then no network is needed. A checkbox turns it on for every window of this agent, and their phones. **Spoken language**: detect automatically or pin one, also per agent. **Remove Whisper** keeps the recordings.
 - **Defaults**: language, scale (90–150 %), the start mode for new projects, **Sounds** (a tab you are not looking at needs you: on; a turn ended: off; **▶** previews), the update check, the audit log, the projects rail, and on Windows the `!` shell.
@@ -747,7 +746,7 @@ Native, no WSL or Docker. Differences:
 - **`/nb` fails with an apostrophe in the path** (`/Users/o'brien`): use `npm i -g nota-bene-ide` and `nota-bene`.
 - **"cannot write to the plugin data dir ... sandbox mode"**: allow writes to that folder in Claude Code's sandbox settings, or turn the sandbox off for `/nb`.
 - **`/nb` fails with *Shell command permission check failed* on its `open.mjs` command** (often with *the auto mode classifier gave no verdict*): Claude Code did not let the skill's own command through its pre-approval and auto mode had no answer. Run `/nb` again (a missing verdict is often brief); update the plugin (`claude plugin marketplace update nota-bene`, `claude plugin update nota-bene@nota-bene`, restart Claude Code), whose `/nb` pre-approves its exact command; or add the allow rule `Bash(node "<path>/skills/nb/open.mjs" *)` to `permissions.allow` in `~/.claude/settings.json`, with the quoted path from the message.
-- **"port N is in use"**: another `--port`, or none. "no free port": stop a window in Settings → Windows.
+- **"port N is in use"**: another `--port`, or none. "no free port": close an agent or stop Nota Bene (⏻ in the header).
 - **`nota-bene . &` stops with its shell**: use `nota-bene . --detach`.
 - **"This window is not logged in"** (a bookmark, an old tab, after a crash relaunch): run `nota-bene` or `/nb` again, or `nota-bene --front PORT`; `--url PORT` prints a URL.
 - **A refused token file** (readable by others, a link, another user's, not 64 hex): follow the printed fix (``chmod 600 <file>``, or delete it, which logs every window out). Same for `control-token` and a state folder owned by someone else (set `NOTA_BENE_HOME`). On Windows only links, folders and bad content are refused: delete the file.
