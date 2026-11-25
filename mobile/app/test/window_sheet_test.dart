@@ -25,7 +25,7 @@ Map<String, Object?> hello({
   String? provider,
 }) => {
   'kind': 'hello',
-  'protocol': 13,
+  'protocol': 18,
   'capabilities': Rig.caps(
     compact: compact,
     clear: clear,
@@ -210,34 +210,15 @@ void main() {
   });
 
   group('the project icon', () {
-    Future<void> openWith(
-      WidgetTester t,
-      HostWindow w, {
-      bool icons = true,
-    }) async {
-      await r.open(
-        t,
-        hello: hello(),
-        events: [session()],
-        win: w,
-        icons: icons,
-      );
+    Future<void> openWith(WidgetTester t, HostWindow w) async {
+      await r.open(t, hello: hello(), events: [session()], win: w);
       await t.tap(find.text('Spec work'));
       await t.pumpAndSettle();
     }
 
-    testWidgets(
-      'a host that knows icons offers Set icon, Remove only with one',
-      (t) async {
-        await openWith(t, window(4791, '/home/u/notes'));
-        expect(inSheet(find.text('Set icon')), findsOneWidget);
-        expect(inSheet(find.text('Remove icon')), findsNothing);
-      },
-    );
-
-    testWidgets('a host without icon support offers neither', (t) async {
-      await openWith(t, window(4791, '/home/u/notes'), icons: false);
-      expect(inSheet(find.text('Set icon')), findsNothing);
+    testWidgets('the sheet offers Set icon, Remove only with one', (t) async {
+      await openWith(t, window(4791, '/home/u/notes'));
+      expect(inSheet(find.text('Set icon')), findsOneWidget);
       expect(inSheet(find.text('Remove icon')), findsNothing);
     });
 

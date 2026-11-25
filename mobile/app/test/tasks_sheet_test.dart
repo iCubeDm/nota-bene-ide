@@ -189,29 +189,6 @@ void main() {
     ]);
   });
 
-  testWidgets(
-    'a window before the task controls lists the tasks without Stop, Background or a view',
-    (t) async {
-      final r = Rig();
-      addTearDown(r.dispose);
-      await r.open(
-        t,
-        events: [session],
-        hello: {'kind': 'hello', 'protocol': 6, 'capabilities': Rig.caps()},
-      );
-      r.event(started('a', {'call': 'toolu_a', 'bg': false}));
-      r.event(started('s', {'type': 'local_bash'}));
-      await t.pumpAndSettle();
-      await openSheet(t);
-      expect(row('a'), findsOneWidget);
-      expect(find.text('Stop'), findsNothing);
-      expect(find.text('To background'), findsNothing);
-      await t.tap(row('s'));
-      await t.pump(const Duration(milliseconds: 400));
-      expect(r.ch.requests, isEmpty);
-    },
-  );
-
   testWidgets('a window without To background has none', (t) async {
     final r = Rig();
     addTearDown(r.dispose);
@@ -220,7 +197,7 @@ void main() {
       events: [session],
       hello: {
         'kind': 'hello',
-        'protocol': 13,
+        'protocol': 18,
         'capabilities': {...Rig.caps(), 'taskBackground': false},
       },
     );

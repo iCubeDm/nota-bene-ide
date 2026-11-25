@@ -267,7 +267,7 @@ void main() {
           size: const Size(360, 800),
           hello: {
             'kind': 'hello',
-            'protocol': 14,
+            'protocol': 18,
             'capabilities': Rig.caps(dictation: 'whisper'),
           },
         );
@@ -387,7 +387,7 @@ void main() {
   group('the mode under Chat', () {
     Map<String, Object?> hello(List<String> modes) => {
       'kind': 'hello',
-      'protocol': 13,
+      'protocol': 18,
       'capabilities': Rig.caps(modes: modes),
     };
 

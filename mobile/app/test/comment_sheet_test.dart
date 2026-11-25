@@ -252,7 +252,7 @@ void main() {
 
     Future<void> openSheet(
       WidgetTester t, {
-      int protocol = 14,
+      int protocol = 18,
       String? cap = 'whisper',
       Comment? editing,
     }) async {
@@ -360,25 +360,13 @@ void main() {
     });
 
     testWidgets(
-      'Automatic on a host older than 18 asks for the language only',
-      (t) async {
-        final v = await VoiceLang.load(MemoryVault());
-        r.voiceLang = v;
-        await openSheet(t);
-        await record(t);
-        await t.pumpAndSettle();
-        expect(r.ch.requests.last, endsWith('/text?lang=en'));
-      },
-    );
-
-    testWidgets(
       'a released recording saves the comment with that clip once its text is in',
       (t) async {
         hold = Completer<void>();
         await openSheet(t);
         await record(t);
         expect(r.ch.requests, ['POST /voice', startsWith('POST /voice/')]);
-        expect(r.ch.requests.last, endsWith('/text?lang=en'));
+        expect(r.ch.requests.last, endsWith('/text?lang=en&detect=1'));
         // the transcript is part of the comment: the sheet waits for it
         expect(got, isNull);
         expect(find.byType(BottomSheet), findsOneWidget);
@@ -526,22 +514,6 @@ void main() {
       await t.pump(const Duration(seconds: 3));
     });
 
-    testWidgets('below protocol 14 the mic is greyed and says why', (t) async {
-      await openSheet(t, protocol: 13);
-      expect(mic(), findsNothing);
-      final old = find.descendant(
-        of: find.byType(BottomSheet),
-        matching: find.byKey(const ValueKey('mic-old')),
-      );
-      expect(old, findsOneWidget);
-      await t.tap(old);
-      await t.pump();
-      expect(
-        find.text('Voice messages need a newer Nota Bene on the computer.'),
-        findsOneWidget,
-      );
-    });
-
     testWidgets('without Whisper the mic opens the install sheet', (t) async {
       await openSheet(t, cap: null);
       await t.tap(mic());
@@ -601,30 +573,6 @@ void main() {
         await t.pump();
       },
     );
-
-    testWidgets('the greyed mic says why above the field, not over it', (
-      t,
-    ) async {
-      await openSheet(t, protocol: 13);
-      await t.tap(
-        find.descendant(
-          of: find.byType(BottomSheet),
-          matching: find.byKey(const ValueKey('mic-old')),
-        ),
-      );
-      await t.pump();
-      await t.pump(const Duration(milliseconds: 1000));
-      expect(
-        t
-            .getRect(
-              find.text(
-                'Voice messages need a newer Nota Bene on the computer.',
-              ),
-            )
-            .bottom,
-        lessThanOrEqualTo(t.getRect(field).top),
-      );
-    });
 
     testWidgets(
       'after a failed transcript the mic is off: one voice per comment',

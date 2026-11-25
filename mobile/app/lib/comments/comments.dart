@@ -190,15 +190,13 @@ class Comments extends ChangeNotifier {
   }
 
   /// What a recording carries when it leaves, composed then and not at record time: only the [ids] still pending
-  /// (the desktop may have sent or deleted some meanwhile), their batch and images. None for a window older than 16.
+  /// (the desktop may have sent or deleted some meanwhile), their batch and images.
   ({String text, List<ImageRef> images, List<String> ids}) composeFor(
     WindowState w,
     List<String> ids,
     String lang,
   ) {
-    final items = _has(Feature.voiceComments)
-        ? pendingOf(ids)
-        : const <Comment>[];
+    final items = pendingOf(ids);
     if (items.isEmpty) return (text: '', images: const [], ids: const []);
     final b = compose(w, '', items, lang);
     return (text: b.text, images: b.images, ids: [for (final c in items) c.id]);

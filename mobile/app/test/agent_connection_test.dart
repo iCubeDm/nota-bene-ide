@@ -137,6 +137,19 @@ void main() {
       },
     );
 
+    test(
+      'a window below the protocol floor is not opened: old, its socket closed, nothing passed on',
+      () async {
+        final id = ch.lastWsId;
+        ch.event(id, {'kind': 'hello', 'protocol': floor.protocol - 1});
+        ch.event(id, {'kind': 'replay', 'events': <Object?>[]});
+        await settle();
+        expect(c.state, TabState.old);
+        expect(calls, isEmpty);
+        expect(ch.lastWsId, id);
+      },
+    );
+
     test('4001: taken, no reconnect of its own', () async {
       ch.event(ch.lastWsId, {'kind': 'replay', 'events': <Object?>[]});
       await settle();

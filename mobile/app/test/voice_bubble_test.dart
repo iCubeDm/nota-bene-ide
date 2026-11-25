@@ -176,7 +176,7 @@ void main() {
         settle: false,
         hello: {
           'kind': 'hello',
-          'protocol': 14,
+          'protocol': 18,
           'capabilities': Rig.caps(dictation: 'whisper'),
         },
       );

@@ -131,7 +131,7 @@ void main() {
       'before', (t) async {
     await r.open(t);
     expect(find.byKey(const ValueKey('send')), findsNothing);
-    expect(find.byKey(const ValueKey('mic-old')), findsOneWidget);
+    expect(find.byKey(const ValueKey('mic')), findsOneWidget);
     await t.enter('x');
     final send = find.byKey(const ValueKey('send'));
     expect(t.widget<IconButton>(send).onPressed, isNotNull);
@@ -200,7 +200,7 @@ void main() {
 
     Future<void> openVoice(
       WidgetTester t, {
-      int protocol = 14,
+      int protocol = 18,
       String? dictation = 'whisper',
       List<Map<String, Object?>> events = const [],
     }) => r.open(
@@ -240,57 +240,6 @@ void main() {
         expect(find.byType(RecordButton), findsOneWidget);
       },
     );
-
-    testWidgets('below protocol 14 the mic stays, greyed, not the action '
-        'button', (t) async {
-      await openVoice(t, protocol: 13);
-      final old = find.byKey(const ValueKey('mic-old'));
-      expect(old, findsOneWidget);
-      // its name is short; the long text is the snackbar's
-      expect(t.widget<IconButton>(old).tooltip, 'Voice messages unavailable');
-      expect(find.byType(RecordButton), findsNothing);
-      expect(find.byKey(const ValueKey('send')), findsNothing);
-      expect(t.getSize(old), const Size(40, 40));
-      final c = Theme.of(t.element(old)).extension<NbColors>()!;
-      final style = t.widget<IconButton>(old).style!;
-      expect(style.backgroundColor?.resolve({}), isNot(c.primary));
-      expect(style.foregroundColor?.resolve({}), isNot(c.primaryFg));
-    });
-
-    testWidgets('a tap on the old host\'s mic says the computer needs an '
-        'update, and records nothing', (t) async {
-      await openVoice(t, protocol: 13);
-      await t.tap(find.byKey(const ValueKey('mic-old')));
-      await t.pumpAndSettle();
-      expect(
-        find.text('Voice messages need a newer Nota Bene on the computer.'),
-        findsOneWidget,
-      );
-      // the snackbar floats above the message field, as the others do
-      final card = find
-          .descendant(
-            of: find.byType(SnackBar),
-            matching: find.byType(Material),
-          )
-          .first;
-      expect(
-        t.getRect(card).bottom,
-        lessThanOrEqualTo(t.getRect(find.byType(TextField).first).top),
-      );
-      expect(r.sent, isEmpty);
-      expect(r.ch.requests, isEmpty);
-    });
-
-    testWidgets('below protocol 14 typing still makes it Send', (t) async {
-      await openVoice(t, protocol: 13);
-      await t.enter('x');
-      await t.pumpAndSettle();
-      expect(find.byKey(const ValueKey('mic-old')), findsNothing);
-      expect(find.byKey(const ValueKey('send')), findsOneWidget);
-      await t.enter('');
-      await t.pumpAndSettle();
-      expect(find.byKey(const ValueKey('mic-old')), findsOneWidget);
-    });
 
     testWidgets('without Whisper the mic opens its sheet', (t) async {
       await openVoice(t, dictation: null);
@@ -429,7 +378,7 @@ void main() {
     testWidgets(
       'issue 655: pending comments with an empty field: Send beside the mic, and it sends them',
       (t) async {
-        await openVoice(t, protocol: 16);
+        await openVoice(t, protocol: 18);
         r.event(pending);
         await t.pumpAndSettle();
         expect(find.text('1 comment to send'), findsOneWidget);
@@ -463,7 +412,7 @@ void main() {
     testWidgets(
       'a recording made with comments pending sends their ids and batch',
       (t) async {
-        await openVoice(t, protocol: 16);
+        await openVoice(t, protocol: 18);
         r.event(pending);
         await t.pumpAndSettle();
         r.ch.onHttp = (port, method, path) async => ok();
@@ -480,27 +429,9 @@ void main() {
     );
 
     testWidgets(
-      'a window older than 16 gets the recording alone; the comments stay pending',
-      (t) async {
-        await openVoice(t, protocol: 15);
-        r.event(pending);
-        await t.pumpAndSettle();
-        r.ch.onHttp = (port, method, path) async => ok();
-        await record(t);
-        await t.pump();
-        await t.pump();
-        final m = r.sent.single;
-        expect(m['voice'], voice);
-        expect(m.containsKey('commentIds'), isFalse);
-        expect(m['text'], '');
-        expect(find.text('1 comment to send'), findsOneWidget);
-      },
-    );
-
-    testWidgets(
       'the batch is written when the recording leaves: a comment the desktop sent meanwhile is left out',
       (t) async {
-        await openVoice(t, protocol: 16);
+        await openVoice(t, protocol: 18);
         r.event(pending);
         await t.pumpAndSettle();
         final up = Completer<HttpAnswer>();
@@ -527,7 +458,7 @@ void main() {
     testWidgets(
       'comments held by a recording in the outbox are not offered to a second send',
       (t) async {
-        await openVoice(t, protocol: 16);
+        await openVoice(t, protocol: 18);
         r.event(pending);
         await t.pumpAndSettle();
         final up = Completer<HttpAnswer>();
@@ -628,19 +559,6 @@ void main() {
       await record(t);
       await t.pump();
       expect(r.sent.single['lang'], 'ru');
-      expect(r.sent.single.containsKey('detect'), isFalse);
-    });
-
-    testWidgets('Automatic on a host older than protocol 18 sends no detect', (
-      t,
-    ) async {
-      final v = await VoiceLang.load(MemoryVault());
-      r.voiceLang = v;
-      await openVoice(t, protocol: 17);
-      r.ch.onHttp = (port, method, path) async => ok();
-      await record(t);
-      await t.pump();
-      expect(r.sent.single['lang'], 'en');
       expect(r.sent.single.containsKey('detect'), isFalse);
     });
 
@@ -825,7 +743,7 @@ void main() {
           keepStore: true,
           hello: {
             'kind': 'hello',
-            'protocol': 14,
+            'protocol': 18,
             'capabilities': Rig.caps(dictation: 'whisper'),
           },
         );
@@ -856,7 +774,7 @@ void main() {
           keepStore: true,
           hello: {
             'kind': 'hello',
-            'protocol': 14,
+            'protocol': 18,
             'capabilities': Rig.caps(dictation: 'whisper'),
           },
         );
@@ -962,7 +880,7 @@ void main() {
         t.getRect(find.text('Message')).center.dy,
         closeTo(box.center.dy, 1),
       );
-      final action = t.getRect(find.byKey(const ValueKey('mic-old')));
+      final action = t.getRect(find.byKey(const ValueKey('mic')));
       final clip = t.getRect(find.byKey(const ValueKey('attach')));
       expect(action.center.dy, closeTo(box.center.dy, 0.5));
       expect(clip.center.dy, closeTo(action.center.dy, 0.5));

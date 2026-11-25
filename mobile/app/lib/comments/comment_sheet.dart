@@ -451,9 +451,7 @@ class _SheetState extends State<_Sheet> {
   Future<void> _run(_Clip c) async {
     final tab = widget.tab;
     final lang = c.lang ??= voiceLangOf(context);
-    final detect =
-        (c.detect ??= voiceDetectOf(context)) &&
-        (tab?.connection.has(Feature.voiceDetect) ?? false);
+    final detect = (c.detect ??= voiceDetectOf(context)) && tab != null;
     setState(() {
       c.busy = true;
       c.error = null;
@@ -742,7 +740,6 @@ class _SheetState extends State<_Sheet> {
         maxLines: 8,
         session: _session,
         open: true,
-        voiceProtocol: tab?.connection.has(Feature.voice) ?? false,
         whisperAvailable: tab != null && transcribes(tab),
         onWhisperMissing: () => showWhisperSheet(inner, tab!),
         micEnabled: _clips.length < maxClips && !_busy && !_failed,
@@ -752,7 +749,6 @@ class _SheetState extends State<_Sheet> {
         canSend: sendable && !_busy && !_failed && !_session.active,
         sending: _busy,
         onSend: _save,
-        snackScaffold: () => _overlay.currentContext,
       ),
     );
   }

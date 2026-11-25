@@ -175,7 +175,6 @@ class VoiceOutbox extends ChangeNotifier {
   bool Function(ClientMessage)? _send;
   WindowHttp? Function()? _http;
   ComposeFor? _compose;
-  bool Function()? _canDetect;
   bool _disposed = false;
 
   void _adopt(List<PendingVoice> found) {
@@ -190,9 +189,7 @@ class VoiceOutbox extends ChangeNotifier {
     required bool Function(ClientMessage) send,
     required WindowHttp? Function() http,
     ComposeFor? compose,
-    bool Function()? canDetect,
   }) {
-    _canDetect = canDetect;
     _owner = owner;
     _retrying.clear();
     _reconcileHeld = false;
@@ -206,7 +203,7 @@ class VoiceOutbox extends ChangeNotifier {
 
   void detach(Object owner) {
     if (!identical(_owner, owner)) return;
-    _owner = _send = _http = _compose = _canDetect = null;
+    _owner = _send = _http = _compose = null;
     _retrying.clear();
     _reconcileHeld = false;
     for (final e in entries) {
@@ -310,7 +307,7 @@ class VoiceOutbox extends ChangeNotifier {
           text: e.text,
           voice: e.voice,
           lang: e.lang,
-          detect: e.detect && (_canDetect?.call() ?? false) ? true : null,
+          detect: e.detect ? true : null,
           force: e.force ? true : null,
           commentIds: e.commentIds.isEmpty ? null : e.commentIds,
           images: e.images.isEmpty ? null : e.images,
@@ -412,7 +409,7 @@ class VoiceOutbox extends ChangeNotifier {
             text: '',
             voice: voice,
             lang: lang,
-            detect: detect && (_canDetect?.call() ?? false) ? true : null,
+            detect: detect ? true : null,
           ),
         )) {
       return false;

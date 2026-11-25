@@ -82,8 +82,8 @@ there is none with Retry. A recording that cannot be uploaded stays as a bubble 
 minutes. The microphone permission is asked on first use.
 
 The comment sheet records clips the same way: each is uploaded and transcribed (`POST /voice/<id>/text`) and the
-comment's text for the agent carries the transcripts after what was typed. Voice needs a window that speaks protocol 14
-or later; without Whisper the microphone opens a sheet that installs it or turns it on (`/dictation/install`,
+comment's text for the agent carries the transcripts after what was typed. The app works with a window that speaks
+protocol 18 or later (an older one says to update Nota Bene on the computer). Without Whisper the microphone opens a sheet that installs it or turns it on (`/dictation/install`,
 `/dictation/on`) and follows the install to the end. The phone has no recognizer of its own.
 
 ## Panes and files

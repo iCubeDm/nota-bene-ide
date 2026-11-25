@@ -66,10 +66,6 @@ class FakeChannel implements Channel {
       .last
       .stream;
 
-  /// The host knows project pictures (false: a desktop before them).
-  @override
-  bool iconsSupported = true;
-
   void push(List<HostWindow> l) {
     _last = l;
     _ctl.add(l);

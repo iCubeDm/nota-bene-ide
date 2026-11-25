@@ -13,7 +13,11 @@ import 'package:nb_protocol/nb_protocol.dart' as nb show has;
 
 import '../hosts/host_link.dart';
 
-enum TabState { connecting, open, occupied, taken, gone, offline }
+enum TabState { connecting, open, occupied, taken, gone, offline, old }
+
+/// The app's floor, protocol 18 (voice messages with language detection): everything up to it is used without asking,
+/// and a window that lacks it is not opened ([TabState.old]).
+const floor = Feature.voiceDetect;
 
 const takenOverCode = 4001;
 
@@ -236,6 +240,14 @@ class AgentConnection extends ChangeNotifier {
         onOpen?.call();
       case ServerEventHello(:final protocol):
         this.protocol = protocol;
+        if (!has(floor)) {
+          // not ours any more: its close must not start a retry
+          final s = _stream;
+          _stream = null;
+          s?.close(1000);
+          _set(TabState.old);
+          return;
+        }
         onEvent(e);
       default:
         onEvent(e);
