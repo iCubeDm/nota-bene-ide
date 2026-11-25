@@ -155,10 +155,8 @@ export function fileRoutes(o: {
   root: () => string;
   hub: EventHub;
   complete: (q: string) => Promise<string[]>;
-  /** the roots of the agents at work, for the branch list and the switch */
+  /** the roots of the agents at work, this one included, for the branch list and the switch */
   working?: () => Promise<string[]>;
-  /** this window's agent is at work: no branch switch under it */
-  selfBusy?: () => boolean;
   /** a line of the window's audit log */
   audit?: (ev: string, f: Fields) => void;
 }): Record<string, RequestListener> {
@@ -289,7 +287,7 @@ export function fileRoutes(o: {
       jsonBody(req, 4096).then(async (b) => {
         const branch = b?.branch;
         if (typeof branch !== 'string' || !branch) return refuse(400, 'bad-request');
-        const done = await switchBranch(root, branch, { selfBusy: o.selfBusy ?? (() => false), working });
+        const done = await switchBranch(root, branch, { working });
         if (done.from !== done.branch) o.audit?.('git-switch', { from: done.from, to: done.branch });
         json(req, res, 200, { branch: done.branch });
       }).catch((e: unknown) => {

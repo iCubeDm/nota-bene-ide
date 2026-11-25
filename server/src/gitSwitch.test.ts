@@ -22,7 +22,6 @@ let server: http.Server, port: number;
 const origin = 'http://nb.test';
 const allowedHosts: string[] = [];
 let busy: string[] = [];
-let selfBusy = false;
 const audit: { ev: string; f: Record<string, unknown> }[] = [];
 
 beforeAll(async () => {
@@ -49,7 +48,7 @@ beforeAll(async () => {
     hub: new EventHub(), webDist: dir, allowedHosts, allowedOrigins: [origin], info: () => ({}),
     extra: fileRoutes({
       root: () => current, hub: new EventHub(), complete: async () => [],
-      working: async () => busy, selfBusy: () => selfBusy, audit: (ev, f) => audit.push({ ev, f }),
+      working: async () => busy, audit: (ev, f) => audit.push({ ev, f }),
     }),
   }));
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
@@ -67,7 +66,6 @@ beforeEach(() => {
   clearStatusCache();
   current = root;
   busy = [];
-  selfBusy = false;
   audit.length = 0;
 });
 
@@ -146,7 +144,7 @@ describe('POST /git-switch', () => {
   });
 
   it('refuses while this window\'s agent is at work', async () => {
-    selfBusy = true;
+    busy = [root];
     expect(await switchTo('feature/x')).toMatchObject({ status: 409, body: { error: 'busy' } });
     expect(branchNow()).toBe('main');
   });
