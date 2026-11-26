@@ -5,13 +5,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import type { Draft, MarkTool } from './slice.ts';
 
 const TOOL_ICONS: Record<MarkTool, ReactNode> = {
+  select: <path d="M4.04 4.69a.5.5 0 0 1 .65-.65l16 6.5a.5.5 0 0 1-.06.95l-6.13 1.58a2 2 0 0 0-1.43 1.43l-1.58 6.13a.5.5 0 0 1-.95.06z" />,
   rect: <rect x="4" y="6" width="16" height="12" rx="1" />,
   ellipse: <ellipse cx="12" cy="12" rx="8.5" ry="6.5" />,
   pen: <path d="M4 18c3-1 4-6 7-7s3 4 6 3 2-5 3-6" />,
   arrow: <><path d="M5 19 19 5" /><path d="M10 5h9v9" /></>,
   polygon: <path d="M5 7l8-3 6 7-4 8-9-3z" fill="currentColor" fillOpacity="0.25" />,
 };
-const TOOLS: MarkTool[] = ['rect', 'ellipse', 'pen', 'arrow', 'polygon'];
+const TOOLS: MarkTool[] = ['select', 'rect', 'ellipse', 'pen', 'arrow', 'polygon'];
 /** The Mask tool's key (issue 447): not one of the other tools', the colours' or a player's (K J L M F N, Space). */
 const MASK_KEY = 'G';
 
@@ -64,6 +65,7 @@ export function MarkupToolbar({ draft, disabled = false, mask = false, onEnter, 
   const has = draft.shapes.length > 0;
   const toolLabel = (tool: MarkTool): string => {
     switch (tool) {
+      case 'select': return withKeys(t('toolSelect'), 'V');
       case 'rect': return t('toolRect');
       case 'ellipse': return t('toolEllipse');
       case 'pen': return t('toolPen');

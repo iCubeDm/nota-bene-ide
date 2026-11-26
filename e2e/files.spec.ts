@@ -633,7 +633,7 @@ test('the Mask tool: a drag around an area is a lasso, closed on release, with n
   await expect(layer.locator('path[data-live-poly]')).toHaveAttribute('d', '');
 });
 
-test('the Mask tool: a drag on a side bows it into an arc of points that can be grabbed @files', async ({ page }) => {
+test('the Select tool: a drag on a picked Mask shape\'s side bows it into an arc of points that can be grabbed @files', async ({ page }) => {
   test.skip(!hasFfmpeg, 'needs ffmpeg on PATH: e2e/serve.mjs generates the media fixtures with it');
   await page.setViewportSize({ width: 1280, height: 1100 });
   await start(page);
@@ -648,6 +648,10 @@ test('the Mask tool: a drag on a side bows it into an arc of points that can be 
     const p = at(b, x, y);
     await page.mouse.click(p.x, p.y);
   }
+  await expect(layer.locator('[data-handles]')).toHaveCount(0);
+  await page.keyboard.press('v');
+  const mid = at(b, 0.5, 0.5);
+  await page.mouse.click(mid.x, mid.y); // picked
   const dots = () => layer.locator('[data-handles]').getAttribute('d').then((d) => (d ?? '').split('M').length - 1);
   await expect.poll(dots).toBe(3);
   await drag(page, at(b, 0.5, 0.7), at(b, 0.5, 0.9));

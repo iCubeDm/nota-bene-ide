@@ -35,6 +35,7 @@ export const HELP_ENTRIES = {
   taskBackground: { area: 'chat', guide: 'subagents-and-background-tasks', tips: ['taskBackgroundTip'] },
   taskStopAll: { area: 'chat', guide: 'subagents-and-background-tasks', tips: ['taskStopAllTip'] },
   pageScripts: { area: 'files', guide: 'html-pages-and-diagrams', tips: ['pageScriptsOffTip'] },
+  markupSelect: { area: 'markup', guide: 'viewing-and-marking-up-images-and-video', tips: ['toolSelect'] },
   markupMask: { area: 'markup', guide: 'viewing-and-marking-up-images-and-video', tips: ['toolMask'] },
   voiceSend: { area: 'voice', guide: 'voice-messages', tips: ['voiceSendTip', 'voiceSendBusyTip'] },
   cutSelect: { area: 'edit', guide: 'video-edits-nbcutjson', tips: ['cutToolSelect'] },

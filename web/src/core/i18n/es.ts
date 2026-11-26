@@ -864,6 +864,7 @@ export const es: Dict = {
   markUp: 'Marcar',
   markUpTip: 'Dibujar sobre el fotograma y comentarlo',
   markTools: 'Marcado',
+  toolSelect: 'Selección',
   toolRect: 'Rectángulo (R)',
   toolEllipse: 'Elipse (E)',
   toolPen: 'Lápiz (P)',

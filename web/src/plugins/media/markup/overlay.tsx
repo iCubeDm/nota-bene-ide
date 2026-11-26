@@ -12,6 +12,8 @@ export const STROKE_PX = 3;
 /** A dark outline under every stroke, so a white or yellow mark stays visible on a light frame (no CSS filter: cheap). */
 export const HALO_PX = STROKE_PX + 2;
 export const HALO = 'rgba(0,0,0,0.55)';
+/** The shape picked with the Select tool (issue 729): its dashed box and grip dots, white on the halo over any media. */
+export const PICK = '#ffffff';
 
 export const natSize = (m: Media): [number, number] =>
   m instanceof HTMLVideoElement ? [m.videoWidth, m.videoHeight] : [m.naturalWidth, m.naturalHeight];

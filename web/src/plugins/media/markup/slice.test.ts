@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { enterRoot } from '../../../core/tabs/slice.ts';
-import { addShape, commitEdit, dropShapes, markupSlice, replaceShape, setMode, undo, type MarkupState } from './slice.ts';
+import { addShape, commitEdit, dropShapes, markupSlice, removeShape, replaceShape, select, setMode, setTool, undo, type MarkupState } from './slice.ts';
 
 const r = markupSlice.reducer;
 const shape = { kind: 'rect', color: '#ff3b30', x: 0.1, y: 0.1, w: 0.2, h: 0.2 } as const;
@@ -50,4 +50,25 @@ it('undo (issue 447): an edit of a polygon is undone before the shape, in the or
   expect(s.drafts.t.shapes).toEqual([tri]);
   s = markupSlice.reducer(s, undo('t'));
   expect(s.drafts.t.shapes).toEqual([]);
+});
+
+it('the Select tool (issue 729): a removed shape is one undo step, which puts it back in its place, selected', () => {
+  const a = shape, b = { ...shape, x: 0.5 }, c = { ...shape, x: 0.7 };
+  let s: MarkupState = r(undefined, setTool('t', 'select'));
+  for (const x of [a, b, c]) s = r(s, addShape('t', x));
+  s = r(s, select('t', 1));
+  expect(s.drafts.t.sel).toBe(1);
+  s = r(s, removeShape('t', 1));
+  expect(s.drafts.t.shapes).toEqual([a, c]);
+  expect(s.drafts.t.sel).toBeUndefined();
+  s = r(s, undo('t'));
+  expect(s.drafts.t.shapes).toEqual([a, b, c]);
+  expect(s.drafts.t.sel).toBe(1);
+  s = r(s, select('t', 2));
+  s = r(s, undo('t')); // the last shape goes, and its selection
+  expect(s.drafts.t.shapes).toEqual([a, b]);
+  expect(s.drafts.t.sel).toBeUndefined();
+  s = r(s, select('t', 0));
+  s = r(s, setTool('t', 'rect')); // another tool: nothing is selected
+  expect(s.drafts.t.sel).toBeUndefined();
 });

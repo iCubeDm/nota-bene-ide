@@ -881,6 +881,7 @@ export const ru = {
   markUp: 'Разметить',
   markUpTip: 'Нарисовать на кадре и оставить комментарий',
   markTools: 'Разметка',
+  toolSelect: 'Выбор',
   toolRect: 'Прямоугольник (R)',
   toolEllipse: 'Эллипс (E)',
   toolPen: 'Карандаш (P)',

@@ -454,42 +454,6 @@ it('Mask: a line follows the pointer from the last point; Backspace removes the 
   expect(live.getAttribute('d')).toBe('M0.1 0.2');
 });
 
-it('Mask: a closed polygon takes a vertex drag and a move of the whole shape', () => {
-  const { store, draft } = maskOn();
-  act(() => void store.dispatch(addShape(TAB, tri as MediaShape)));
-  drag([[500, 350], [550, 360], [600, 400]]); // the second vertex → (0.6, 0.3)
-  expect(draft().shapes).toEqual([{ ...tri, points: [0.1, 0.2, 0.6, 0.3, 0.3, 0.8] }]);
-  drag([[300, 450], [350, 450], [400, 400]]); // inside: the whole shape by (+0.1, -0.1)
-  expect(draft().shapes).toEqual([{ ...tri, points: [0.2, 0.1, 0.7, 0.2, 0.4, 0.7] }]);
-});
-
-it('Mask: a drag on a side bows it into an arc through the pointer, one undo step', () => {
-  const { store, draft } = maskOn();
-  act(() => void store.dispatch(addShape(TAB, tri as MediaShape)));
-  drag([[300, 350], [300, 330], [300, 300]]); // the side (0.1, 0.2)–(0.5, 0.2), its middle up to y 0.1
-  const pts = (draft().shapes[0] as { points: number[] }).points;
-  expect(pts.slice(0, 2)).toEqual([0.1, 0.2]);
-  expect(pts.slice(-4)).toEqual([0.5, 0.2, 0.3, 0.8]);
-  expect(pts.length).toBeGreaterThan(tri.points.length);
-  expect(pts.slice(0, -4).some((v, i) => i % 2 && v === 0.1)).toBe(true);
-  key({ key: 'z', code: 'KeyZ', metaKey: true });
-  expect(draft().shapes).toEqual([tri]);
-});
-
-it('Mask: one drag of a point or of the shape is one undo step, which brings back the points before it', () => {
-  const { store, draft } = maskOn();
-  act(() => void store.dispatch(addShape(TAB, tri as MediaShape)));
-  drag([[500, 350], [550, 360], [600, 400]]); // a point, several moves
-  drag([[300, 450], [350, 450], [400, 400]]); // the whole shape
-  const mod = { metaKey: true };
-  key({ key: 'z', code: 'KeyZ', ...mod });
-  expect(draft().shapes).toEqual([{ ...tri, points: [0.1, 0.2, 0.6, 0.3, 0.3, 0.8] }]);
-  fireEvent.click(screen.getByRole('button', { name: /undo/i }));
-  expect(draft().shapes).toEqual([tri]);
-  key({ key: 'z', code: 'KeyZ', ...mod });
-  expect(draft().shapes).toEqual([]);
-});
-
 it('Mask: Cmd/Ctrl+Z while drawing removes the last point, as Backspace does, and leaves the drawn shapes', () => {
   const { store, draft } = maskOn();
   act(() => void store.dispatch(addShape(TAB, { kind: 'rect', color: '#ff3b30', x: 0, y: 0, w: 0.1, h: 0.1 })));
@@ -501,13 +465,13 @@ it('Mask: Cmd/Ctrl+Z while drawing removes the last point, as Backspace does, an
   expect(draft().shapes).toHaveLength(1);
 });
 
-it('Mask: Alt-click inside a closed polygon starts a new one instead of moving it', () => {
+it('Mask: a press inside a closed polygon starts a new one (the Select tool edits drawn shapes)', () => {
   const { store, draft } = maskOn();
   act(() => void store.dispatch(addShape(TAB, tri as MediaShape)));
-  fireEvent.pointerDown(layer(), { button: 0, clientX: 300, clientY: 450, pointerId: 1, isPrimary: true, altKey: true });
-  fireEvent.pointerUp(layer(), { clientX: 300, clientY: 450, pointerId: 1 });
+  click(300, 450);
   expect(draft().shapes).toEqual([tri]); // not moved
   expect(pane.querySelector('path[data-live-poly]')!.getAttribute('d')).toMatch(/^M0.3 0.4/);
+  expect(pane.querySelector('[data-handles]')).toBeNull();
 });
 
 it('Mask: a drag is a lasso: the outline follows the pointer, a dot at its start only, and closes on release', () => {
@@ -566,4 +530,76 @@ it('Mask: a double-click\'s second press adds no point even when the pointer mov
   click(304, 650);
   fireEvent.doubleClick(layer(), { clientX: 304, clientY: 650 });
   expect(draft().shapes).toEqual([tri]);
+});
+
+// ---- the Select tool (issue 729) ----
+const box = { kind: 'rect', color: '#0a84ff', x: 0.6, y: 0.6, w: 0.2, h: 0.2 }; // client x 600–800, y 550–650
+const selectOn = (...shapes: object[]) => {
+  const s = maskOn();
+  for (const sh of shapes) act(() => void s.store.dispatch(addShape(TAB, sh as MediaShape)));
+  key({ key: 'v', code: 'KeyV' });
+  return s;
+};
+
+it('Select (V): a press picks any shape and moves it whole; the picked one\'s grips reshape it', () => {
+  const { draft } = selectOn(tri, box);
+  expect(screen.getByRole('button', { name: 'Select (V)' })).toHaveAttribute('aria-pressed', 'true');
+  expect(pane.querySelector('[data-handles]')).toBeNull();
+  drag([[700, 600], [750, 600], [800, 575]]); // the rect by (+0.1, -0.05)
+  expect(draft().sel).toBe(1);
+  expect(draft().shapes[1]).toEqual({ ...box, x: 0.7, y: 0.55 });
+  expect(pane.querySelector('[data-handles]')!.getAttribute('d')).toBe('M0.7 0.55h0M0.9 0.55h0M0.9 0.75h0M0.7 0.75h0');
+  drag([[900, 625], [950, 700]]); // its bottom right corner → (0.95, 0.9)
+  expect(draft().shapes[1]).toEqual({ ...box, x: 0.7, y: 0.55, w: 0.25, h: 0.35 });
+  click(300, 450); // inside the polygon: picked, not moved
+  expect(draft().sel).toBe(0);
+  drag([[500, 350], [550, 360], [600, 400]]); // its second point → (0.6, 0.3)
+  expect(draft().shapes[0]).toEqual({ ...tri, points: [0.1, 0.2, 0.6, 0.3, 0.3, 0.8] });
+  click(950, 300); // nothing there: nothing picked
+  expect(draft().sel).toBeUndefined();
+});
+
+it('Select: a drag on a picked polygon\'s side bows it into an arc through the pointer, one undo step', () => {
+  const { draft } = selectOn(tri);
+  click(300, 450);
+  drag([[300, 350], [300, 330], [300, 300]]); // the side (0.1, 0.2)–(0.5, 0.2), its middle up to y 0.1
+  const pts = (draft().shapes[0] as { points: number[] }).points;
+  expect(pts.slice(0, 2)).toEqual([0.1, 0.2]);
+  expect(pts.slice(-4)).toEqual([0.5, 0.2, 0.3, 0.8]);
+  expect(pts.length).toBeGreaterThan(tri.points.length);
+  expect(pts.slice(0, -4).some((v, i) => i % 2 && v === 0.1)).toBe(true);
+  key({ key: 'z', code: 'KeyZ', metaKey: true });
+  expect(draft().shapes).toEqual([tri]);
+});
+
+it('Select: one drag of a point or of the shape is one undo step, which brings back the shape before it', () => {
+  const { draft } = selectOn(tri);
+  click(300, 450);
+  drag([[500, 350], [550, 360], [600, 400]]); // a point, several moves
+  drag([[300, 450], [350, 450], [400, 400]]); // the whole shape
+  const mod = { metaKey: true };
+  key({ key: 'z', code: 'KeyZ', ...mod });
+  expect(draft().shapes).toEqual([{ ...tri, points: [0.1, 0.2, 0.6, 0.3, 0.3, 0.8] }]);
+  fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+  expect(draft().shapes).toEqual([tri]);
+  key({ key: 'z', code: 'KeyZ', ...mod });
+  expect(draft().shapes).toEqual([]);
+});
+
+it('Select: Delete or Backspace removes the picked shape, Cmd/Ctrl+Z puts it back; Esc picks none, then leaves', () => {
+  const { draft } = selectOn(tri, box);
+  click(700, 600);
+  key({ key: 'Delete' });
+  expect(draft().shapes).toEqual([tri]);
+  key({ key: 'z', code: 'KeyZ', metaKey: true });
+  expect(draft().shapes).toEqual([tri, box]);
+  expect(draft().sel).toBe(1);
+  key({ key: 'Escape' });
+  expect(draft().sel).toBeUndefined();
+  expect(screen.queryByRole('dialog')).toBeNull();
+  click(300, 450);
+  key({ key: 'Backspace' });
+  expect(draft().shapes).toEqual([box]);
+  key({ key: 'Escape' }); // nothing picked: leaving asks about the drawing
+  expect(screen.getByRole('dialog')).toBeTruthy();
 });

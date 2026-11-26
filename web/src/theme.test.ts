@@ -32,7 +32,7 @@ const ALLOWED: Record<string, string[] | '*'> = {
   'core/shell/Favicon.ts': '*',
   'plugins/media/markup/badges.ts': ['#ffffff', '#111111'],
   'plugins/media/markup/render.ts': ['#ffffff', '#000000'], // the frame's white under the source; mask.png's black and white (issue 447)
-  'plugins/media/markup/overlay.tsx': ['rgba('],
+  'plugins/media/markup/overlay.tsx': ['rgba(', '#ffffff'],
   'plugins/media/markup/MarkupToolbar.tsx': ['border-black'],
   'plugins/cut/Timeline.tsx': ['bg-black'],
   'plugins/cut/Preview.tsx': ['bg-black'],

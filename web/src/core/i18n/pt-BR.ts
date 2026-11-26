@@ -864,6 +864,7 @@ export const ptBR: Dict = {
   markUp: 'Marcar',
   markUpTip: 'Desenhar no quadro e comentar',
   markTools: 'Marcação',
+  toolSelect: 'Seleção',
   toolRect: 'Retângulo (R)',
   toolEllipse: 'Elipse (E)',
   toolPen: 'Caneta (P)',
