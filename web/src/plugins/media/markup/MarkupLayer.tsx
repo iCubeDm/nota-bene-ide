@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { MARK_COLORS, PEN_MAX_VALUES, POLYGON_MAX_POINTS, type MediaShape } from '@nota-bene/shared';
 import { useT, useAppDispatch, useAppSelector, keysInScope, useFeature } from '@/sdk';
 import { ConfirmDialog } from '@/sdk/ui';
-import { box as rectBox, hitPolygon, movePoints, rectFrom, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
+import { box as rectBox, dense, hitPolygon, movePoints, rectFrom, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
 import { MarkupToolbar } from './MarkupToolbar.tsx';
 import { HALO, HALO_PX, shapeEls, STROKE_PX, useNatSize, useOverlayPlacement, type Media } from './overlay.tsx';
 import { addShape, clear, commitEdit, replaceShape, selectDraft, setColor, setMode, setTool, undo, type MarkTool } from './slice.ts';
@@ -17,7 +17,12 @@ const HIT_PX = 8;
 const DOT_PX = 9;
 /** A press this soon (ms) and this near (client px) after the one that added a point is a double-click's second press. */
 const DBL_MS = 500;
-const DBL_PX = 40;
+const DBL_PX = 5;
+/** A click this near (client px) to the last point adds none: a jitter. */
+const JITTER_PX = 2;
+/** The lasso (issue 729): a press that moves this far (client px) is a drag; its outline takes a point every STEP_PX. */
+const DRAG_PX = 4;
+const STEP_PX = 2;
 /** SVG path of dots at the points (x, y pairs). */
 const dotsPath = (pts: number[]): string => {
   let d = '';
@@ -92,8 +97,13 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
   };
   const drag = useRef<Drag | null>(null);
   // the polygon being drawn (issue 447): its points so far, its colour, the content box when it began, the pointer's last place
-  // `last`: when and where (client px) the last point was added, to tell a double-click's second press
-  type Poly = { pts: number[]; color: MediaShape['color']; box: DOMRect; at?: Pt; last?: { t: number; x: number; y: number } };
+  // `dots`: the points clicked (a lasso's outline has none). `last`: when and where (client px) the last point was clicked,
+  // to tell a double-click's second press. `press`: the button is down (issue 729): its pointer, where its outline took its
+  // last point (client px), whether the press began the polygon and whether it moved (a drag: a lasso)
+  type Poly = {
+    pts: number[]; dots: number[]; color: MediaShape['color']; box: DOMRect; at?: Pt; last?: { t: number; x: number; y: number };
+    press?: { id: number; x: number; y: number; fresh: boolean; moved: boolean };
+  };
   const poly = useRef<Poly | null>(null);
   const toolRef = useRef(draft);
   toolRef.current = draft;
@@ -136,25 +146,29 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
     }
     livePoly.current?.setAttribute('d', d);
     livePolyHalo.current?.setAttribute('d', d);
-    livePolyDots.current?.setAttribute('d', p ? dotsPath(p.pts) : '');
+    livePolyDots.current?.setAttribute('d', p ? dotsPath(p.dots) : '');
   };
   /** The polygon being drawn loses its last point (Backspace, Cmd/Ctrl+Z); none left: it is gone. */
   const popPoint = () => {
     const p = poly.current;
     if (!p) return;
-    p.pts.splice(-2, 2);
+    const [x, y] = p.pts.splice(-2, 2);
+    if (p.dots.at(-2) === x && p.dots.at(-1) === y) p.dots.splice(-2, 2);
     p.last = undefined;
     if (!p.pts.length) poly.current = null;
     showPoly();
   };
   /** Undo: a point of the polygon being drawn, else the last step of the drawing (a shape, or a polygon's drag). */
   const undoStep = () => (poly.current ? popPoint() : void dispatch(undo(tabId)));
+  /** The polygon being drawn becomes a shape, from 3 points; a long lasso's outline thinned to POLYGON_MAX_POINTS. */
   const closePoly = () => {
     const p = poly.current;
     if (!p || p.pts.length < 6) return;
     poly.current = null;
     showPoly();
-    dispatch(addShape(tabId, { kind: 'polygon', color: p.color, points: p.pts }));
+    let points = p.pts;
+    for (let eps = 0.001; points.length > 2 * POLYGON_MAX_POINTS; eps *= 2) points = simplify(p.pts, eps);
+    dispatch(addShape(tabId, { kind: 'polygon', color: p.color, points }));
   };
   /**
    * Drops the shape in progress, if any (a drag of any tool, or a polygon being drawn), and clears its live elements.
@@ -197,16 +211,24 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
     const near = (x: number, y: number) => Math.abs(x - a.x) <= tolX && Math.abs(y - a.y) <= tolY;
     const p = poly.current;
     const now = performance.now();
+    const press = (fresh: boolean) => {
+      (e.target as Element).setPointerCapture?.(e.pointerId); // a drag from here is a stretch of outline
+      return { id: e.pointerId, x: e.clientX, y: e.clientY, fresh, moved: false };
+    };
     if (p) {
       const n = p.pts.length / 2;
       if (near(p.pts[0], p.pts[1])) return n >= 3 ? closePoly() : undefined; // the first point closes, from 3 points
-      if (near(p.pts[2 * n - 2], p.pts[2 * n - 1])) return; // a jitter: no double point
       // a double-click's second press (its dblclick closes the shape), even when the pointer moved a little
       const l = p.last;
       if (e.detail >= 2 || (l && now - l.t < DBL_MS && Math.hypot(e.clientX - l.x, e.clientY - l.y) <= DBL_PX)) return;
-      if (n < POLYGON_MAX_POINTS) p.pts.push(a.x, a.y);
+      const [lx, ly] = [p.pts[2 * n - 2] * at.width, p.pts[2 * n - 1] * at.height];
+      if (Math.hypot(a.x * at.width - lx, a.y * at.height - ly) > JITTER_PX) { // a jitter adds no double point
+        p.pts.push(a.x, a.y);
+        p.dots.push(a.x, a.y);
+        p.last = { t: now, x: e.clientX, y: e.clientY };
+      }
       p.at = a;
-      p.last = { t: now, x: e.clientX, y: e.clientY };
+      p.press = press(false);
       return showPoly();
     }
     // Alt: always a new polygon, also inside a drawn one (which a press would move)
@@ -217,7 +239,7 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
       drag.current = { id: e.pointerId, a, b: a, pen: [], ptsText: '', box: at, tool: 'polygon', color: s.color, edit: { index: hit.index, vertex: hit.vertex, points: s.points } };
       return;
     }
-    poly.current = { pts: [a.x, a.y], color, box: at, last: { t: now, x: e.clientX, y: e.clientY } };
+    poly.current = { pts: [a.x, a.y], dots: [a.x, a.y], color, box: at, last: { t: now, x: e.clientX, y: e.clientY }, press: press(true) };
     showPoly();
   };
   const onDown = (e: RPointerEvent<SVGSVGElement>) => {
@@ -241,7 +263,19 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
   const onMove = (e: RPointerEvent<SVGSVGElement>) => {
     const d = drag.current;
     const p = poly.current;
-    if (!d && p) { // the line from the last point follows the pointer
+    if (!d && p) { // the line from the last point follows the pointer; with the button down, the outline does (a lasso)
+      const q = p.press;
+      if (q && e.pointerId === q.id) {
+        const native = e.nativeEvent;
+        for (const c of typeof native.getCoalescedEvents === 'function' && native.getCoalescedEvents().length ? native.getCoalescedEvents() : [native]) {
+          if (Math.hypot(c.clientX - q.x, c.clientY - q.y) < (q.moved ? STEP_PX : DRAG_PX)) continue;
+          q.moved = true;
+          q.x = c.clientX;
+          q.y = c.clientY;
+          const r = relOf(c, p.box);
+          p.pts.push(r.x, r.y);
+        }
+      }
       p.at = relOf(e, p.box);
       return showPoly();
     }
@@ -269,6 +303,14 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
     else showLive(d);
   };
   const finish = (e: RPointerEvent<SVGSVGElement>) => {
+    const p = poly.current;
+    if (p?.press && e.pointerId === p.press.id) { // the button is up: a lasso begun by this press closes
+      const { fresh, moved } = p.press;
+      p.press = undefined;
+      if (moved) p.last = undefined; // the next press is a click of its own, never a double-click's second
+      if (moved && fresh) closePoly();
+      return;
+    }
     const d = drag.current;
     if (!d || e.pointerId !== d.id) return;
     drag.current = null;
@@ -347,10 +389,15 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
   }, [on, asking, held, saving, media, dispatch, tabId, leave, comment, shapes, mask, dropInProgress]);
 
   const drawn = useMemo(() => shapeEls(shapes, nat[0], nat[1]), [shapes, nat]);
-  // with the Mask tool, the drawn polygons' points show as dots: they can be dragged
-  const handles = useMemo(() => (draft.tool !== 'polygon' ? [] : shapes.flatMap((s, i) => (s.kind !== 'polygon' ? [] : [
-    <path key={i} data-handles d={dotsPath(s.points)} stroke={s.color} strokeWidth={DOT_PX} vectorEffect="non-scaling-stroke" />,
-  ]))), [shapes, draft.tool]);
+  // with the Mask tool, the drawn polygons' points show as dots: they can be dragged (not a lasso's: too dense to grab)
+  const handles = useMemo(() => {
+    if (draft.tool !== 'polygon') return [];
+    const at = box();
+    const tolX = HIT_PX / Math.max(1, at.width), tolY = HIT_PX / Math.max(1, at.height);
+    return shapes.flatMap((s, i) => (s.kind !== 'polygon' || dense(s.points, tolX, tolY) ? [] : [
+      <path key={i} data-handles d={dotsPath(s.points)} stroke={s.color} strokeWidth={DOT_PX} vectorEffect="non-scaling-stroke" />,
+    ]));
+  }, [shapes, draft.tool, box]);
 
   if (!offered && !on) return null;
   return (

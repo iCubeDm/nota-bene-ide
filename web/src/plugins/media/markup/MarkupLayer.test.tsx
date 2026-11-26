@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { MediaShape, ServerEvent } from '@nota-bene/shared';
+import { POLYGON_MAX_POINTS, type MediaShape, type ServerEvent } from '@nota-bene/shared';
 import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import { setLang } from '@/core/i18n/index.ts';
 import { connState, serverEvent } from '@/core/store/store.ts';
@@ -492,10 +492,51 @@ it('Mask: Alt-click inside a closed polygon starts a new one instead of moving i
   const { store, draft } = maskOn();
   act(() => void store.dispatch(addShape(TAB, tri as MediaShape)));
   fireEvent.pointerDown(layer(), { button: 0, clientX: 300, clientY: 450, pointerId: 1, isPrimary: true, altKey: true });
-  fireEvent.pointerMove(layer(), { clientX: 400, clientY: 400, pointerId: 1 });
-  fireEvent.pointerUp(layer(), { clientX: 400, clientY: 400, pointerId: 1 });
+  fireEvent.pointerUp(layer(), { clientX: 300, clientY: 450, pointerId: 1 });
   expect(draft().shapes).toEqual([tri]); // not moved
   expect(pane.querySelector('path[data-live-poly]')!.getAttribute('d')).toMatch(/^M0.3 0.4/);
+});
+
+it('Mask: a drag is a lasso: the outline follows the pointer, a dot at its start only, and closes on release', () => {
+  const { draft } = maskOn();
+  fireEvent.pointerDown(layer(), { button: 0, clientX: 100, clientY: 350, pointerId: 1, isPrimary: true });
+  for (const [x, y] of [[200, 350], [300, 350], [300, 450], [300, 550], [100, 550]]) fireEvent.pointerMove(layer(), { clientX: x, clientY: y, pointerId: 1 });
+  expect(pane.querySelector('path[data-live-dots]')!.getAttribute('d')).toBe('M0.1 0.2h0');
+  fireEvent.pointerUp(layer(), { clientX: 100, clientY: 550, pointerId: 1 });
+  expect(draft().shapes).toEqual([{ kind: 'polygon', color: '#ff3b30', points: [0.1, 0.2, 0.2, 0.2, 0.3, 0.2, 0.3, 0.4, 0.3, 0.6, 0.1, 0.6] }]);
+  expect(pane.querySelector('path[data-live-poly]')!.getAttribute('d')).toBe('');
+});
+
+it('Mask: a drag while clicking a polygon adds a freehand stretch to it and leaves it open', () => {
+  const { draft } = maskOn();
+  click(100, 350);
+  drag([[500, 350], [500, 450], [500, 550]]);
+  expect(draft().shapes).toEqual([]);
+  expect(pane.querySelector('path[data-live-dots]')!.getAttribute('d')).toBe('M0.1 0.2h0M0.5 0.2h0');
+  key({ key: 'Enter' });
+  expect(draft().shapes).toEqual([{ kind: 'polygon', color: '#ff3b30', points: [0.1, 0.2, 0.5, 0.2, 0.5, 0.4, 0.5, 0.6] }]);
+});
+
+it('Mask: points go close together: a quick click 10 px off is a point of its own, one 3 px off too', () => {
+  const { draft } = maskOn();
+  vi.spyOn(performance, 'now').mockReturnValue(1000);
+  click(100, 350);
+  vi.spyOn(performance, 'now').mockReturnValue(1200);
+  click(110, 350);
+  vi.spyOn(performance, 'now').mockReturnValue(2000);
+  click(110, 353);
+  key({ key: 'Enter' });
+  expect(draft().shapes).toEqual([{ kind: 'polygon', color: '#ff3b30', points: [0.1, 0.2, 0.11, 0.2, 0.11, 0.206] }]);
+});
+
+it('Mask: a long lasso is thinned to the points a polygon may have, and has no point handles', () => {
+  const { draft } = maskOn();
+  const ring = Array.from({ length: 3000 }, (_, i) => [500 + 200 * Math.cos((2 * Math.PI * i) / 3000), 500 + 200 * Math.sin((2 * Math.PI * i) / 3000)] as [number, number]);
+  drag(ring);
+  const s = draft().shapes[0] as Extract<MediaShape, { kind: 'polygon' }>;
+  expect(s.points.length / 2).toBeGreaterThan(100);
+  expect(s.points.length / 2).toBeLessThanOrEqual(POLYGON_MAX_POINTS);
+  expect(pane.querySelector('[data-handles]')).toBeNull();
 });
 
 it('Mask: a double-click\'s second press adds no point even when the pointer moved; the first point with 2 points adds nothing', () => {
@@ -508,8 +549,8 @@ it('Mask: a double-click\'s second press adds no point even when the pointer mov
   expect(dots()).toBe('M0.1 0.2h0M0.5 0.2h0');
   vi.spyOn(performance, 'now').mockReturnValue(5000);
   click(300, 650);
-  vi.spyOn(performance, 'now').mockReturnValue(5200); // 200 ms later, 20 px off: the double-click's second press
-  click(320, 650);
-  fireEvent.doubleClick(layer(), { clientX: 320, clientY: 650 });
+  vi.spyOn(performance, 'now').mockReturnValue(5200); // 200 ms later, 4 px off: the double-click's second press
+  click(304, 650);
+  fireEvent.doubleClick(layer(), { clientX: 304, clientY: 650 });
   expect(draft().shapes).toEqual([tri]);
 });

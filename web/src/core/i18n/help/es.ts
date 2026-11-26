@@ -18,7 +18,7 @@ export const helpEs: HelpDict = {
   taskBackground: 'Pasar la tarea a segundo plano: la llamada vuelve de inmediato, la tarea continúa',
   taskStopAll: 'Detener todos los agentes en curso del grupo (un segundo clic lo confirma)',
   pageScripts: 'Los scripts de la página no se ejecutan aquí: se muestra como se ve sin ellos',
-  markupMask: 'Máscara: haz clic para añadir puntos; cierra en el primer punto, con Enter o doble clic; Retroceso o Cmd/Ctrl+Z quita el último punto, Esc descarta la forma. Arrastra un punto o la forma para ajustarla; Alt+clic empieza una forma nueva, incluso dentro de otra',
+  markupMask: 'Máscara: arrastra alrededor de una zona como con un lazo, se cierra al soltar; o haz clic para añadir puntos; cierra en el primer punto, con Enter o doble clic; Retroceso o Cmd/Ctrl+Z quita el último punto, Esc descarta la forma. Arrastra un punto o la forma para ajustarla; Alt+clic empieza una forma nueva, incluso dentro de otra',
   voiceSend: (force: string, forceAlt: string) => `El agente está trabajando: Enviar pone el mensaje en cola. ${force} o ${forceAlt} interrumpe al agente y envía.`,
   cutSelect: 'Selección: clic en un clip, Mayús o ⌘/Ctrl+clic para más, arrastra en un espacio vacío para un rectángulo; Mayús+arrastrar mueve un clip con todo lo que le sigue en su pista, Mayús+arrastrar su final desplaza los siguientes',
   cutBlade: 'Cuchilla: un clic corta el clip en ese punto (Mayús: todas las pistas; Alt: sin ajuste)',

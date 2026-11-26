@@ -113,13 +113,27 @@ export function insidePolygon(points: number[], x: number, y: number): boolean {
 }
 
 /**
- * The polygon under a point (relative), topmost (last drawn) first: a vertex within `tolX`/`tolY` of it, else its inside.
- * Other kinds of shape are not hit (only polygons are edited after drawing).
+ * Whether a polygon's points sit too close to grab one (a lasso's outline, issue 729): its sides average under two
+ * reaches (`tolX`/`tolY`: a reach, relative). Such a polygon shows no points and moves only as a whole.
+ */
+export function dense(points: number[], tolX: number, tolY: number): boolean {
+  const n = points.length / 2;
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    sum += Math.hypot((points[2 * j] - points[2 * i]) / tolX, (points[2 * j + 1] - points[2 * i + 1]) / tolY);
+  }
+  return sum / n < 2;
+}
+
+/**
+ * The polygon under a point (relative), topmost (last drawn) first: a vertex within `tolX`/`tolY` of it (not of a dense
+ * one), else its inside. Other kinds of shape are not hit (only polygons are edited after drawing).
  */
 export function hitPolygon(shapes: MediaShape[], p: { x: number; y: number }, tolX: number, tolY: number): { index: number; vertex: number | null } | null {
   for (let k = shapes.length - 1; k >= 0; k--) {
     const s = shapes[k];
-    if (s.kind !== 'polygon') continue;
+    if (s.kind !== 'polygon' || dense(s.points, tolX, tolY)) continue;
     for (let i = 0; i + 1 < s.points.length; i += 2) {
       if (Math.abs(s.points[i] - p.x) <= tolX && Math.abs(s.points[i + 1] - p.y) <= tolY) return { index: k, vertex: i / 2 };
     }

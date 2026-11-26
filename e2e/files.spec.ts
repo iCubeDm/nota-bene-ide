@@ -614,6 +614,25 @@ async function sendAndSettle(page: Page) {
   await expect(page.getByText(/agent is working|агент работает/)).toBeHidden();
 }
 
+test('the Mask tool: a drag around an area is a lasso, closed on release, with no point handles @files', async ({ page }) => {
+  test.skip(!hasFfmpeg, 'needs ffmpeg on PATH: e2e/serve.mjs generates the media fixtures with it');
+  await page.setViewportSize({ width: 1280, height: 1100 });
+  await start(page);
+  await openFromTree(page, 'media/wide.png');
+  const img = mediaPane(page, 'media/wide.png').locator('img');
+  await expect.poll(() => img.evaluate((e: HTMLImageElement) => e.complete && e.naturalWidth)).toBe(1000);
+  const b = await contentBoxOf(img);
+  await markUpBtn(page).click();
+  const layer = markupLayer(page, 'media/wide.png');
+  await expect(layer).toBeVisible();
+  await page.keyboard.press('g');
+  const n = 120;
+  await stroke(page, Array.from({ length: n }, (_, i) => at(b, 0.5 + 0.2 * Math.cos((2 * Math.PI * i) / n), 0.5 + 0.3 * Math.sin((2 * Math.PI * i) / n))));
+  await expect(layer.locator('[data-shape="polygon"]')).toHaveCount(1);
+  await expect(layer.locator('[data-handles]')).toHaveCount(0);
+  await expect(layer.locator('path[data-live-poly]')).toHaveAttribute('d', '');
+});
+
 test('mark up an image: rect + pen, comment, files in the project, coordinates in the batch @files', async ({ page }) => {
   test.skip(!hasFfmpeg, 'needs ffmpeg on PATH: e2e/serve.mjs generates the media fixtures with it');
   const frames = sentFrames(page);

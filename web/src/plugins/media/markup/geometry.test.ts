@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { contentBox, hitPolygon, insidePolygon, movePoints, rectFrom, round4, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
+import { contentBox, dense, hitPolygon, insidePolygon, movePoints, rectFrom, round4, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
 import { describeShape, mediaTime } from '@/core/anchors/quote.ts';
 import type { MediaShape } from '@nota-bene/shared';
 
@@ -120,6 +120,13 @@ it('hitPolygon finds a vertex first, then the inside, topmost polygon first; oth
   expect(hitPolygon(shapes, { x: 0.3, y: 0.3 }, 0.01, 0.01)).toEqual({ index: 0, vertex: null });
   expect(hitPolygon(shapes, { x: 0.58, y: 0.55 }, 0.01, 0.01)).toEqual({ index: 2, vertex: null }); // the later one is on top
   expect(hitPolygon(shapes, { x: 0.05, y: 0.95 }, 0.01, 0.01)).toBeNull();
+});
+it('dense: a polygon whose sides average under two reaches (a lasso\'s) has no point to grab, a press on it moves it whole', () => {
+  const ring = (n: number) => Array.from({ length: n }, (_, i) => [0.5 + 0.3 * Math.cos((2 * Math.PI * i) / n), 0.5 + 0.3 * Math.sin((2 * Math.PI * i) / n)]).flat();
+  expect(dense(ring(12), 0.01, 0.01)).toBe(false);
+  expect(dense(ring(200), 0.01, 0.01)).toBe(true);
+  const lasso: MediaShape = { kind: 'polygon', color: '#ff3b30', points: ring(200) };
+  expect(hitPolygon([lasso], { x: 0.799, y: 0.5 }, 0.01, 0.01)).toEqual({ index: 0, vertex: null });
 });
 it('setVertex moves one point (clamped, 4 decimals); movePoints shifts all, kept inside the media', () => {
   const pts = (square as { points: number[] }).points;
