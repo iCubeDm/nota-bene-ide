@@ -864,6 +864,7 @@ export const de: Dict = {
   markUp: 'Markieren',
   markUpTip: 'Auf den Frame zeichnen und kommentieren',
   markTools: 'Markierung',
+  toolSelect: 'Auswahl',
   toolRect: 'Rechteck (R)',
   toolEllipse: 'Ellipse (E)',
   toolPen: 'Stift (P)',

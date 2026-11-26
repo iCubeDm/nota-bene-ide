@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { contentBox, hitPolygon, insidePolygon, movePoints, rectFrom, round4, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
+import { bendEdge, contentBox, hitGrip, hitShape, insidePolygon, movePoints, moveShape, outline, reshape, rectFrom, round4, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
 import { describeShape, mediaTime } from '@/core/anchors/quote.ts';
 import type { MediaShape } from '@nota-bene/shared';
 
@@ -113,13 +113,65 @@ it('insidePolygon: nonzero winding, a self-crossing shape counts its overlap as 
   }
   expect(insidePolygon(star, 0.5, 0.5)).toBe(true);
 });
-it('hitPolygon finds a vertex first, then the inside, topmost polygon first; other shapes are skipped', () => {
+const ring = (n: number) => Array.from({ length: n }, (_, i) => [0.5 + 0.3 * Math.cos((2 * Math.PI * i) / n), 0.5 + 0.3 * Math.sin((2 * Math.PI * i) / n)]).flat();
+it('hitShape: the topmost shape under a point, by its inside or within a reach of its line; any kind', () => {
   const other: MediaShape = { kind: 'polygon', color: '#0a84ff', points: [0.5, 0.5, 0.9, 0.5, 0.9, 0.9] };
-  const shapes: MediaShape[] = [square, { kind: 'rect', color: '#ff3b30', x: 0, y: 0, w: 1, h: 1 }, other];
-  expect(hitPolygon(shapes, { x: 0.601, y: 0.199 }, 0.01, 0.01)).toEqual({ index: 0, vertex: 1 });
-  expect(hitPolygon(shapes, { x: 0.3, y: 0.3 }, 0.01, 0.01)).toEqual({ index: 0, vertex: null });
-  expect(hitPolygon(shapes, { x: 0.58, y: 0.55 }, 0.01, 0.01)).toEqual({ index: 2, vertex: null }); // the later one is on top
-  expect(hitPolygon(shapes, { x: 0.05, y: 0.95 }, 0.01, 0.01)).toBeNull();
+  const shapes: MediaShape[] = [
+    square, other,
+    { kind: 'ellipse', color: C, x: 0.0, y: 0.7, w: 0.2, h: 0.2 },
+    { kind: 'arrow', color: C, x1: 0.7, y1: 0.1, x2: 0.9, y2: 0.3 },
+    { kind: 'pen', color: C, points: [0.05, 0.05, 0.15, 0.05] },
+  ];
+  expect(hitShape(shapes, { x: 0.3, y: 0.3 }, 0.01, 0.01)).toBe(0);
+  expect(hitShape(shapes, { x: 0.58, y: 0.55 }, 0.01, 0.01)).toBe(1); // the later one is on top
+  expect(hitShape(shapes, { x: 0.1, y: 0.8 }, 0.01, 0.01)).toBe(2);
+  expect(hitShape(shapes, { x: 0.01, y: 0.71 }, 0.01, 0.01)).toBeNull(); // the ellipse's box corner is outside it
+  expect(hitShape(shapes, { x: 0.8, y: 0.205 }, 0.01, 0.01)).toBe(3);
+  expect(hitShape(shapes, { x: 0.1, y: 0.055 }, 0.01, 0.01)).toBe(4);
+  expect(hitShape(shapes, { x: 0.95, y: 0.05 }, 0.01, 0.01)).toBeNull();
+});
+it('hitGrip: the nearest point (a polygon\'s, a box\'s corner, an arrow\'s end) before a polygon\'s side; a pen has none', () => {
+  expect(hitGrip(square, { x: 0.601, y: 0.199 }, 0.01, 0.01)).toEqual({ vertex: 1 });
+  expect(hitGrip(square, { x: 0.4, y: 0.205 }, 0.01, 0.01)).toEqual({ edge: 0 });
+  expect(hitGrip(square, { x: 0.195, y: 0.4 }, 0.01, 0.01)).toEqual({ edge: 3 }); // the closing side
+  expect(hitGrip(square, { x: 0.4, y: 0.4 }, 0.01, 0.01)).toBeNull();
+  expect(hitGrip({ kind: 'rect', color: C, x: 0.1, y: 0.1, w: 0.2, h: 0.2 }, { x: 0.3, y: 0.3 }, 0.01, 0.01)).toEqual({ vertex: 2 });
+  expect(hitGrip({ kind: 'arrow', color: C, x1: 0.1, y1: 0.1, x2: 0.5, y2: 0.5 }, { x: 0.5, y: 0.5 }, 0.01, 0.01)).toEqual({ vertex: 1 });
+  expect(hitGrip({ kind: 'pen', color: C, points: [0.1, 0.1, 0.5, 0.5] }, { x: 0.1, y: 0.1 }, 0.01, 0.01)).toBeNull();
+  expect(hitGrip({ kind: 'polygon', color: C, points: [0.5, 0.5, 0.505, 0.5, 0.51, 0.5, 0.5, 0.9] }, { x: 0.509, y: 0.5 }, 0.01, 0.01)).toEqual({ vertex: 2 });
+});
+it('outline: a freehand outline keeps the fewest points within a tolerance of it, and every point it is told to keep', () => {
+  const line = [0.1, 0.1, 0.2, 0.1, 0.3, 0.1, 0.4, 0.1, 0.4, 0.3, 0.4, 0.5, 0.1, 0.5];
+  expect(outline(line, new Set(), 0.001, 0.001)).toEqual([0.1, 0.1, 0.4, 0.1, 0.4, 0.5, 0.1, 0.5]);
+  expect(outline(line, new Set([2]), 0.001, 0.001)).toEqual([0.1, 0.1, 0.3, 0.1, 0.4, 0.1, 0.4, 0.5, 0.1, 0.5]);
+  const circle = outline(ring(2000), new Set(), 0.001, 0.001); // r 300 tolerances: chords of about 50
+  expect(circle.length / 2).toBeGreaterThan(20);
+  expect(circle.length / 2).toBeLessThan(80);
+  expect(outline([0.1, 0.1, 0.2, 0.1, 0.3, 0.1], new Set(), 0.001, 0.001)).toEqual([0.1, 0.1, 0.2, 0.1, 0.3, 0.1]); // under 3 left: as drawn
+});
+it('reshape: a box by a corner (the opposite one stays), an arrow by an end; moveShape shifts any shape, kept inside', () => {
+  const r: MediaShape = { kind: 'rect', color: C, x: 0.1, y: 0.1, w: 0.2, h: 0.2 };
+  expect(reshape(r, { vertex: 2 }, 0.5, 0.4, 0.01, 0.01)).toEqual({ ...r, w: 0.4, h: 0.3 });
+  expect(reshape(r, { vertex: 0 }, 0.4, 0.4, 0.01, 0.01)).toEqual({ ...r, x: 0.3, y: 0.3, w: 0.1, h: 0.1 }); // past the opposite corner
+  expect(reshape(r, { vertex: 0 }, 0.3, 0.2, 0.01, 0.01)).toEqual(r); // no extent: unchanged
+  const a: MediaShape = { kind: 'arrow', color: C, x1: 0.1, y1: 0.1, x2: 0.5, y2: 0.5 };
+  expect(reshape(a, { vertex: 0 }, 0.2, 1.3, 0.01, 0.01)).toEqual({ ...a, x1: 0.2, y1: 1 });
+  expect(reshape(square, { vertex: 2 }, 0.7, 0.7, 0.01, 0.01)).toEqual({ ...square, points: [0.2, 0.2, 0.6, 0.2, 0.7, 0.7, 0.2, 0.6] });
+  expect(moveShape(r, 0.9, -0.05)).toEqual({ ...r, x: 0.8, y: 0.05 });
+  expect(moveShape(a, 0.1, 0.1)).toEqual({ ...a, x1: 0.2, y1: 0.2, x2: 0.6, y2: 0.6 });
+  expect(moveShape({ kind: 'pen', color: C, points: [0.1, 0.1, 0.5, 0.5] }, -0.3, 0)).toEqual({ kind: 'pen', color: C, points: [0, 0.1, 0.4, 0.5] });
+});
+it('bendEdge bows a side into an arc through the point, its points about 2.5 reaches apart; the others stay', () => {
+  const pts = (square as { points: number[] }).points;
+  const bent = bendEdge(pts, 0, 0.4, 0.1, 0.01, 0.01); // the side (0.2, 0.2)–(0.6, 0.2), its middle pulled up to y 0.1
+  const n = bent.length / 2;
+  expect(n).toBe(4 + 17); // ≈ 45 reaches of arc: 18 pieces (an even count: the middle one is a sample)
+  expect(bent.slice(0, 2)).toEqual([0.2, 0.2]);
+  expect(bent.slice(-6)).toEqual([0.6, 0.2, 0.6, 0.6, 0.2, 0.6]);
+  expect(bent.slice(18, 20)).toEqual([0.4, 0.1]); // the middle sample is the point pulled
+  for (let i = 1; i < 18; i++) expect(bent[2 * i + 1]).toBeLessThan(0.2);
+  expect(bendEdge(pts, 3, 0.1, 0.4, 0.01, 0.01).slice(0, 8)).toEqual(pts); // the closing side: after the last point
+  expect(pts).toEqual([0.2, 0.2, 0.6, 0.2, 0.6, 0.6, 0.2, 0.6]); // not mutated
 });
 it('setVertex moves one point (clamped, 4 decimals); movePoints shifts all, kept inside the media', () => {
   const pts = (square as { points: number[] }).points;

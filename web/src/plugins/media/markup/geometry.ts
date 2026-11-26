@@ -1,4 +1,4 @@
-import type { MediaShape } from '@nota-bene/shared';
+import { POLYGON_MAX_POINTS, type MediaShape } from '@nota-bene/shared';
 
 export const round4 = (v: number): number => Math.round(v * 10000) / 10000;
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
@@ -112,23 +112,131 @@ export function insidePolygon(points: number[], x: number, y: number): boolean {
   return wind !== 0;
 }
 
+/** The distance of (x, y) from the segment a–b, in units of `ux`/`uy` (relative) along each axis. */
+function segDist(ax: number, ay: number, bx: number, by: number, x: number, y: number, ux: number, uy: number): number {
+  const dx = (bx - ax) / ux, dy = (by - ay) / uy;
+  const px = (x - ax) / ux, py = (y - ay) / uy;
+  const t = Math.min(1, Math.max(0, (px * dx + py * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(px - t * dx, py - t * dy);
+}
+
+/** Whether `p` is within a reach (`tolX`/`tolY`) of the segment a–b. */
+const nearSegment = (ax: number, ay: number, bx: number, by: number, p: { x: number; y: number }, tolX: number, tolY: number): boolean =>
+  segDist(ax, ay, bx, by, p.x, p.y, tolX, tolY) <= 1;
+
 /**
- * The polygon under a point (relative), topmost (last drawn) first: a vertex within `tolX`/`tolY` of it, else its inside.
- * Other kinds of shape are not hit (only polygons are edited after drawing).
+ * A closed outline drawn freehand, thinned (issue 729): the fewest of its points that keep it within `epsX`/`epsY`
+ * (relative) of the drawn one (Douglas–Peucker), with every point at an index in `keep` (the ones clicked). Fewer than
+ * 3 left (a stroke with no area): the points as drawn.
  */
-export function hitPolygon(shapes: MediaShape[], p: { x: number; y: number }, tolX: number, tolY: number): { index: number; vertex: number | null } | null {
-  for (let k = shapes.length - 1; k >= 0; k--) {
-    const s = shapes[k];
-    if (s.kind !== 'polygon') continue;
-    for (let i = 0; i + 1 < s.points.length; i += 2) {
-      if (Math.abs(s.points[i] - p.x) <= tolX && Math.abs(s.points[i + 1] - p.y) <= tolY) return { index: k, vertex: i / 2 };
+export function outline(points: number[], keep: Set<number>, epsX: number, epsY: number): number[] {
+  const n = points.length / 2;
+  const at = (i: number) => (i % n) * 2; // index n is the first point again: the closing side is thinned too
+  const on = new Uint8Array(n);
+  const cuts = [...new Set([0, ...keep, n])].filter((i) => i >= 0 && i <= n).sort((a, b) => a - b);
+  const stack: [number, number][] = [];
+  for (let k = 0; k + 1 < cuts.length; k++) stack.push([cuts[k], cuts[k + 1]]);
+  for (const c of cuts) on[c % n] = 1;
+  while (stack.length) {
+    const [a, b] = stack.pop()!;
+    let far = -1, most = 1;
+    for (let i = a + 1; i < b; i++) {
+      const d = segDist(points[at(a)], points[at(a) + 1], points[at(b)], points[at(b) + 1], points[2 * i], points[2 * i + 1], epsX, epsY);
+      if (d > most) { most = d; far = i; }
     }
+    if (far < 0) continue;
+    on[far] = 1;
+    stack.push([a, far], [far, b]);
   }
-  for (let k = shapes.length - 1; k >= 0; k--) {
-    const s = shapes[k];
-    if (s.kind === 'polygon' && insidePolygon(s.points, p.x, p.y)) return { index: k, vertex: null };
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) if (on[i]) out.push(points[2 * i], points[2 * i + 1]);
+  return out.length >= 6 ? out : points.slice();
+}
+
+/** Whether `p` is within a reach of the line through `points` (closed: back to the first), and which side if so. */
+function nearSide(points: number[], closed: boolean, p: { x: number; y: number }, tolX: number, tolY: number): number | null {
+  const n = points.length / 2;
+  for (let i = 0; i < (closed ? n : n - 1); i++) {
+    const j = (i + 1) % n;
+    if (nearSegment(points[2 * i], points[2 * i + 1], points[2 * j], points[2 * j + 1], p, tolX, tolY)) return i;
   }
   return null;
+}
+
+/**
+ * The topmost (last drawn) shape under a point (relative), by index (issue 729): inside a polygon, rect or ellipse, or
+ * within a reach (`tolX`/`tolY`, relative) of any shape's line.
+ */
+export function hitShape(shapes: MediaShape[], p: { x: number; y: number }, tolX: number, tolY: number): number | null {
+  for (let k = shapes.length - 1; k >= 0; k--) {
+    const s = shapes[k];
+    const hit = s.kind === 'polygon' ? insidePolygon(s.points, p.x, p.y) || nearSide(s.points, true, p, tolX, tolY) !== null
+      : s.kind === 'pen' ? nearSide(s.points, false, p, tolX, tolY) !== null
+        : s.kind === 'arrow' ? nearSegment(s.x1, s.y1, s.x2, s.y2, p, tolX, tolY)
+          : s.kind === 'rect' ? p.x >= s.x - tolX && p.x <= s.x + s.w + tolX && p.y >= s.y - tolY && p.y <= s.y + s.h + tolY
+            : ((p.x - s.x - s.w / 2) / (s.w / 2 + tolX)) ** 2 + ((p.y - s.y - s.h / 2) / (s.h / 2 + tolY)) ** 2 <= 1;
+    if (hit) return k;
+  }
+  return null;
+}
+
+/** A part of a drawn shape that a drag reshapes: a point (`vertex`) or a polygon's side (`edge` i: from point i on). */
+export type Grip = { vertex: number } | { edge: number };
+
+/**
+ * A shape's points that can be dragged (x, y pairs): a polygon's own, a rect's or an ellipse's box corners (clockwise
+ * from the top left), an arrow's ends; a pen stroke has none.
+ */
+export function gripsOf(s: MediaShape): number[] {
+  switch (s.kind) {
+    case 'polygon': return s.points;
+    case 'rect':
+    case 'ellipse': return [s.x, s.y, s.x + s.w, s.y, s.x + s.w, s.y + s.h, s.x, s.y + s.h].map(round4);
+    case 'arrow': return [s.x1, s.y1, s.x2, s.y2];
+    case 'pen': return [];
+  }
+}
+
+/** The grip of a shape under a point: the nearest of its points within reach, else a polygon's side. */
+export function hitGrip(s: MediaShape, p: { x: number; y: number }, tolX: number, tolY: number): Grip | null {
+  const g = gripsOf(s);
+  let vertex = -1, best = Infinity;
+  for (let i = 0; i + 1 < g.length; i += 2) {
+    const dx = Math.abs(g[i] - p.x) / tolX, dy = Math.abs(g[i + 1] - p.y) / tolY;
+    if (dx <= 1 && dy <= 1 && dx + dy < best) { best = dx + dy; vertex = i / 2; }
+  }
+  if (vertex >= 0) return { vertex };
+  const edge = s.kind === 'polygon' ? nearSide(s.points, true, p, tolX, tolY) : null;
+  return edge === null ? null : { edge };
+}
+
+/**
+ * `s` with its grip dragged to (x, y): a polygon's point moved or side bent, a box's corner moved (the opposite one
+ * stays; a box of no extent leaves the shape as it was), an arrow's end moved. Clamped to the media, 4 decimals.
+ */
+export function reshape(s: MediaShape, grip: Grip, x: number, y: number, tolX: number, tolY: number): MediaShape {
+  if (s.kind === 'polygon') return { ...s, points: 'edge' in grip ? bendEdge(s.points, grip.edge, x, y, tolX, tolY) : setVertex(s.points, grip.vertex, x, y) };
+  if (!('vertex' in grip)) return s;
+  const at = { x: round4(clamp01(x)), y: round4(clamp01(y)) };
+  if (s.kind === 'arrow') return grip.vertex ? { ...s, x2: at.x, y2: at.y } : { ...s, x1: at.x, y1: at.y };
+  if (s.kind === 'pen') return s;
+  const c = gripsOf(s);
+  const o = (grip.vertex + 2) % 4;
+  const r = rectFrom({ x: c[2 * o], y: c[2 * o + 1] }, at);
+  return r.w > 0 && r.h > 0 ? { ...s, ...r } : s;
+}
+
+/** `s` shifted by (dx, dy), the shift cut so that the whole shape stays inside the media; 4 decimals. */
+export function moveShape(s: MediaShape, dx: number, dy: number): MediaShape {
+  const b = shapesBounds([s]);
+  const cx = Math.min(1 - b.x - b.w, Math.max(-b.x, dx)), cy = Math.min(1 - b.y - b.h, Math.max(-b.y, dy));
+  const mx = (v: number) => round4(clamp01(v + cx)), my = (v: number) => round4(clamp01(v + cy));
+  switch (s.kind) {
+    case 'polygon':
+    case 'pen': return { ...s, points: movePoints(s.points, cx, cy) };
+    case 'arrow': return { ...s, x1: mx(s.x1), y1: my(s.y1), x2: mx(s.x2), y2: my(s.y2) };
+    default: return { ...s, x: mx(s.x), y: my(s.y) };
+  }
 }
 
 /** `points` with vertex `i` at (x, y), clamped to the media, 4 decimals. */
@@ -137,6 +245,26 @@ export function setVertex(points: number[], i: number, x: number, y: number): nu
   out[2 * i] = round4(clamp01(x));
   out[2 * i + 1] = round4(clamp01(y));
   return out;
+}
+
+/**
+ * `points` with side `edge` bowed into an arc through (x, y) (issue 729): a quadratic curve whose middle is there, as
+ * points about 2.5 reaches (`tolX`/`tolY`) apart, so each can still be grabbed and the arc's sides bent again; an even
+ * count of pieces, so (x, y) is one of them. Never past POLYGON_MAX_POINTS; 4 decimals, clamped to the media.
+ */
+export function bendEdge(points: number[], edge: number, x: number, y: number, tolX: number, tolY: number): number[] {
+  const n = points.length / 2;
+  const j = (edge + 1) % n;
+  const ax = points[2 * edge], ay = points[2 * edge + 1], bx = points[2 * j], by = points[2 * j + 1];
+  const cx = 2 * x - (ax + bx) / 2, cy = 2 * y - (ay + by) / 2; // the control point of a curve through (x, y) at its middle
+  const len = Math.hypot((x - ax) / tolX, (y - ay) / tolY) + Math.hypot((bx - x) / tolX, (by - y) / tolY);
+  const pieces = Math.min(Math.max(2, 2 * Math.round(len / 5)), POLYGON_MAX_POINTS - n + 1);
+  const arc: number[] = [];
+  for (let k = 1; k < pieces; k++) {
+    const t = k / pieces, u = 1 - t;
+    arc.push(round4(clamp01(u * u * ax + 2 * t * u * cx + t * t * bx)), round4(clamp01(u * u * ay + 2 * t * u * cy + t * t * by)));
+  }
+  return [...points.slice(0, 2 * edge + 2), ...arc, ...points.slice(2 * edge + 2)];
 }
 
 /** `points` shifted by (dx, dy), the shift cut so that every point stays inside the media; 4 decimals. */

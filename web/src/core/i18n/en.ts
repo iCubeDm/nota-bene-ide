@@ -883,6 +883,7 @@ export const en: Dict = {
   markUp: 'Mark up',
   markUpTip: 'Draw on the frame and comment on it',
   markTools: 'Markup',
+  toolSelect: 'Select',
   toolRect: 'Rectangle (R)',
   toolEllipse: 'Ellipse (E)',
   toolPen: 'Pen (P)',

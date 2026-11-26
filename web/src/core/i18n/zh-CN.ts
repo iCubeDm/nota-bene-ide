@@ -864,6 +864,7 @@ export const zhCN: Dict = {
   markUp: '标记',
   markUpTip: '在画面上绘制并评论',
   markTools: '标记',
+  toolSelect: '选择',
   toolRect: '矩形 (R)',
   toolEllipse: '椭圆 (E)',
   toolPen: '画笔 (P)',

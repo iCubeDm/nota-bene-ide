@@ -26,7 +26,7 @@ const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const INDIRECT = [
   'cutToolSelect', 'cutToolBlade', 'cutUndo', 'cutRedo', 'cutSplit', 'cutDuplicate', 'cutDelete', 'cutComment',
   'cutTrackMute', 'cutTrackSolo', 'cutTrackHide', 'cutTrackUp', 'cutTrackDown', 'cutTrackRemove', 'cutClipOn', 'cutClipOff',
-  'idleBlocked', 'cutExportBlocked', 'toolRect', 'toolEllipse', 'toolPen', 'toolArrow', 'toolMask',
+  'idleBlocked', 'cutExportBlocked', 'toolSelect', 'toolRect', 'toolEllipse', 'toolPen', 'toolArrow', 'toolMask',
   'h5Tip', 'weekTip', 'pb_mute', 'pb_unmute',
   'fmtBold', 'fmtItalic', 'fmtStrike', 'fmtCode', 'fmtLink', 'fmtBlock', 'fmtList', 'fmtNumbered', 'fmtQuote',
 ];

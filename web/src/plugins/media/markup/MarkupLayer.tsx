@@ -3,21 +3,26 @@ import { createPortal } from 'react-dom';
 import { MARK_COLORS, PEN_MAX_VALUES, POLYGON_MAX_POINTS, type MediaShape } from '@nota-bene/shared';
 import { useT, useAppDispatch, useAppSelector, keysInScope, useFeature } from '@/sdk';
 import { ConfirmDialog } from '@/sdk/ui';
-import { box as rectBox, hitPolygon, movePoints, rectFrom, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
+import { box as rectBox, gripsOf, hitGrip, hitShape, moveShape, outline, rectFrom, reshape, shapePath, shapesBounds, simplify, toRel, type Grip } from './geometry.ts';
 import { MarkupToolbar } from './MarkupToolbar.tsx';
-import { HALO, HALO_PX, shapeEls, STROKE_PX, useNatSize, useOverlayPlacement, type Media } from './overlay.tsx';
-import { addShape, clear, commitEdit, replaceShape, selectDraft, setColor, setMode, setTool, undo, type MarkTool } from './slice.ts';
+import { HALO, HALO_PX, PICK, shapeEls, STROKE_PX, useNatSize, useOverlayPlacement, type Media } from './overlay.tsx';
+import { addShape, clear, commitEdit, removeShape, replaceShape, select, selectDraft, setColor, setMode, setTool, undo, type MarkTool } from './slice.ts';
 
 type Pt = { x: number; y: number };
 
-const TOOL_KEYS: Record<string, MarkTool> = { KeyR: 'rect', KeyE: 'ellipse', KeyP: 'pen', KeyA: 'arrow', KeyG: 'polygon' };
-/** How near (client px) a press must be to a polygon's point to hit it: the first one closes, any one is dragged. */
+const TOOL_KEYS: Record<string, MarkTool> = { KeyV: 'select', KeyR: 'rect', KeyE: 'ellipse', KeyP: 'pen', KeyA: 'arrow', KeyG: 'polygon' };
+/** How near (client px) a press must be to a point or a line to hit it: a polygon's first point closes it, a grip is dragged. */
 const HIT_PX = 8;
 /** The dots of a polygon's points (client px across): a round cap of a zero-length line, the same size at any zoom. */
-const DOT_PX = 9;
+const DOT_PX = 5;
 /** A press this soon (ms) and this near (client px) after the one that added a point is a double-click's second press. */
 const DBL_MS = 500;
-const DBL_PX = 40;
+const DBL_PX = 5;
+/** A click this near (client px) to the last point adds none: a jitter. */
+const JITTER_PX = 2;
+/** The lasso (issue 729): a press that moves this far (client px) is a drag; its outline takes a point every STEP_PX. */
+const DRAG_PX = 4;
+const STEP_PX = 2;
 /** SVG path of dots at the points (x, y pairs). */
 const dotsPath = (pts: number[]): string => {
   let d = '';
@@ -34,7 +39,7 @@ function shapeOf(tool: MarkTool, color: MediaShape['color'], a: Pt, b: Pt, pen: 
     for (let eps = 0.003; pts.length > PEN_MAX_VALUES; eps *= 2) pts = simplify(pen, eps);
     return { kind: 'pen', color, points: pts };
   }
-  if (tool === 'polygon') return null; // drawn point by point, never by a drag
+  if (tool === 'polygon' || tool === 'select') return null; // the Mask draws point by point; Select draws nothing
   if (tool === 'arrow') return a.x === b.x && a.y === b.y ? null : { kind: 'arrow', color, x1: a.x, y1: a.y, x2: b.x, y2: b.y };
   const r = rectFrom(a, b);
   return r.w > 0 && r.h > 0 ? { kind: tool, color, ...r } : null;
@@ -65,6 +70,8 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
   const mask = useFeature('polygons');
   const draft = useAppSelector((s) => selectDraft(s, tabId));
   const [asking, setAsking] = useState(false);
+  // the point of the picked polygon clicked with the Select tool (issue 729; Delete removes it), while those shapes stand
+  const [pointAt, setPointAt] = useState<{ shapes: MediaShape[]; sel: number; i: number } | null>(null);
   const pane = media.parentElement;
   const svg = useRef<SVGSVGElement>(null);
   const toolbar = useRef<HTMLDivElement>(null);
@@ -85,15 +92,21 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
   // `box`: the content box at pointerdown (no layout read per move); a scroll during the drag refreshes it.
   // `tool`/`color`: fixed at pointerdown, so a key pressed mid-drag changes the next shape, not this one.
   // `ptsText`: the live pen's points as a string, kept only where SVGPointList is missing
-  // `edit`: a press on a drawn polygon (issue 447): its index, the point dragged (null: the whole shape) and its points then
+  // `edit`: a press on a drawn shape with the Select tool (issue 729): its index, the grip dragged (null: the whole
+  // shape) and the shape then
   type Drag = {
     id: number; a: Pt; b: Pt; pen: number[]; ptsText: string; box: DOMRect; tool: MarkTool; color: MediaShape['color'];
-    edit?: { index: number; vertex: number | null; points: number[] };
+    edit?: { index: number; grip: Grip | null; prev: MediaShape };
   };
   const drag = useRef<Drag | null>(null);
   // the polygon being drawn (issue 447): its points so far, its colour, the content box when it began, the pointer's last place
-  // `last`: when and where (client px) the last point was added, to tell a double-click's second press
-  type Poly = { pts: number[]; color: MediaShape['color']; box: DOMRect; at?: Pt; last?: { t: number; x: number; y: number } };
+  // `dots`: the points clicked (a lasso's outline has none). `last`: when and where (client px) the last point was clicked,
+  // to tell a double-click's second press. `press`: the button is down (issue 729): its pointer, where its outline took its
+  // last point (client px), whether the press began the polygon and whether it moved (a drag: a lasso)
+  type Poly = {
+    pts: number[]; dots: number[]; color: MediaShape['color']; box: DOMRect; at?: Pt; last?: { t: number; x: number; y: number };
+    press?: { id: number; x: number; y: number; fresh: boolean; moved: boolean };
+  };
   const poly = useRef<Poly | null>(null);
   const toolRef = useRef(draft);
   toolRef.current = draft;
@@ -136,25 +149,37 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
     }
     livePoly.current?.setAttribute('d', d);
     livePolyHalo.current?.setAttribute('d', d);
-    livePolyDots.current?.setAttribute('d', p ? dotsPath(p.pts) : '');
+    livePolyDots.current?.setAttribute('d', p ? dotsPath(p.dots) : '');
   };
   /** The polygon being drawn loses its last point (Backspace, Cmd/Ctrl+Z); none left: it is gone. */
   const popPoint = () => {
     const p = poly.current;
     if (!p) return;
-    p.pts.splice(-2, 2);
+    const [x, y] = p.pts.splice(-2, 2);
+    if (p.dots.at(-2) === x && p.dots.at(-1) === y) p.dots.splice(-2, 2);
     p.last = undefined;
     if (!p.pts.length) poly.current = null;
     showPoly();
   };
   /** Undo: a point of the polygon being drawn, else the last step of the drawing (a shape, or a polygon's drag). */
   const undoStep = () => (poly.current ? popPoint() : void dispatch(undo(tabId)));
+  /**
+   * The polygon being drawn becomes a shape, from 3 points. A freehand outline keeps the points its shape needs (1 px off
+   * at most: issue 729), the clicked ones all; past POLYGON_MAX_POINTS it is thinned further.
+   */
   const closePoly = () => {
     const p = poly.current;
     if (!p || p.pts.length < 6) return;
     poly.current = null;
     showPoly();
-    dispatch(addShape(tabId, { kind: 'polygon', color: p.color, points: p.pts }));
+    const px = 1 / Math.max(1, p.box.width), py = 1 / Math.max(1, p.box.height);
+    const clicked = new Set<string>();
+    for (let i = 0; i + 1 < p.dots.length; i += 2) clicked.add(`${p.dots[i]},${p.dots[i + 1]}`);
+    const keep = new Set<number>();
+    for (let i = 0; i + 1 < p.pts.length; i += 2) if (clicked.has(`${p.pts[i]},${p.pts[i + 1]}`)) keep.add(i / 2);
+    let points = outline(p.pts, keep, px, py);
+    for (let e = 2; points.length > 2 * POLYGON_MAX_POINTS; e *= 2) points = outline(p.pts, new Set(), e * px, e * py);
+    dispatch(addShape(tabId, { kind: 'polygon', color: p.color, points }));
   };
   /**
    * Drops the shape in progress, if any (a drag of any tool, or a polygon being drawn), and clears its live elements.
@@ -197,34 +222,49 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
     const near = (x: number, y: number) => Math.abs(x - a.x) <= tolX && Math.abs(y - a.y) <= tolY;
     const p = poly.current;
     const now = performance.now();
+    const press = (fresh: boolean) => {
+      (e.target as Element).setPointerCapture?.(e.pointerId); // a drag from here is a stretch of outline
+      return { id: e.pointerId, x: e.clientX, y: e.clientY, fresh, moved: false };
+    };
     if (p) {
       const n = p.pts.length / 2;
       if (near(p.pts[0], p.pts[1])) return n >= 3 ? closePoly() : undefined; // the first point closes, from 3 points
-      if (near(p.pts[2 * n - 2], p.pts[2 * n - 1])) return; // a jitter: no double point
       // a double-click's second press (its dblclick closes the shape), even when the pointer moved a little
       const l = p.last;
       if (e.detail >= 2 || (l && now - l.t < DBL_MS && Math.hypot(e.clientX - l.x, e.clientY - l.y) <= DBL_PX)) return;
-      if (n < POLYGON_MAX_POINTS) p.pts.push(a.x, a.y);
+      const [lx, ly] = [p.pts[2 * n - 2] * at.width, p.pts[2 * n - 1] * at.height];
+      if (Math.hypot(a.x * at.width - lx, a.y * at.height - ly) > JITTER_PX) { // a jitter adds no double point
+        p.pts.push(a.x, a.y);
+        p.dots.push(a.x, a.y);
+        p.last = { t: now, x: e.clientX, y: e.clientY };
+      }
       p.at = a;
-      p.last = { t: now, x: e.clientX, y: e.clientY };
+      p.press = press(false);
       return showPoly();
     }
-    // Alt: always a new polygon, also inside a drawn one (which a press would move)
-    const hit = e.altKey ? null : hitPolygon(shapes, a, tolX, tolY);
-    if (hit) { // a drawn polygon: drag its point, or move it
-      (e.target as Element).setPointerCapture?.(e.pointerId);
-      const s = shapes[hit.index] as Extract<MediaShape, { kind: 'polygon' }>;
-      drag.current = { id: e.pointerId, a, b: a, pen: [], ptsText: '', box: at, tool: 'polygon', color: s.color, edit: { index: hit.index, vertex: hit.vertex, points: s.points } };
-      return;
-    }
-    poly.current = { pts: [a.x, a.y], color, box: at, last: { t: now, x: e.clientX, y: e.clientY } };
+    poly.current = { pts: [a.x, a.y], dots: [a.x, a.y], color, box: at, last: { t: now, x: e.clientX, y: e.clientY }, press: press(true) };
     showPoly();
+  };
+  /** Select (issue 729): a press on the picked shape's grip reshapes it, on any shape picks and moves it, elsewhere picks none. */
+  const onSelectDown = (e: RPointerEvent<SVGSVGElement>) => {
+    const at = box();
+    const a = relOf(e, at);
+    const tolX = HIT_PX / Math.max(1, at.width), tolY = HIT_PX / Math.max(1, at.height);
+    const sel = toolRef.current.sel;
+    const grip = sel !== undefined && shapes[sel] ? hitGrip(shapes[sel], a, tolX, tolY) : null;
+    const index = grip ? sel! : hitShape(shapes, a, tolX, tolY);
+    dispatch(select(tabId, index));
+    if (index === null) return;
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    const s = shapes[index];
+    drag.current = { id: e.pointerId, a, b: a, pen: [], ptsText: '', box: at, tool: 'select', color: s.color, edit: { index, grip, prev: s } };
   };
   const onDown = (e: RPointerEvent<SVGSVGElement>) => {
     if (e.button !== 0 || drag.current || saving) return;
     e.preventDefault(); // no text selection, no image drag
     svg.current?.focus({ preventScroll: true }); // the mode's keys work again after a click in the composer
     const { tool, color } = toolRef.current;
+    if (tool === 'select') return onSelectDown(e);
     if (tool === 'polygon') {
       const at = poly.current?.box ?? box();
       return onPolyDown(e, at, relOf(e, at), color);
@@ -241,16 +281,29 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
   const onMove = (e: RPointerEvent<SVGSVGElement>) => {
     const d = drag.current;
     const p = poly.current;
-    if (!d && p) { // the line from the last point follows the pointer
+    if (!d && p) { // the line from the last point follows the pointer; with the button down, the outline does (a lasso)
+      const q = p.press;
+      if (q && e.pointerId === q.id) {
+        const native = e.nativeEvent;
+        for (const c of typeof native.getCoalescedEvents === 'function' && native.getCoalescedEvents().length ? native.getCoalescedEvents() : [native]) {
+          if (Math.hypot(c.clientX - q.x, c.clientY - q.y) < (q.moved ? STEP_PX : DRAG_PX)) continue;
+          q.moved = true;
+          q.x = c.clientX;
+          q.y = c.clientY;
+          const r = relOf(c, p.box);
+          p.pts.push(r.x, r.y);
+        }
+      }
       p.at = relOf(e, p.box);
       return showPoly();
     }
     if (!d || e.pointerId !== d.id) return;
-    if (d.edit) { // a drawn polygon follows the pointer (a few points: the store takes each step)
+    if (d.edit) { // a drawn shape follows the pointer (the store takes each step)
       const r = relOf(e, d.box);
-      const { index, vertex, points } = d.edit;
-      const next = vertex === null ? movePoints(points, r.x - d.a.x, r.y - d.a.y) : setVertex(points, vertex, r.x, r.y);
-      dispatch(replaceShape(tabId, index, { kind: 'polygon', color: d.color, points: next }));
+      const { index, grip, prev } = d.edit;
+      const next = grip ? reshape(prev, grip, r.x, r.y, HIT_PX / Math.max(1, d.box.width), HIT_PX / Math.max(1, d.box.height))
+        : moveShape(prev, r.x - d.a.x, r.y - d.a.y);
+      dispatch(replaceShape(tabId, index, next));
       return;
     }
     // every input sample since the last frame, for a stroke as smooth as the pointer (pen only; a box needs the last)
@@ -269,14 +322,22 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
     else showLive(d);
   };
   const finish = (e: RPointerEvent<SVGSVGElement>) => {
+    const p = poly.current;
+    if (p?.press && e.pointerId === p.press.id) { // the button is up: a lasso begun by this press closes
+      const { fresh, moved } = p.press;
+      p.press = undefined;
+      if (moved) p.last = undefined; // the next press is a click of its own, never a double-click's second
+      if (moved && fresh) closePoly();
+      return;
+    }
     const d = drag.current;
     if (!d || e.pointerId !== d.id) return;
     drag.current = null;
-    if (d.edit) { // one drag, one undo step back to the points before it
+    if (d.edit) { // one drag, one undo step back to the shape before it
       const s = shapes[d.edit.index];
-      if (s?.kind === 'polygon' && s.points.some((v, i) => v !== d.edit!.points[i])) {
-        dispatch(commitEdit(tabId, d.edit.index, { kind: 'polygon', color: d.color, points: d.edit.points }));
-      }
+      const { index, grip, prev } = d.edit;
+      if (s && JSON.stringify(s) !== JSON.stringify(prev)) dispatch(commitEdit(tabId, index, prev));
+      else if (s?.kind === 'polygon' && grip && 'vertex' in grip) setPointAt({ shapes, sel: index, i: grip.vertex }); // a click on a point picks it
       return;
     }
     if (e.type === 'pointerup') d.b = relOf(e, d.box);
@@ -292,6 +353,7 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
     dispatch(setMode(tabId, true));
   };
   const shapes = draft.shapes;
+  const point = pointAt && pointAt.shapes === shapes && pointAt.sel === draft.sel ? pointAt.i : null;
   const leave = useCallback(() => (shapes.length ? setAsking(true) : void dispatch(setMode(tabId, false))), [shapes, dispatch, tabId]);
   const comment = useCallback(() => {
     if (!shapes.length || saving) return;
@@ -321,9 +383,18 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
         return;
       }
       if (mod || e.altKey) return;
+      const sel = toolRef.current.sel;
       if (e.key === 'Escape') {
         e.preventDefault();
-        if (!dropInProgress()) leave(); // a shape in progress goes alone, with no question; else the mode is left
+        if (sel !== undefined) dispatch(select(tabId, null)); // the pick goes first, then a shape in progress, then the mode
+        else if (!dropInProgress()) leave(); // a shape in progress goes alone, with no question; else the mode is left
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && sel !== undefined) {
+        e.preventDefault();
+        const s = shapes[sel];
+        if (point !== null && s?.kind === 'polygon' && s.points.length > 6) { // the picked point; a triangle goes whole
+          dispatch(replaceShape(tabId, sel, { ...s, points: s.points.filter((_, k) => k >> 1 !== point) }));
+          dispatch(commitEdit(tabId, sel, s));
+        } else dispatch(removeShape(tabId, sel));
       } else if (e.key === 'Enter' && poly.current) {
         e.preventDefault();
         closePoly(); // fewer than 3 points: nothing yet
@@ -344,13 +415,28 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
     };
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, [on, asking, held, saving, media, dispatch, tabId, leave, comment, shapes, mask, dropInProgress]);
+  }, [on, asking, held, saving, media, dispatch, tabId, leave, comment, shapes, point, mask, dropInProgress]);
 
   const drawn = useMemo(() => shapeEls(shapes, nat[0], nat[1]), [shapes, nat]);
-  // with the Mask tool, the drawn polygons' points show as dots: they can be dragged
-  const handles = useMemo(() => (draft.tool !== 'polygon' ? [] : shapes.flatMap((s, i) => (s.kind !== 'polygon' ? [] : [
-    <path key={i} data-handles d={dotsPath(s.points)} stroke={s.color} strokeWidth={DOT_PX} vectorEffect="non-scaling-stroke" />,
-  ]))), [shapes, draft.tool]);
+  // the shape picked with the Select tool: a dashed box around it, a white dot at each grip, the picked point bigger
+  const picked = draft.tool === 'select' && draft.sel !== undefined ? shapes[draft.sel] : undefined;
+  const handles = useMemo(() => {
+    if (!picked) return null;
+    const b = shapesBounds([picked]);
+    const dots = dotsPath(gripsOf(picked));
+    const one = point !== null && picked.kind === 'polygon' ? dotsPath(picked.points.slice(2 * point, 2 * point + 2)) : '';
+    const frame = { x: b.x, y: b.y, width: b.w, height: b.h, vectorEffect: 'non-scaling-stroke' } as const;
+    return (
+      <>
+        <rect {...frame} stroke={HALO} strokeWidth={3} />
+        <rect {...frame} data-selected stroke={PICK} strokeWidth={1} strokeDasharray="4 3" />
+        <path d={dots} stroke={HALO} strokeWidth={DOT_PX + 2} vectorEffect="non-scaling-stroke" />
+        <path data-handles d={dots} stroke={PICK} strokeWidth={DOT_PX} vectorEffect="non-scaling-stroke" />
+        {one && <path d={one} stroke={HALO} strokeWidth={DOT_PX + 6} vectorEffect="non-scaling-stroke" />}
+        {one && <path data-point d={one} stroke={picked.color} strokeWidth={DOT_PX + 4} vectorEffect="non-scaling-stroke" />}
+      </>
+    );
+  }, [picked, point]);
 
   if (!offered && !on) return null;
   return (
@@ -380,7 +466,7 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
           strokeWidth={STROKE_PX}
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="pointer-events-none absolute z-10 cursor-crosshair touch-none overflow-visible outline-none select-none"
+          className={`pointer-events-none absolute z-10 ${draft.tool === 'select' ? 'cursor-default' : 'cursor-crosshair'} touch-none overflow-visible outline-none select-none`}
           onPointerDown={onDown}
           onPointerMove={onMove}
           onPointerUp={finish}
