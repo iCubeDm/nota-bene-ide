@@ -6,7 +6,8 @@ import { parseClientMessage, type ClientMessage, type MediaAnchor } from '@nota-
 import { Composer } from '@/plugins/composer/Composer.tsx';
 import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import { setLang } from '@/core/i18n/index.ts';
-import { makeStore } from '@/core/testing';
+import { makeStore, setValue, valueOf } from '@/core/testing';
+import { fieldFor } from '@/sdk';
 import { getToasts, resetToasts } from '@/core/shell/toast.ts';
 import { CommentPopup } from './CommentPopup.tsx';
 import type { PendingComment } from '@/sdk';
@@ -49,7 +50,7 @@ function setup(p: PendingComment = pending, onAdded?: () => void, protocol = 26)
   const comments = () => store.getState().comments.items;
   return { store, sent, onClose, comments };
 }
-const box = () => screen.getByPlaceholderText('Comment…');
+const box = () => screen.getByRole('textbox', { name: 'Comment…' });
 /** Like setup, with the popup's `hidden` prop driven by the test. */
 function setupHidable(p: PendingComment) {
   const store = makeStore({ url: 'ws://x', connect: (() => ({ send: () => true, close() {} })) as never });
@@ -67,7 +68,7 @@ function setupHidable(p: PendingComment) {
 }
 
 
-it('shows the quote and focuses the textarea', () => {
+it('shows the quote and focuses the field', () => {
   setup();
   expect(screen.getByText(/brave world/)).toBeInTheDocument();
   expect(box()).toHaveFocus();
@@ -75,7 +76,7 @@ it('shows the quote and focuses the textarea', () => {
 
 it('⌘Enter adds with the typed text', () => {
   const { comments, onClose, store } = setup();
-  fireEvent.change(box(), { target: { value: ' fix this ' } });
+  setValue(box(), ' fix this ');
   fireEvent.keyDown(box(), { key: 'Enter', metaKey: true });
   expect(comments()).toHaveLength(1);
   expect(comments()[0]).toMatchObject({ text: 'fix this', anchor: pending.anchor });
@@ -86,7 +87,7 @@ it('⌘Enter adds with the typed text', () => {
 
 it('Esc cancels without adding', () => {
   const { comments, onClose } = setup();
-  fireEvent.change(box(), { target: { value: 'x' } });
+  setValue(box(), 'x');
   fireEvent.keyDown(document, { key: 'Escape' });
   expect(comments()).toHaveLength(0);
   expect(onClose).toHaveBeenCalled();
@@ -115,7 +116,7 @@ it('an empty ⌘Enter adds nothing and closes', () => {
 
 it('a chip adds a labelled comment in one click', () => {
   const { comments, onClose } = setup();
-  fireEvent.change(box(), { target: { value: 'why' } });
+  setValue(box(), 'why');
   const chip = screen.getByRole('button', { name: 'Verify this' });
   fireEvent.click(chip);
   expect(comments()).toHaveLength(1);
@@ -149,15 +150,15 @@ it('⌘Enter in the popup does not reach the composer', async () => {
   const seen = vi.fn();
   document.addEventListener('keydown', seen);
   await act(async () => {
-    fireEvent.change(screen.getByPlaceholderText(/Message the agent/), { target: { value: 'draft' } });
+    setValue(screen.getByRole('textbox', { name: /Message the agent/ }), 'draft');
   });
-  fireEvent.change(box(), { target: { value: 'c' } });
+  setValue(box(), 'c');
   const notPrevented = fireEvent.keyDown(box(), { key: 'Enter', metaKey: true });
   document.removeEventListener('keydown', seen);
   expect(notPrevented).toBe(false);
   expect(seen).not.toHaveBeenCalled();
   expect(sent.filter((m) => m.type === 'send')).toHaveLength(0);
-  expect(screen.getByPlaceholderText(/Message the agent/)).toHaveValue('draft');
+  expect(valueOf(screen.getByRole('textbox', { name: /Message the agent/ }))).toBe('draft');
 });
 
 vi.mock('@/core/lib/image.ts', async (orig) => ({
@@ -197,7 +198,7 @@ it('issue 497: an older server would refuse images or a drawing alone, so Add wa
   fireEvent.keyDown(box(), { key: 'Enter', metaKey: true }); // the pasted image stays: the popup does not close
   await act(async () => {});
   expect(first.onClose).not.toHaveBeenCalled();
-  fireEvent.change(box(), { target: { value: 'see this' } });
+  setValue(box(), 'see this');
   expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled();
   cleanup();
   const prepare = vi.fn(async () => ({ images: [FRAME, LAYER] }));
@@ -220,7 +221,7 @@ it('while switching: Add and the quick labels are disabled with the switching to
   const chips = QUICK_LABELS.map((l) => screen.getByRole('button', { name: labelText(l.id) }));
   expect(chips.length).toBeGreaterThan(0);
   for (const chip of chips) expect(chip).toBeDisabled();
-  fireEvent.change(box(), { target: { value: 'x' } });
+  setValue(box(), 'x');
   fireEvent.keyDown(box(), { key: 'Enter', metaKey: true });
   expect(comments()).toEqual([]);
   expect(onClose).not.toHaveBeenCalled();
@@ -256,10 +257,10 @@ it('while switching, a hovered chip explains why it is off', async () => {
 
 it('opened by typing: the typed letter is in the field, the caret after it', async () => {
   setup({ ...pending, text: 'н' });
-  const area = screen.getByRole('textbox', { name: 'Comment…' }) as HTMLTextAreaElement;
+  const area = box();
   await waitFor(() => expect(document.activeElement).toBe(area));
-  expect(area.value).toBe('н');
-  expect(area.selectionStart).toBe(1);
+  expect(valueOf(area)).toBe('н');
+  expect(fieldFor(area)!.selection().from).toBe(1);
 });
 
 // ---- media comments (Task 6) ----
@@ -318,7 +319,7 @@ it('Add on a media comment: no text needed; awaits prepare with a disabled spinn
 
 it('a quick label on a media comment adds it labelled, after prepare', async () => {
   const { comments } = setup({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare: async () => ({ images: [FRAME, LAYER] }) });
-  fireEvent.change(box(), { target: { value: 'sit here' } });
+  setValue(box(), 'sit here');
   await act(async () => void fireEvent.click(screen.getByRole('button', { name: 'Verify this' })));
   expect(comments()[0]).toMatchObject({ id: MID, text: 'sit here', label: 'verify', images: [FRAME, LAYER] });
 });
@@ -326,13 +327,13 @@ it('a quick label on a media comment adds it labelled, after prepare', async () 
 it('a failed prepare shows the error and keeps the popup open; nothing is added', async () => {
   const onAdded = vi.fn();
   const { comments, onClose } = setup({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare: async () => { throw new Error('marks 500'); } }, onAdded);
-  fireEvent.change(box(), { target: { value: 'keep me' } });
+  setValue(box(), 'keep me');
   await act(async () => void fireEvent.click(screen.getByRole('button', { name: 'Add' })));
   expect(screen.getByText(/Could not save the drawing.*marks 500/)).toBeInTheDocument();
   expect(comments()).toEqual([]);
   expect(onClose).not.toHaveBeenCalled();
   expect(onAdded).not.toHaveBeenCalled();
-  expect(box()).toHaveValue('keep me');
+  expect(valueOf(box())).toBe('keep me');
   expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled(); // a retry is possible
 });
 
@@ -340,12 +341,12 @@ it('while Add saves, Esc and a click outside are ignored: the popup stays and th
   const d = deferred<{ images: string[] }>();
   const onAdded = vi.fn();
   const { comments, onClose } = setup({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare: () => d.promise }, onAdded);
-  fireEvent.change(box(), { target: { value: 'keep me' } });
+  setValue(box(), 'keep me');
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
   expect(fireEvent.keyDown(document, { key: 'Escape' })).toBe(false); // still taken (never reaches the agent), no close
   fireEvent.mouseDown(document.getElementById('outside')!);
   expect(onClose).not.toHaveBeenCalled();
-  expect(box()).toHaveValue('keep me');
+  expect(valueOf(box())).toBe('keep me');
   await act(async () => d.resolve({ images: [FRAME, LAYER] }));
   expect(comments()).toHaveLength(1);
   expect(comments()[0]).toMatchObject({ id: MID, text: 'keep me', images: [FRAME, LAYER] });
@@ -360,7 +361,7 @@ it('the popup unmounted while Add saves (its tab closed): the save still finishe
     const d = deferred<{ images: string[] }>();
     const onAdded = vi.fn();
     const { comments } = setup({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare: () => d.promise }, onAdded);
-    fireEvent.change(box(), { target: { value: 'keep me' } });
+    setValue(box(), 'keep me');
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     cleanup();
     await act(async () => d.resolve({ images: [FRAME, LAYER] }));
@@ -377,7 +378,7 @@ it('the popup unmounted while Add saves and the save fails: a toast says so and 
   resetToasts();
   const d = deferred<{ images: string[] }>();
   const { comments } = setup({ ...pending, anchor: mediaAnchor(), id: MID, discard, prepare: () => d.promise });
-  fireEvent.change(box(), { target: { value: 'keep me' } });
+  setValue(box(), 'keep me');
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
   cleanup();
   await act(async () => d.reject(new Error('marks 500')));
@@ -474,20 +475,17 @@ it('two clicks on Add in one tick start one prepare', async () => {
   expect(comments()).toHaveLength(1);
 });
 
-it('the textarea grows with a long comment (the cap and the scrolling are CSS) and the popup keeps its side', () => {
-  const h = vi.spyOn(HTMLTextAreaElement.prototype, 'scrollHeight', 'get').mockReturnValue(180);
-  let popOffset = 100; // the popup's height; the textarea has no border here (offsetHeight 0 = clientHeight 0)
-  const popH = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) { return this instanceof HTMLTextAreaElement ? 0 : popOffset; });
+it('the field grows with a long comment (the cap and the scrolling are CSS) and the popup keeps its side', () => {
+  let popOffset = 100; // the popup's height
+  const popH = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => popOffset);
   setup();
-  const popup = box().parentElement!.closest<HTMLElement>('[style]')!; // the popup root (the textarea has its own height style)
+  const popup = screen.getByRole('dialog');
   expect(popup.style.top).toBe('46px'); // below the selection (bottom 40 + 6)
-  fireEvent.change(box(), { target: { value: 'a long comment\n'.repeat(12) } });
-  expect(box().style.height).toBe('180px');
-  expect(box().className).toMatch(/max-h-\[40vh\]/);
+  setValue(box(), 'a long comment\n'.repeat(12));
+  expect(box().closest('.cm-editor')!.parentElement!.className).toMatch(/max-h-\[40vh\]/);
   popOffset = window.innerHeight; // grown taller than the room below: it moves up, never flips above the selection
-  fireEvent.change(box(), { target: { value: 'a long comment\n'.repeat(40) } });
+  setValue(box(), 'a long comment\n'.repeat(40));
   expect(popup.style.top).toBe('8px');
-  h.mockRestore();
   popH.mockRestore();
 });
 
@@ -499,7 +497,7 @@ const dragBy = (el: Element, from: [number, number], to: [number, number], o: Po
 
 it('the popup drags by its quote line, stays put while it grows, and is clamped to the viewport', () => {
   let popOffset = 100;
-  const popH = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) { return this instanceof HTMLTextAreaElement ? 0 : popOffset; });
+  const popH = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => popOffset);
   const popW = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(340);
   const { onClose } = setup();
   const popup = screen.getByRole('dialog');
@@ -508,10 +506,10 @@ it('the popup drags by its quote line, stays put while it grows, and is clamped 
   expect([popup.style.left, popup.style.top]).toEqual(['10px', '46px']);
   dragBy(handle, [20, 50], [220, 150]);
   expect([popup.style.left, popup.style.top]).toEqual(['210px', '146px']);
-  fireEvent.change(box(), { target: { value: 'more text' } }); // re-layout: not snapped back to the selection
+  setValue(box(), 'more text'); // re-layout: not snapped back to the selection
   expect([popup.style.left, popup.style.top]).toEqual(['210px', '146px']);
   popOffset = window.innerHeight; // too tall for the spot: only clamped
-  fireEvent.change(box(), { target: { value: 'more text\n' } });
+  setValue(box(), 'more text\n');
   expect(popup.style.top).toBe('8px');
   dragBy(handle, [0, 0], [5000, 0]); // far to the right: stays inside
   expect(popup.style.left).toBe(`${window.innerWidth - 340 - 8}px`);

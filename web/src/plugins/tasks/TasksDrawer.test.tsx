@@ -5,7 +5,7 @@ import type { ClientMessage, ServerEvent, WireAgentEvent } from '@nota-bene/shar
 import { App } from '@/App.tsx';
 import { setLang } from '@/core/i18n/index.ts';
 import { serverEvent } from '@/core/store/store.ts';
-import { makeStore } from '@/core/testing';
+import { makeStore, setValue, valueOf } from '@/core/testing';
 import { selectTabs } from '@/core/tabs/slice.ts';
 import { CommentPopup } from '@/plugins/comments/CommentPopup.tsx';
 import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
@@ -365,14 +365,14 @@ describe('Esc and the comment popup', () => {
     const onClose = vi.fn();
     const pending = { anchor: { source: { kind: 'message', id: 'a1' }, start: 0, end: 1, quote: 'x', prefix: '', suffix: '' }, rect: { left: 10, right: 50, top: 20, bottom: 40, width: 40, height: 20, x: 10, y: 20, toJSON() {} } } as never;
     render(<Provider store={store}><TooltipProvider><TasksDrawer /><CommentPopup pending={pending} onClose={onClose} /></TooltipProvider></Provider>);
-    const area = screen.getByPlaceholderText('Comment…') as HTMLTextAreaElement;
-    fireEvent.change(area, { target: { value: 'my draft' } });
+    const area = screen.getByRole('textbox', { name: 'Comment…' });
+    setValue(area, 'my draft');
     act(() => void store.dispatch(setDrawer(true))); // Alt+T from inside the field does this
     expect(drawer()).not.toBeNull();
     fireEvent.keyDown(area, { key: 'Escape', code: 'Escape', bubbles: true });
     expect(selectDrawerOpen(store.getState())).toBe(false);
     expect(onClose).not.toHaveBeenCalled();
-    expect(area.value).toBe('my draft');
+    expect(valueOf(area)).toBe('my draft');
     fireEvent.keyDown(area, { key: 'Escape', code: 'Escape', bubbles: true }); // drawer closed: the popup behaves as before
     expect(onClose).toHaveBeenCalledTimes(1);
   });

@@ -1,8 +1,9 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
-import type { KeyboardEvent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Provider } from 'react-redux';
 import { afterEach, expect, it } from 'vitest';
 import type { PromptEntry } from '@nota-bene/shared';
+import type { Field } from '@/sdk';
 import { testStore } from '@/core/testing';
 import { selectDraft } from './slice.ts';
 import { usePromptRecall } from './usePromptRecall.ts';
@@ -13,19 +14,26 @@ const p = (id: string, text: string): PromptEntry => ({ id, ts: 1, text, src: 't
 
 function setup(items: PromptEntry[]) {
   const { store } = testStore();
-  const el = document.body.appendChild(document.createElement('textarea'));
-  const ref = { current: el };
+  // the field as the controlled value leaves it: the draft, the caret at its end
+  const text = () => selectDraft(store.getState());
+  const field: Field = {
+    element: document.body.appendChild(document.createElement('div')),
+    text,
+    selection: () => ({ from: text().length, to: text().length }),
+    replace: () => {},
+    setCaret: () => {},
+    focus: () => {},
+    onUpdate: () => () => {},
+  };
+  const ref = { current: field };
   const wrapper = ({ children }: { children: ReactNode }) => <Provider store={store}>{children}</Provider>;
   const hook = renderHook((props: { items: PromptEntry[]; sid: string | null }) => usePromptRecall({ ...props, text: selectDraft(store.getState()), ref }), {
     wrapper,
     initialProps: { items, sid: 's1' },
   });
-  // the field as the controlled value leaves it: the draft, the caret at its end
   const key = (k: 'ArrowUp' | 'ArrowDown', always = false) => {
-    el.value = selectDraft(store.getState());
-    el.setSelectionRange(el.value.length, el.value.length);
     let r = false;
-    act(() => void (r = hook.result.current.stepHistory({ key: k, currentTarget: el } as KeyboardEvent<HTMLTextAreaElement>, always)));
+    act(() => void (r = hook.result.current.stepHistory(new KeyboardEvent('keydown', { key: k }), always)));
     return r;
   };
   return { store, hook, key, draft: () => selectDraft(store.getState()) };

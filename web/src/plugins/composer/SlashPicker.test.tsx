@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import type { ClientMessage, SlashCommand } from '@nota-bene/shared';
@@ -7,7 +7,8 @@ import { CommentPopup } from '@/plugins/comments/CommentPopup.tsx';
 import type { PendingSelection } from '@/plugins/comments/SelectionButton.tsx';
 import { setLang } from '@/core/i18n/index.ts';
 import { serverEvent } from '@/core/store/store.ts';
-import { makeStore } from '@/core/testing';
+import { fieldFor } from '@/sdk';
+import { makeStore, select, setValue, valueOf } from '@/core/testing';
 import { Composer } from './Composer.tsx';
 
 beforeEach(() => setLang('en'));
@@ -24,12 +25,11 @@ function setup(commands: SlashCommand[] | null = LIST) {
   const store = makeStore({ url: 'ws://x', connect: ((_u: unknown, _e: unknown, s: (x: 'open') => void) => (s('open'), { send: (m: ClientMessage) => (sent.push(m), true), close() {} })) as never });
   if (commands) store.dispatch(serverEvent({ kind: 'commands', commands }));
   render(<Provider store={store}><TooltipProvider><Composer /></TooltipProvider></Provider>);
-  const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+  const box = screen.getByRole('textbox');
   box.focus();
   const type = (value: string, caret = value.length) => {
-    fireEvent.change(box, { target: { value } });
-    box.setSelectionRange(caret, caret);
-    fireEvent.input(box);
+    setValue(box, value);
+    if (caret !== value.length) select(box, caret);
   };
   const names = () => screen.queryAllByRole('option').map((o) => o.querySelector('span')!.textContent);
   return { sent, store, box, type, names };
@@ -87,8 +87,8 @@ it('arrows move (wrapping), Enter picks: /name and a space, the caret after it, 
   fireEvent.keyDown(box, { key: 'ArrowUp' });
   expect(screen.getAllByRole('option')[2]).toHaveAttribute('aria-selected', 'true');
   fireEvent.keyDown(box, { key: 'Enter' });
-  expect(box.value).toBe('/compact ');
-  expect(box.selectionStart).toBe('/compact '.length);
+  expect(valueOf(box)).toBe('/compact ');
+  expect(fieldFor(box)!.selection().from).toBe('/compact '.length);
   expect(store.getState().composer.draft).toBe('/compact ');
   expect(screen.queryByRole('listbox')).toBeNull();
 });
@@ -97,8 +97,8 @@ it('Tab picks too, replacing the whole first word and keeping the arguments afte
   const { type, box } = setup();
   type('/pi arg', 2);
   fireEvent.keyDown(box, { key: 'Tab' });
-  expect(box.value).toBe('/ping arg');
-  expect(box.selectionStart).toBe('/ping '.length);
+  expect(valueOf(box)).toBe('/ping arg');
+  expect(fieldFor(box)!.selection().from).toBe('/ping '.length);
 });
 
 it('Esc closes without picking; Enter with Cmd passes through to send', () => {
@@ -106,7 +106,7 @@ it('Esc closes without picking; Enter with Cmd passes through to send', () => {
   type('/he');
   fireEvent.keyDown(box, { key: 'Escape' });
   expect(screen.queryByRole('listbox')).toBeNull();
-  expect(box.value).toBe('/he');
+  expect(valueOf(box)).toBe('/he');
   type('/ping');
   fireEvent.keyDown(box, { key: 'Enter', metaKey: true });
   expect(screen.queryByRole('listbox')).toBeNull();
@@ -117,7 +117,7 @@ it('a click picks', () => {
   const { type, box } = setup();
   type('/');
   fireEvent.click(screen.getAllByRole('option')[1]);
-  expect(box.value).toBe('/hello ');
+  expect(valueOf(box)).toBe('/hello ');
 });
 
 it('a new list from the server replaces the shown one', () => {
@@ -137,10 +137,8 @@ it('is not offered in the comment popup', () => {
   const store = makeStore({ url: 'ws://x', connect: ((_u: unknown, _e: unknown, s: (x: 'open') => void) => (s('open'), { send: () => true, close() {} })) as never });
   store.dispatch(serverEvent({ kind: 'commands', commands: LIST }));
   render(<Provider store={store}><TooltipProvider><CommentPopup pending={pending} onClose={() => {}} /></TooltipProvider></Provider>);
-  const box = screen.getByPlaceholderText('Comment…') as HTMLTextAreaElement;
-  fireEvent.change(box, { target: { value: '/' } });
-  box.setSelectionRange(1, 1);
-  fireEvent.input(box);
+  const box = screen.getByRole('textbox', { name: 'Comment…' });
+  setValue(box, '/');
   expect(screen.queryByRole('listbox')).toBeNull();
 });
 
@@ -150,7 +148,7 @@ it('Shift+Tab closes the menu and lets the composer cycle the mode; nothing is p
   type('/pi');
   fireEvent.keyDown(box, { key: 'Tab', shiftKey: true });
   expect(screen.queryByRole('listbox')).toBeNull();
-  expect(box.value).toBe('/pi');
+  expect(valueOf(box)).toBe('/pi');
   expect(sent.find((m) => m.type === 'mode')).toBeDefined();
 });
 
@@ -158,18 +156,14 @@ it('moving the caret by keys into the first word opens the menu; Esc keeps it sh
   const { type, box } = setup();
   type('/ping arg', 9);
   expect(screen.queryByRole('listbox')).toBeNull();
-  box.setSelectionRange(3, 3);
-  act(() => { document.dispatchEvent(new Event('selectionchange')); });
+  select(box, 3);
   expect(screen.getByRole('listbox')).toBeInTheDocument();
   fireEvent.keyDown(box, { key: 'Escape' });
   expect(screen.queryByRole('listbox')).toBeNull();
-  box.setSelectionRange(2, 2); // an arrow key inside the same word
-  act(() => { document.dispatchEvent(new Event('selectionchange')); });
+  select(box, 2); // an arrow key inside the same word
   expect(screen.queryByRole('listbox')).toBeNull();
-  box.setSelectionRange(8, 8); // out of the word
-  act(() => { document.dispatchEvent(new Event('selectionchange')); });
-  box.setSelectionRange(3, 3); // and back in
-  act(() => { document.dispatchEvent(new Event('selectionchange')); });
+  select(box, 8); // out of the word
+  select(box, 3); // and back in
   expect(screen.getByRole('listbox')).toBeInTheDocument();
 });
 

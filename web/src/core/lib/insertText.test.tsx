@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+import type { Field } from '../components/field/field.ts';
 import { insertPaths, pathText } from './insertText.ts';
 
 it('pathText: media as an embed (it plays in the feed), anything else as code (a ref); never an @mention', () => {
@@ -35,21 +36,26 @@ it('the forms render as refs and players', async () => {
   expect(container.querySelector('code')?.textContent).toBe('`edge.txt');
 });
 
-it('insertPaths: at the caret (over a selection), spaced from the words around it, the caret after', () => {
-  const ta = document.createElement('textarea');
+it('insertPaths: at the caret (over a selection), spaced from the words around it, the caret after', async () => {
+  const { render } = await import('@testing-library/react');
+  const { EditorField } = await import('@/core/components/field/EditorField.tsx');
+  const { setValue, select } = await import('@/core/testing');
+  const ref: { current: Field | null } = { current: null };
   const seen: string[] = [];
-  ta.addEventListener('input', () => seen.push(ta.value));
-  ta.value = 'see now';
-  ta.setSelectionRange(3, 3);
-  insertPaths(ta, ['a.zip', 'b.zip']);
-  expect(ta.value).toBe('see `a.zip` `b.zip` now');
-  expect(ta.selectionStart).toBe('see `a.zip` `b.zip`'.length);
+  render(<EditorField fieldRef={ref} value="" onChange={(v) => seen.push(v)} newline="Enter" ariaLabel="m" />);
+  const f = ref.current!;
+  setValue(f.element, 'see now');
+  select(f.element, 3);
+  seen.length = 0;
+  insertPaths(f, ['a.zip', 'b.zip']);
+  expect(f.text()).toBe('see `a.zip` `b.zip` now');
+  expect(f.selection().from).toBe('see `a.zip` `b.zip`'.length);
   expect(seen).toHaveLength(1);
-  ta.value = '';
-  insertPaths(ta, ['c.zip']);
-  expect(ta.value).toBe('`c.zip`');
-  ta.value = 'x ';
-  ta.setSelectionRange(2, 2);
-  insertPaths(ta, ['c.zip']);
-  expect(ta.value).toBe('x `c.zip`');
+  setValue(f.element, '');
+  insertPaths(f, ['c.zip']);
+  expect(f.text()).toBe('`c.zip`');
+  setValue(f.element, 'x ');
+  select(f.element, 2);
+  insertPaths(f, ['c.zip']);
+  expect(f.text()).toBe('x `c.zip`');
 });

@@ -7,7 +7,7 @@ import { apiGet } from './auth.ts';
 // B1e: an image the agent left in a temp folder opens from the chat. The bytes come from /tmpimage, which the cookie alone
 // does not open (key tier), into a blob; /file stays inside the project.
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
-const composer = (page: Page) => page.getByPlaceholder(/Message the agent|Сообщение агенту/);
+const composer = (page: Page) => page.getByRole('textbox', { name: /Message the agent|Сообщение агенту/ });
 
 test('a temp image path in a message opens as a tab with the picture; the cookie alone cannot fetch it; a vanished file shows the short state @files', async ({ page, context }) => {
   const dir = fs.mkdtempSync(nodePath.join(fs.realpathSync(os.tmpdir()), 'nb-e2e-img-'));

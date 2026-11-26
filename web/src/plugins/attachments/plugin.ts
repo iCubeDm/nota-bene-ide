@@ -1,4 +1,4 @@
-import type { ClipboardEvent, FC } from 'react';
+import type { FC } from 'react';
 import { definePlugin, type ImageEntry } from '@/sdk';
 import { Attachments, ImagesPart } from './Attachments.tsx';
 import { AttachmentCard, revealAttachment } from './AttachmentCard.tsx';
@@ -19,7 +19,7 @@ export interface AttachmentsService {
    * `onBusy(±1)` the uploads running. `add` takes files, `cancel(key)` stops a file's upload.
    */
   useIntake(o: { onUploaded: (e: ImageEntry) => void; onFilePath: (path: string) => void; notify: (msg: string) => void; onBusy?: (d: 1 | -1) => void }): {
-    pending: PendingThumb[]; add(files: Iterable<File>): boolean; onPaste(e: ClipboardEvent<HTMLTextAreaElement>): void; cancel(key: string): void;
+    pending: PendingThumb[]; add(files: Iterable<File>): boolean; onPaste(e: ClipboardEvent): void; cancel(key: string): void;
   };
   /** a strip of thumbnails: the uploaded `ids` (× with `onRemove`) and the uploads in flight */
   Attachments: FC<{ ids: string[]; pending?: PendingThumb[]; onCancel?: (key: string) => void; onRemove?: (id: string) => void } & { 'data-testid'?: string }>;

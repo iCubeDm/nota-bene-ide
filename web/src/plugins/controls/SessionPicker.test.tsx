@@ -9,7 +9,7 @@ import { Composer } from '@/plugins/composer/Composer.tsx';
 import { setDraft } from '@/plugins/composer/slice.ts';
 import { setLang } from '@/core/i18n/index.ts';
 import { Header } from '@/core/shell/Header.tsx';
-import { makeStore } from '@/core/testing';
+import { makeStore, valueOf } from '@/core/testing';
 import { menuItems, SessionPicker } from './SessionPicker.tsx';
 import { ago } from '@/core/lib/format.ts';
 import { brief, type SessionsView } from '@/core/store/sessions.ts';
@@ -188,15 +188,15 @@ it('while switching: Send (composer and panel) is off with the switching title, 
     expect(b).toBeDisabled();
     expect(b.closest('[title]')).toHaveAttribute('title', 'switching…');
   }
-  const box = screen.getByRole('textbox') as HTMLTextAreaElement;
-  expect(box.value).toBe('keep me');
+  const box = document.getElementById('composer-input')!;
+  expect(valueOf(box)).toBe('keep me');
   fireEvent.keyDown(box, { key: 'Enter' });
   expect(sent.filter((m) => m.type === 'send')).toEqual([]);
   emit({ kind: 'server-error', where: 'switch', message: 'no session lives in /x' });
   expect(store.getState().controls.switching).toBeNull();
   expect(document.getElementById('conn')).toHaveTextContent('');
   expect(screen.getAllByRole('button', { name: 'Send', hidden: true })[0]).toBeEnabled();
-  expect(box.value).toBe('keep me');
+  expect(valueOf(box)).toBe('keep me');
 });
 
 async function confirmOther() {

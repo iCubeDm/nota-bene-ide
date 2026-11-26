@@ -6,7 +6,7 @@ import { CLAUDE_CAPABILITIES, PROTOCOL, type ClientMessage, type Comment } from 
 import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import { setLang } from '@/core/i18n/index.ts';
 import { serverEvent } from '@/core/store/store.ts';
-import { makeStore } from '@/core/testing';
+import { makeStore, setValue, valueOf } from '@/core/testing';
 import { mic } from '@/plugins/voice/recorder.ts';
 import { resetPlayer } from '@/plugins/voice/player.ts';
 import { selectSendable } from '@/plugins/comments/send.ts';
@@ -45,7 +45,7 @@ function setup({ protocol = PROTOCOL, whisper = true, comments = [] as Comment[]
   feed({ kind: 'user', id: 'u0', text: 'first', ts: 0, historic: true });
   feed({ kind: 'comments', items: comments });
   render(<Provider store={store}><TooltipProvider><Composer /></TooltipProvider></Provider>);
-  return { sent, store, feed, box: screen.getByRole('textbox') as HTMLTextAreaElement };
+  return { sent, store, feed, box: screen.getByRole('textbox') };
 }
 const mic$ = () => screen.queryByTestId('mic');
 const send$ = () => screen.queryByRole('button', { name: /^(Send|Run)/ }) as HTMLButtonElement | null;
@@ -218,7 +218,7 @@ it('attachment comments stay out of a recording and stay pending; the draft and 
   expect(selectSendable(store.getState()).map((c) => c.id)).toEqual(['att1']);
   expect(selectDraft(store.getState())).toBe('typed words');
   expect(selectImages(store.getState())).toEqual([{ id: IMG, mediaType: 'image/png' }]);
-  expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('typed words');
+  expect(valueOf(screen.getByRole('textbox'))).toBe('typed words');
 });
 
 it('a detached attachment comment (its image is not in the composer) stays pending; a recording goes alone', async () => {
@@ -247,7 +247,7 @@ it('a draft typed, then Alt+R: the pending comments ride along and the draft sta
 // Send keeps its own spot, so the mic that returns after a send is never under the cursor of a double click
 it('a fast double click on Send sends once and starts no recording', async () => {
   const { box, sent } = setup();
-  fireEvent.change(box, { target: { value: 'hi' } });
+  setValue(box, 'hi');
   const btn = send$()!;
   fireEvent.click(btn);
   fireEvent.pointerDown(btn, { button: 0 });

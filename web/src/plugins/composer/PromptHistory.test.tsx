@@ -7,7 +7,7 @@ import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import { setLang } from '@/core/i18n/index.ts';
 import { installKeymap } from '@/core/shell/keymap.ts';
 import { serverEvent } from '@/core/store/store.ts';
-import { makeStore } from '@/core/testing';
+import { makeStore, valueOf } from '@/core/testing';
 import { Composer } from './Composer.tsx';
 import { historySlice, searchPrompts } from './history.ts';
 
@@ -29,7 +29,7 @@ function setup(items: PromptEntry[], open = false) {
   const off = installKeymap(store);
   offs.push(off);
   render(<Provider store={store}><TooltipProvider><Composer /></TooltipProvider></Provider>);
-  return { store, off, box: screen.getByRole('textbox') as HTMLTextAreaElement };
+  return { store, off, box: screen.getByRole('textbox') };
 }
 const opts = () => screen.queryAllByRole('option').map((o) => o.textContent ?? '');
 
@@ -68,7 +68,7 @@ it('opens a list newest first; typing filters it (substring first); Enter puts t
   expect(opts()).toHaveLength(1);
   await userEvent.keyboard('{Enter}');
   expect(screen.queryByRole('combobox')).toBeNull();
-  expect(box.value).toBe('fix the parser');
+  expect(valueOf(box)).toBe('fix the parser');
   await waitFor(() => expect(box).toHaveFocus());
   expect(store.getState().composer.unconfirmed).toBeNull();
 });
@@ -80,10 +80,10 @@ it('↑/↓ move the selection; a click picks; the previous draft comes back wit
   await userEvent.keyboard('{ArrowDown}{ArrowUp}{ArrowDown}');
   expect(screen.getAllByRole('option')[1]).toHaveAttribute('aria-selected', 'true');
   await userEvent.click(screen.getAllByRole('option')[0]!);
-  expect(box.value).toBe('second prompt');
+  expect(valueOf(box)).toBe('second prompt');
   await waitFor(() => expect(box).toHaveFocus());
   await userEvent.keyboard('{ArrowDown}');
-  expect(box.value).toBe('my draft');
+  expect(valueOf(box)).toBe('my draft');
 });
 
 it('Esc closes without touching the draft; no match and an empty history say so', async () => {
@@ -94,7 +94,7 @@ it('Esc closes without touching the draft; no match and an empty history say so'
   expect(screen.getByText('No prompt matches')).toBeInTheDocument();
   await userEvent.keyboard('{Escape}');
   expect(screen.queryByRole('combobox')).toBeNull();
-  expect(box.value).toBe('keep');
+  expect(valueOf(box)).toBe('keep');
 });
 
 it('Alt+H toggles the list, also from the composer', async () => {

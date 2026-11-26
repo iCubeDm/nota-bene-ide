@@ -7,7 +7,7 @@ import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import { setLang } from '@/core/i18n/index.ts';
 import { CLAUDE_CAPABILITIES } from '@nota-bene/shared';
 import { connState, serverEvent } from '@/core/store/store.ts';
-import { makeStore } from '@/core/testing';
+import { makeStore, valueOf } from '@/core/testing';
 import { mic, type Recorder, type RecorderOptions } from '@/plugins/voice/recorder.ts';
 import { resetPlayer } from '@/plugins/voice/player.ts';
 import { installKeymap } from '@/core/shell/keymap.ts';
@@ -82,7 +82,7 @@ it('a click starts a locked recording; Send uploads the WAV and sends only the v
   expect(new Headers(uploads[0]!.init.headers).get('content-type')).toBe('audio/wav');
   expect(sent[0]).toEqual({ type: 'send', id: expect.any(String), text: '', voice: VOICE, lang: 'en' });
   // the draft stays
-  expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('half a thought');
+  expect(valueOf(screen.getByRole('textbox'))).toBe('half a thought');
   expect(fakes[0]!.recorder.stop).toHaveBeenCalled();
 });
 

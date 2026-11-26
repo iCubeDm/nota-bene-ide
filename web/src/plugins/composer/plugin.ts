@@ -1,5 +1,5 @@
 import type { WithSlice } from '@reduxjs/toolkit';
-import { definePlugin, selectBuilding, selectImages, selectUploading } from '@/sdk';
+import { definePlugin, selectBuilding, selectImages, selectUploading, type Field } from '@/sdk';
 import { historyMiddleware, historySlice } from './history.ts';
 import { refusedMiddleware } from './refused.ts';
 import { Composer } from './Composer.tsx';
@@ -19,7 +19,7 @@ declare module '@/sdk' {
 /** The composer as other plugins reach it (issue 563), provided by the composer plugin. */
 export interface ComposerService {
   /** the message field, to hand the focus back to */
-  field(): HTMLTextAreaElement | null;
+  field(): Field | null;
 }
 
 export const composerPlugin = definePlugin({

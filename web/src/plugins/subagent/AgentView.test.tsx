@@ -447,9 +447,9 @@ describe('after a reload, with the tab closed or a poll failing', () => {
     const { store } = setup();
     const { Composer } = await import('@/plugins/composer/Composer.tsx');
     render(<Provider store={store}><TooltipProvider><Composer /></TooltipProvider></Provider>);
-    expect(document.querySelector('#composer-input')).toHaveAttribute('placeholder', 'Message the main agent… comments on the subagent’s replies go to it too');
+    expect(document.querySelector('#composer-input')).toHaveAttribute('aria-placeholder', 'Message the main agent… comments on the subagent’s replies go to it too');
     act(() => void store.dispatch(activate('chat')));
-    expect(document.querySelector('#composer-input')).toHaveAttribute('placeholder', expect.stringMatching(/^Message the agent/));
+    expect(document.querySelector('#composer-input')).toHaveAttribute('aria-placeholder', expect.stringMatching(/^Message the agent/));
   });
 });
 

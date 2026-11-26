@@ -4,7 +4,7 @@ test('Codex browser: native controls, typed questions, stable replay and files @
   const frames: Record<string, unknown>[] = [];
   page.on('websocket', (ws) => ws.on('framesent', (f) => { try { frames.push(JSON.parse(String(f.payload))); } catch {} }));
   await page.goto('');
-  const composer = page.getByPlaceholder(/Message the agent/);
+  const composer = page.getByRole('textbox', { name: /Message the agent/ });
   await expect(page.getByText('Codex config', { exact: true })).toBeVisible();
   await expect(page.getByText('Codex config', { exact: true })).toBeVisible();
   await composer.fill('question'); await composer.press('Enter');

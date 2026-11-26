@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type { SlashCommand } from '@nota-bene/shared';
-import { useT, useAppSelector, selectCommands, setValueAndCaret, placeListFor, revealSelected } from '@/sdk';
+import { useT, useAppSelector, selectCommands, placeListFor, revealSelected, type Field } from '@/sdk';
 import { highlight } from './MentionPicker.tsx';
 import { rankCommands, slashToken } from './slashRank.ts';
 
@@ -13,7 +13,7 @@ interface Open { q: string; sel: number }
  * and leaves the caret after it. No list yet (the agent is not up) or nothing matching: closed, and typing goes on as it was
  * (a command typed by hand that is not offered still runs). `suppress` keeps it shut while the draft is a recalled prompt.
  */
-export function SlashPicker({ target, suppress }: { target: RefObject<HTMLTextAreaElement | null>; suppress?: () => boolean }) {
+export function SlashPicker({ target, suppress }: { target: RefObject<Field | null>; suppress?: () => boolean }) {
   const t = useT();
   const commands = useAppSelector(selectCommands);
   const [state, setState] = useState<Open | null>(null);
@@ -26,30 +26,32 @@ export function SlashPicker({ target, suppress }: { target: RefObject<HTMLTextAr
   const pick = useRef<(c: SlashCommand) => void>(() => {});
 
   useEffect(() => {
-    const ta = target.current;
-    if (!ta) return;
+    const f = target.current;
+    if (!f) return;
     let dismissed: string | null = null; // Esc: shut for this word (while the first word is exactly it), until it changes or the caret leaves
     const close = () => setState(null);
     const refresh = () => {
       // a prompt recalled from the history is not being typed: the menu must not take the arrows that walk the history
       if (suppress?.()) return setState(null);
-      const q = slashToken(ta.value, ta.selectionStart);
-      const word = q === null ? null : /^\/\S*/.exec(ta.value)![0]; // the whole first word, wherever the caret is in it
+      const text = f.text();
+      const q = slashToken(text, f.selection().from);
+      const word = q === null ? null : /^\/\S*/.exec(text)![0]; // the whole first word, wherever the caret is in it
       if (word !== dismissed) dismissed = null; // another word, a cleared or sent draft: nothing to carry over
       if (dismissed !== null) return;
       setState((s) => (q === null ? null : s && s.q === q ? s : { q, sel: 0 })); // the same word keeps the selection
     };
-    const onSel = () => { if (document.activeElement === ta) refresh(); }; // also when closed: an arrow key can move the caret into the word
     pick.current = (c) => {
-      const word = /\s/.exec(ta.value);
-      const rest = word ? ta.value.slice(word.index) : ''; // the whole first word is replaced, wherever the caret was in it
+      const text = f.text();
+      const word = /\s/.exec(text);
+      // the whole first word is replaced, wherever the caret was in it, with the one space after it
+      const end = word ? word.index + (text[word.index] === ' ' ? 1 : 0) : text.length;
       close();
-      // an input event follows, which finds the caret past the space and keeps the menu closed
-      setValueAndCaret(ta, `/${c.name} ${rest.replace(/^ /, '')}`, c.name.length + 2);
+      // the update that follows finds the caret past the space and keeps the menu closed
+      f.replace(0, end, `/${c.name} `);
     };
     const onKey = (e: KeyboardEvent) => {
       const { open, items: list } = live.current;
-      if (!open || e.target !== ta || e.isComposing) return;
+      if (!open || e.target !== f.element || e.isComposing) return;
       const plainEnter = e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey;
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) return close(); // send: let it through
       if (e.key === 'Tab' && e.shiftKey) return close(); // the composer's mode cycle: close, let it through
@@ -58,20 +60,17 @@ export function SlashPicker({ target, suppress }: { target: RefObject<HTMLTextAr
         const d = e.key === 'ArrowDown' ? 1 : -1;
         setState({ ...open, sel: (open.sel + d + list.length) % list.length });
       } else if (plainEnter || e.key === 'Tab') pick.current(list[open.sel]);
-      else if (e.key === 'Escape') { dismissed = /^\/\S*/.exec(ta.value)?.[0] ?? null; close(); }
+      else if (e.key === 'Escape') { dismissed = /^\/\S*/.exec(f.text())?.[0] ?? null; close(); }
       else handled = false;
       if (handled) { e.preventDefault(); e.stopPropagation(); }
     };
-    ta.addEventListener('input', refresh);
-    ta.addEventListener('click', refresh);
-    ta.addEventListener('blur', close);
+    // any caret move counts, also with the menu closed: an arrow key can move the caret into the word
+    const off = f.onUpdate(refresh);
+    f.element.addEventListener('blur', close);
     window.addEventListener('keydown', onKey, true);
-    document.addEventListener('selectionchange', onSel);
     return () => {
-      document.removeEventListener('selectionchange', onSel);
-      ta.removeEventListener('input', refresh);
-      ta.removeEventListener('click', refresh);
-      ta.removeEventListener('blur', close);
+      off();
+      f.element.removeEventListener('blur', close);
       window.removeEventListener('keydown', onKey, true);
     };
   }, [target]);
@@ -79,11 +78,11 @@ export function SlashPicker({ target, suppress }: { target: RefObject<HTMLTextAr
   const shown = !!state && items.length > 0;
   // above the field when it fits, else the roomier side, height capped to that side (placeList)
   useLayoutEffect(() => {
-    const ta = target.current;
-    if (!shown || !ta || !menu.current) return;
+    const f = target.current;
+    if (!shown || !f || !menu.current) return;
     // never wider than the field: the menu stays in the chat column (the Comments panel sits to its right)
-    menu.current.style.width = `${Math.min(416, ta.getBoundingClientRect().width)}px`;
-    setPos(placeListFor(menu.current, ta));
+    menu.current.style.width = `${Math.min(416, f.element.getBoundingClientRect().width)}px`;
+    setPos(placeListFor(menu.current, f.element));
   }, [shown, items, target]);
   useLayoutEffect(() => {
     if (menu.current) revealSelected(menu.current);
@@ -103,7 +102,7 @@ export function SlashPicker({ target, suppress }: { target: RefObject<HTMLTextAr
           key={c.name}
           role="option"
           aria-selected={k === sel}
-          onMouseDown={(e) => e.preventDefault() /* keep focus in the textarea */}
+          onMouseDown={(e) => e.preventDefault() /* keep focus in the field */}
           onClick={() => { target.current?.focus(); pick.current(c); }}
           className={`flex min-w-0 cursor-pointer flex-col gap-px rounded-md px-2 py-1 text-[0.78125rem] text-foreground ${k === sel ? 'bg-primary/15' : 'hover:bg-accent'}`}
         >

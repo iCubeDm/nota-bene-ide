@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ClientMessage } from '@nota-bene/shared';
 import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import { setLang } from '@/core/i18n/index.ts';
-import { makeStore } from '@/core/testing';
+import { makeStore, valueOf } from '@/core/testing';
 import { Composer } from './Composer.tsx';
 
 beforeEach(() => setLang('en'));
@@ -27,7 +27,7 @@ function setup(open: boolean) {
       </TooltipProvider>
     </Provider>,
   );
-  return { sent, store, flip: (s: 'open' | 'closed') => act(() => flip(s)), box: screen.getByRole('textbox') as HTMLTextAreaElement };
+  return { sent, store, flip: (s: 'open' | 'closed') => act(() => flip(s)), box: screen.getByRole('textbox') };
 }
 
 it('Enter sends and clears', async () => {
@@ -35,22 +35,30 @@ it('Enter sends and clears', async () => {
   await userEvent.type(box, 'hello{Enter}');
   expect(sent).toHaveLength(1);
   expect(sent[0]).toMatchObject({ type: 'send', text: 'hello', force: false });
-  expect(box.value).toBe('');
+  expect(valueOf(box)).toBe('');
   expect(box).toHaveFocus();
 });
 
 it('Shift+Enter adds a newline', async () => {
   const { sent, box } = setup(true);
   await userEvent.type(box, 'a{Shift>}{Enter}{/Shift}b');
-  expect(box.value).toBe('a\nb');
+  expect(valueOf(box)).toBe('a\nb');
   expect(sent).toHaveLength(0);
+});
+
+it('Enter inside a code block does not send', async () => {
+  const { sent, box } = setup(true);
+  await userEvent.type(box, '```'); // the field closes the fence and puts the caret inside
+  await userEvent.keyboard('x{Enter}'); // keyboard, not type: type's click would move the caret out of the block
+  expect(sent).toHaveLength(0);
+  expect(valueOf(box)).toBe('```\nx\n\n```');
 });
 
 it('keeps text when send fails', async () => {
   const { sent, box } = setup(false);
   await userEvent.type(box, 'hello{Enter}');
   expect(sent).toHaveLength(0);
-  expect(box.value).toBe('hello');
+  expect(valueOf(box)).toBe('hello');
   expect(screen.getByText('no connection to the server…')).toBeVisible();
 });
 
@@ -85,7 +93,7 @@ it('offline label disappears when the socket reconnects, text stays', async () =
   expect(screen.getByText('no connection to the server…')).toBeVisible();
   flip('open');
   expect(screen.queryByText('no connection to the server…')).toBeNull();
-  expect(box.value).toBe('hello');
+  expect(valueOf(box)).toBe('hello');
 });
 
 it('a failed send is forgotten once the socket reopens: a later drop shows no stale offline label', async () => {
@@ -110,7 +118,7 @@ it('when busy, the first Ctrl+Enter only warns; the button confirms', async () =
   await userEvent.type(box, 'now{Control>}{Enter}{/Control}');
   expect(sent).toHaveLength(0);
   expect(screen.getByRole('alert')).toHaveTextContent('The agent will be interrupted');
-  expect(box.value).toBe('now');
+  expect(valueOf(box)).toBe('now');
   await userEvent.click(screen.getByRole('button', { name: 'Interrupt and send' }));
   expect(sent).toEqual([expect.objectContaining({ type: 'send', text: 'now', force: true })]);
   expect(screen.queryByRole('alert')).toBeNull();

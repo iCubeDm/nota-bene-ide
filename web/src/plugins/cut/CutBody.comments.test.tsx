@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import type { Comment, CutAnchor } from '@nota-bene/shared';
 import { serverEvent } from '@/core/store/store.ts';
-import { renderWith } from '@/core/testing';
+import { renderWith, setValue } from '@/core/testing';
 import { selectComments } from '@/plugins/comments/slice.ts';
 import { jumpToFileComment } from '@/plugins/files/slice.ts';
 import { CutBody } from './CutBody.tsx';
@@ -53,7 +53,7 @@ async function show({ protocol = 23, items = [] as Comment[] } = {}) {
 const note = (id: string, anchor: Omit<CutAnchor, 'kind' | 'source'>, text = `note ${id}`): Comment =>
   ({ id, text, status: 'pending', createdAt: 1, anchor: { kind: 'cut', source, ...anchor } });
 const addNote = (text: string) => {
-  fireEvent.change(screen.getByPlaceholderText('Comment…'), { target: { value: text } });
+  setValue(screen.getByRole('textbox', { name: 'Comment…' }), text);
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 };
 

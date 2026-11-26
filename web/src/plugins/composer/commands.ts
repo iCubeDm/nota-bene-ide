@@ -1,11 +1,11 @@
-import { isMac, type Command } from '@/sdk';
+import { fieldFor, isMac, type Command } from '@/sdk';
 import { selectHistoryOpen, setHistoryOpen } from './history.ts';
 
 /** what Alt+R dispatches on the document; the composer listens (the keymap has the store but not the composer's recorder). `detail.force`: Cmd/Ctrl was held too */
 export const VOICE_KEY = 'nb:voice-key';
 
 /** The message field (`Composer`'s `#composer-input`). */
-export const composerField = () => document.getElementById('composer-input') as HTMLTextAreaElement | null;
+export const composerField = () => fieldFor(document.getElementById('composer-input'));
 const focusComposer = () => composerField()?.focus();
 
 export const composerCommands: Command[] = [

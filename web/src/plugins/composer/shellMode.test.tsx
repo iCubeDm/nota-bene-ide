@@ -8,7 +8,7 @@ import { Feed } from '@/plugins/feed/Feed.tsx';
 import { setLang } from '@/core/i18n/index.ts';
 import { getToasts, resetToasts } from '@/core/shell/toast.ts';
 import { serverEvent } from '@/core/store/store.ts';
-import { makeStore } from '@/core/testing';
+import { makeStore, valueOf } from '@/core/testing';
 import { openFile } from '@/core/tabs/slice.ts';
 import { Composer } from './Composer.tsx';
 import { setDraft } from './slice.ts';
@@ -37,7 +37,7 @@ function setup(o: { protocol?: number; open?: boolean; comments?: Comment[] } = 
       </TooltipProvider>
     </Provider>,
   );
-  return { sent, store, feed, box: screen.getByRole('textbox') as HTMLTextAreaElement };
+  return { sent, store, feed, box: screen.getByRole('textbox') };
 }
 const titles = () => getToasts().map((x) => x.title);
 
@@ -59,7 +59,7 @@ it('Enter runs the command, not a message: shell-run with the text after the !, 
   expect(sent).toHaveLength(1);
   expect(sent[0]).toMatchObject({ type: 'shell-run', cmd: 'git status' });
   expect(sent[0]).toEqual({ type: 'shell-run', id: expect.stringMatching(/^[0-9a-f-]{36}$/), cmd: 'git status' });
-  expect(box.value).toBe('');
+  expect(valueOf(box)).toBe('');
   expect(box).toHaveFocus();
 });
 
@@ -90,9 +90,9 @@ it('a refusal from the server (a second command raced, a switch began) puts the 
   const { sent, box, feed } = setup();
   await userEvent.type(box, '!make test{Enter}');
   const id = (sent[0] as Extract<ClientMessage, { type: 'shell-run' }>).id;
-  expect(box.value).toBe('');
+  expect(valueOf(box)).toBe('');
   feed({ kind: 'shell-refused', id, reason: 'running' });
-  expect(box.value).toBe('!make test');
+  expect(valueOf(box)).toBe('!make test');
   expect(titles()).toContain('Not run: a command is still running. Stop it or wait for it.');
 });
 
@@ -102,7 +102,7 @@ it('when the user has typed something new the refused command rides in the toast
   const id = (sent[0] as Extract<ClientMessage, { type: 'shell-run' }>).id;
   await userEvent.type(box, 'next thing');
   feed({ kind: 'shell-refused', id, reason: 'switching' });
-  expect(box.value).toBe('next thing');
+  expect(valueOf(box)).toBe('next thing');
   expect(getToasts().find((x) => x.title.startsWith('Not run: a session switch'))?.msg).toBe('!make test');
 });
 
@@ -112,7 +112,7 @@ it('a started command is not restored by a later refusal of something else', asy
   const id = (sent[0] as Extract<ClientMessage, { type: 'shell-run' }>).id;
   feed({ kind: 'shell-start', id, cmd: 'ls', ts: 1 });
   feed({ kind: 'shell-refused', id, reason: 'running' });
-  expect(box.value).toBe('');
+  expect(valueOf(box)).toBe('');
 });
 
 it('the Run button runs it too', async () => {
@@ -120,21 +120,21 @@ it('the Run button runs it too', async () => {
   await userEvent.type(box, '!pwd');
   await userEvent.click(screen.getByRole('button', { name: 'Run' }));
   expect(sent).toMatchObject([{ type: 'shell-run', cmd: 'pwd' }]);
-  expect(box.value).toBe('');
+  expect(valueOf(box)).toBe('');
 });
 
 it('a bare ! runs nothing and keeps the draft', async () => {
   const { sent, box } = setup();
   await userEvent.type(box, '!  {Enter}');
   expect(sent).toHaveLength(0);
-  expect(box.value).toBe('!  ');
+  expect(valueOf(box)).toBe('!  ');
 });
 
 it('with pending comments the command is refused with a note and the draft and the comments stay', async () => {
   const { sent, box, store } = setup({ comments: [cm('c1')] });
   await userEvent.type(box, '!ls{Enter}');
   expect(sent).toHaveLength(0);
-  expect(box.value).toBe('!ls');
+  expect(valueOf(box)).toBe('!ls');
   expect(store.getState().comments.items.map((c) => c.status)).toEqual(['pending']);
   expect(titles()).toContain('Not run: the message has pending comments or images. Send or remove them first.');
 });
@@ -144,7 +144,7 @@ it('with an image attached the command is refused the same way', async () => {
   act(() => void store.dispatch(addImage({ id: 'a'.repeat(64), mediaType: 'image/png' })));
   await userEvent.type(box, '!ls{Enter}');
   expect(sent).toHaveLength(0);
-  expect(box.value).toBe('!ls');
+  expect(valueOf(box)).toBe('!ls');
   expect(titles()).toHaveLength(1);
 });
 
@@ -153,7 +153,7 @@ it('while a command runs a second is refused with a note and kept; once it ends 
   feed({ kind: 'shell-start', id: 'r1', cmd: 'sleep 9', ts: 1 });
   await userEvent.type(box, '!ls{Enter}');
   expect(sent).toHaveLength(0);
-  expect(box.value).toBe('!ls');
+  expect(valueOf(box)).toBe('!ls');
   expect(titles()).toContain('Not run: a command is still running. Stop it or wait for it.');
   feed({ kind: 'shell-end', id: 'r1', cmd: 'sleep 9', output: '', truncated: false, code: 0, ts: 2 });
   await userEvent.keyboard('{Enter}');
@@ -172,7 +172,7 @@ it('offline: nothing goes out and the draft stays', async () => {
   const { sent, box } = setup({ open: false });
   await userEvent.type(box, '!ls{Enter}');
   expect(sent).toHaveLength(0);
-  expect(box.value).toBe('!ls');
+  expect(valueOf(box)).toBe('!ls');
 });
 
 it('against a server older than protocol 11 a ! draft is an ordinary message', async () => {

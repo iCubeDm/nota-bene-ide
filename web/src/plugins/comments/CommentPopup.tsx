@@ -1,7 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from 'react-redux';
 import { isAttachmentAnchor, isMediaAnchor, isTextAnchor, VOICE_MAX_CLIPS, type Anchor, type QuickLabelId, type Voice, type VoiceError } from '@nota-bene/shared';
-import { getLang, useT, useAppDispatch, useAppSelector, anchorLine, type PendingComment, type RootState, toast, clearPageSelections, selectCapabilities, selectSwitching, labelsFor, labelText, useAutosize, dictationAsk, insertPaths, hasFiles, ComposerFieldContext, type ImageEntry, useService, useFeature } from '@/sdk';
+import { getLang, useT, useAppDispatch, useAppSelector, anchorLine, type Field, type PendingComment, type RootState, toast, clearPageSelections, selectCapabilities, selectSwitching, labelsFor, labelText, dictationAsk, insertPaths, hasFiles, ComposerFieldContext, type ImageEntry, useService, useFeature } from '@/sdk';
 import { Button, MessageInput, MicButton, Slots, Tooltip, TooltipTrigger } from '@/sdk/ui';
 import { LabelTip } from './LabelTip.tsx';
 import { EmojiMenu } from './EmojiMenu.tsx';
@@ -42,7 +42,7 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   const imagesAlone = useFeature('imagesAlone');
   const voiceOk = useFeature('voice');
   const root = useRef<HTMLDivElement>(null);
-  const area = useRef<HTMLTextAreaElement>(null);
+  const area = useRef<Field>(null);
   const host = useMemo(() => ({ kind: 'comment' as const, field: area }), []);
   const [text, setText] = useState(pending.text ?? '');
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
@@ -151,13 +151,12 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
   };
   const off = uploading || switching || busy || waiting || recording;
 
-  // focus once positioned: a `visibility:hidden` textarea (before the layout effect sets pos) cannot take focus
+  // focus once positioned: a `visibility:hidden` field (before the layout effect sets pos) cannot take focus
   const placed = pos !== null;
   useEffect(() => {
     if (!placed || !area.current) return;
     area.current.focus({ preventScroll: true });
-    const end = area.current.value.length; // opened by typing: the caret goes after what was typed
-    area.current.setSelectionRange(end, end);
+    area.current.setCaret(area.current.text().length); // opened by typing: the caret goes after what was typed
   }, [placed]);
 
   useEffect(() => {
@@ -184,8 +183,6 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     };
   }, [onClose, hidden]);
 
-  // autosize: the textarea grows with the comment up to its CSS max-height (40vh, as the composer), then scrolls
-  useAutosize(area, text);
 
   // the side (below or above the selection) is chosen once per selection: a growing comment never makes the popup
   // jump across it; below, it moves up only as far as the viewport needs; above, it grows upwards
@@ -203,8 +200,8 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
     }, pending));
   }, [pending, text]);
 
-  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== 'Enter' || !(e.metaKey || e.ctrlKey) || e.nativeEvent.isComposing) return;
+  const onKeyDown = (e: globalThis.KeyboardEvent) => {
+    if (e.key !== 'Enter' || !(e.metaKey || e.ctrlKey) || e.isComposing) return;
     e.preventDefault();
     e.stopPropagation(); // never reaches the composer
     void add();
@@ -248,7 +245,8 @@ export function CommentPopup({ pending, onClose, onAdded, onBusy, hidden = false
       <div className="flex items-end gap-1.5">
         <MessageInput
           compact
-          textareaRef={area}
+          fieldRef={area}
+          newline="Enter"
           value={text}
           onChange={setText}
           onKeyDown={onKeyDown}

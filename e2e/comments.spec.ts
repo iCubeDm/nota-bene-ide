@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { fieldText } from './field.ts';
 
-const composer = (page: Page) => page.getByPlaceholder(/Message the agent|Сообщение агенту/);
+const composer = (page: Page) => page.getByRole('textbox', { name: /Message the agent|Сообщение агенту/ });
 let seq = 0;
 const uniq = (label: string) => `${label} ${Date.now().toString(36)}-${process.pid}-${seq++}`;
 const bubble = (page: Page, text: string) => page.locator('[data-kind="user"]').filter({ hasText: text });
@@ -10,8 +11,8 @@ const donesAfter = (page: Page, text: string) =>
   bubble(page, text).locator('xpath=following-sibling::*[@data-kind="done"]');
 const panel = (page: Page) => page.locator('#comments');
 const cards = (page: Page) => panel(page).locator('[data-comment-id]');
-const popup = (page: Page) => page.getByRole('dialog').filter({ has: page.getByPlaceholder('Comment…') });
-const commentBox = (page: Page) => page.getByPlaceholder('Comment…');
+const popup = (page: Page) => page.getByRole('dialog').filter({ has: page.getByRole('textbox', { name: 'Comment…' }) });
+const commentBox = (page: Page) => page.getByRole('textbox', { name: 'Comment…' });
 
 async function open(page: Page) {
   await page.goto('');
@@ -142,7 +143,7 @@ test('shortcode picker inserts an emoji; Esc closes only the picker @chat', asyn
   const list = page.getByRole('listbox');
   await expect(list).toBeVisible();
   await box.press('Enter');
-  await expect(box).toHaveValue('👍');
+  await expect.poll(() => fieldText(box)).toBe('👍');
   await expect(list).toBeHidden();
 
   await box.pressSequentially(' :smi');
@@ -150,7 +151,7 @@ test('shortcode picker inserts an emoji; Esc closes only the picker @chat', asyn
   await box.press('Escape');
   await expect(list).toBeHidden();
   await expect(popup(page)).toBeVisible();
-  await expect(box).toHaveValue('👍 :smi');
+  await expect.poll(() => fieldText(box)).toBe('👍 :smi');
   await box.press('Escape');
   await expect(popup(page)).toBeHidden();
   await expect(cards(page)).toHaveCount(0);

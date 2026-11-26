@@ -1,10 +1,11 @@
 import fs from 'node:fs';
+import { fieldText } from './field.ts';
 import nodePath from 'node:path';
 import { apiGet } from './auth.ts';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 // M3-13: comments on an open file, in a real browser (hidden panes and rects cannot be checked in jsdom).
-const composer = (page: Page) => page.getByPlaceholder(/Message the agent|Сообщение агенту/);
+const composer = (page: Page) => page.getByRole('textbox', { name: /Message the agent|Сообщение агенту/ });
 const panel = (page: Page) => page.locator('#comments');
 const cards = (page: Page) => panel(page).locator('[data-comment-id]');
 const filePane = (page: Page) => page.locator('[data-pane="file:notes.md"]');
@@ -55,7 +56,7 @@ test('comment on an md file: mark in its pane only, badges, jump from a closed t
     el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
   });
   await page.getByRole('button', { name: /^💬/ }).click();
-  await page.getByPlaceholder('Comment…').fill('rename bravo');
+  await page.getByRole('textbox', { name: 'Comment…' }).fill('rename bravo');
   await page.getByRole('button', { name: /^(Add|Добавить)$/ }).click();
 
   const mark = filePane(page).locator('[data-hl="pending"]');
@@ -310,7 +311,7 @@ test('@ in the composer inserts a quoted path; the mention in the bubble opens t
   await composer(page).pressSequentially('@Отч');
   await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(1);
   await composer(page).press('Enter');
-  await expect(composer(page)).toHaveValue(`@"${MD}" `);
+  await expect.poll(() => fieldText(composer(page))).toBe(`@"${MD}" `);
   await composer(page).pressSequentially(text);
   await composer(page).press('Enter');
   await settled(page, text);
@@ -428,7 +429,7 @@ test('a card of a long path stays inside the comments panel, the path wrapped @f
     el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
   });
   await page.getByRole('button', { name: /^💬/ }).click();
-  await page.getByPlaceholder('Comment…').fill('long path');
+  await page.getByRole('textbox', { name: 'Comment…' }).fill('long path');
   await page.getByRole('button', { name: /^(Add|Добавить)$/ }).click();
   const card = cards(page).first();
   await expect(card).toContainText('a_file_name_without_any_spaces_in_it.md');
@@ -451,10 +452,10 @@ test('the comment popup takes focus with the tree open and closed: typing lands 
     if (treeOpen) await sheet.locator(`button[data-path="docs"]`).focus(); // focus inside the tree, as after a click on a row
     await selectEnd(page);
     await page.getByRole('button', { name: /^💬/ }).click();
-    const area = page.getByPlaceholder('Comment…');
+    const area = page.getByRole('textbox', { name: 'Comment…' });
     await expect(area).toBeFocused();
     await page.keyboard.type(`typed ${treeOpen}`);
-    await expect(area).toHaveValue(`typed ${treeOpen}`);
+    await expect.poll(() => fieldText(area)).toBe(`typed ${treeOpen}`);
     await page.keyboard.press('Escape');
     await expect(area).toHaveCount(0);
   }
@@ -577,7 +578,7 @@ async function stroke(page: Page, pts: Pt[]) {
 /** Comment (Enter) on the drawing, type the text, Add; returns the new card's comment id once it is in the panel. */
 async function addMarkComment(page: Page, text: string): Promise<string> {
   await page.keyboard.press('Enter');
-  await page.getByPlaceholder('Comment…').fill(text);
+  await page.getByRole('textbox', { name: 'Comment…' }).fill(text);
   await page.getByRole('button', { name: /^(Add|Добавить)$/ }).click();
   const card = cards(page).filter({ hasText: text });
   await expect(card).toHaveCount(1);
@@ -1094,7 +1095,7 @@ test('a chat video has our bar: the timeline seeks, Space plays only after a cli
   // the composer keeps its Space; the video stays put
   await composer(page).click();
   await page.keyboard.type('a b');
-  await expect(composer(page)).toHaveValue('a b');
+  await expect.poll(() => fieldText(composer(page))).toBe('a b');
   expect(await paused()).toBe(true);
   await composer(page).fill('');
   // after a click on the bar's play button, Space toggles exactly once
@@ -1148,7 +1149,7 @@ test('player keys on a video tab after a click on the tab strip: Space plays, Ar
   // the same Space in the composer types a space, and the video stays put
   await composer(page).click();
   await page.keyboard.type('a b');
-  await expect(composer(page)).toHaveValue('a b');
+  await expect.poll(() => fieldText(composer(page))).toBe('a b');
   expect(await video.evaluate((e: HTMLVideoElement) => e.paused)).toBe(true);
   await composer(page).fill('');
 
@@ -1182,7 +1183,7 @@ test('an html page: scripts off, text, element and area comments, links, the sou
   const textNote = uniq('page text');
   await frame.locator('p').first().getByText('market', { exact: false }).dblclick({ position: { x: 60, y: 8 } });
   await page.getByTestId('selection-bar').getByRole('button', { name: /(Comment|Комментировать)$/ }).click();
-  await page.getByPlaceholder('Comment…').fill(textNote);
+  await page.getByRole('textbox', { name: 'Comment…' }).fill(textNote);
   await page.getByRole('button', { name: /^(Add|Добавить)$/ }).click();
   await expect(cards(page).filter({ hasText: textNote })).toHaveCount(1);
   await expect(pane.locator('[data-hl="pending"]:not([data-hl-place])')).toHaveCount(1);
@@ -1195,7 +1196,7 @@ test('an html page: scripts off, text, element and area comments, links, the sou
   await page.mouse.down();
   await page.mouse.up();
   const elNote = uniq('page element');
-  await page.getByPlaceholder('Comment…').fill(elNote);
+  await page.getByRole('textbox', { name: 'Comment…' }).fill(elNote);
   await page.getByRole('button', { name: /^(Add|Добавить)$/ }).click();
   await expect(cards(page).filter({ hasText: elNote })).toContainText('circle «Market: open on Fridays»');
 
@@ -1210,7 +1211,7 @@ test('an html page: scripts off, text, element and area comments, links, the sou
     for (let i = 1; i <= 8; i++) fire('mousemove', 100 + 7.5 * i, 60 + 10 * i);
     fire('mouseup', 160, 140);
   });
-  await page.getByPlaceholder('Comment…').fill(areaNote);
+  await page.getByRole('textbox', { name: 'Comment…' }).fill(areaNote);
   await page.getByRole('button', { name: /^(Add|Добавить)$/ }).click();
   await expect(cards(page).filter({ hasText: areaNote })).toContainText('svg#map «Town»');
   await expect(pane.locator('[data-hl-place]')).toHaveCount(2);

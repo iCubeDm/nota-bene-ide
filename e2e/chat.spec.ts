@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { fieldText } from './field.ts';
 import { en } from '../web/src/core/i18n/en.ts';
 import { ru } from '../web/src/core/i18n/ru.ts';
 import { apiGet } from './auth.ts';
@@ -6,7 +7,7 @@ import { apiGet } from './auth.ts';
 const DONE = /готово|done/;
 const INTERRUPTED = /прервано|interrupted/;
 
-const composer = (page: Page) => page.getByPlaceholder(/Message the agent|Сообщение агенту/);
+const composer = (page: Page) => page.getByRole('textbox', { name: /Message the agent|Сообщение агенту/ });
 const doneLines = (page: Page) => page.locator('[data-kind="done"]');
 const WORKING = /agent is working|агент работает/;
 // unique per call, so a test finds its own turn whatever history the shared server already holds
@@ -165,7 +166,7 @@ test('typing ":smi" in the composer opens the emoji list; Enter inserts 😄 and
   await expect(page.getByRole('listbox')).toBeVisible();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('listbox')).toBeHidden();
-  await expect(composer(page)).toHaveValue('😄');
+  await expect.poll(() => fieldText(composer(page))).toBe('😄');
   await page.keyboard.type(' :smile');
   await expect(page.getByRole('option').first()).toContainText(':smile');
   await page.keyboard.press('Escape');
@@ -321,7 +322,7 @@ test('the language menu switches the placeholder @chat', async ({ page }) => {
   // the choice is saved in the server's prefs (shared by every window, and by the later tests of this server): wait for each save
   // to be answered, and end on en, so no later @chat test sees hello.lang = ru
   const saved = (lang: string) => page.waitForResponse((r) => r.url().endsWith('/system/prefs') && r.request().method() === 'POST' && r.request().postData()?.includes(`"${lang}"`) === true);
-  await expect(page.getByPlaceholder(en.composerPh)).toBeVisible();
+  await expect(page.getByRole('textbox', { name: en.composerPh })).toBeVisible();
   const pick = async (lang: string) => {
     await page.locator('#settingsBtn').click();
     await page.locator('#langMenu').hover(); // the language is a submenu of the settings menu
@@ -331,11 +332,11 @@ test('the language menu switches the placeholder @chat', async ({ page }) => {
   };
   let done = saved('ru');
   await pick('ru');
-  await expect(page.getByPlaceholder(ru.composerPh)).toBeVisible();
+  await expect(page.getByRole('textbox', { name: ru.composerPh })).toBeVisible();
   expect((await done).ok()).toBe(true);
   done = saved('en');
   await pick('en');
-  await expect(page.getByPlaceholder(en.composerPh)).toBeVisible();
+  await expect(page.getByRole('textbox', { name: en.composerPh })).toBeVisible();
   expect((await done).ok()).toBe(true);
 });
 

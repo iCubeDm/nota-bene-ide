@@ -9,7 +9,7 @@ import { Composer } from '@/plugins/composer/Composer.tsx';
 import { Feed } from '@/plugins/feed/Feed.tsx';
 import { setLang } from '@/core/i18n/index.ts';
 import { serverEvent } from '@/core/store/store.ts';
-import { makeStore } from '@/core/testing';
+import { makeStore, select, valueOf } from '@/core/testing';
 import { Attachments } from './Attachments.tsx';
 
 const uploads = vi.hoisted(() => [] as Blob[]);
@@ -43,7 +43,7 @@ function setup() {
   const sent: ClientMessage[] = [];
   const store = makeStore({ url: 'ws://x', connect: ((_u: unknown, _e: unknown, onState: (s: 'open') => void) => (onState('open'), { send: (m: ClientMessage) => (sent.push(m), true), close() {} })) as never });
   render(<Provider store={store}><TooltipProvider><Feed /><Composer /></TooltipProvider></Provider>);
-  return { sent, store, box: screen.getByRole('textbox') as HTMLTextAreaElement };
+  return { sent, store, box: screen.getByRole('textbox') };
 }
 const png = (name: string) => new File(['x'], name, { type: 'image/png' });
 const paste = (el: HTMLElement, files: File[]) => {
@@ -56,23 +56,23 @@ const paste = (el: HTMLElement, files: File[]) => {
 it('pasting a pdf uploads it into attachments/ and puts its path at the caret (issue 461)', async () => {
   const { box } = setup();
   await userEvent.type(box, 'see  now');
-  box.setSelectionRange(4, 4);
+  select(box, 4, 4);
   paste(box, [new File(['x'], 'a b.pdf', { type: 'application/pdf' })]);
-  await waitFor(() => expect(box.value).toBe('see `attachments/a b.pdf` now'));
+  await waitFor(() => expect(valueOf(box)).toBe('see `attachments/a b.pdf` now'));
   expect(files.map((f) => f.name)).toEqual(['a b.pdf']);
-  expect(document.querySelectorAll('img')).toHaveLength(0);
+  expect(document.querySelectorAll('img:not(.cm-widgetBuffer)')).toHaveLength(0); // the field's own spacers aside
   expect(screen.queryByText(/Only images/)).toBeNull();
 });
 
 it('a sound or a video goes in as an embed, so it plays in the feed; a failed upload says so and inserts nothing', async () => {
   const { box } = setup();
   paste(box, [new File(['x'], 'take.mp3', { type: 'audio/mpeg' })]);
-  await waitFor(() => expect(box.value).toBe('![](attachments/take.mp3)'));
+  await waitFor(() => expect(valueOf(box)).toBe('![](attachments/take.mp3)'));
   const mod = await import('./file.ts');
   vi.spyOn(mod, 'uploadFile').mockRejectedValueOnce(new Error('x'));
   paste(box, [new File(['x'], 'b.zip', { type: 'application/zip' })]);
   expect(await screen.findByText('Could not upload b.zip')).toBeInTheDocument();
-  expect(box.value).toBe('![](attachments/take.mp3)');
+  expect(valueOf(box)).toBe('![](attachments/take.mp3)');
 });
 
 it('Send waits while a file uploads', async () => {
@@ -84,7 +84,7 @@ it('Send waits while a file uploads', async () => {
   expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
   expect(document.querySelector('[data-pending-file]')).toHaveTextContent('b.zip');
   await act(async () => done('attachments/b.zip'));
-  expect(box.value).toBe('`attachments/b.zip`');
+  expect(valueOf(box)).toBe('`attachments/b.zip`');
   expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
 });
 
@@ -100,7 +100,7 @@ it('the × on an uploading file cancels it: nothing is inserted and nothing is s
   await userEvent.click(screen.getByRole('button', { name: 'Cancel the upload of big.mov' }));
   expect(seen?.aborted).toBe(true);
   await waitFor(() => expect(document.querySelector('[data-pending-file]')).toBeNull());
-  expect(box.value).toBe('');
+  expect(valueOf(box)).toBe('');
   expect(screen.queryByText(/Could not upload/)).toBeNull();
   expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled(); // nothing to send, and not stuck uploading
 });
@@ -137,7 +137,7 @@ it('files dragged from the tree drop onto the composer as their paths (issue 461
   Object.defineProperty(drop, 'dataTransfer', { value: dataTransfer });
   act(() => void box.dispatchEvent(drop));
   expect(drop.defaultPrevented).toBe(true);
-  expect(box.value).toBe('`docs/a.md` ![](clips/take.mp4)');
+  expect(valueOf(box)).toBe('`docs/a.md` ![](clips/take.mp4)');
 });
 
 it('a pasted image uploads, shows a thumbnail, and sends alone with a label', async () => {
@@ -158,7 +158,7 @@ it('a failed upload shows imgFail and drops the image', async () => {
   vi.spyOn(mod, 'uploadImage').mockRejectedValueOnce(new Error('x'));
   paste(box, [png(A)]);
   expect(await screen.findByText('Could not read the image')).toBeInTheDocument();
-  expect(document.querySelectorAll('img')).toHaveLength(0);
+  expect(document.querySelectorAll('img:not(.cm-widgetBuffer)')).toHaveLength(0); // the field's own spacers aside
 });
 
 it('the bubble renders its thumbnails outside the anchor text; a click opens the lightbox, Esc closes it without interrupting', async () => {

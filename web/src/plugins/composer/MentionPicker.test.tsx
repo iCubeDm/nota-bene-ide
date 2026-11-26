@@ -7,7 +7,7 @@ import { CommentPopup } from '@/plugins/comments/CommentPopup.tsx';
 import type { PendingSelection } from '@/plugins/comments/SelectionButton.tsx';
 import { setLang } from '@/core/i18n/index.ts';
 import { serverEvent } from '@/core/store/store.ts';
-import { makeStore } from '@/core/testing';
+import { makeStore, setValue, valueOf } from '@/core/testing';
 import { Composer } from './Composer.tsx';
 
 type Resolver = { q: string; resolve: (v: string[]) => void; signal?: AbortSignal | null };
@@ -28,13 +28,9 @@ function setup() {
   const sent: ClientMessage[] = [];
   const store = makeStore({ url: 'ws://x', connect: ((_u: unknown, _e: unknown, s: (x: 'open') => void) => (s('open'), { send: (m: ClientMessage) => (sent.push(m), true), close() {} })) as never });
   render(<Provider store={store}><TooltipProvider><Composer /></TooltipProvider></Provider>);
-  const box = screen.getByRole('textbox') as HTMLTextAreaElement;
+  const box = screen.getByRole('textbox');
   box.focus();
-  const type = (value: string) => {
-    fireEvent.change(box, { target: { value } });
-    box.setSelectionRange(value.length, value.length);
-    fireEvent.input(box);
-  };
+  const type = (value: string) => setValue(box, value);
   return { sent, store, box, type };
 }
 const flush = async (ms = 100) => { await act(async () => { await vi.advanceTimersByTimeAsync(ms); }); };
@@ -76,7 +72,7 @@ it('picking a path with whitespace inserts @"path" and updates the draft in the 
   await flush();
   await answer(0, ['a b/c.md']);
   fireEvent.keyDown(box, { key: 'Enter' });
-  expect(box.value).toBe('x @"a b/c.md" ');
+  expect(valueOf(box)).toBe('x @"a b/c.md" ');
   expect(store.getState().composer.draft).toBe('x @"a b/c.md" ');
   expect(screen.queryByRole('listbox')).toBeNull();
 });
@@ -87,7 +83,7 @@ it('picking a folder inserts no space and keeps the picker open with a re-query'
   await flush();
   await answer(0, ['src/', 'src/a.ts']);
   fireEvent.keyDown(box, { key: 'Tab' });
-  expect(box.value).toBe('@src/');
+  expect(valueOf(box)).toBe('@src/');
   await flush();
   expect(calls[1].q).toBe('src/');
   await answer(1, ['src/a.ts']);
@@ -114,7 +110,7 @@ it('Enter while open picks and does not send', async () => {
   await answer(0, ['a.ts']);
   fireEvent.keyDown(box, { key: 'Enter' });
   expect(sent).toHaveLength(0);
-  expect(box.value).toBe('@a.ts ');
+  expect(valueOf(box)).toBe('@a.ts ');
 });
 
 it('Cmd+Enter while open closes the picker and still sends', async () => {
@@ -155,10 +151,8 @@ it('in the comment popup: Esc closes only the picker, the popup stays open', asy
   const store = makeStore({ url: 'ws://x', connect: ((_u: unknown, _e: unknown, s: (x: 'open') => void) => (s('open'), { send: () => true, close() {} })) as never });
   const onClose = vi.fn();
   render(<Provider store={store}><TooltipProvider><CommentPopup pending={pending} onClose={onClose} /></TooltipProvider></Provider>);
-  const box = screen.getByPlaceholderText('Comment…') as HTMLTextAreaElement;
-  fireEvent.change(box, { target: { value: '@a' } });
-  box.setSelectionRange(2, 2);
-  fireEvent.input(box);
+  const box = screen.getByRole('textbox', { name: 'Comment…' });
+  setValue(box, '@a');
   await flush();
   await answer(0, ['a.ts']);
   fireEvent.keyDown(box, { key: 'Escape' });
@@ -175,7 +169,7 @@ it('Shift+Tab closes the picker without picking, so the composer can cycle the m
   await answer(0, ['a.ts']);
   fireEvent.keyDown(box, { key: 'Tab', shiftKey: true });
   expect(screen.queryByRole('listbox')).toBeNull();
-  expect(box.value).toBe('@a');
+  expect(valueOf(box)).toBe('@a');
 });
 
 it('in a ! command the pick is the plain path, quoted only when the shell needs it', async () => {
@@ -185,12 +179,12 @@ it('in a ! command the pick is the plain path, quoted only when the shell needs 
   await flush();
   await answer(0, ['docs/alpha.md', 'my notes/it\'s.md']);
   fireEvent.keyDown(box, { key: 'Enter' });
-  expect(box.value).toBe('! cat docs/alpha.md ');
+  expect(valueOf(box)).toBe('! cat docs/alpha.md ');
   type('! cat @my');
   await flush();
   await answer(1, ['my notes/it\'s.md']);
   fireEvent.keyDown(box, { key: 'Enter' });
-  expect(box.value).toBe("! cat 'my notes/it'\\''s.md' ");
+  expect(valueOf(box)).toBe("! cat 'my notes/it'\\''s.md' ");
 });
 
 it('against a server without shell mode ! is plain text and the pick stays an @ mention', async () => {
@@ -199,7 +193,7 @@ it('against a server without shell mode ! is plain text and the pick stays an @ 
   await flush();
   await answer(0, ['docs/alpha.md']);
   fireEvent.keyDown(box, { key: 'Enter' });
-  expect(box.value).toBe('! cat @docs/alpha.md ');
+  expect(valueOf(box)).toBe('! cat @docs/alpha.md ');
 });
 
 it('in a ! command a folder is a finished word: the picker does not keep going for its files', async () => {
@@ -209,5 +203,5 @@ it('in a ! command a folder is a finished word: the picker does not keep going f
   await flush();
   await answer(0, ['docs/']);
   fireEvent.keyDown(box, { key: 'Enter' });
-  expect(box.value).toBe('! ls docs/ ');
+  expect(valueOf(box)).toBe('! ls docs/ ');
 });

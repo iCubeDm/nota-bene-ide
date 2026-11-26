@@ -3,7 +3,8 @@ import { Provider } from 'react-redux';
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import { setLang } from '@/core/i18n/index.ts';
-import { makeStore } from '@/core/testing';
+import { makeStore, select, setValue, valueOf } from '@/core/testing';
+import { fieldFor } from '@/sdk';
 import { CommentPopup } from './CommentPopup.tsx';
 import { loadEmoji } from './emoji.ts';
 import type { PendingSelection } from './SelectionButton.tsx';
@@ -30,7 +31,7 @@ function setup() {
       </TooltipProvider>
     </Provider>,
   );
-  const box = screen.getByPlaceholderText('Comment…') as HTMLTextAreaElement;
+  const box = screen.getByRole('textbox', { name: 'Comment…' });
   const openMenu = () => {
     fireEvent.click(screen.getByRole('button', { name: 'Emoji' }));
     return screen.getByRole('dialog', { name: 'Emoji' });
@@ -52,13 +53,13 @@ it('search filters by shortcode', async () => {
 
 it('click inserts at the caret', () => {
   const { box, openMenu, onClose } = setup();
-  fireEvent.change(box, { target: { value: 'ab' } });
-  box.setSelectionRange(1, 1);
+  setValue(box, 'ab');
+  select(box, 1);
   const menu = openMenu();
   fireEvent.change(within(menu).getByPlaceholderText('Search emoji…'), { target: { value: 'thumbsup' } });
   fireEvent.click(within(menu).getByText('👍'));
-  expect(box.value).toBe('a👍b');
-  expect(box.selectionStart).toBe(1 + '👍'.length);
+  expect(valueOf(box)).toBe('a👍b');
+  expect(fieldFor(box)!.selection().from).toBe(1 + '👍'.length);
   expect(document.activeElement).toBe(box);
   expect(screen.queryByRole('dialog', { name: 'Emoji' })).toBeNull();
   expect(screen.getByRole('dialog')).toBeTruthy(); // the popup stays
@@ -111,12 +112,12 @@ it('an outside mousedown closes the menu (and the popup)', () => {
 
 it('a pick replaces the selection', () => {
   const { box, openMenu } = setup();
-  fireEvent.change(box, { target: { value: 'abcd' } });
-  box.setSelectionRange(1, 3);
+  setValue(box, 'abcd');
+  select(box, 1, 3);
   const menu = openMenu();
   fireEvent.change(within(menu).getByPlaceholderText('Search emoji…'), { target: { value: 'rocket' } });
   fireEvent.click(within(menu).getByText('🚀'));
-  expect(box.value).toBe('a🚀d');
+  expect(valueOf(box)).toBe('a🚀d');
 });
 
 it('recents move to the front without duplicates', () => {

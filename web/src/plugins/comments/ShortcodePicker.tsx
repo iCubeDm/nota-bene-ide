@@ -1,4 +1,4 @@
-import { setValueAndCaret, placeListFor, revealSelected, AT_RE, useComposerField } from '@/sdk';
+import { placeListFor, revealSelected, AT_RE, useComposerField, type Field } from '@/sdk';
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { loadEmoji, searchShortcodes } from './emoji.ts';
 
@@ -9,33 +9,32 @@ interface Item { code: string; emoji: string }
 interface Open { items: Item[]; sel: number; start: number }
 
 /**
- * GitHub-style `:code` autocomplete for any textarea. Keys are intercepted at WINDOW capture so that,
+ * GitHub-style `:code` autocomplete for any message field. Keys are intercepted at WINDOW capture so that,
  * while the list is open, Esc/Enter/Tab never reach the host's own document-level handlers (popup Esc,
- * composer send). Insertion goes through the native value setter + a bubbling `input` event so a
- * controlled React textarea picks the change up.
+ * composer send). Insertion goes through the field, which tells the host of the change.
  */
-export function ShortcodePicker({ target }: { target: RefObject<HTMLTextAreaElement | null> }) {
+export function ShortcodePicker({ target }: { target: RefObject<Field | null> }) {
   const [state, setState] = useState<Open | null>(null);
   const live = useRef<Open | null>(null);
   const menu = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const set = (s: Open | null) => { live.current = s; setState(s); };
 
-  const insert = (ta: HTMLTextAreaElement, start: number, emoji: string) => {
-    const end = ta.selectionStart;
+  const insert = (f: Field, start: number, emoji: string) => {
+    const end = f.selection().from;
+    const text = f.text();
     // the caret may have moved since the list was built: never insert over a stale token
-    if (!/^:[a-z0-9_+-]{2,}:?$/i.test(ta.value.slice(start, end)) || (start > 0 && !/\s/.test(ta.value[start - 1]))) return;
-    const next = ta.value.slice(0, start) + emoji + ta.value.slice(end);
-    setValueAndCaret(ta, next, start + emoji.length);
+    if (!/^:[a-z0-9_+-]{2,}:?$/i.test(text.slice(start, end)) || (start > 0 && !/\s/.test(text[start - 1]!))) return;
+    f.replace(start, end, emoji);
   };
 
   useEffect(() => {
-    const ta = target.current;
-    if (!ta) return;
+    const f = target.current;
+    if (!f) return;
     let dead = false;
     const update = (typed = false) => {
       if (dead) return;
-      const before = ta.value.slice(0, ta.selectionStart);
+      const before = f.text().slice(0, f.selection().from);
       const m = TOKEN.exec(before);
       if (!m) return set(null);
       const code = m[2].toLowerCase();
@@ -47,7 +46,7 @@ export function ShortcodePicker({ target }: { target: RefObject<HTMLTextAreaElem
         set(null);
         if (!typed) return; // only typing the closing colon replaces, never a caret jump
         const hit = searchShortcodes(code).find((e) => e.code.toLowerCase() === code);
-        if (hit) insert(ta, start, hit.emoji);
+        if (hit) insert(f, start, hit.emoji);
         return;
       }
       const items = searchShortcodes(code, 8);
@@ -56,19 +55,17 @@ export function ShortcodePicker({ target }: { target: RefObject<HTMLTextAreaElem
       if (cur && cur.start === start && cur.items.map((i) => i.code).join() === items.map((i) => i.code).join()) return; // keep the selection
       set({ items, sel: 0, start });
     };
-    // caret moved by keys or mouse: re-evaluate (closes the list once the caret leaves the token)
-    const onSel = () => { if (document.activeElement === ta && live.current) update(); };
     const onInput = () => {
       // the first colon warms the (lazy, ~600 KB) emoji data; re-run once it has arrived
-      const caret = ta.selectionStart;
+      const caret = f.selection().from;
       // a caret that moved while loading must not trigger the typed-only closing-colon replacement
-      if (/:[a-z0-9_+-]*$/i.test(ta.value.slice(0, caret))) void loadEmoji().then(() => update(ta.selectionStart === caret), (err) => console.warn('emoji data failed to load', err));
+      if (/:[a-z0-9_+-]*$/i.test(f.text().slice(0, caret))) void loadEmoji().then(() => update(f.selection().from === caret), (err) => console.warn('emoji data failed to load', err));
       update(true);
     };
     const close = () => set(null);
     const onKey = (e: KeyboardEvent) => {
       const s = live.current;
-      if (!s || e.target !== ta || e.isComposing) return;
+      if (!s || e.target !== f.element || e.isComposing) return;
       if (e.key === 'Tab' && e.shiftKey) return set(null); // Shift+Tab is the composer's mode cycle: close, let it through
       let handled = true;
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -76,32 +73,28 @@ export function ShortcodePicker({ target }: { target: RefObject<HTMLTextAreaElem
         set({ ...s, sel: (s.sel + d + s.items.length) % s.items.length });
       } else if ((e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) || e.key === 'Tab') {
         set(null);
-        insert(ta, s.start, s.items[s.sel].emoji);
+        insert(f, s.start, s.items[s.sel].emoji);
       } else if (e.key === 'Escape') set(null);
       else handled = false;
       if (handled) { e.preventDefault(); e.stopPropagation(); }
     };
-    ta.addEventListener('input', onInput);
-    const onClick = () => update();
-    ta.addEventListener('click', onClick);
-    ta.addEventListener('blur', close);
+    // typing; a click; a caret moved by keys while the list is open (closes it once the caret leaves the token)
+    const off = f.onUpdate((u) => { if (u.doc) onInput(); else if (u.pointer || live.current) update(); });
+    f.element.addEventListener('blur', close);
     window.addEventListener('keydown', onKey, true);
-    document.addEventListener('selectionchange', onSel);
     return () => {
       dead = true;
-      document.removeEventListener('selectionchange', onSel);
-      ta.removeEventListener('input', onInput);
-      ta.removeEventListener('click', onClick);
-      ta.removeEventListener('blur', close);
+      off();
+      f.element.removeEventListener('blur', close);
       window.removeEventListener('keydown', onKey, true);
     };
   }, [target]);
 
   // above the field when it fits, else the roomier side, height capped to that side (placeList)
   useLayoutEffect(() => {
-    const ta = target.current;
-    if (!state || !ta || !menu.current) return;
-    setPos(placeListFor(menu.current, ta));
+    const f = target.current;
+    if (!state || !f || !menu.current) return;
+    setPos(placeListFor(menu.current, f.element));
   }, [state?.items, target]);
   // the selected option scrolls into view inside the list only: scrollIntoView would scroll the document too
   useLayoutEffect(() => {
@@ -110,11 +103,11 @@ export function ShortcodePicker({ target }: { target: RefObject<HTMLTextAreaElem
 
   if (!state) return null;
   const pick = (k: number) => {
-    const ta = target.current;
-    if (!ta) return;
+    const f = target.current;
+    if (!f) return;
     set(null);
-    ta.focus();
-    insert(ta, state.start, state.items[k].emoji);
+    f.focus();
+    insert(f, state.start, state.items[k].emoji);
   };
   return (
     <div
@@ -128,7 +121,7 @@ export function ShortcodePicker({ target }: { target: RefObject<HTMLTextAreaElem
           key={it.code}
           role="option"
           aria-selected={k === state.sel}
-          onMouseDown={(e) => e.preventDefault() /* keep focus in the textarea */}
+          onMouseDown={(e) => e.preventDefault() /* keep focus in the field */}
           onClick={() => pick(k)}
           className={`flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 font-mono text-[0.78125rem] text-foreground ${k === state.sel ? 'bg-primary/15' : 'hover:bg-accent'}`}
         >

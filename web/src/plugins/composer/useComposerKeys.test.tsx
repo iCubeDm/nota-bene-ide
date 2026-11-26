@@ -1,5 +1,5 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
-import type { KeyboardEvent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Provider } from 'react-redux';
 import { afterEach, expect, it, vi } from 'vitest';
 import { testStore } from '@/core/testing';
@@ -10,14 +10,13 @@ afterEach(cleanup);
 
 type Mods = Partial<Record<'shiftKey' | 'ctrlKey' | 'altKey' | 'metaKey' | 'isComposing', boolean>>;
 const ev = (key: string, m: Mods = {}) => {
-  const { isComposing = false, ...mods } = m;
-  return { key, shiftKey: false, ctrlKey: false, altKey: false, metaKey: false, ...mods, nativeEvent: { isComposing }, preventDefault: vi.fn() } as unknown as KeyboardEvent<HTMLTextAreaElement> & { preventDefault: ReturnType<typeof vi.fn> };
+  return { key, shiftKey: false, ctrlKey: false, altKey: false, metaKey: false, isComposing: false, ...m, preventDefault: vi.fn() } as unknown as KeyboardEvent & { preventDefault: ReturnType<typeof vi.fn> };
 };
 
 function setup(o: Partial<ComposerKeys> = {}) {
   const { store } = testStore();
   const opts: ComposerKeys = {
-    ref: { current: document.createElement('textarea') },
+    ref: { current: null },
     suggestion: null,
     pickNextMode: vi.fn(),
     askForce: false,
