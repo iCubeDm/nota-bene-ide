@@ -10,7 +10,7 @@ export function blockAt(state: EditorState, pos: number): SyntaxNode | null {
   for (let n: SyntaxNode | null = syntaxTree(state).resolveInner(pos, -1); n; n = n.parent) if (n.name === 'FencedCode') return n;
   return null;
 }
-const closed = (n: SyntaxNode) => n.getChildren('CodeMark').length > 1;
+export const closed = (n: SyntaxNode) => n.getChildren('CodeMark').length > 1;
 
 /**
  * Typing the third backtick of a line that holds only ` `` ` opens a block as Slack does (issue 724): the closing fence
@@ -74,43 +74,68 @@ const CODE_INDENT = '  ';
 
 /**
  * Tab (`dir` 1) and Shift+Tab (-1) on the caret's line (issue 727): a list item nests under the item above, at that
- * item's text (so `1. ` nests by three), or goes back to its parent's level; a line in a code block gains or loses an
- * indent. Anything else, or an item with nowhere to go, is the host's (Tab leaves the field, Shift+Tab cycles the mode).
+ * item's text (so `1. ` nests by three), or goes back to its parent's level, its children and its continued lines with
+ * it; a line in a code block gains or loses an indent. Anything else, or an item with nowhere to go, is the host's (Tab
+ * leaves the field, Shift+Tab cycles the mode).
  */
 export function indent(view: EditorView, dir: 1 | -1): boolean {
   const { state } = view;
   const sel = state.selection.main;
   const line = state.doc.lineAt(sel.head);
-  const has = line.text.match(/^ */)![0].length;
+  const has = lead(line.text);
   const block = blockAt(state, sel.head);
   const inBlock = block && line.from > block.from && (!closed(block) || line.number < state.doc.lineAt(block.to).number);
-  const item = ITEM.exec(line.text);
   const to = inBlock ? Math.max(0, has + dir * CODE_INDENT.length)
-    : item ? (dir > 0 ? nestUnder(state, line.number, has) : parentIndent(state, line.number, has))
+    : ITEM.test(line.text) ? (dir > 0 ? nestUnder(state, line.number, has) : parentIndent(state, line.number, has))
     : null;
   if (to === null || to === has) return false;
-  view.dispatch({ changes: { from: line.from, to: line.from + has, insert: ' '.repeat(to) }, userEvent: 'input.indent' });
+  const moved = inBlock ? [line] : withChildren(state, line.number, has);
+  const by = to - has;
+  view.dispatch({
+    changes: moved.map((l) => (by > 0 ? { from: l.from, insert: ' '.repeat(by) } : { from: l.from, to: l.from + Math.min(-by, lead(l.text)) })),
+    userEvent: 'input.indent',
+  });
   return true;
 }
 
-/** the text column of the nearest item above at the same level as `own`, else null */
+const lead = (text: string): number => text.match(/^ */)![0].length;
+const blank = (text: string): boolean => !text.trim();
+
+/** the item's line and the lines under it indented deeper (its children, its continued text), blank ones between them */
+function withChildren(state: EditorState, n: number, own: number) {
+  const out = [state.doc.line(n)];
+  let end = n;
+  for (let l = n + 1; l <= state.doc.lines; l++) {
+    const text = state.doc.line(l).text;
+    if (blank(text)) continue;
+    if (lead(text) <= own) break;
+    end = l;
+  }
+  for (let l = n + 1; l <= end; l++) if (!blank(state.doc.line(l).text)) out.push(state.doc.line(l));
+  return out;
+}
+
+/** the text column of the nearest item above at the same level as `own` (blank, deeper and continued lines passed), else null */
 function nestUnder(state: EditorState, n: number, own: number): number | null {
   for (let l = n - 1; l >= 1; l--) {
-    const m = ITEM.exec(state.doc.line(l).text);
-    if (!m) return null;
-    if (m[1]!.length === own) return m[0].length;
-    if (m[1]!.length < own) return null;
+    const text = state.doc.line(l).text;
+    if (blank(text)) continue;
+    const m = ITEM.exec(text);
+    if (m && m[1]!.length === own) return m[0].length;
+    if (lead(text) <= own) return null;
   }
   return null;
 }
 
-/** the indent of the item above that `own` is nested in, else null */
+/** the indent of the item above that `own` is nested in, else 0 */
 function parentIndent(state: EditorState, n: number, own: number): number | null {
   if (own === 0) return null;
   for (let l = n - 1; l >= 1; l--) {
-    const m = ITEM.exec(state.doc.line(l).text);
-    if (!m) break;
-    if (m[1]!.length < own) return m[1]!.length;
+    const text = state.doc.line(l).text;
+    if (blank(text)) continue;
+    const m = ITEM.exec(text);
+    if (m && m[1]!.length < own) return m[1]!.length;
+    if (!m && lead(text) < own) break;
   }
   return 0;
 }

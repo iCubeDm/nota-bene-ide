@@ -1,6 +1,8 @@
-import { Prec, type Extension } from '@codemirror/state';
+import { syntaxTree } from '@codemirror/language';
+import { Prec, type ChangeSpec, type EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
-import { blockAt } from './blockKeys.ts';
+import type { SyntaxNode } from '@lezer/common';
+import { closed } from './blockKeys.ts';
 
 export type Inline = '**' | '*' | '~~' | '`';
 
@@ -11,25 +13,46 @@ function run(text: string, at: number, ch: string, dir: 1 | -1): number {
   return n;
 }
 
-/** whether runs of `n` mark characters on both sides carry `mark` (`***` is bold and italic, `**` no italic) */
-const carries = (n: number, mark: Inline): boolean => (mark === '*' ? n % 2 === 1 : n >= mark.length);
+const SPAN: Record<Inline, { node: string; mark: string }> = {
+  '**': { node: 'StrongEmphasis', mark: 'EmphasisMark' },
+  '*': { node: 'Emphasis', mark: 'EmphasisMark' },
+  '~~': { node: 'Strikethrough', mark: 'StrikethroughMark' },
+  '`': { node: 'InlineCode', mark: 'CodeMark' },
+};
 
 /**
- * Bold, italic, strikethrough or code on the selection (issue 727): wrapped in the mark and kept selected, or, when the
- * mark already wraps it (around or inside the selection), unwrapped. With no selection a pair goes in, the caret inside.
+ * The span of `mark`'s kind that is the selection: its marks just outside it or just inside it, with nothing but other
+ * spans' marks between (`***w***` with `w` selected is italic). A selection over two spans is neither.
+ */
+function spanOf(state: EditorState, from: number, to: number, mark: Inline): { open: SyntaxNode; close: SyntaxNode } | null {
+  const { node, mark: markName } = SPAN[mark];
+  const onlyMarks = (a: number, b: number) => /^[*_~`]*$/.test(state.sliceDoc(Math.min(a, b), Math.max(a, b)));
+  let found: { open: SyntaxNode; close: SyntaxNode } | null = null;
+  syntaxTree(state).iterate({
+    from: Math.max(0, from - 1), to: Math.min(state.doc.length, to + 1),
+    enter: (n) => {
+      if (found || n.name !== node) return;
+      const marks = n.node.getChildren(markName);
+      const open = marks[0], close = marks.at(-1);
+      if (marks.length > 1 && onlyMarks(from, open!.to) && onlyMarks(to, close!.from)) found = { open: open!, close: close! };
+    },
+  });
+  return found;
+}
+
+/**
+ * Bold, italic, strikethrough or code on the selection (issue 727): wrapped in the mark and kept selected, or, when it is
+ * such a span already, unwrapped. With no selection a pair goes in, the caret inside; again, the empty pair goes.
  */
 export function toggleInline(view: EditorView, mark: Inline): boolean {
   const { state } = view;
   const { from, to } = state.selection.main;
-  const doc = state.doc.toString();
-  const ch = mark[0]!;
   const len = mark.length;
-  const around = Math.min(run(doc, from, ch, -1), run(doc, to, ch, 1));
-  const inner = to - from >= 2 * len ? Math.min(run(doc, from, ch, 1), run(doc, to, ch, -1)) : 0;
-  if (carries(around, mark)) {
-    view.dispatch({ changes: [{ from: from - len, to: from }, { from: to, to: to + len }], selection: { anchor: from - len, head: to - len }, userEvent: 'input.format' });
-  } else if (carries(inner, mark) && inner * 2 <= to - from) {
-    view.dispatch({ changes: [{ from, to: from + len }, { from: to - len, to }], selection: { anchor: from, head: to - 2 * len }, userEvent: 'input.format' });
+  const span = spanOf(state, from, to, mark);
+  const empty = from === to && Math.min(run(state.doc.toString(), from, mark[0]!, -1), run(state.doc.toString(), to, mark[0]!, 1)) === len;
+  if (span || empty) {
+    const changes = state.changes(span ? [{ from: span.open.from, to: span.open.to }, { from: span.close.from, to: span.close.to }] : [{ from: from - len, to: from }, { from: to, to: to + len }]);
+    view.dispatch({ changes, selection: { anchor: changes.mapPos(from, 1), head: changes.mapPos(to, -1) }, userEvent: 'input.format' });
   } else {
     view.dispatch({ changes: [{ from, insert: mark }, { from: to, insert: mark }], selection: { anchor: from + len, head: to + len }, userEvent: 'input.format' });
   }
@@ -43,31 +66,41 @@ export function link(view: EditorView): boolean {
   return true;
 }
 
-/** A list's or a quote's mark on every line of the selection; off them all when every line has it. */
+/**
+ * A list's or a quote's mark on every line of the selection that has text, after its indent; off them all (a numbered
+ * list's too) when every such line has one. A selection that only reaches the next line's start leaves that line.
+ */
 export function toggleLines(view: EditorView, prefix: '- ' | '> '): boolean {
   const { state } = view;
   const { from, to } = state.selection.main;
+  const MARK = prefix === '- ' ? /^( *)(?:[-*+]|\d+[.)]) / : /^( *)> ?/;
+  let last = state.doc.lineAt(to).number;
+  if (to > from && to === state.doc.line(last).from) last--;
   const lines = [];
-  for (let n = state.doc.lineAt(from).number; n <= state.doc.lineAt(to).number; n++) lines.push(state.doc.line(n));
-  const has = (text: string) => (prefix === '- ' ? /^[-*+] /.test(text) : text.startsWith(prefix));
-  const off = lines.every((l) => has(l.text));
+  for (let n = state.doc.lineAt(from).number; n <= last; n++) if (state.doc.line(n).text.trim()) lines.push(state.doc.line(n));
+  const off = lines.every((l) => MARK.test(l.text));
   view.dispatch({
-    changes: lines.map((l) => (off ? { from: l.from, to: l.from + 2 } : has(l.text) ? { from: l.from } : { from: l.from, insert: prefix })),
+    changes: lines.flatMap((l): ChangeSpec[] => {
+      const m = MARK.exec(l.text);
+      if (off) return [{ from: l.from + m![1]!.length, to: l.from + m![0].length }];
+      return m ? [] : [{ from: l.from + l.text.match(/^ */)![0].length, insert: prefix }];
+    }),
     userEvent: 'input.format',
   });
   return true;
 }
 
-/** The selected lines fenced as a code block; inside a block, its fences taken off. */
+/** The selected lines fenced as a code block; a selection within one block, the fences selected too, unfences it. */
 export function codeBlock(view: EditorView): boolean {
   const { state } = view;
   const { from, to } = state.selection.main;
-  const block = blockAt(state, from);
-  if (block && block === blockAt(state, to)) {
-    const first = state.doc.lineAt(block.from), last = state.doc.lineAt(block.to);
-    const closes = last.number > first.number && /^\s*```/.test(last.text);
+  let block: SyntaxNode | null = null;
+  syntaxTree(state).iterate({ from, to, enter: (n) => { if (!block && n.name === 'FencedCode' && n.from <= from && n.to >= to) block = n.node; } });
+  if (block) {
+    const b: SyntaxNode = block;
+    const first = state.doc.lineAt(b.from), last = state.doc.lineAt(b.to);
     view.dispatch({
-      changes: [{ from: first.from, to: Math.min(first.to + 1, state.doc.length) }, ...(closes ? [{ from: last.from - 1, to: last.to }] : [])],
+      changes: [{ from: first.from, to: Math.min(first.to + 1, state.doc.length) }, ...(closed(b) ? [{ from: last.from - 1, to: last.to }] : [])],
       userEvent: 'input.format',
     });
     return true;

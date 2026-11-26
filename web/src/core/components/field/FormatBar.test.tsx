@@ -39,3 +39,14 @@ it('the bar goes when the selection collapses, and never shows for a shell comma
   select(g, 1, 3);
   expect(screen.queryByRole('toolbar')).toBeNull();
 });
+
+it('the bar goes when the host empties the field (a send)', () => {
+  const ref = createRef<Field>();
+  const ui = (v: string) => <TooltipProvider><EditorField fieldRef={ref} ariaLabel="Message" value={v} onChange={vi.fn()} newline="Shift-Enter" /></TooltipProvider>;
+  const r = render(ui('a word b'));
+  act(() => ref.current!.focus());
+  select(ref.current!, 2, 6);
+  expect(screen.getByRole('toolbar')).toBeTruthy();
+  r.rerender(ui(''));
+  expect(screen.queryByRole('toolbar')).toBeNull();
+});

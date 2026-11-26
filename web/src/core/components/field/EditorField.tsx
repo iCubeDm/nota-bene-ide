@@ -48,6 +48,8 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const listeners = useRef<Listeners>(new Set());
+  // every change of the field, the host's value and the focus too: what the format bar follows
+  const watchers = useRef(new Set<() => void>());
   const change = useRef(onChange);
   change.current = onChange;
   const paste = useRef(onPaste);
@@ -78,6 +80,7 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
       lock.current.of(locked(!!readOnly)),
       look.current.of(drawn(plain)),
       EditorView.updateListener.of((u) => {
+        if (u.docChanged || u.selectionSet || u.focusChanged || u.geometryChanged) for (const w of watchers.current) w();
         // the host's own value coming in is neither an edit nor something the pickers look at (a textarea's `input` was not either)
         if ((!u.docChanged && !u.selectionSet) || u.transactions.some((t) => t.annotation(fromHost))) return;
         if (u.docChanged) change.current(u.state.doc.toString());
@@ -127,7 +130,7 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
   return (
     <>
       <div ref={host} onMouseDown={toText} className={className} />
-      {!plain && <FormatBar key={newline} view={view} listeners={listeners.current} />}
+      {!plain && <FormatBar key={newline} view={view} watchers={watchers.current} />}
     </>
   );
 }

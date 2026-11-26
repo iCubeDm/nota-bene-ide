@@ -137,3 +137,20 @@ it('the Tab key nests an item and is taken; on plain text it is left to the brow
   open('hi');
   expect(tab()).toBe(false);
 });
+
+it('Tab and Shift+Tab move an item with its children', () => {
+  open('- a\n- b\n  - c', 7);
+  expect(indent(view, 1)).toBe(true);
+  expect(text()).toBe('- a\n  - b\n    - c');
+  expect(indent(view, -1)).toBe(true);
+  expect(text()).toBe('- a\n- b\n  - c');
+});
+
+it('an item nests over a blank line or a continuation line above it', () => {
+  open('- a\n  more\n- b');
+  expect(indent(view, 1)).toBe(true);
+  expect(text()).toBe('- a\n  more\n  - b');
+  open('- a\n\n- b');
+  expect(indent(view, 1)).toBe(true);
+  expect(text()).toBe('- a\n\n  - b');
+});

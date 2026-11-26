@@ -98,3 +98,36 @@ it('the keys format: Mod-B bolds the selection', () => {
   view.contentDOM.dispatchEvent(e);
   expect(shown()).toBe('a **[word]** b');
 });
+
+it('a selection over two spans is wrapped, never unwrapped by their outer marks', () => {
+  open('[*a* and *b*]');
+  toggleInline(view, '*');
+  expect(view.state.doc.toString()).toBe('**a* and *b**');
+  open('[`a` and `b`]');
+  toggleInline(view, '`');
+  expect(view.state.doc.toString()).toBe('``a` and `b``');
+});
+
+it('a whole block selected, from its opening fence, is unfenced; a ~~~ block too', () => {
+  open('x\n[```\na\n```]');
+  codeBlock(view);
+  expect(view.state.doc.toString()).toBe('x\na');
+  open('~~~\n[a]\n~~~');
+  codeBlock(view);
+  expect(view.state.doc.toString()).toBe('a');
+});
+
+it('the list button: a numbered list comes off, a nested one keeps its indent, blank lines and a line only reached stay', () => {
+  open('[1. a\n2. b]');
+  toggleLines(view, '- ');
+  expect(view.state.doc.toString()).toBe('a\nb');
+  open('[- a\n  - b]');
+  toggleLines(view, '- ');
+  expect(view.state.doc.toString()).toBe('a\n  b');
+  open('[a\n\nb]');
+  toggleLines(view, '- ');
+  expect(view.state.doc.toString()).toBe('- a\n\n- b');
+  open('[a\nb\n]c');
+  toggleLines(view, '- ');
+  expect(view.state.doc.toString()).toBe('- a\n- b\nc');
+});

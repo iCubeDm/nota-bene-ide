@@ -5,7 +5,6 @@ import { t, type I18nKey } from '../../i18n/index.ts';
 import { isMac, modKey, withKeys } from '../../shell/keymap.ts';
 import { Svg } from '../icons.tsx';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip.tsx';
-import type { Listeners } from './field.ts';
 import { codeBlock, link, toggleInline, toggleLines } from './format.ts';
 
 interface Tool { label: I18nKey; key?: string; shift?: boolean; run: (v: EditorView) => boolean; icon: ReactNode }
@@ -28,9 +27,10 @@ const BAR_HEIGHT = 32;
 
 /**
  * The format bar over a selection in the field (issue 727): the inline formats with their keys, then the block ones.
- * It follows the selection, goes when it collapses or the field loses focus, and keeps the field's selection when pressed.
+ * It follows the selection through every change of the field (`watchers`: the host's value too) and any scroll, goes
+ * when the selection collapses or the field loses focus, and keeps the field's selection when pressed.
  */
-export function FormatBar({ view, listeners }: { view: RefObject<EditorView | null>; listeners: Listeners }) {
+export function FormatBar({ view, watchers }: { view: RefObject<EditorView | null>; watchers: Set<() => void> }) {
   const [at, setAt] = useState<{ left: number; top: number } | null>(null);
   useEffect(() => {
     const v = view.current;
@@ -43,10 +43,17 @@ export function FormatBar({ view, listeners }: { view: RefObject<EditorView | nu
       setAt({ left: start?.left ?? 0, top: above >= 0 ? above : (end?.bottom ?? 0) + BAR_GAP });
     };
     const hide = () => setAt(null);
-    listeners.add(place);
+    watchers.add(place);
     v.contentDOM.addEventListener('blur', hide);
-    return () => { listeners.delete(place); v.contentDOM.removeEventListener('blur', hide); };
-  }, [view, listeners]);
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      watchers.delete(place);
+      v.contentDOM.removeEventListener('blur', hide);
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [view, watchers]);
   const v = view.current;
   if (!at || !v) return null;
   const keys = (tool: Tool) => (tool.key ? `${modKey()}${tool.shift ? (isMac() ? '⇧' : 'Shift+') : ''}${tool.key}` : '');
