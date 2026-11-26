@@ -14,7 +14,7 @@ const TOOL_KEYS: Record<string, MarkTool> = { KeyR: 'rect', KeyE: 'ellipse', Key
 /** How near (client px) a press must be to a polygon's point to hit it: the first one closes, any one is dragged. */
 const HIT_PX = 8;
 /** The dots of a polygon's points (client px across): a round cap of a zero-length line, the same size at any zoom. */
-const DOT_PX = 9;
+const DOT_PX = 5;
 /** A press this soon (ms) and this near (client px) after the one that added a point is a double-click's second press. */
 const DBL_MS = 500;
 const DBL_PX = 5;
