@@ -28,7 +28,7 @@ const INDIRECT = [
   'cutTrackMute', 'cutTrackSolo', 'cutTrackHide', 'cutTrackUp', 'cutTrackDown', 'cutTrackRemove', 'cutClipOn', 'cutClipOff',
   'idleBlocked', 'cutExportBlocked', 'toolRect', 'toolEllipse', 'toolPen', 'toolArrow', 'toolMask',
   'h5Tip', 'weekTip', 'pb_mute', 'pb_unmute',
-  'fmtBold', 'fmtItalic', 'fmtStrike', 'fmtCode', 'fmtLink', 'fmtBlock', 'fmtList', 'fmtQuote',
+  'fmtBold', 'fmtItalic', 'fmtStrike', 'fmtCode', 'fmtLink', 'fmtBlock', 'fmtList', 'fmtNumbered', 'fmtQuote',
 ];
 
 /** Keys the scan finds that are no tooltip, each with what it is. */

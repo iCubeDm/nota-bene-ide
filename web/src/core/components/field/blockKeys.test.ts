@@ -106,15 +106,44 @@ it('Tab nests a list item under the one above, Shift+Tab takes it back out', () 
 it('a numbered item nests under its number\'s width', () => {
   open('1. a\n2. b');
   expect(indent(view, 1)).toBe(true);
-  expect(text()).toBe('1. a\n   2. b');
+  expect(text()).toBe('1. a\n   1. b');
 });
 
-it('an item with nothing above to nest under, a top-level item outdented and plain text are left to the host', () => {
+it('on an item with nowhere to go Tab and Shift+Tab are taken and change nothing; plain text is left to the host', () => {
   open('- a');
-  expect(indent(view, 1)).toBe(false);
-  expect(indent(view, -1)).toBe(false);
+  expect(indent(view, 1)).toBe(true);
+  expect(indent(view, -1)).toBe(true);
+  expect(text()).toBe('- a');
+  open('- a\n  - b\n    - ');
+  expect(indent(view, 1)).toBe(true);
+  expect(text()).toBe('- a\n  - b\n    - ');
+  open('```\nab\n```', 5);
+  expect(indent(view, -1)).toBe(true);
   open('hi');
   expect(indent(view, 1)).toBe(false);
+});
+
+it('Tab at the start of a code line puts the caret after the indent', () => {
+  open('```\nmain() {\n\n}\n```', 13);
+  expect(indent(view, 1)).toBe(true);
+  expect(text()).toBe('```\nmain() {\n  \n}\n```');
+  expect(caret()).toBe(15);
+});
+
+it('a numbered item nested starts its own list at 1, the list it left numbered on; out again, back in sequence', () => {
+  open('1. a\n2. b\n3. c\n4. d', 12);
+  expect(indent(view, 1)).toBe(true);
+  expect(text()).toBe('1. a\n2. b\n   1. c\n3. d');
+  expect(indent(view, -1)).toBe(true);
+  expect(text()).toBe('1. a\n2. b\n3. c\n4. d');
+  undo(view);
+  expect(text()).toBe('1. a\n2. b\n   1. c\n3. d');
+});
+
+it('an item taken out of the middle of a nested list leaves the ones after it as its own list from 1', () => {
+  open('1. a\n   1. b\n   2. c\n   3. d', 16);
+  expect(indent(view, -1)).toBe(true);
+  expect(text()).toBe('1. a\n   1. b\n2. c\n   1. d');
 });
 
 it('Tab in a code block indents its line, Shift+Tab takes the indent back', () => {

@@ -9,8 +9,8 @@ type Span = [number, number];
 export interface Preview {
   /** text that does not show */
   hide: Span[];
-  /** a `- ` or `* ` drawn as a bullet */
-  bullets: Span[];
+  /** a list's mark drawn as its bullet or its number (`label`) */
+  markers: { from: number; to: number; label: string; cls: string }[];
   marks: { from: number; to: number; cls: string }[];
   /** `level`: a list item's nesting */
   lines: { at: number; cls: string; level?: number }[];
@@ -28,7 +28,7 @@ const SPANS: Record<string, { cls: string; marks: string[] }> = {
  * selection touches the span, a fence hides unless the caret is on its line. The text itself is never changed.
  */
 export function previewRanges(state: EditorState, visible: readonly { from: number; to: number }[]): Preview {
-  const p: Preview = { hide: [], bullets: [], marks: [], lines: [] };
+  const p: Preview = { hide: [], markers: [], marks: [], lines: [] };
   const sel = state.selection.ranges;
   const touched = (from: number, to: number) => sel.some((r) => r.from <= to && r.to >= from);
   const tree = syntaxTree(state);
@@ -50,9 +50,10 @@ export function previewRanges(state: EditorState, visible: readonly { from: numb
         if (n.name === 'ListItem') item(state, n.node, p);
         if (n.name === 'ListMark') {
           const end = Math.min(n.to + 1, state.doc.lineAt(n.from).to);
-          const list = n.node.parent?.parent?.name;
-          if (list === 'BulletList' && /^[-*+]$/.test(state.sliceDoc(n.from, n.to))) p.bullets.push([n.from, end]);
-          if (list === 'OrderedList') p.marks.push({ from: n.from, to: end, cls: 'nb-md-num' });
+          const list = n.node.parent?.parent;
+          const mark = state.sliceDoc(n.from, n.to);
+          if (list?.name === 'BulletList' && /^[-*+]$/.test(mark)) p.markers.push({ from: n.from, to: end, label: '•', cls: 'nb-md-bullet' });
+          if (list?.name === 'OrderedList') p.markers.push({ from: n.from, to: end, label: number(list, mark), cls: 'nb-md-num' });
         }
         if (n.name === 'QuoteMark') {
           const line = state.doc.lineAt(n.from);
@@ -77,6 +78,24 @@ function item(state: EditorState, node: SyntaxNode, p: Preview): void {
   p.lines.push({ at: line.from, cls: 'nb-md-item', level });
   if (node.from > line.from) p.hide.push([line.from, node.from]);
 }
+
+/** an item's number as the chat draws it (markdown.css): 1. at the top, a. in a numbered list, i. deeper */
+function number(list: SyntaxNode, mark: string): string {
+  let depth = 0;
+  for (let a = list.parent; a; a = a.parent) if (a.name === 'OrderedList') depth++;
+  let n = parseInt(mark, 10);
+  const delim = mark.slice(-1);
+  if (depth === 0 || n < 1) return mark;
+  if (depth === 1) {
+    let s = '';
+    for (; n > 0; n = Math.floor(n / 26)) s = String.fromCharCode(97 + (--n % 26)) + s;
+    return s + delim;
+  }
+  let s = '';
+  for (const [v, r] of ROMAN) for (; n >= v; n -= v) s += r;
+  return s + delim;
+}
+const ROMAN: [number, string][] = [[1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'], [90, 'xc'], [50, 'l'], [40, 'xl'], [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']];
 
 const PENDING: [RegExp, string][] = [[/~~/g, 'nb-md-strike'], [/\*\*|__/g, 'nb-md-strong'], [/\*|(?<!\w)_|_(?!\w)/g, 'nb-md-em']];
 
@@ -187,21 +206,23 @@ function highlight(code: string, language: string): [number, number, string][] {
   return out;
 }
 
-class Bullet extends WidgetType {
-  eq() { return true; }
+class Marker extends WidgetType {
+  readonly label: string;
+  readonly cls: string;
+  constructor(label: string, cls: string) { super(); this.label = label; this.cls = cls; }
+  eq(o: Marker) { return o.label === this.label && o.cls === this.cls; }
   toDOM() {
     const s = document.createElement('span');
-    s.className = 'nb-md-bullet';
-    s.textContent = '•';
+    s.className = this.cls;
+    s.textContent = this.label;
     return s;
   }
 }
-const bullet = Decoration.replace({ widget: new Bullet() });
 const hidden = Decoration.replace({});
 
 function build(view: EditorView): { all: DecorationSet; atoms: DecorationSet } {
   const p = previewRanges(view.state, view.visibleRanges);
-  const atoms = p.bullets.map(([a, b]) => bullet.range(a, b));
+  const atoms = p.markers.map((m) => Decoration.replace({ widget: new Marker(m.label, m.cls) }).range(m.from, m.to));
   const all: Range<Decoration>[] = [
     ...p.lines.map((l) => Decoration.line({ class: l.cls, ...(l.level === undefined ? {} : { attributes: { style: `--nb-level: ${l.level}` } }) }).range(l.at)),
     ...p.marks.filter((m) => m.to > m.from).map((m) => Decoration.mark({ class: m.cls }).range(m.from, m.to)),
@@ -242,9 +263,11 @@ const look = EditorView.theme({
   '.nb-md-item': { paddingLeft: 'calc((var(--nb-level) + 1) * 1.5em) !important', textIndent: '-1.5em' },
   '.nb-md-bullet, .nb-md-num': { display: 'inline-block', minWidth: '1.5em', textIndent: '0', color: 'var(--muted-fg)' },
   '.nb-md-bullet': { textAlign: 'center' },
+  // a number ends where the chat's does, a little before its text
+  '.nb-md-num': { textAlign: 'right', paddingRight: '0.4em', boxSizing: 'border-box' },
 });
 
-/** Live markdown: the field's decorations, a bullet as one unit for the caret, and their look. */
+/** Live markdown: the field's decorations, a list's mark as one unit for the caret, and their look. */
 export const livePreview: Extension = [
   plugin,
   look,

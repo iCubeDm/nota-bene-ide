@@ -66,24 +66,35 @@ export function link(view: EditorView): boolean {
   return true;
 }
 
+export type LineMark = '- ' | '1. ' | '> ';
+const LINE_MARK: Record<LineMark, RegExp> = { '- ': /^( *)[-*+] /, '1. ': /^( *)\d+[.)] /, '> ': /^( *)> ?/ };
+const LIST_MARK = /^( *)(?:[-*+]|\d+[.)]) /;
+
 /**
- * A list's or a quote's mark on every line of the selection that has text, after its indent; off them all (a numbered
- * list's too) when every such line has one. A selection that only reaches the next line's start leaves that line.
+ * A bullet's, a number's or a quote's mark on every line of the selection that has text, after its indent (numbers
+ * counted per indent); off them all when every such line has one. A list mark of the other kind turns into this one.
+ * A selection that only reaches the next line's start leaves that line.
  */
-export function toggleLines(view: EditorView, prefix: '- ' | '> '): boolean {
+export function toggleLines(view: EditorView, prefix: LineMark): boolean {
   const { state } = view;
   const { from, to } = state.selection.main;
-  const MARK = prefix === '- ' ? /^( *)(?:[-*+]|\d+[.)]) / : /^( *)> ?/;
+  const own = LINE_MARK[prefix], replaced = prefix === '> ' ? own : LIST_MARK;
   let last = state.doc.lineAt(to).number;
   if (to > from && to === state.doc.line(last).from) last--;
   const lines = [];
   for (let n = state.doc.lineAt(from).number; n <= last; n++) if (state.doc.line(n).text.trim()) lines.push(state.doc.line(n));
-  const off = lines.every((l) => MARK.test(l.text));
+  const off = lines.every((l) => own.test(l.text));
+  const count = new Map<number, number>();
   view.dispatch({
     changes: lines.flatMap((l): ChangeSpec[] => {
-      const m = MARK.exec(l.text);
-      if (off) return [{ from: l.from + m![1]!.length, to: l.from + m![0].length }];
-      return m ? [] : [{ from: l.from + l.text.match(/^ */)![0].length, insert: prefix }];
+      const indent = l.text.match(/^ */)![0].length;
+      const m = replaced.exec(l.text);
+      const at = l.from + indent, end = m ? l.from + m[0].length : at;
+      if (off) return [{ from: at, to: end }];
+      for (const k of count.keys()) if (k > indent) count.delete(k);
+      count.set(indent, (count.get(indent) ?? 0) + 1);
+      const insert = prefix === '1. ' ? `${count.get(indent)}. ` : prefix;
+      return state.sliceDoc(at, end) === insert ? [] : [{ from: at, to: end, insert }];
     }),
     userEvent: 'input.format',
   });

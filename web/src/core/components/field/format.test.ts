@@ -117,10 +117,23 @@ it('a whole block selected, from its opening fence, is unfenced; a ~~~ block too
   expect(view.state.doc.toString()).toBe('a');
 });
 
-it('the list button: a numbered list comes off, a nested one keeps its indent, blank lines and a line only reached stay', () => {
-  open('[1. a\n2. b]');
+it('the numbered list button numbers the selected lines and comes off when all are numbered', () => {
+  open('[a\nb\nc]');
+  toggleLines(view, '1. ');
+  expect(view.state.doc.toString()).toBe('1. a\n2. b\n3. c');
+  toggleLines(view, '1. ');
+  expect(view.state.doc.toString()).toBe('a\nb\nc');
+});
+
+it('one list button on the other\'s list turns it into its own kind', () => {
+  open('[- a\n- b]');
+  toggleLines(view, '1. ');
+  expect(view.state.doc.toString()).toBe('1. a\n2. b');
   toggleLines(view, '- ');
-  expect(view.state.doc.toString()).toBe('a\nb');
+  expect(view.state.doc.toString()).toBe('- a\n- b');
+});
+
+it('the list button: a nested list keeps its indent, blank lines and a line only reached stay', () => {
   open('[- a\n  - b]');
   toggleLines(view, '- ');
   expect(view.state.doc.toString()).toBe('a\n  b');

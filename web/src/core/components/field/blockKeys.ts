@@ -1,7 +1,7 @@
 import { insertNewline, isolateHistory } from '@codemirror/commands';
-import { syntaxTree } from '@codemirror/language';
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import { insertNewlineContinueMarkup } from '@codemirror/lang-markdown';
-import { Prec, type EditorState, type Extension } from '@codemirror/state';
+import { Prec, type ChangeSpec, type EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
 
@@ -75,8 +75,9 @@ const CODE_INDENT = '  ';
 /**
  * Tab (`dir` 1) and Shift+Tab (-1) on the caret's line (issue 727): a list item nests under the item above, at that
  * item's text (so `1. ` nests by three), or goes back to its parent's level, its children and its continued lines with
- * it; a line in a code block gains or loses an indent. Anything else, or an item with nowhere to go, is the host's (Tab
- * leaves the field, Shift+Tab cycles the mode).
+ * it, the numbered lists around it numbered again; a line in a code block gains or loses an indent, the caret past it.
+ * On an item or in a block the key is the field's even with nowhere to go; anywhere else it is the host's (Tab leaves
+ * the field, Shift+Tab cycles the mode).
  */
 export function indent(view: EditorView, dir: 1 | -1): boolean {
   const { state } = view;
@@ -85,17 +86,47 @@ export function indent(view: EditorView, dir: 1 | -1): boolean {
   const has = lead(line.text);
   const block = blockAt(state, sel.head);
   const inBlock = block && line.from > block.from && (!closed(block) || line.number < state.doc.lineAt(block.to).number);
+  if (!inBlock && !ITEM.test(line.text)) return false;
   const to = inBlock ? Math.max(0, has + dir * CODE_INDENT.length)
-    : ITEM.test(line.text) ? (dir > 0 ? nestUnder(state, line.number, has) : parentIndent(state, line.number, has))
-    : null;
-  if (to === null || to === has) return false;
+    : dir > 0 ? nestUnder(state, line.number, has) : parentIndent(state, line.number, has);
+  if (to === null || to === has) return true;
   const moved = inBlock ? [line] : withChildren(state, line.number, has);
   const by = to - has;
-  view.dispatch({
-    changes: moved.map((l) => (by > 0 ? { from: l.from, insert: ' '.repeat(by) } : { from: l.from, to: l.from + Math.min(-by, lead(l.text)) })),
-    userEvent: 'input.indent',
-  });
+  const shift = state.changes(moved.map((l) => (by > 0 ? { from: l.from, insert: ' '.repeat(by) } : { from: l.from, to: l.from + Math.min(-by, lead(l.text)) })));
+  const changes = inBlock ? shift : shift.compose(renumber(state.update({ changes: shift }).state, line.number, moved.at(-1)!.number));
+  view.dispatch({ changes, selection: state.selection.map(changes, 1), userEvent: 'input.indent' });
   return true;
+}
+
+/**
+ * The numbered lists of the outermost list around line `n`, after lines `n`..`last` moved, numbered on from their first
+ * item; a list the move began (its first item moved, or the first line after the moved ones) from 1.
+ */
+function renumber(state: EditorState, n: number, last: number) {
+  const tree = ensureSyntaxTree(state, state.doc.length, 50);
+  const line = state.doc.line(n);
+  let top: SyntaxNode | null = null;
+  for (let a = tree?.resolveInner(line.from + lead(line.text), 1) ?? null; a; a = a.parent) {
+    if (a.name === 'BulletList' || a.name === 'OrderedList') top = a;
+  }
+  let next = last + 1;
+  while (next <= state.doc.lines && blank(state.doc.line(next).text)) next++;
+  const changes: ChangeSpec[] = [];
+  if (tree && top) tree.iterate({
+    from: top.from, to: top.to,
+    enter: (list) => {
+      if (list.name !== 'OrderedList' || list.from < top.from || list.to > top.to) return;
+      // a mark is the number and its `.` or `)`
+      const marks = list.node.getChildren('ListItem').map((i) => i.getChild('ListMark')!);
+      const first = state.doc.lineAt(marks[0]!.from).number;
+      let k = first >= n && first <= next ? 1 : Number(state.sliceDoc(marks[0]!.from, marks[0]!.to - 1));
+      for (const m of marks) {
+        const want = String(k++);
+        if (state.sliceDoc(m.from, m.to - 1) !== want) changes.push({ from: m.from, to: m.to - 1, insert: want });
+      }
+    },
+  });
+  return state.changes(changes);
 }
 
 const lead = (text: string): number => text.match(/^ */)![0].length;

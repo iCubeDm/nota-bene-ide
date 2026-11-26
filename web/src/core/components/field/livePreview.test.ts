@@ -43,7 +43,7 @@ it('a fenced block: its lines are a block, its fences hide while the caret is of
 
 it('a bullet and a quote mark are drawn, not hidden as text', () => {
   const r = at('- one\n> two');
-  expect(r.bullets).toEqual([[0, 2]]);
+  expect(r.markers).toEqual([{ from: 0, to: 2, label: '•', cls: 'nb-md-bullet' }]);
   expect(r.hide).toEqual([[6, 8]]);
   expect(r.lines).toContainEqual({ at: 6, cls: 'nb-md-quote' });
 });
@@ -72,10 +72,17 @@ it('list items line up: each a hanging item at its level, its number muted, a ne
     { at: 0, cls: 'nb-md-item', level: 0 }, { at: 5, cls: 'nb-md-item', level: 1 },
     { at: 13, cls: 'nb-md-item', level: 0 }, { at: 17, cls: 'nb-md-item', level: 1 },
   ]);
-  expect(r.marks).toContainEqual({ from: 0, to: 3, cls: 'nb-md-num' });
-  expect(r.marks).toContainEqual({ from: 8, to: 11, cls: 'nb-md-num' });
   expect(r.hide).toEqual(expect.arrayContaining([[5, 8], [17, 19]]));
-  expect(r.bullets).toEqual([[13, 15], [19, 21]]);
+  expect(r.markers.map((m) => [m.from, m.to])).toEqual([[0, 3], [8, 11], [13, 15], [19, 21]]);
+});
+
+it('a list\'s mark is drawn: a bullet, or the number by its level as the chat draws it (1., a., i.), its delimiter kept', () => {
+  const r = at('1. a\n   1. b\n   2. c\n      1) d\n- e', 0);
+  expect(r.markers).toEqual([
+    { from: 0, to: 3, label: '1.', cls: 'nb-md-num' }, { from: 8, to: 11, label: 'a.', cls: 'nb-md-num' },
+    { from: 16, to: 19, label: 'b.', cls: 'nb-md-num' }, { from: 27, to: 30, label: 'i)', cls: 'nb-md-num' },
+    { from: 32, to: 34, label: '•', cls: 'nb-md-bullet' },
+  ]);
 });
 
 it('a block\'s first and last lines close its box; a hidden fence line is thin', () => {
@@ -110,7 +117,7 @@ it('an opened span formats what follows it up to the caret before it is closed',
 });
 
 it('no pending format: a lone mark before a space, a mark inside a word, a closed span, another line', () => {
-  const pending = (doc: string, caret?: number) => at(doc, caret).marks.filter((m) => m.cls.startsWith('nb-md-') && m.cls !== 'nb-md-num');
+  const pending = (doc: string, caret?: number) => at(doc, caret).marks.filter((m) => m.cls.startsWith('nb-md-'));
   expect(pending('a * b')).toEqual([]);
   expect(pending('snake_case')).toEqual([]);
   expect(pending('**a** b')).toEqual([{ from: 2, to: 3, cls: 'nb-md-strong' }]);

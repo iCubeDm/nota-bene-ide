@@ -50,3 +50,10 @@ it('the bar goes when the host empties the field (a send)', () => {
   r.rerender(ui(''));
   expect(screen.queryByRole('toolbar')).toBeNull();
 });
+
+it('the numbered list button numbers the selected lines', () => {
+  const f = setup('a\nb');
+  select(f, 0, 3);
+  fireEvent.click(screen.getByRole('button', { name: 'Numbered list' }));
+  expect(f.text()).toBe('1. a\n2. b');
+});
