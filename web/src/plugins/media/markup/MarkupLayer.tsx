@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { MARK_COLORS, PEN_MAX_VALUES, POLYGON_MAX_POINTS, type MediaShape } from '@nota-bene/shared';
 import { useT, useAppDispatch, useAppSelector, keysInScope, useFeature } from '@/sdk';
 import { ConfirmDialog } from '@/sdk/ui';
-import { box as rectBox, gripsOf, hitGrip, hitShape, moveShape, rectFrom, reshape, shapePath, shapesBounds, simplify, toRel, type Grip } from './geometry.ts';
+import { box as rectBox, gripsOf, hitGrip, hitShape, moveShape, outline, rectFrom, reshape, shapePath, shapesBounds, simplify, toRel, type Grip } from './geometry.ts';
 import { MarkupToolbar } from './MarkupToolbar.tsx';
 import { HALO, HALO_PX, PICK, shapeEls, STROKE_PX, useNatSize, useOverlayPlacement, type Media } from './overlay.tsx';
 import { addShape, clear, commitEdit, removeShape, replaceShape, select, selectDraft, setColor, setMode, setTool, undo, type MarkTool } from './slice.ts';
@@ -70,6 +70,8 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
   const mask = useFeature('polygons');
   const draft = useAppSelector((s) => selectDraft(s, tabId));
   const [asking, setAsking] = useState(false);
+  // the point of the picked polygon clicked with the Select tool (issue 729; Delete removes it), while those shapes stand
+  const [pointAt, setPointAt] = useState<{ shapes: MediaShape[]; sel: number; i: number } | null>(null);
   const pane = media.parentElement;
   const svg = useRef<SVGSVGElement>(null);
   const toolbar = useRef<HTMLDivElement>(null);
@@ -161,14 +163,22 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
   };
   /** Undo: a point of the polygon being drawn, else the last step of the drawing (a shape, or a polygon's drag). */
   const undoStep = () => (poly.current ? popPoint() : void dispatch(undo(tabId)));
-  /** The polygon being drawn becomes a shape, from 3 points; a long lasso's outline thinned to POLYGON_MAX_POINTS. */
+  /**
+   * The polygon being drawn becomes a shape, from 3 points. A freehand outline keeps the points its shape needs (1 px off
+   * at most: issue 729), the clicked ones all; past POLYGON_MAX_POINTS it is thinned further.
+   */
   const closePoly = () => {
     const p = poly.current;
     if (!p || p.pts.length < 6) return;
     poly.current = null;
     showPoly();
-    let points = p.pts;
-    for (let eps = 0.001; points.length > 2 * POLYGON_MAX_POINTS; eps *= 2) points = simplify(p.pts, eps);
+    const px = 1 / Math.max(1, p.box.width), py = 1 / Math.max(1, p.box.height);
+    const clicked = new Set<string>();
+    for (let i = 0; i + 1 < p.dots.length; i += 2) clicked.add(`${p.dots[i]},${p.dots[i + 1]}`);
+    const keep = new Set<number>();
+    for (let i = 0; i + 1 < p.pts.length; i += 2) if (clicked.has(`${p.pts[i]},${p.pts[i + 1]}`)) keep.add(i / 2);
+    let points = outline(p.pts, keep, px, py);
+    for (let e = 2; points.length > 2 * POLYGON_MAX_POINTS; e *= 2) points = outline(p.pts, new Set(), e * px, e * py);
     dispatch(addShape(tabId, { kind: 'polygon', color: p.color, points }));
   };
   /**
@@ -325,7 +335,9 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
     drag.current = null;
     if (d.edit) { // one drag, one undo step back to the shape before it
       const s = shapes[d.edit.index];
-      if (s && JSON.stringify(s) !== JSON.stringify(d.edit.prev)) dispatch(commitEdit(tabId, d.edit.index, d.edit.prev));
+      const { index, grip, prev } = d.edit;
+      if (s && JSON.stringify(s) !== JSON.stringify(prev)) dispatch(commitEdit(tabId, index, prev));
+      else if (s?.kind === 'polygon' && grip && 'vertex' in grip) setPointAt({ shapes, sel: index, i: grip.vertex }); // a click on a point picks it
       return;
     }
     if (e.type === 'pointerup') d.b = relOf(e, d.box);
@@ -341,6 +353,7 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
     dispatch(setMode(tabId, true));
   };
   const shapes = draft.shapes;
+  const point = pointAt && pointAt.shapes === shapes && pointAt.sel === draft.sel ? pointAt.i : null;
   const leave = useCallback(() => (shapes.length ? setAsking(true) : void dispatch(setMode(tabId, false))), [shapes, dispatch, tabId]);
   const comment = useCallback(() => {
     if (!shapes.length || saving) return;
@@ -377,7 +390,11 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
         else if (!dropInProgress()) leave(); // a shape in progress goes alone, with no question; else the mode is left
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && sel !== undefined) {
         e.preventDefault();
-        dispatch(removeShape(tabId, sel));
+        const s = shapes[sel];
+        if (point !== null && s?.kind === 'polygon' && s.points.length > 6) { // the picked point; a triangle goes whole
+          dispatch(replaceShape(tabId, sel, { ...s, points: s.points.filter((_, k) => k >> 1 !== point) }));
+          dispatch(commitEdit(tabId, sel, s));
+        } else dispatch(removeShape(tabId, sel));
       } else if (e.key === 'Enter' && poly.current) {
         e.preventDefault();
         closePoly(); // fewer than 3 points: nothing yet
@@ -398,16 +415,16 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
     };
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
-  }, [on, asking, held, saving, media, dispatch, tabId, leave, comment, shapes, mask, dropInProgress]);
+  }, [on, asking, held, saving, media, dispatch, tabId, leave, comment, shapes, point, mask, dropInProgress]);
 
   const drawn = useMemo(() => shapeEls(shapes, nat[0], nat[1]), [shapes, nat]);
-  // the shape picked with the Select tool: a dashed box around it and a white dot at each grip (none on a lasso's: too dense)
+  // the shape picked with the Select tool: a dashed box around it, a white dot at each grip, the picked point bigger
   const picked = draft.tool === 'select' && draft.sel !== undefined ? shapes[draft.sel] : undefined;
   const handles = useMemo(() => {
     if (!picked) return null;
-    const at = box();
     const b = shapesBounds([picked]);
-    const dots = dotsPath(gripsOf(picked, HIT_PX / Math.max(1, at.width), HIT_PX / Math.max(1, at.height)));
+    const dots = dotsPath(gripsOf(picked));
+    const one = point !== null && picked.kind === 'polygon' ? dotsPath(picked.points.slice(2 * point, 2 * point + 2)) : '';
     const frame = { x: b.x, y: b.y, width: b.w, height: b.h, vectorEffect: 'non-scaling-stroke' } as const;
     return (
       <>
@@ -415,9 +432,11 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
         <rect {...frame} data-selected stroke={PICK} strokeWidth={1} strokeDasharray="4 3" />
         <path d={dots} stroke={HALO} strokeWidth={DOT_PX + 2} vectorEffect="non-scaling-stroke" />
         <path data-handles d={dots} stroke={PICK} strokeWidth={DOT_PX} vectorEffect="non-scaling-stroke" />
+        {one && <path d={one} stroke={HALO} strokeWidth={DOT_PX + 6} vectorEffect="non-scaling-stroke" />}
+        {one && <path data-point d={one} stroke={picked.color} strokeWidth={DOT_PX + 4} vectorEffect="non-scaling-stroke" />}
       </>
     );
-  }, [picked, box]);
+  }, [picked, point]);
 
   if (!offered && !on) return null;
   return (

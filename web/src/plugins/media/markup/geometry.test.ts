@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { bendEdge, contentBox, dense, hitGrip, hitShape, insidePolygon, movePoints, moveShape, reshape, rectFrom, round4, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
+import { bendEdge, contentBox, hitGrip, hitShape, insidePolygon, movePoints, moveShape, outline, reshape, rectFrom, round4, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
 import { describeShape, mediaTime } from '@/core/anchors/quote.ts';
 import type { MediaShape } from '@nota-bene/shared';
 
@@ -130,7 +130,7 @@ it('hitShape: the topmost shape under a point, by its inside or within a reach o
   expect(hitShape(shapes, { x: 0.1, y: 0.055 }, 0.01, 0.01)).toBe(4);
   expect(hitShape(shapes, { x: 0.95, y: 0.05 }, 0.01, 0.01)).toBeNull();
 });
-it('hitGrip: a point (a polygon\'s, a box\'s corner, an arrow\'s end) before a polygon\'s side; a pen and a dense polygon have none', () => {
+it('hitGrip: the nearest point (a polygon\'s, a box\'s corner, an arrow\'s end) before a polygon\'s side; a pen has none', () => {
   expect(hitGrip(square, { x: 0.601, y: 0.199 }, 0.01, 0.01)).toEqual({ vertex: 1 });
   expect(hitGrip(square, { x: 0.4, y: 0.205 }, 0.01, 0.01)).toEqual({ edge: 0 });
   expect(hitGrip(square, { x: 0.195, y: 0.4 }, 0.01, 0.01)).toEqual({ edge: 3 }); // the closing side
@@ -138,9 +138,16 @@ it('hitGrip: a point (a polygon\'s, a box\'s corner, an arrow\'s end) before a p
   expect(hitGrip({ kind: 'rect', color: C, x: 0.1, y: 0.1, w: 0.2, h: 0.2 }, { x: 0.3, y: 0.3 }, 0.01, 0.01)).toEqual({ vertex: 2 });
   expect(hitGrip({ kind: 'arrow', color: C, x1: 0.1, y1: 0.1, x2: 0.5, y2: 0.5 }, { x: 0.5, y: 0.5 }, 0.01, 0.01)).toEqual({ vertex: 1 });
   expect(hitGrip({ kind: 'pen', color: C, points: [0.1, 0.1, 0.5, 0.5] }, { x: 0.1, y: 0.1 }, 0.01, 0.01)).toBeNull();
-  expect(dense(ring(12), 0.01, 0.01)).toBe(false);
-  expect(dense(ring(200), 0.01, 0.01)).toBe(true);
-  expect(hitGrip({ kind: 'polygon', color: C, points: ring(200) }, { x: 0.8, y: 0.5 }, 0.01, 0.01)).toBeNull();
+  expect(hitGrip({ kind: 'polygon', color: C, points: [0.5, 0.5, 0.505, 0.5, 0.51, 0.5, 0.5, 0.9] }, { x: 0.509, y: 0.5 }, 0.01, 0.01)).toEqual({ vertex: 2 });
+});
+it('outline: a freehand outline keeps the fewest points within a tolerance of it, and every point it is told to keep', () => {
+  const line = [0.1, 0.1, 0.2, 0.1, 0.3, 0.1, 0.4, 0.1, 0.4, 0.3, 0.4, 0.5, 0.1, 0.5];
+  expect(outline(line, new Set(), 0.001, 0.001)).toEqual([0.1, 0.1, 0.4, 0.1, 0.4, 0.5, 0.1, 0.5]);
+  expect(outline(line, new Set([2]), 0.001, 0.001)).toEqual([0.1, 0.1, 0.3, 0.1, 0.4, 0.1, 0.4, 0.5, 0.1, 0.5]);
+  const circle = outline(ring(2000), new Set(), 0.001, 0.001); // r 300 tolerances: chords of about 50
+  expect(circle.length / 2).toBeGreaterThan(20);
+  expect(circle.length / 2).toBeLessThan(80);
+  expect(outline([0.1, 0.1, 0.2, 0.1, 0.3, 0.1], new Set(), 0.001, 0.001)).toEqual([0.1, 0.1, 0.2, 0.1, 0.3, 0.1]); // under 3 left: as drawn
 });
 it('reshape: a box by a corner (the opposite one stays), an arrow by an end; moveShape shifts any shape, kept inside', () => {
   const r: MediaShape = { kind: 'rect', color: C, x: 0.1, y: 0.1, w: 0.2, h: 0.2 };

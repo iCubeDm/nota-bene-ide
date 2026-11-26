@@ -112,26 +112,45 @@ export function insidePolygon(points: number[], x: number, y: number): boolean {
   return wind !== 0;
 }
 
-/**
- * Whether a polygon's points sit too close to grab one (a lasso's outline, issue 729): its sides average under two
- * reaches (`tolX`/`tolY`: a reach, relative). Such a polygon shows no points and moves only as a whole.
- */
-export function dense(points: number[], tolX: number, tolY: number): boolean {
-  const n = points.length / 2;
-  let sum = 0;
-  for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n;
-    sum += Math.hypot((points[2 * j] - points[2 * i]) / tolX, (points[2 * j + 1] - points[2 * i + 1]) / tolY);
-  }
-  return sum / n < 2;
+/** The distance of (x, y) from the segment a–b, in units of `ux`/`uy` (relative) along each axis. */
+function segDist(ax: number, ay: number, bx: number, by: number, x: number, y: number, ux: number, uy: number): number {
+  const dx = (bx - ax) / ux, dy = (by - ay) / uy;
+  const px = (x - ax) / ux, py = (y - ay) / uy;
+  const t = Math.min(1, Math.max(0, (px * dx + py * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(px - t * dx, py - t * dy);
 }
 
 /** Whether `p` is within a reach (`tolX`/`tolY`) of the segment a–b. */
-function nearSegment(ax: number, ay: number, bx: number, by: number, p: { x: number; y: number }, tolX: number, tolY: number): boolean {
-  const dx = (bx - ax) / tolX, dy = (by - ay) / tolY;
-  const px = (p.x - ax) / tolX, py = (p.y - ay) / tolY;
-  const t = Math.min(1, Math.max(0, (px * dx + py * dy) / (dx * dx + dy * dy || 1)));
-  return Math.hypot(px - t * dx, py - t * dy) <= 1;
+const nearSegment = (ax: number, ay: number, bx: number, by: number, p: { x: number; y: number }, tolX: number, tolY: number): boolean =>
+  segDist(ax, ay, bx, by, p.x, p.y, tolX, tolY) <= 1;
+
+/**
+ * A closed outline drawn freehand, thinned (issue 729): the fewest of its points that keep it within `epsX`/`epsY`
+ * (relative) of the drawn one (Douglas–Peucker), with every point at an index in `keep` (the ones clicked). Fewer than
+ * 3 left (a stroke with no area): the points as drawn.
+ */
+export function outline(points: number[], keep: Set<number>, epsX: number, epsY: number): number[] {
+  const n = points.length / 2;
+  const at = (i: number) => (i % n) * 2; // index n is the first point again: the closing side is thinned too
+  const on = new Uint8Array(n);
+  const cuts = [...new Set([0, ...keep, n])].filter((i) => i >= 0 && i <= n).sort((a, b) => a - b);
+  const stack: [number, number][] = [];
+  for (let k = 0; k + 1 < cuts.length; k++) stack.push([cuts[k], cuts[k + 1]]);
+  for (const c of cuts) on[c % n] = 1;
+  while (stack.length) {
+    const [a, b] = stack.pop()!;
+    let far = -1, most = 1;
+    for (let i = a + 1; i < b; i++) {
+      const d = segDist(points[at(a)], points[at(a) + 1], points[at(b)], points[at(b) + 1], points[2 * i], points[2 * i + 1], epsX, epsY);
+      if (d > most) { most = d; far = i; }
+    }
+    if (far < 0) continue;
+    on[far] = 1;
+    stack.push([a, far], [far, b]);
+  }
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) if (on[i]) out.push(points[2 * i], points[2 * i + 1]);
+  return out.length >= 6 ? out : points.slice();
 }
 
 /** Whether `p` is within a reach of the line through `points` (closed: back to the first), and which side if so. */
@@ -165,12 +184,12 @@ export function hitShape(shapes: MediaShape[], p: { x: number; y: number }, tolX
 export type Grip = { vertex: number } | { edge: number };
 
 /**
- * A shape's points that can be dragged (x, y pairs): a polygon's own (none on a dense one), a rect's or an ellipse's
- * box corners (clockwise from the top left), an arrow's ends; a pen stroke has none.
+ * A shape's points that can be dragged (x, y pairs): a polygon's own, a rect's or an ellipse's box corners (clockwise
+ * from the top left), an arrow's ends; a pen stroke has none.
  */
-export function gripsOf(s: MediaShape, tolX: number, tolY: number): number[] {
+export function gripsOf(s: MediaShape): number[] {
   switch (s.kind) {
-    case 'polygon': return dense(s.points, tolX, tolY) ? [] : s.points;
+    case 'polygon': return s.points;
     case 'rect':
     case 'ellipse': return [s.x, s.y, s.x + s.w, s.y, s.x + s.w, s.y + s.h, s.x, s.y + s.h].map(round4);
     case 'arrow': return [s.x1, s.y1, s.x2, s.y2];
@@ -178,13 +197,16 @@ export function gripsOf(s: MediaShape, tolX: number, tolY: number): number[] {
   }
 }
 
-/** The grip of a shape under a point: one of its points, else a polygon's side (not of a dense one). */
+/** The grip of a shape under a point: the nearest of its points within reach, else a polygon's side. */
 export function hitGrip(s: MediaShape, p: { x: number; y: number }, tolX: number, tolY: number): Grip | null {
-  const g = gripsOf(s, tolX, tolY);
+  const g = gripsOf(s);
+  let vertex = -1, best = Infinity;
   for (let i = 0; i + 1 < g.length; i += 2) {
-    if (Math.abs(g[i] - p.x) <= tolX && Math.abs(g[i + 1] - p.y) <= tolY) return { vertex: i / 2 };
+    const dx = Math.abs(g[i] - p.x) / tolX, dy = Math.abs(g[i + 1] - p.y) / tolY;
+    if (dx <= 1 && dy <= 1 && dx + dy < best) { best = dx + dy; vertex = i / 2; }
   }
-  const edge = s.kind === 'polygon' && g.length ? nearSide(s.points, true, p, tolX, tolY) : null;
+  if (vertex >= 0) return { vertex };
+  const edge = s.kind === 'polygon' ? nearSide(s.points, true, p, tolX, tolY) : null;
   return edge === null ? null : { edge };
 }
 
@@ -198,7 +220,7 @@ export function reshape(s: MediaShape, grip: Grip, x: number, y: number, tolX: n
   const at = { x: round4(clamp01(x)), y: round4(clamp01(y)) };
   if (s.kind === 'arrow') return grip.vertex ? { ...s, x2: at.x, y2: at.y } : { ...s, x1: at.x, y1: at.y };
   if (s.kind === 'pen') return s;
-  const c = gripsOf(s, tolX, tolY);
+  const c = gripsOf(s);
   const o = (grip.vertex + 2) % 4;
   const r = rectFrom({ x: c[2 * o], y: c[2 * o + 1] }, at);
   return r.w > 0 && r.h > 0 ? { ...s, ...r } : s;

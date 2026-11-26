@@ -614,7 +614,7 @@ async function sendAndSettle(page: Page) {
   await expect(page.getByText(/agent is working|агент работает/)).toBeHidden();
 }
 
-test('the Mask tool: a drag around an area is a lasso, closed on release, with no point handles @files', async ({ page }) => {
+test('the Mask tool: a drag around an area is a lasso, closed on release, its outline\'s corners kept as points @files', async ({ page }) => {
   test.skip(!hasFfmpeg, 'needs ffmpeg on PATH: e2e/serve.mjs generates the media fixtures with it');
   await page.setViewportSize({ width: 1280, height: 1100 });
   await start(page);
@@ -631,6 +631,12 @@ test('the Mask tool: a drag around an area is a lasso, closed on release, with n
   await expect(layer.locator('[data-shape="polygon"]')).toHaveCount(1);
   await expect(layer.locator('[data-handles]')).toHaveCount(0);
   await expect(layer.locator('path[data-live-poly]')).toHaveAttribute('d', '');
+  await page.keyboard.press('v'); // picked: its outline's points show
+  const mid = at(b, 0.5, 0.5);
+  await page.mouse.click(mid.x, mid.y);
+  const dots = await layer.locator('[data-handles]').getAttribute('d').then((d) => (d ?? '').split('M').length - 1);
+  expect(dots).toBeGreaterThan(10);
+  expect(dots).toBeLessThan(120);
 });
 
 test('the Select tool: a drag on a picked Mask shape\'s side bows it into an arc of points that can be grabbed @files', async ({ page }) => {

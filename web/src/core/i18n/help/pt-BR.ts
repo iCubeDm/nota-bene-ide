@@ -18,7 +18,7 @@ export const helpPtBR: HelpDict = {
   taskBackground: 'Mover a tarefa para segundo plano: a chamada retorna na hora, a tarefa continua',
   taskStopAll: 'Parar todos os agentes em execução do grupo (um segundo clique confirma)',
   pageScripts: 'Os scripts da página não rodam aqui: ela é mostrada como fica sem eles',
-  markupSelect: 'Seleção: clique numa forma para escolhê-la e arraste para movê-la; arraste um ponto para mudar a forma, o lado de uma máscara para curvá-lo; Delete a remove, Esc desfaz a seleção',
+  markupSelect: 'Seleção: clique numa forma para escolhê-la e arraste para movê-la; arraste um ponto para mudar a forma, o lado de uma máscara para curvá-lo; um clique num ponto da máscara o escolhe: Delete remove o ponto, senão a forma; Esc desfaz a seleção',
   markupMask: 'Máscara: arraste em volta de uma área como um laço, ela fecha ao soltar; ou clique para adicionar pontos; feche no primeiro ponto, com Enter ou clique duplo; Backspace ou Cmd/Ctrl+Z remove o último ponto, Esc descarta a forma. Pressionar dentro de uma forma começa outra; as desenhadas se editam com Seleção (V)',
   voiceSend: (force: string, forceAlt: string) => `O agente está trabalhando: Enviar coloca a mensagem na fila. ${force} ou ${forceAlt} interrompe o agente e envia.`,
   cutSelect: 'Seleção: clique em um clipe, Shift ou ⌘/Ctrl+clique para mais, arraste num espaço vazio para um retângulo; Shift+arrastar move um clipe com tudo o que vem depois na faixa, Shift+arrastar o fim desloca os seguintes',

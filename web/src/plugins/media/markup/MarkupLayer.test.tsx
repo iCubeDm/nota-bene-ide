@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { POLYGON_MAX_POINTS, type MediaShape, type ServerEvent } from '@nota-bene/shared';
+import type { MediaShape, ServerEvent } from '@nota-bene/shared';
 import { TooltipProvider } from '@/core/components/ui/tooltip.tsx';
 import { setLang } from '@/core/i18n/index.ts';
 import { connState, serverEvent } from '@/core/store/store.ts';
@@ -480,7 +480,7 @@ it('Mask: a drag is a lasso: the outline follows the pointer, a dot at its start
   for (const [x, y] of [[200, 350], [300, 350], [300, 450], [300, 550], [100, 550]]) fireEvent.pointerMove(layer(), { clientX: x, clientY: y, pointerId: 1 });
   expect(pane.querySelector('path[data-live-dots]')!.getAttribute('d')).toBe('M0.1 0.2h0');
   fireEvent.pointerUp(layer(), { clientX: 100, clientY: 550, pointerId: 1 });
-  expect(draft().shapes).toEqual([{ kind: 'polygon', color: '#ff3b30', points: [0.1, 0.2, 0.2, 0.2, 0.3, 0.2, 0.3, 0.4, 0.3, 0.6, 0.1, 0.6] }]);
+  expect(draft().shapes).toEqual([{ kind: 'polygon', color: '#ff3b30', points: [0.1, 0.2, 0.3, 0.2, 0.3, 0.6, 0.1, 0.6] }]); // the outline's corners
   expect(pane.querySelector('path[data-live-poly]')!.getAttribute('d')).toBe('');
 });
 
@@ -491,7 +491,7 @@ it('Mask: a drag while clicking a polygon adds a freehand stretch to it and leav
   expect(draft().shapes).toEqual([]);
   expect(pane.querySelector('path[data-live-dots]')!.getAttribute('d')).toBe('M0.1 0.2h0M0.5 0.2h0');
   key({ key: 'Enter' });
-  expect(draft().shapes).toEqual([{ kind: 'polygon', color: '#ff3b30', points: [0.1, 0.2, 0.5, 0.2, 0.5, 0.4, 0.5, 0.6] }]);
+  expect(draft().shapes).toEqual([{ kind: 'polygon', color: '#ff3b30', points: [0.1, 0.2, 0.5, 0.2, 0.5, 0.6] }]); // the clicked point stays
 });
 
 it('Mask: points go close together: a quick click 10 px off is a point of its own, one 3 px off too', () => {
@@ -506,14 +506,17 @@ it('Mask: points go close together: a quick click 10 px off is a point of its ow
   expect(draft().shapes).toEqual([{ kind: 'polygon', color: '#ff3b30', points: [0.1, 0.2, 0.11, 0.2, 0.11, 0.206] }]);
 });
 
-it('Mask: a long lasso is thinned to the points a polygon may have, and has no point handles', () => {
+it('Mask: a lasso keeps the points its outline needs (a circle: a few dozen), and the Select tool shows them', () => {
   const { draft } = maskOn();
   const ring = Array.from({ length: 3000 }, (_, i) => [500 + 200 * Math.cos((2 * Math.PI * i) / 3000), 500 + 200 * Math.sin((2 * Math.PI * i) / 3000)] as [number, number]);
   drag(ring);
   const s = draft().shapes[0] as Extract<MediaShape, { kind: 'polygon' }>;
-  expect(s.points.length / 2).toBeGreaterThan(100);
-  expect(s.points.length / 2).toBeLessThanOrEqual(POLYGON_MAX_POINTS);
+  expect(s.points.length / 2).toBeGreaterThan(20);
+  expect(s.points.length / 2).toBeLessThan(80);
   expect(pane.querySelector('[data-handles]')).toBeNull();
+  key({ key: 'v', code: 'KeyV' });
+  click(500, 500);
+  expect(pane.querySelector('[data-handles]')!.getAttribute('d')!.split('M')).toHaveLength(s.points.length / 2 + 1);
 });
 
 it('Mask: a double-click\'s second press adds no point even when the pointer moved; the first point with 2 points adds nothing', () => {
@@ -602,4 +605,23 @@ it('Select: Delete or Backspace removes the picked shape, Cmd/Ctrl+Z puts it bac
   expect(draft().shapes).toEqual([box]);
   key({ key: 'Escape' }); // nothing picked: leaving asks about the drawing
   expect(screen.getByRole('dialog')).toBeTruthy();
+});
+
+it('Select: a click on a picked polygon\'s point picks the point, Delete removes it (one undo step); a triangle goes whole', () => {
+  const square = { kind: 'polygon', color: '#ff3b30', points: [0.1, 0.2, 0.5, 0.2, 0.5, 0.6, 0.1, 0.6] }; // client y 350–550
+  const { draft } = selectOn(square);
+  click(300, 450);
+  click(500, 550); // its third point
+  expect(pane.querySelector('[data-point]')!.getAttribute('d')).toBe('M0.5 0.6h0');
+  key({ key: 'Delete' });
+  expect(draft().shapes).toEqual([{ ...square, points: [0.1, 0.2, 0.5, 0.2, 0.1, 0.6] }]);
+  expect(pane.querySelector('[data-point]')).toBeNull();
+  key({ key: 'z', code: 'KeyZ', metaKey: true });
+  expect(draft().shapes).toEqual([square]);
+  cleanup();
+  const t = selectOn(tri);
+  click(300, 450);
+  click(100, 350);
+  key({ key: 'Backspace' });
+  expect(t.draft().shapes).toEqual([]);
 });

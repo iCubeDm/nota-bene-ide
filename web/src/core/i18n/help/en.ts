@@ -18,7 +18,7 @@ export const helpEn: HelpDict = {
   taskBackground: 'Move the task to the background: the call returns at once, the task goes on',
   taskStopAll: 'Stop every running agent of the group (a second click confirms)',
   pageScripts: 'The page\'s scripts do not run here: it is shown as it looks without them',
-  markupSelect: 'Select: click a shape to pick it and drag it to move; drag a dot to reshape it, a Mask shape\'s side to bend it; Delete removes it, Esc picks none',
+  markupSelect: 'Select: click a shape to pick it and drag it to move; drag a dot to reshape it, a Mask shape\'s side to bend it; click a Mask point to pick it, Delete removes the point, else the shape; Esc picks none',
   markupMask: 'Mask: drag around an area as with a lasso, it closes on release; or click to add points; close on the first point, Enter or a double-click; Backspace or Cmd/Ctrl+Z removes the last point, Esc drops the shape. A press inside a shape starts another; Select (V) edits drawn ones',
   voiceSend: (force: string, forceAlt: string) => `The agent is working: Send queues the message. ${force} or ${forceAlt} interrupts the agent and sends.`,
   cutSelect: 'Select: click a clip, Shift- or ⌘/Ctrl-click for more, drag on empty space for a rectangle; Shift-drag a clip to move it with everything after it on its track, Shift-drag its end to ripple',
