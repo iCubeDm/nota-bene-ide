@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 2.3.0 — 2026-11-26
+
+- **Message fields show markdown as you type.** The chat's field and the comment popup draw bold, italics, strikethrough, code, links, lists, quotes and code blocks while you write and still send the markdown itself; a mark hides once the caret leaves it. ` ``` ` opens a code block with the caret inside, as in Slack.
+- **Lists nest with Tab, and a format bar.** Tab and Shift+Tab nest and un-nest a list item or indent a code line; nested numbers go 1., a., i. A selection gets a bar: bold, italic, strikethrough, code, link, code block, lists and quote, with Mod-B, Mod-I, Mod-Shift-X, Mod-E and Mod-K. An open `**`, `*`, `_`, `~~` or `` ` `` formats what follows it.
+- **Media markup: a lasso and a Select tool.** The Mask tool draws a free outline by dragging (it keeps only the points its shape needs) or one point per click, close together. **Select (V)** picks any shape to move it, drag its corners, ends or points, bow a mask's side into a curve, or delete a point or the whole shape with Delete.
 - **A project opens from the page at once.** **Open folder…**, **New project…** and Recent no longer start a launcher process to open the folder: the server opens it itself.
 - **`nota-bene` with no folder opens the home page.** A start of the app is its home page, where you open a project: of the running Nota Bene, or of a new one with no agent yet. The app icon opens it too (it opened the most recent project). `nota-bene <folder>` opens that project as before; for the current folder it is now `nota-bene .`, and `--resume`, `--new` and `--continue` need a folder.
 - **Settings has no Windows section.** The project switcher and the home page list every agent, open and close it; a server is restarted from its own page (▾ next to ↻ Agent).
