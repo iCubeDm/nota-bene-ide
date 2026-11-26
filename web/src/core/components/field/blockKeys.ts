@@ -69,6 +69,52 @@ export function newlineContinue(view: EditorView): boolean {
   return insertNewlineContinueMarkup(view) || insertNewline(view);
 }
 
+const ITEM = /^( *)(?:[-*+]|\d+[.)]) +/;
+const CODE_INDENT = '  ';
+
+/**
+ * Tab (`dir` 1) and Shift+Tab (-1) on the caret's line (issue 727): a list item nests under the item above, at that
+ * item's text (so `1. ` nests by three), or goes back to its parent's level; a line in a code block gains or loses an
+ * indent. Anything else, or an item with nowhere to go, is the host's (Tab leaves the field, Shift+Tab cycles the mode).
+ */
+export function indent(view: EditorView, dir: 1 | -1): boolean {
+  const { state } = view;
+  const sel = state.selection.main;
+  const line = state.doc.lineAt(sel.head);
+  const has = line.text.match(/^ */)![0].length;
+  const block = blockAt(state, sel.head);
+  const inBlock = block && line.from > block.from && (!closed(block) || line.number < state.doc.lineAt(block.to).number);
+  const item = ITEM.exec(line.text);
+  const to = inBlock ? Math.max(0, has + dir * CODE_INDENT.length)
+    : item ? (dir > 0 ? nestUnder(state, line.number, has) : parentIndent(state, line.number, has))
+    : null;
+  if (to === null || to === has) return false;
+  view.dispatch({ changes: { from: line.from, to: line.from + has, insert: ' '.repeat(to) }, userEvent: 'input.indent' });
+  return true;
+}
+
+/** the text column of the nearest item above at the same level as `own`, else null */
+function nestUnder(state: EditorState, n: number, own: number): number | null {
+  for (let l = n - 1; l >= 1; l--) {
+    const m = ITEM.exec(state.doc.line(l).text);
+    if (!m) return null;
+    if (m[1]!.length === own) return m[0].length;
+    if (m[1]!.length < own) return null;
+  }
+  return null;
+}
+
+/** the indent of the item above that `own` is nested in, else null */
+function parentIndent(state: EditorState, n: number, own: number): number | null {
+  if (own === 0) return null;
+  for (let l = n - 1; l >= 1; l--) {
+    const m = ITEM.exec(state.doc.line(l).text);
+    if (!m) break;
+    if (m[1]!.length < own) return m[1]!.length;
+  }
+  return 0;
+}
+
 const plainKey = (e: KeyboardEvent) => !e.altKey && !e.ctrlKey && !e.metaKey;
 
 /** Code blocks and lists as in Slack, above the host's keys (`newline`: the key that makes a line in this field). */
@@ -78,8 +124,9 @@ export function blockKeys(newline: 'Enter' | 'Shift-Enter'): Extension {
     // a key event, not a keymap: a keymap runs during an IME composition too, where Enter picks a candidate
     Prec.highest(EditorView.domEventHandlers({
       keydown(e, view) {
-        if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229 || !plainKey(e)) return false;
-        const done = (!e.shiftKey && enterInBlock(view)) || (e.shiftKey === (newline === 'Shift-Enter') && newlineContinue(view));
+        if ((e.key !== 'Enter' && e.key !== 'Tab') || e.isComposing || e.keyCode === 229 || !plainKey(e)) return false;
+        const done = e.key === 'Tab' ? indent(view, e.shiftKey ? -1 : 1)
+          : (!e.shiftKey && enterInBlock(view)) || (e.shiftKey === (newline === 'Shift-Enter') && newlineContinue(view));
         if (done) e.preventDefault();
         return done;
       },

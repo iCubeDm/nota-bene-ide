@@ -3,7 +3,7 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { EditorSelection, EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { afterEach, expect, it } from 'vitest';
-import { blockKeys, closeFence, enterInBlock, newlineContinue } from './blockKeys.ts';
+import { blockKeys, closeFence, enterInBlock, indent, newlineContinue } from './blockKeys.ts';
 
 let view: EditorView;
 afterEach(() => view?.destroy());
@@ -92,4 +92,48 @@ it('Enter on the opening fence of a block goes into the block', () => {
 it('Enter in a fence that never closes (pasted) is the host\'s', () => {
   open('```\nlet a', 9);
   expect(enterInBlock(view)).toBe(false);
+});
+
+it('Tab nests a list item under the one above, Shift+Tab takes it back out', () => {
+  open('- a\n- b');
+  expect(indent(view, 1)).toBe(true);
+  expect(text()).toBe('- a\n  - b');
+  expect(caret()).toBe(text().length);
+  expect(indent(view, -1)).toBe(true);
+  expect(text()).toBe('- a\n- b');
+});
+
+it('a numbered item nests under its number\'s width', () => {
+  open('1. a\n2. b');
+  expect(indent(view, 1)).toBe(true);
+  expect(text()).toBe('1. a\n   2. b');
+});
+
+it('an item with nothing above to nest under, a top-level item outdented and plain text are left to the host', () => {
+  open('- a');
+  expect(indent(view, 1)).toBe(false);
+  expect(indent(view, -1)).toBe(false);
+  open('hi');
+  expect(indent(view, 1)).toBe(false);
+});
+
+it('Tab in a code block indents its line, Shift+Tab takes the indent back', () => {
+  open('```\nab\n```', 5);
+  expect(indent(view, 1)).toBe(true);
+  expect(text()).toBe('```\n  ab\n```');
+  expect(indent(view, -1)).toBe(true);
+  expect(text()).toBe('```\nab\n```');
+});
+
+it('the Tab key nests an item and is taken; on plain text it is left to the browser', () => {
+  const tab = () => {
+    const e = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    view.contentDOM.dispatchEvent(e);
+    return e.defaultPrevented;
+  };
+  open('- a\n- b');
+  expect(tab()).toBe(true);
+  expect(text()).toBe('- a\n  - b');
+  open('hi');
+  expect(tab()).toBe(false);
 });
