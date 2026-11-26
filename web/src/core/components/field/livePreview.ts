@@ -79,15 +79,19 @@ function item(state: EditorState, node: SyntaxNode, p: Preview): void {
   if (node.from > line.from) p.hide.push([line.from, node.from]);
 }
 
-/** an item's number as the chat draws it (markdown.css): `2.` at the top, `2.1`, `2.1.1` under the numbered items above it */
+/** an item's number as the chat draws it (markdown.css): by its depth among numbered lists, 1., a., i., then 1. again */
 function number(state: EditorState, item: SyntaxNode): string {
-  const chain: string[] = [];
-  for (let i: SyntaxNode | null = item; i?.name === 'ListItem' && i.parent?.name === 'OrderedList'; i = i.parent.parent) {
-    const m = i.getChild('ListMark')!;
-    chain.unshift(state.sliceDoc(m.from, m.to));
-  }
-  return chain.length > 1 ? chain.map((m) => parseInt(m, 10)).join('.') : chain[0]!;
+  let depth = 0;
+  for (let a = item.parent?.parent; a; a = a.parent) if (a.name === 'OrderedList') depth++;
+  const m = item.getChild('ListMark')!;
+  const mark = state.sliceDoc(m.from, m.to);
+  let n = parseInt(mark, 10), s = '';
+  if (depth % 3 === 0 || n < 1) return mark;
+  if (depth % 3 === 1) for (; n > 0; n = Math.floor(n / 26)) s = String.fromCharCode(97 + (--n % 26)) + s;
+  else for (const [v, r] of ROMAN) for (; n >= v; n -= v) s += r;
+  return s + mark.slice(-1);
 }
+const ROMAN: [number, string][] = [[1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'], [90, 'xc'], [50, 'l'], [40, 'xl'], [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']];
 
 const PENDING: [RegExp, string][] = [[/~~/g, 'nb-md-strike'], [/\*\*|__/g, 'nb-md-strong'], [/\*|(?<!\w)_|_(?!\w)/g, 'nb-md-em']];
 

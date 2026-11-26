@@ -6,8 +6,12 @@
 /* Tailwind preflight strips list markers and heading sizes */
 .md ul { list-style: disc; padding-left: 1.5em; margin: 0.5em 0; }
 .md ol { list-style: decimal; padding-left: 1.5em; margin: 0.5em 0; }
-/* a nested numbered item counts after its parents' as the message field draws it: 2.1, 2.1.1 */
-.md ol > li > ol > li::marker { content: counters(list-item, '.') ' '; }
+/* a nested numbered list counts as the message field draws it: 1., a., i., then 1. again */
+.md ol ol { list-style: lower-alpha; }
+.md ol ol ol { list-style: lower-roman; }
+.md ol ol ol ol { list-style: decimal; }
+.md ol ol ol ol ol { list-style: lower-alpha; }
+.md ol ol ol ol ol ol { list-style: lower-roman; }
 .md li > p { margin: 0.2em 0; }
 /* task-list box: drawn in CSS, so the text comment anchors read has no glyph (Markdown.tsx renders no <input>) */
 .md .task-box::before { content: '☐'; }
