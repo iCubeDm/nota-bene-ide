@@ -1,6 +1,7 @@
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { EditorSelection, EditorState } from '@codemirror/state';
-import { expect, it } from 'vitest';
+import hljs from 'highlight.js';
+import { expect, it, vi } from 'vitest';
 import { previewRanges } from './livePreview.ts';
 
 const at = (doc: string, caret = doc.length) => {
@@ -48,7 +49,7 @@ it('a bullet and a quote mark are drawn, not hidden as text', () => {
 });
 
 it('an unclosed fence is a block to the end; once closed, the marks after it hide again', () => {
-  expect(at('```\nopen').lines.map((l) => l.at)).toEqual([0, 4]);
+  expect(at('```\nopen').lines.filter((l) => l.cls === 'nb-md-block').map((l) => l.at)).toEqual([0, 4]);
   expect(at('```\nopen\n```\n**b**', 0).hide).toContainEqual([13, 15]);
 });
 
@@ -63,4 +64,55 @@ it('only the visible ranges are decorated', () => {
   const r = previewRanges(state, [{ from: 0, to: 100 }]);
   expect(r.hide.length).toBeGreaterThan(0);
   expect(r.hide.every(([from]) => from <= 100)).toBe(true);
+});
+
+it('list items line up: each a hanging item at its level, its number muted, a nested item\'s spaces hidden', () => {
+  const r = at('1. a\n   2. b\n- c\n  - d', 0);
+  expect(r.lines.filter((l) => l.cls === 'nb-md-item')).toEqual([
+    { at: 0, cls: 'nb-md-item', level: 0 }, { at: 5, cls: 'nb-md-item', level: 1 },
+    { at: 13, cls: 'nb-md-item', level: 0 }, { at: 17, cls: 'nb-md-item', level: 1 },
+  ]);
+  expect(r.marks).toContainEqual({ from: 0, to: 3, cls: 'nb-md-num' });
+  expect(r.marks).toContainEqual({ from: 8, to: 11, cls: 'nb-md-num' });
+  expect(r.hide).toEqual(expect.arrayContaining([[5, 8], [17, 19]]));
+  expect(r.bullets).toEqual([[13, 15], [19, 21]]);
+});
+
+it('a block\'s first and last lines close its box; a hidden fence line is thin', () => {
+  const doc = '```\nlet a\n```\nx';
+  const r = at(doc);
+  const of = (pos: number) => r.lines.filter((l) => l.at === pos).map((l) => l.cls);
+  expect(of(0)).toEqual(expect.arrayContaining(['nb-md-block', 'nb-md-top', 'nb-md-fence']));
+  expect(of(10)).toEqual(expect.arrayContaining(['nb-md-block', 'nb-md-bottom', 'nb-md-fence']));
+  expect(at(doc, 1).lines.filter((l) => l.at === 0).map((l) => l.cls)).not.toContain('nb-md-fence');
+});
+
+it('code with no language is highlighted as the chat does, by a guess', () => {
+  const r = at('```\nconst a = 1;\nfunction f() { return a; }\n```\n');
+  expect(r.marks.some((m) => /hljs-/.test(m.cls))).toBe(true);
+});
+
+it('the same code is highlighted once, however often the caret moves', () => {
+  const spy = vi.spyOn(hljs, 'highlight');
+  const doc = '```js\nlet cached = 1\n```\n';
+  at(doc);
+  at(doc, 0);
+  at(doc, 3);
+  expect(spy).toHaveBeenCalledTimes(1);
+  spy.mockRestore();
+});
+
+it('an opened span formats what follows it up to the caret before it is closed', () => {
+  expect(at('say ~~gone').marks).toContainEqual({ from: 6, to: 10, cls: 'nb-md-strike' });
+  expect(at('**bo').marks).toContainEqual({ from: 2, to: 4, cls: 'nb-md-strong' });
+  expect(at('an _it').marks).toContainEqual({ from: 4, to: 6, cls: 'nb-md-em' });
+  expect(at('a `co').marks).toContainEqual({ from: 3, to: 5, cls: 'nb-md-code' });
+});
+
+it('no pending format: a lone mark before a space, a mark inside a word, a closed span, another line', () => {
+  const pending = (doc: string, caret?: number) => at(doc, caret).marks.filter((m) => m.cls.startsWith('nb-md-') && m.cls !== 'nb-md-num');
+  expect(pending('a * b')).toEqual([]);
+  expect(pending('snake_case')).toEqual([]);
+  expect(pending('**a** b')).toEqual([{ from: 2, to: 3, cls: 'nb-md-strong' }]);
+  expect(pending('~~x\nnext')).toEqual([]);
 });

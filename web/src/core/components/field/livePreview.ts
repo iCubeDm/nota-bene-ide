@@ -12,7 +12,8 @@ export interface Preview {
   /** a `- ` or `* ` drawn as a bullet */
   bullets: Span[];
   marks: { from: number; to: number; cls: string }[];
-  lines: { at: number; cls: string }[];
+  /** `level`: a list item's nesting */
+  lines: { at: number; cls: string; level?: number }[];
 }
 
 const SPANS: Record<string, { cls: string; marks: string[] }> = {
@@ -46,8 +47,12 @@ export function previewRanges(state: EditorState, visible: readonly { from: numb
         }
         if (n.name === 'Link') return link(n.node, p, touched(n.from, n.to));
         if (n.name === 'FencedCode') return fenced(state, n.node, p, touched);
-        if (n.name === 'ListMark' && /^[-*+]$/.test(state.sliceDoc(n.from, n.to)) && n.node.parent?.parent?.name === 'BulletList') {
-          p.bullets.push([n.from, Math.min(n.to + 1, state.doc.lineAt(n.from).to)]);
+        if (n.name === 'ListItem') item(state, n.node, p);
+        if (n.name === 'ListMark') {
+          const end = Math.min(n.to + 1, state.doc.lineAt(n.from).to);
+          const list = n.node.parent?.parent?.name;
+          if (list === 'BulletList' && /^[-*+]$/.test(state.sliceDoc(n.from, n.to))) p.bullets.push([n.from, end]);
+          if (list === 'OrderedList') p.marks.push({ from: n.from, to: end, cls: 'nb-md-num' });
         }
         if (n.name === 'QuoteMark') {
           const line = state.doc.lineAt(n.from);
@@ -58,9 +63,48 @@ export function previewRanges(state: EditorState, visible: readonly { from: numb
       },
     });
   }
+  pending(state, p);
   const order = (a: Span, b: Span) => a[0] - b[0];
   p.hide.sort(order);
   return p;
+}
+
+/** A list item's line: a hanging item at its nesting level, the spaces that nest it hidden (the level draws them). */
+function item(state: EditorState, node: SyntaxNode, p: Preview): void {
+  let level = 0;
+  for (let a = node.parent; a; a = a.parent) if (a.name === 'ListItem') level++;
+  const line = state.doc.lineAt(node.from);
+  p.lines.push({ at: line.from, cls: 'nb-md-item', level });
+  if (node.from > line.from) p.hide.push([line.from, node.from]);
+}
+
+const PENDING: [RegExp, string][] = [[/~~/g, 'nb-md-strike'], [/\*\*|__/g, 'nb-md-strong'], [/\*|(?<!\w)_|_(?!\w)/g, 'nb-md-em']];
+
+/**
+ * Format as you type (issue 727): on the caret's line, a mark opened and not yet closed formats what follows it up to the
+ * caret. A mark is open when its kind comes an odd number of times before the caret and the last is followed by a word.
+ */
+function pending(state: EditorState, p: Preview): void {
+  const caret = state.selection.main.head;
+  const line = state.doc.lineAt(caret);
+  if (syntaxTree(state).resolveInner(caret, -1).parent?.name === 'FencedCode') return;
+  // a list's `* ` is no mark
+  let text = line.text.slice(0, caret - line.from).replace(/^ *(?:[-*+]|\d+[.)]) /, (m) => ' '.repeat(m.length));
+  const open = (re: RegExp, cls: string): boolean => {
+    const hits = [...text.matchAll(re)];
+    const last = hits.at(-1);
+    if (hits.length % 2 === 0 || !last) return false;
+    const from = last.index + last[0].length;
+    if (from >= text.length || /\s/.test(text[from]!)) return false;
+    p.marks.push({ from: line.from + from, to: caret, cls });
+    return true;
+  };
+  if (open(/`/g, 'nb-md-code')) return; // inside code, nothing else is a mark
+  text = text.replace(/`[^`]*`/g, (m) => ' '.repeat(m.length));
+  for (const [re, cls] of PENDING) {
+    open(re, cls);
+    text = text.replace(re, (m) => ' '.repeat(m.length)); // `**` is no `*` to the next kind
+  }
 }
 
 const children = (node: SyntaxNode, names: string[]): SyntaxNode[] => {
@@ -79,29 +123,55 @@ function link(node: SyntaxNode, p: Preview, inside: boolean): false {
   return false;
 }
 
-/** A fenced block: each line a block line, the fences hidden off the caret, the code highlighted by its language. */
+/**
+ * A fenced block, drawn as the chat draws one: its lines one box (the first and the last close it), a fence off the caret
+ * a thin edge, the code highlighted by its language or, with none, by a guess.
+ */
 function fenced(state: EditorState, node: SyntaxNode, p: Preview, touched: (from: number, to: number) => boolean): false {
   const first = state.doc.lineAt(node.from), last = state.doc.lineAt(node.to);
   for (let l = first.number; l <= last.number; l++) p.lines.push({ at: state.doc.line(l).from, cls: 'nb-md-block' });
+  p.lines.push({ at: first.from, cls: 'nb-md-top' }, { at: last.from, cls: 'nb-md-bottom' });
   const marks = children(node, ['CodeMark']);
   const fences = [first, ...(marks.length > 1 ? [last] : [])];
-  for (const line of fences) if (!touched(line.from, line.to) && line.to > line.from) p.hide.push([line.from, line.to]);
+  for (const line of fences) {
+    if (touched(line.from, line.to)) continue;
+    p.lines.push({ at: line.from, cls: 'nb-md-fence' });
+    if (line.to > line.from) p.hide.push([line.from, line.to]);
+  }
   const info = children(node, ['CodeInfo'])[0];
   const text = children(node, ['CodeText'])[0];
-  const lang = info && state.sliceDoc(info.from, info.to).trim();
-  if (text && lang && hljs.getLanguage(lang)) highlight(state.sliceDoc(text.from, text.to), lang, text.from, p);
+  const lang = info ? state.sliceDoc(info.from, info.to).trim() : '';
+  if (text && (!lang || hljs.getLanguage(lang))) {
+    for (const [from, to, cls] of highlight(state.sliceDoc(text.from, text.to), lang)) p.marks.push({ from: text.from + from, to: text.from + to, cls });
+  }
   return false;
 }
 
-/** highlight.js's spans as marks: its HTML walked for the text offsets each class covers. */
-function highlight(code: string, language: string, at: number, p: Preview): void {
+// the languages a message's code is likely in: a guess among all of highlight.js's takes ~20 ms a keystroke, these ~3
+const LIKELY = ['javascript', 'typescript', 'python', 'bash', 'json', 'yaml', 'go', 'rust', 'java', 'kotlin', 'swift', 'c', 'cpp', 'csharp', 'css', 'xml', 'sql', 'diff', 'ruby', 'php', 'dart'];
+
+/** the language of code with none named, guessed from its start (a long block costs no more to guess than a short one) */
+const guess = (code: string): string | undefined => hljs.highlightAuto(code.slice(0, 600), LIKELY).language;
+
+/** highlighted code by its language and text: typing elsewhere or moving the caret does not highlight it again */
+const highlighted = new Map<string, [number, number, string][]>();
+const KEEP = 32;
+
+/** highlight.js's spans as offsets in `code`: its HTML walked for the text each class covers. */
+function highlight(code: string, language: string): [number, number, string][] {
+  const key = `${language}\n${code}`;
+  const known = highlighted.get(key);
+  if (known) return known;
+  const lang = language || guess(code);
+  if (!lang) return [];
   const box = document.createElement('div');
-  box.innerHTML = hljs.highlight(code, { language, ignoreIllegals: true }).value;
-  let pos = at;
+  box.innerHTML = hljs.highlight(code, { language: lang, ignoreIllegals: true }).value;
+  const out: [number, number, string][] = [];
+  let pos = 0;
   const walk = (n: Node, cls: string[]) => {
     if (n.nodeType === Node.TEXT_NODE) {
       const len = n.textContent!.length;
-      if (cls.length && len) p.marks.push({ from: pos, to: pos + len, cls: cls.join(' ') });
+      if (cls.length && len) out.push([pos, pos + len, cls.join(' ')]);
       pos += len;
       return;
     }
@@ -109,6 +179,9 @@ function highlight(code: string, language: string, at: number, p: Preview): void
     n.childNodes.forEach((c) => walk(c, own));
   };
   walk(box, []);
+  if (highlighted.size >= KEEP) highlighted.delete(highlighted.keys().next().value!);
+  highlighted.set(key, out);
+  return out;
 }
 
 class Bullet extends WidgetType {
@@ -127,7 +200,7 @@ function build(view: EditorView): { all: DecorationSet; atoms: DecorationSet } {
   const p = previewRanges(view.state, view.visibleRanges);
   const atoms = p.bullets.map(([a, b]) => bullet.range(a, b));
   const all: Range<Decoration>[] = [
-    ...p.lines.map((l) => Decoration.line({ class: l.cls }).range(l.at)),
+    ...p.lines.map((l) => Decoration.line({ class: l.cls, ...(l.level === undefined ? {} : { attributes: { style: `--nb-level: ${l.level}` } }) }).range(l.at)),
     ...p.marks.filter((m) => m.to > m.from).map((m) => Decoration.mark({ class: m.cls }).range(m.from, m.to)),
     ...p.hide.filter(([a, b]) => b > a).map(([a, b]) => hidden.range(a, b)),
     ...atoms,
@@ -148,11 +221,24 @@ const look = EditorView.theme({
   '.nb-md-strong': { fontWeight: '600' },
   '.nb-md-em': { fontStyle: 'italic' },
   '.nb-md-strike': { textDecoration: 'line-through' },
-  '.nb-md-code': { fontFamily: 'var(--font-mono)', fontSize: '0.9em', background: 'var(--code-bg)', borderRadius: '4px', padding: '0 3px' },
-  '.nb-md-link': { color: 'var(--primary)', textDecoration: 'underline' },
-  '.nb-md-block': { fontFamily: 'var(--font-mono)', fontSize: '0.9em', background: 'var(--code-bg)', padding: '0 8px !important' },
-  '.nb-md-quote': { borderLeft: '3px solid var(--border)', paddingLeft: '8px !important' },
-  '.nb-md-bullet': { padding: '0 6px 0 2px' },
+  // the chat's look (markdown.css): its inline code and its block
+  '.nb-md-code': { fontFamily: 'var(--font-mono)', fontSize: '0.75rem', background: 'var(--code-inline-bg)', color: 'var(--code-inline-fg)', borderRadius: '4px', padding: '1px 5px' },
+  '.nb-md-link': { color: 'var(--link)', textDecoration: 'underline' },
+  '.nb-md-block': {
+    font: '12.5px/1.5 var(--font-mono)', background: 'var(--code-bg)',
+    borderLeft: '1px solid var(--border-soft)', borderRight: '1px solid var(--border-soft)',
+    paddingLeft: '12px !important', paddingRight: '12px !important',
+  },
+  '.nb-md-top': { borderTop: '1px solid var(--border-soft)', borderRadius: '8px 8px 0 0', paddingTop: '6px !important' },
+  '.nb-md-bottom': { borderBottom: '1px solid var(--border-soft)', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', paddingBottom: '6px !important' },
+  '.nb-md-top.nb-md-bottom': { borderRadius: '8px' },
+  // a fence off the caret: only the box's edge (its padding) shows
+  '.nb-md-fence': { fontSize: '0', lineHeight: '0' },
+  '.nb-md-quote': { borderLeft: '2px solid var(--border)', paddingLeft: '12px !important', color: 'var(--muted-fg)' },
+  // an item hangs: its mark in a column of its own, the lines it wraps onto under its text, one column in per level
+  '.nb-md-item': { paddingLeft: 'calc((var(--nb-level) + 1) * 1.5em) !important', textIndent: '-1.5em' },
+  '.nb-md-bullet, .nb-md-num': { display: 'inline-block', minWidth: '1.5em', textIndent: '0', color: 'var(--muted-fg)' },
+  '.nb-md-bullet': { textAlign: 'center' },
 });
 
 /** Live markdown: the field's decorations, a bullet as one unit for the caret, and their look. */
