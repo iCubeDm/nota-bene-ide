@@ -21,13 +21,14 @@ const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 /**
  * Tooltip keys that reach a `title` or a tooltip through a variable or a helper's argument, so the source scan below
  * cannot see them (the editor's tool buttons, the track head, the meter, the idle-compaction note, the export's reason, the
- * markup tools).
+ * markup tools, the message field's format bar).
  */
 const INDIRECT = [
   'cutToolSelect', 'cutToolBlade', 'cutUndo', 'cutRedo', 'cutSplit', 'cutDuplicate', 'cutDelete', 'cutComment',
   'cutTrackMute', 'cutTrackSolo', 'cutTrackHide', 'cutTrackUp', 'cutTrackDown', 'cutTrackRemove', 'cutClipOn', 'cutClipOff',
   'idleBlocked', 'cutExportBlocked', 'toolRect', 'toolEllipse', 'toolPen', 'toolArrow', 'toolMask',
   'h5Tip', 'weekTip', 'pb_mute', 'pb_unmute',
+  'fmtBold', 'fmtItalic', 'fmtStrike', 'fmtCode', 'fmtLink', 'fmtBlock', 'fmtList', 'fmtQuote',
 ];
 
 /** Keys the scan finds that are no tooltip, each with what it is. */

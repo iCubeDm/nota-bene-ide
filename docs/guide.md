@@ -285,7 +285,7 @@ Export needs ffmpeg on the machine: the path in `NOTA_BENE_FFMPEG`, else `ffmpeg
 
 Enter sends, Shift+Enter is a new line. The chat tab cannot be closed.
 
-The message box and the comment box draw markdown as you type: `**bold**`, `_italic_`, `~~struck~~`, `` `code` ``, links, lists and quotes look like themselves, and their marks show only where the caret is. Typing ` ``` ` opens a code block and closes it for you; inside it Enter is a new line, and Enter on an empty last line leaves the block. What is sent is the markdown as typed. A `!` shell command is shown as is.
+The message box and the comment box draw markdown as you type: `**bold**`, `_italic_`, `~~struck~~`, `` `code` ``, links, lists and quotes look like themselves, and their marks show only where the caret is. Typing ` ``` ` opens a code block and closes it for you; inside it Enter is a new line, and Enter on an empty last line leaves the block. A mark formats what follows it as soon as you type it, before it is closed. Tab and Shift+Tab nest a list item or indent a line of code; elsewhere Tab leaves the box. Selecting text shows a format bar (bold, italic, strikethrough, code, link, code block, list, quote); ⌘B, ⌘I, ⌘⇧X, ⌘E and ⌘K (Ctrl on Windows and Linux) do the same, and again take the format off. What is sent is the markdown as typed. A `!` shell command is shown as is.
 
 - A message sent while the agent works joins the running turn. Cmd/Ctrl+Enter interrupts and sends; while the agent works it asks first (Cmd/Ctrl+Enter again or **Interrupt and send**; Esc or **Cancel**; plain Enter joins the turn).
 - The stop button stops the agent; Esc never does.

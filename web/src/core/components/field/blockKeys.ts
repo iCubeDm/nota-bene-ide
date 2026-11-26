@@ -6,7 +6,7 @@ import { EditorView } from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
 
 /** The fenced block around `pos`, if any. */
-function blockAt(state: EditorState, pos: number): SyntaxNode | null {
+export function blockAt(state: EditorState, pos: number): SyntaxNode | null {
   for (let n: SyntaxNode | null = syntaxTree(state).resolveInner(pos, -1); n; n = n.parent) if (n.name === 'FencedCode') return n;
   return null;
 }

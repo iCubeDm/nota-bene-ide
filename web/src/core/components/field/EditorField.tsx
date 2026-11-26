@@ -6,6 +6,8 @@ import { useEffect, useImperativeHandle, useLayoutEffect, useRef, type MouseEven
 import { draggedPaths, hasFiles } from '../../lib/drag.ts';
 import { fieldOf, fromHost, type Field, type Listeners } from './field.ts';
 import { blockKeys } from './blockKeys.ts';
+import { formatting } from './format.ts';
+import { FormatBar } from './FormatBar.tsx';
 import { livePreview } from './livePreview.ts';
 
 // the host's keys own these: Enter sends (composer), Mod-Enter forces or sends; the newline key is the field's own below
@@ -74,7 +76,7 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
         drop: (e) => hasFiles(e) || !!draggedPaths(e.dataTransfer),
       })),
       lock.current.of(locked(!!readOnly)),
-      look.current.of(plain ? [] : livePreview),
+      look.current.of(drawn(plain)),
       EditorView.updateListener.of((u) => {
         // the host's own value coming in is neither an edit nor something the pickers look at (a textarea's `input` was not either)
         if ((!u.docChanged && !u.selectionSet) || u.transactions.some((t) => t.annotation(fromHost))) return;
@@ -109,7 +111,7 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
   }, [value]);
 
   useEffect(() => {
-    view.current?.dispatch({ effects: look.current.reconfigure(plain ? [] : livePreview) });
+    view.current?.dispatch({ effects: look.current.reconfigure(drawn(plain)) });
   }, [plain]);
 
   useEffect(() => {
@@ -122,8 +124,16 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
     e.preventDefault();
     view.current.focus();
   };
-  return <div ref={host} onMouseDown={toText} className={className} />;
+  return (
+    <>
+      <div ref={host} onMouseDown={toText} className={className} />
+      {!plain && <FormatBar key={newline} view={view} listeners={listeners.current} />}
+    </>
+  );
 }
+
+/** markdown drawn and formatted, or a shell command shown as it is */
+const drawn = (plain: boolean | undefined): Extension => (plain ? [] : [livePreview, formatting]);
 
 /** The field's id, its name (the label, else the placeholder, as a textarea's) and its placeholder. */
 const named = (id: string | undefined, label: string | undefined, placeholder: string | undefined): Extension => [

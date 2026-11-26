@@ -116,3 +116,7 @@ it('no pending format: a lone mark before a space, a mark inside a word, a close
   expect(pending('**a** b')).toEqual([{ from: 2, to: 3, cls: 'nb-md-strong' }]);
   expect(pending('~~x\nnext')).toEqual([]);
 });
+
+it('a closed span with the caret inside it is formatted once, not again as pending', () => {
+  expect(at('**word**', 6).marks.filter((m) => m.cls === 'nb-md-strong')).toEqual([{ from: 2, to: 6, cls: 'nb-md-strong' }]);
+});

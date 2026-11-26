@@ -40,3 +40,28 @@ test('an empty composer is one line high, its placeholder cut rather than wrappe
   expect((await field.boundingBox())!.height).toBeLessThan(line * 1.5 + 20);
   expect((await composer(page).locator('.cm-placeholder').boundingBox())!.height).toBeLessThanOrEqual(line);
 });
+
+test('Tab nests a list item and the format bar bolds a selection; the markdown is what is sent (issue 727) @chat', async ({ page }) => {
+  const sent: string[] = [];
+  page.on('websocket', (ws) => ws.on('framesent', (f) => {
+    try {
+      const m = JSON.parse(String(f.payload)) as { type?: string; text?: string };
+      if (m.type === 'send' && m.text) sent.push(m.text);
+    } catch { /* not JSON */ }
+  }));
+  await page.goto('');
+  const box = composer(page);
+  await box.click();
+  const word = `nest${Date.now().toString(36)}`;
+  await page.keyboard.type('- a');
+  await page.keyboard.press('Shift+Enter');
+  await page.keyboard.press('Tab');
+  await page.keyboard.type(word);
+  await expect(box).toBeFocused(); // Tab nested the item rather than leave the field
+  for (let i = 0; i < word.length; i++) await page.keyboard.press('Shift+ArrowLeft');
+  await page.getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: 'Bold' }).click();
+  await expect(box.locator('.nb-md-strong')).toHaveText(word);
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => sent).toContain(`- a\n  - **${word}**`);
+});

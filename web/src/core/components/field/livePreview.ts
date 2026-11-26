@@ -87,7 +87,8 @@ const PENDING: [RegExp, string][] = [[/~~/g, 'nb-md-strike'], [/\*\*|__/g, 'nb-m
 function pending(state: EditorState, p: Preview): void {
   const caret = state.selection.main.head;
   const line = state.doc.lineAt(caret);
-  if (syntaxTree(state).resolveInner(caret, -1).parent?.name === 'FencedCode') return;
+  const tree = syntaxTree(state);
+  if (tree.resolveInner(caret, -1).parent?.name === 'FencedCode') return;
   // a list's `* ` is no mark
   let text = line.text.slice(0, caret - line.from).replace(/^ *(?:[-*+]|\d+[.)]) /, (m) => ' '.repeat(m.length));
   const open = (re: RegExp, cls: string): boolean => {
@@ -96,6 +97,8 @@ function pending(state: EditorState, p: Preview): void {
     if (hits.length % 2 === 0 || !last) return false;
     const from = last.index + last[0].length;
     if (from >= text.length || /\s/.test(text[from]!)) return false;
+    // a mark the parser already paired (its close after the caret) is drawn as its span
+    for (let n: SyntaxNode | null = tree.resolveInner(line.from + from, 1); n; n = n.parent) if (n.name in SPANS) return false;
     p.marks.push({ from: line.from + from, to: caret, cls });
     return true;
   };
