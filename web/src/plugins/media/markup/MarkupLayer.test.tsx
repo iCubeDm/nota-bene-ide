@@ -463,6 +463,19 @@ it('Mask: a closed polygon takes a vertex drag and a move of the whole shape', (
   expect(draft().shapes).toEqual([{ ...tri, points: [0.2, 0.1, 0.7, 0.2, 0.4, 0.7] }]);
 });
 
+it('Mask: a drag on a side bows it into an arc through the pointer, one undo step', () => {
+  const { store, draft } = maskOn();
+  act(() => void store.dispatch(addShape(TAB, tri as MediaShape)));
+  drag([[300, 350], [300, 330], [300, 300]]); // the side (0.1, 0.2)–(0.5, 0.2), its middle up to y 0.1
+  const pts = (draft().shapes[0] as { points: number[] }).points;
+  expect(pts.slice(0, 2)).toEqual([0.1, 0.2]);
+  expect(pts.slice(-4)).toEqual([0.5, 0.2, 0.3, 0.8]);
+  expect(pts.length).toBeGreaterThan(tri.points.length);
+  expect(pts.slice(0, -4).some((v, i) => i % 2 && v === 0.1)).toBe(true);
+  key({ key: 'z', code: 'KeyZ', metaKey: true });
+  expect(draft().shapes).toEqual([tri]);
+});
+
 it('Mask: one drag of a point or of the shape is one undo step, which brings back the points before it', () => {
   const { store, draft } = maskOn();
   act(() => void store.dispatch(addShape(TAB, tri as MediaShape)));

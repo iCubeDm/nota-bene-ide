@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { contentBox, dense, hitPolygon, insidePolygon, movePoints, rectFrom, round4, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
+import { bendEdge, contentBox, dense, hitPolygon, insidePolygon, movePoints, rectFrom, round4, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
 import { describeShape, mediaTime } from '@/core/anchors/quote.ts';
 import type { MediaShape } from '@nota-bene/shared';
 
@@ -127,6 +127,23 @@ it('dense: a polygon whose sides average under two reaches (a lasso\'s) has no p
   expect(dense(ring(200), 0.01, 0.01)).toBe(true);
   const lasso: MediaShape = { kind: 'polygon', color: '#ff3b30', points: ring(200) };
   expect(hitPolygon([lasso], { x: 0.799, y: 0.5 }, 0.01, 0.01)).toEqual({ index: 0, vertex: null });
+});
+it('hitPolygon finds a side after the points, before the inside', () => {
+  expect(hitPolygon([square], { x: 0.4, y: 0.205 }, 0.01, 0.01)).toEqual({ index: 0, vertex: null, edge: 0 });
+  expect(hitPolygon([square], { x: 0.195, y: 0.4 }, 0.01, 0.01)).toEqual({ index: 0, vertex: null, edge: 3 }); // the closing side
+  expect(hitPolygon([square], { x: 0.4, y: 0.4 }, 0.01, 0.01)).toEqual({ index: 0, vertex: null });
+});
+it('bendEdge bows a side into an arc through the point, its points about 2.5 reaches apart; the others stay', () => {
+  const pts = (square as { points: number[] }).points;
+  const bent = bendEdge(pts, 0, 0.4, 0.1, 0.01, 0.01); // the side (0.2, 0.2)–(0.6, 0.2), its middle pulled up to y 0.1
+  const n = bent.length / 2;
+  expect(n).toBe(4 + 17); // ≈ 45 reaches of arc: 18 pieces (an even count: the middle one is a sample)
+  expect(bent.slice(0, 2)).toEqual([0.2, 0.2]);
+  expect(bent.slice(-6)).toEqual([0.6, 0.2, 0.6, 0.6, 0.2, 0.6]);
+  expect(bent.slice(18, 20)).toEqual([0.4, 0.1]); // the middle sample is the point pulled
+  for (let i = 1; i < 18; i++) expect(bent[2 * i + 1]).toBeLessThan(0.2);
+  expect(bendEdge(pts, 3, 0.1, 0.4, 0.01, 0.01).slice(0, 8)).toEqual(pts); // the closing side: after the last point
+  expect(pts).toEqual([0.2, 0.2, 0.6, 0.2, 0.6, 0.6, 0.2, 0.6]); // not mutated
 });
 it('setVertex moves one point (clamped, 4 decimals); movePoints shifts all, kept inside the media', () => {
   const pts = (square as { points: number[] }).points;

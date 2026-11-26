@@ -633,6 +633,27 @@ test('the Mask tool: a drag around an area is a lasso, closed on release, with n
   await expect(layer.locator('path[data-live-poly]')).toHaveAttribute('d', '');
 });
 
+test('the Mask tool: a drag on a side bows it into an arc of points that can be grabbed @files', async ({ page }) => {
+  test.skip(!hasFfmpeg, 'needs ffmpeg on PATH: e2e/serve.mjs generates the media fixtures with it');
+  await page.setViewportSize({ width: 1280, height: 1100 });
+  await start(page);
+  await openFromTree(page, 'media/wide.png');
+  const img = mediaPane(page, 'media/wide.png').locator('img');
+  await expect.poll(() => img.evaluate((e: HTMLImageElement) => e.complete && e.naturalWidth)).toBe(1000);
+  const b = await contentBoxOf(img);
+  await markUpBtn(page).click();
+  const layer = markupLayer(page, 'media/wide.png');
+  await page.keyboard.press('g');
+  for (const [x, y] of [[0.2, 0.7], [0.8, 0.7], [0.5, 0.2], [0.2, 0.7]]) {
+    const p = at(b, x, y);
+    await page.mouse.click(p.x, p.y);
+  }
+  const dots = () => layer.locator('[data-handles]').getAttribute('d').then((d) => (d ?? '').split('M').length - 1);
+  await expect.poll(dots).toBe(3);
+  await drag(page, at(b, 0.5, 0.7), at(b, 0.5, 0.9));
+  await expect.poll(dots).toBeGreaterThan(10);
+});
+
 test('mark up an image: rect + pen, comment, files in the project, coordinates in the batch @files', async ({ page }) => {
   test.skip(!hasFfmpeg, 'needs ffmpeg on PATH: e2e/serve.mjs generates the media fixtures with it');
   const frames = sentFrames(page);

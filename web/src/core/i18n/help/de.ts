@@ -18,7 +18,7 @@ export const helpDe: HelpDict = {
   taskBackground: 'Aufgabe in den Hintergrund schieben: Der Aufruf kehrt sofort zurück, die Aufgabe läuft weiter',
   taskStopAll: 'Alle laufenden Agenten der Gruppe stoppen (ein zweiter Klick bestätigt)',
   pageScripts: 'Die Skripte der Seite laufen hier nicht: Sie wird so gezeigt, wie sie ohne sie aussieht',
-  markupMask: 'Maske: einen Bereich wie mit dem Lasso umfahren, beim Loslassen schließt er sich; oder Punkte per Klick setzen; schließen am ersten Punkt, mit Enter oder Doppelklick; Rücktaste oder Cmd/Strg+Z entfernt den letzten Punkt, Esc verwirft die Form. Punkte oder die ganze Form lassen sich ziehen; Alt-Klick beginnt eine neue Form, auch innerhalb einer anderen',
+  markupMask: 'Maske: einen Bereich wie mit dem Lasso umfahren, beim Loslassen schließt er sich; oder Punkte per Klick setzen; schließen am ersten Punkt, mit Enter oder Doppelklick; Rücktaste oder Cmd/Strg+Z entfernt den letzten Punkt, Esc verwirft die Form. Punkte oder die ganze Form lassen sich ziehen, eine Seite zieht man zum Biegen; Alt-Klick beginnt eine neue Form, auch innerhalb einer anderen',
   voiceSend: (force: string, forceAlt: string) => `Der Agent arbeitet: Senden stellt die Nachricht in die Warteschlange. ${force} oder ${forceAlt} unterbricht den Agenten und sendet.`,
   cutSelect: 'Auswahl: Clip anklicken, Shift- oder ⌘/Strg-Klick für weitere, auf leerer Fläche ein Rechteck ziehen; Shift-Ziehen verschiebt einen Clip mit allem, was auf seiner Spur folgt, Shift-Ziehen am Ende verschiebt die folgenden mit',
   cutBlade: 'Klinge: ein Klick schneidet den Clip an dieser Stelle (Shift: alle Spuren; Alt: ohne Einrasten)',

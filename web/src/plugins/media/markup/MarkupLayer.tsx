@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { MARK_COLORS, PEN_MAX_VALUES, POLYGON_MAX_POINTS, type MediaShape } from '@nota-bene/shared';
 import { useT, useAppDispatch, useAppSelector, keysInScope, useFeature } from '@/sdk';
 import { ConfirmDialog } from '@/sdk/ui';
-import { box as rectBox, dense, hitPolygon, movePoints, rectFrom, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
+import { bendEdge, box as rectBox, dense, hitPolygon, movePoints, rectFrom, setVertex, shapePath, shapesBounds, simplify, toRel } from './geometry.ts';
 import { MarkupToolbar } from './MarkupToolbar.tsx';
 import { HALO, HALO_PX, shapeEls, STROKE_PX, useNatSize, useOverlayPlacement, type Media } from './overlay.tsx';
 import { addShape, clear, commitEdit, replaceShape, selectDraft, setColor, setMode, setTool, undo, type MarkTool } from './slice.ts';
@@ -11,7 +11,7 @@ import { addShape, clear, commitEdit, replaceShape, selectDraft, setColor, setMo
 type Pt = { x: number; y: number };
 
 const TOOL_KEYS: Record<string, MarkTool> = { KeyR: 'rect', KeyE: 'ellipse', KeyP: 'pen', KeyA: 'arrow', KeyG: 'polygon' };
-/** How near (client px) a press must be to a polygon's point to hit it: the first one closes, any one is dragged. */
+/** How near (client px) a press must be to a polygon's point or side to hit it: the first point closes, any one is dragged. */
 const HIT_PX = 8;
 /** The dots of a polygon's points (client px across): a round cap of a zero-length line, the same size at any zoom. */
 const DOT_PX = 5;
@@ -90,10 +90,11 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
   // `box`: the content box at pointerdown (no layout read per move); a scroll during the drag refreshes it.
   // `tool`/`color`: fixed at pointerdown, so a key pressed mid-drag changes the next shape, not this one.
   // `ptsText`: the live pen's points as a string, kept only where SVGPointList is missing
-  // `edit`: a press on a drawn polygon (issue 447): its index, the point dragged (null: the whole shape) and its points then
+  // `edit`: a press on a drawn polygon (issue 447): its index, the point dragged (null: the whole shape), the side bent
+  // (issue 729) and its points then
   type Drag = {
     id: number; a: Pt; b: Pt; pen: number[]; ptsText: string; box: DOMRect; tool: MarkTool; color: MediaShape['color'];
-    edit?: { index: number; vertex: number | null; points: number[] };
+    edit?: { index: number; vertex: number | null; edge?: number; points: number[] };
   };
   const drag = useRef<Drag | null>(null);
   // the polygon being drawn (issue 447): its points so far, its colour, the content box when it began, the pointer's last place
@@ -233,10 +234,10 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
     }
     // Alt: always a new polygon, also inside a drawn one (which a press would move)
     const hit = e.altKey ? null : hitPolygon(shapes, a, tolX, tolY);
-    if (hit) { // a drawn polygon: drag its point, or move it
+    if (hit) { // a drawn polygon: drag its point, bend its side, or move it
       (e.target as Element).setPointerCapture?.(e.pointerId);
       const s = shapes[hit.index] as Extract<MediaShape, { kind: 'polygon' }>;
-      drag.current = { id: e.pointerId, a, b: a, pen: [], ptsText: '', box: at, tool: 'polygon', color: s.color, edit: { index: hit.index, vertex: hit.vertex, points: s.points } };
+      drag.current = { id: e.pointerId, a, b: a, pen: [], ptsText: '', box: at, tool: 'polygon', color: s.color, edit: { index: hit.index, vertex: hit.vertex, edge: hit.edge, points: s.points } };
       return;
     }
     poly.current = { pts: [a.x, a.y], dots: [a.x, a.y], color, box: at, last: { t: now, x: e.clientX, y: e.clientY }, press: press(true) };
@@ -282,8 +283,9 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
     if (!d || e.pointerId !== d.id) return;
     if (d.edit) { // a drawn polygon follows the pointer (a few points: the store takes each step)
       const r = relOf(e, d.box);
-      const { index, vertex, points } = d.edit;
-      const next = vertex === null ? movePoints(points, r.x - d.a.x, r.y - d.a.y) : setVertex(points, vertex, r.x, r.y);
+      const { index, vertex, edge, points } = d.edit;
+      const next = edge !== undefined ? bendEdge(points, edge, r.x, r.y, HIT_PX / Math.max(1, d.box.width), HIT_PX / Math.max(1, d.box.height))
+        : vertex === null ? movePoints(points, r.x - d.a.x, r.y - d.a.y) : setVertex(points, vertex, r.x, r.y);
       dispatch(replaceShape(tabId, index, { kind: 'polygon', color: d.color, points: next }));
       return;
     }
@@ -316,7 +318,7 @@ export function MarkupLayer({ tabId, media, fit, onAdd, held = false, saving = f
     drag.current = null;
     if (d.edit) { // one drag, one undo step back to the points before it
       const s = shapes[d.edit.index];
-      if (s?.kind === 'polygon' && s.points.some((v, i) => v !== d.edit!.points[i])) {
+      if (s?.kind === 'polygon' && (s.points.length !== d.edit.points.length || s.points.some((v, i) => v !== d.edit!.points[i]))) {
         dispatch(commitEdit(tabId, d.edit.index, { kind: 'polygon', color: d.color, points: d.edit.points }));
       }
       return;

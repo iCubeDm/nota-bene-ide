@@ -1,4 +1,4 @@
-import type { MediaShape } from '@nota-bene/shared';
+import { POLYGON_MAX_POINTS, type MediaShape } from '@nota-bene/shared';
 
 export const round4 = (v: number): number => Math.round(v * 10000) / 10000;
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
@@ -127,15 +127,30 @@ export function dense(points: number[], tolX: number, tolY: number): boolean {
 }
 
 /**
- * The polygon under a point (relative), topmost (last drawn) first: a vertex within `tolX`/`tolY` of it (not of a dense
- * one), else its inside. Other kinds of shape are not hit (only polygons are edited after drawing).
+ * The polygon under a point (relative), topmost (last drawn) first: a vertex within `tolX`/`tolY` of it, else a side
+ * (`edge` i: from vertex i to the next; neither of a dense one), else its inside. Other kinds of shape are not hit (only
+ * polygons are edited after drawing).
  */
-export function hitPolygon(shapes: MediaShape[], p: { x: number; y: number }, tolX: number, tolY: number): { index: number; vertex: number | null } | null {
+export function hitPolygon(shapes: MediaShape[], p: { x: number; y: number }, tolX: number, tolY: number): { index: number; vertex: number | null; edge?: number } | null {
+  const grabbed = shapes.map((s) => s.kind === 'polygon' && !dense(s.points, tolX, tolY));
   for (let k = shapes.length - 1; k >= 0; k--) {
     const s = shapes[k];
-    if (s.kind !== 'polygon' || dense(s.points, tolX, tolY)) continue;
+    if (s.kind !== 'polygon' || !grabbed[k]) continue;
     for (let i = 0; i + 1 < s.points.length; i += 2) {
       if (Math.abs(s.points[i] - p.x) <= tolX && Math.abs(s.points[i + 1] - p.y) <= tolY) return { index: k, vertex: i / 2 };
+    }
+  }
+  for (let k = shapes.length - 1; k >= 0; k--) {
+    const s = shapes[k];
+    if (s.kind !== 'polygon' || !grabbed[k]) continue;
+    const n = s.points.length / 2;
+    for (let i = 0; i < n; i++) { // the distance to the side, in reaches
+      const j = (i + 1) % n;
+      const ax = s.points[2 * i] / tolX, ay = s.points[2 * i + 1] / tolY;
+      const dx = s.points[2 * j] / tolX - ax, dy = s.points[2 * j + 1] / tolY - ay;
+      const px = p.x / tolX - ax, py = p.y / tolY - ay;
+      const t = Math.min(1, Math.max(0, (px * dx + py * dy) / (dx * dx + dy * dy || 1)));
+      if (Math.hypot(px - t * dx, py - t * dy) <= 1) return { index: k, vertex: null, edge: i };
     }
   }
   for (let k = shapes.length - 1; k >= 0; k--) {
@@ -151,6 +166,26 @@ export function setVertex(points: number[], i: number, x: number, y: number): nu
   out[2 * i] = round4(clamp01(x));
   out[2 * i + 1] = round4(clamp01(y));
   return out;
+}
+
+/**
+ * `points` with side `edge` bowed into an arc through (x, y) (issue 729): a quadratic curve whose middle is there, as
+ * points about 2.5 reaches (`tolX`/`tolY`) apart, so each can still be grabbed and the arc's sides bent again; an even
+ * count of pieces, so (x, y) is one of them. Never past POLYGON_MAX_POINTS; 4 decimals, clamped to the media.
+ */
+export function bendEdge(points: number[], edge: number, x: number, y: number, tolX: number, tolY: number): number[] {
+  const n = points.length / 2;
+  const j = (edge + 1) % n;
+  const ax = points[2 * edge], ay = points[2 * edge + 1], bx = points[2 * j], by = points[2 * j + 1];
+  const cx = 2 * x - (ax + bx) / 2, cy = 2 * y - (ay + by) / 2; // the control point of a curve through (x, y) at its middle
+  const len = Math.hypot((x - ax) / tolX, (y - ay) / tolY) + Math.hypot((bx - x) / tolX, (by - y) / tolY);
+  const pieces = Math.min(Math.max(2, 2 * Math.round(len / 5)), POLYGON_MAX_POINTS - n + 1);
+  const arc: number[] = [];
+  for (let k = 1; k < pieces; k++) {
+    const t = k / pieces, u = 1 - t;
+    arc.push(round4(clamp01(u * u * ax + 2 * t * u * cx + t * t * bx)), round4(clamp01(u * u * ay + 2 * t * u * cy + t * t * by)));
+  }
+  return [...points.slice(0, 2 * edge + 2), ...arc, ...points.slice(2 * edge + 2)];
 }
 
 /** `points` shifted by (dx, dy), the shift cut so that every point stays inside the media; 4 decimals. */

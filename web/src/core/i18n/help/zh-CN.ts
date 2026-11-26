@@ -18,7 +18,7 @@ export const helpZhCN: HelpDict = {
   taskBackground: '将任务转入后台：调用立即返回，任务继续运行',
   taskStopAll: '停止该组所有运行中的代理（再点一次确认）',
   pageScripts: '页面的脚本在这里不会运行：显示的是没有脚本时的样子',
-  markupMask: '蒙版：像套索一样按住拖动圈出区域，松开即闭合；或单击添加点；单击第一个点、按 Enter 或双击闭合；Backspace 或 Cmd/Ctrl+Z 删除最后一个点，Esc 放弃该形状。拖动点或整个形状进行调整；按住 Alt 单击可新建形状，即使在另一个形状内部',
+  markupMask: '蒙版：像套索一样按住拖动圈出区域，松开即闭合；或单击添加点；单击第一个点、按 Enter 或双击闭合；Backspace 或 Cmd/Ctrl+Z 删除最后一个点，Esc 放弃该形状。拖动点或整个形状进行调整，拖动边可将其弯曲；按住 Alt 单击可新建形状，即使在另一个形状内部',
   voiceSend: (force: string, forceAlt: string) => `代理正在工作：发送会将消息排入队列。${force} 或 ${forceAlt} 会中断代理并立即发送。`,
   cutSelect: '选择：单击片段，Shift 或 ⌘/Ctrl 单击选择更多，在空白处拖出矩形框选；Shift 拖动片段会连同其轨道上之后的所有片段一起移动，Shift 拖动片段末端则后续片段随之平移',
   cutBlade: '刀片：单击在该处切开片段（Shift：所有轨道；Alt：不吸附）',
