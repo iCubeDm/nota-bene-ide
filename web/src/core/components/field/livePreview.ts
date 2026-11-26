@@ -53,7 +53,7 @@ export function previewRanges(state: EditorState, visible: readonly { from: numb
           const list = n.node.parent?.parent;
           const mark = state.sliceDoc(n.from, n.to);
           if (list?.name === 'BulletList' && /^[-*+]$/.test(mark)) p.markers.push({ from: n.from, to: end, label: '•', cls: 'nb-md-bullet' });
-          if (list?.name === 'OrderedList') p.markers.push({ from: n.from, to: end, label: number(list, mark), cls: 'nb-md-num' });
+          if (list?.name === 'OrderedList') p.markers.push({ from: n.from, to: end, label: number(state, n.node.parent!), cls: 'nb-md-num' });
         }
         if (n.name === 'QuoteMark') {
           const line = state.doc.lineAt(n.from);
@@ -79,23 +79,15 @@ function item(state: EditorState, node: SyntaxNode, p: Preview): void {
   if (node.from > line.from) p.hide.push([line.from, node.from]);
 }
 
-/** an item's number as the chat draws it (markdown.css): 1. at the top, a. in a numbered list, i. deeper */
-function number(list: SyntaxNode, mark: string): string {
-  let depth = 0;
-  for (let a = list.parent; a; a = a.parent) if (a.name === 'OrderedList') depth++;
-  let n = parseInt(mark, 10);
-  const delim = mark.slice(-1);
-  if (depth === 0 || n < 1) return mark;
-  if (depth === 1) {
-    let s = '';
-    for (; n > 0; n = Math.floor(n / 26)) s = String.fromCharCode(97 + (--n % 26)) + s;
-    return s + delim;
+/** an item's number as the chat draws it (markdown.css): `2.` at the top, `2.1`, `2.1.1` under the numbered items above it */
+function number(state: EditorState, item: SyntaxNode): string {
+  const chain: string[] = [];
+  for (let i: SyntaxNode | null = item; i?.name === 'ListItem' && i.parent?.name === 'OrderedList'; i = i.parent.parent) {
+    const m = i.getChild('ListMark')!;
+    chain.unshift(state.sliceDoc(m.from, m.to));
   }
-  let s = '';
-  for (const [v, r] of ROMAN) for (; n >= v; n -= v) s += r;
-  return s + delim;
+  return chain.length > 1 ? chain.map((m) => parseInt(m, 10)).join('.') : chain[0]!;
 }
-const ROMAN: [number, string][] = [[1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'], [90, 'xc'], [50, 'l'], [40, 'xl'], [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']];
 
 const PENDING: [RegExp, string][] = [[/~~/g, 'nb-md-strike'], [/\*\*|__/g, 'nb-md-strong'], [/\*|(?<!\w)_|_(?!\w)/g, 'nb-md-em']];
 
@@ -263,8 +255,9 @@ const look = EditorView.theme({
   '.nb-md-item': { paddingLeft: 'calc((var(--nb-level) + 1) * 1.5em) !important', textIndent: '-1.5em' },
   '.nb-md-bullet, .nb-md-num': { display: 'inline-block', minWidth: '1.5em', textIndent: '0', color: 'var(--muted-fg)' },
   '.nb-md-bullet': { textAlign: 'center' },
-  // a number ends where the chat's does, a little before its text
-  '.nb-md-num': { textAlign: 'right', paddingRight: '0.4em', boxSizing: 'border-box' },
+  // a number ends where the chat's does, a little before its text, its digits one width; a long one (2.1.1) reaches
+  // left into the indent rather than push its text
+  '.nb-md-num': { display: 'inline-flex', justifyContent: 'flex-end', width: '1.5em', paddingRight: '0.4em', boxSizing: 'border-box', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' },
 });
 
 /** Live markdown: the field's decorations, a list's mark as one unit for the caret, and their look. */

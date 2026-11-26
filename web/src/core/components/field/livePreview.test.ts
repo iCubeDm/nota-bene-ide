@@ -76,12 +76,12 @@ it('list items line up: each a hanging item at its level, its number muted, a ne
   expect(r.markers.map((m) => [m.from, m.to])).toEqual([[0, 3], [8, 11], [13, 15], [19, 21]]);
 });
 
-it('a list\'s mark is drawn: a bullet, or the number by its level as the chat draws it (1., a., i.), its delimiter kept', () => {
-  const r = at('1. a\n   1. b\n   2. c\n      1) d\n- e', 0);
+it('a list\'s mark is drawn: a bullet, or the number as the chat draws it, a nested one after its parents\' (2.1, 2.1.1)', () => {
+  const r = at('2. a\n   1. b\n   2. c\n      1) d\n- e\n  1. f', 0);
   expect(r.markers).toEqual([
-    { from: 0, to: 3, label: '1.', cls: 'nb-md-num' }, { from: 8, to: 11, label: 'a.', cls: 'nb-md-num' },
-    { from: 16, to: 19, label: 'b.', cls: 'nb-md-num' }, { from: 27, to: 30, label: 'i)', cls: 'nb-md-num' },
-    { from: 32, to: 34, label: '•', cls: 'nb-md-bullet' },
+    { from: 0, to: 3, label: '2.', cls: 'nb-md-num' }, { from: 8, to: 11, label: '2.1', cls: 'nb-md-num' },
+    { from: 16, to: 19, label: '2.2', cls: 'nb-md-num' }, { from: 27, to: 30, label: '2.2.1', cls: 'nb-md-num' },
+    { from: 32, to: 34, label: '•', cls: 'nb-md-bullet' }, { from: 38, to: 41, label: '1.', cls: 'nb-md-num' },
   ]);
 });
 
