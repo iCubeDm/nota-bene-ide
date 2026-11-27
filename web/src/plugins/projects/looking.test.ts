@@ -1,6 +1,6 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
-import { startLooking } from './looking.ts';
+import { LOOK_CHECK_MS, startLooking } from './looking.ts';
 
 function rig(o: { hidden?: boolean; focus?: boolean; protocol?: number } = {}) {
   let focus = o.focus ?? true;
@@ -59,4 +59,24 @@ it('stop removes the listeners', () => {
   r.win.dispatchEvent(new Event('blur'));
   expect(r.ons()).toEqual([true]);
   expect(r.listeners.size).toBe(0);
+});
+
+it('focus inside a frame of the page that leaves the app with no event of the page is caught within a second', () => {
+  vi.useFakeTimers();
+  try {
+    const r = rig();
+    // a click into the HTML view's frame: the page loses no focus of its own, and Cmd-Tab blurs only the frame
+    r.focusOn(false);
+    vi.advanceTimersByTime(LOOK_CHECK_MS);
+    expect(r.ons()).toEqual([true, false]);
+    // not looking: no timer runs until a page event says it looks again
+    expect(vi.getTimerCount()).toBe(0);
+    r.focusOn(true);
+    r.win.dispatchEvent(new Event('focus'));
+    expect(vi.getTimerCount()).toBe(1);
+    r.stop();
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
 });
