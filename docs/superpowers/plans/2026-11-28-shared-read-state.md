@@ -23,27 +23,31 @@ Spec: `docs/superpowers/specs/2026-11-27-clients-in-sync-design.md` §4, the rea
 - `POST /seen` and `seenRoute` go (`sessions.ts`, `agent.ts`, `routes.seen`, their tests, the auth table).
 - `server/src/audit.ts`: `looking` is not logged (early return).
 - `server/src/projects.ts` `remoteRows`: `unseen` from the host row (number, else 0).
-- Tests (`server/src/seen.test.ts`, `server/src/looking.test.ts`, `audit.test.ts`, `remote/device.test.ts`,
+- Tests (`server/src/clients.test.ts` "read state", `seen.test.ts`, `audit.test.ts`, `remote/device.test.ts`,
   `projects.test.ts`, `stateLayout.test.ts`):
   - a looker plus a final reply leaves `unseen` at 0, with no looker it is 1;
   - turning `on` marks the session and broadcasts `seen` to every socket;
   - a closed looker (and one that turned off) stops marking;
   - attach sends the current mark before `hello`;
+  - a switch, and a /clear's new id, mark while a client looks; an id that is no session id is never marked;
   - host rows carry `unseen`; another computer's rows use it.
 
 ## 3. Web
 
 - `web/src/plugins/projects/seen.ts` → `looking.ts`: `startLooking(conn, doc, win)` sends `looking` on a change of
   `!document.hidden && document.hasFocus()` (focus, blur, visibilitychange) and again at each `hello`, only to a server
-  with `looking`. The `Seen` slot becomes `Looking`.
+  with `looking`; while it looks it checks again every `LOOK_CHECK_MS` (1 s), since focus inside the HTML view's frame
+  leaves the app with no event of the page. The `Seen` slot becomes `Looking`.
 - `web/src/core/store/controls.ts`: `seenAt` from `seen`; `feed.ts` ignores `seen`.
 - `web/src/core/shell/Favicon.ts`: the done/error dot clears when `controls.seenAt` ≥ the last turn's end.
-- Tests: `looking.test.ts` (follows focus and visibility; sent again at `hello`; nothing below 41), `Favicon.test.tsx`
+- Tests: `looking.test.ts` (follows focus and visibility; sent again at `hello`; nothing below 41; a frame's focus
+  that leaves is caught within the check), `Favicon.test.tsx`
   ("a seen at or after the turn's end clears the dot, an earlier one does not").
 
-## 4. E2E, docs
+## 4. Docs
 
-- `e2e/clients.spec.ts`: a reply finished while a page looks leaves `/info.unseen` 0; with no page looking it is 1.
+- No e2e case: the e2e fake runs as `fake-session`, which is no session id and is never marked; the socket-level tests
+  in `clients.test.ts` cover the behaviour.
 - `docs/guide.md`, `docs/architecture.md`, `server/src/remote/CHANNEL.md`, CHANGELOG `## Unreleased`.
 - Known limits: omp/ACP unread clears after a restart (replays carry ts 0); an old page left open across a restart marks
   nothing until reloaded; a zombie socket stays looking ≤ 60 s.
