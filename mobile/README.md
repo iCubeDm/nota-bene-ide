@@ -109,13 +109,13 @@ commit's short hash for a commit's diff) and the text of the code rows, markers 
 ## Background and notifications
 
 `app/lib/notify/`: `events.dart` turns each window list a host pushes into notifications (a final reply neither shown
-nor notified, a wait that started; counts kept in `store/notified.dart`, apart from Seen). `background.dart` keeps the
+nor notified, a wait that started; counts kept in `store/notified.dart`; a reply read on any client, its `unseen` 0 in the list, gives none and takes its notification back). `background.dart` keeps the
 links while a window is busy or pending and for 5 minutes after, through `AgentService.kt` (a foreground service of
 type `remoteMessaging` on a minimum-importance channel); a hidden app without it drops its links after 10 minutes, as
 before. When the links run is `hosts/link_life.dart`'s, made by `main.dart` beside them: the service and a check hold them. `CheckWorker.kt` runs every 15 minutes: while the activity exists it asks that engine to `check` (one device key
 holds one connection per host; a second would close the app's with 4409), otherwise it starts an engine at
-`headless.dart`'s `backgroundCheck`. An open chat counts replies as seen only while the app is visible
-(`visible.dart`). The Dart side drives Android through `nb/background` (`platform.dart`, `Notices.kt`).
+`headless.dart`'s `backgroundCheck`. An open chat tells its window the person looks (`looking`) only while the app is visible
+(`visible.dart`); the window then marks its replies read for every client, and a row's badge is the list's `unseen`. The Dart side drives Android through `nb/background` (`platform.dart`, `Notices.kt`).
 
 ## The APK
 
