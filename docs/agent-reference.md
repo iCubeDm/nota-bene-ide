@@ -100,7 +100,7 @@ Native since 1.9.0. What differs from POSIX goes through `server/src/platform.ts
 - A handover test's newer version is `999.999.999`, which never ships.
 - `server/src/remote/*.test.ts` build and run the real relay with `go`, so `npm test` needs Go on PATH.
 - `startServer` takes the test-only `insecureNoAuth` (no flag or env var sets it); tests that are not about auth pass it.
-  Tests that need several sockets pass `oneTab: false`. The e2e servers are seeded with a known token and nonce
+  The e2e servers are seeded with a known token and nonce
   (`e2e/serve.mjs`, `e2e/auth.ts`).
 
 ## State
@@ -289,7 +289,7 @@ temp projects' transcripts (`~/.claude/projects/-private-tmp-nb-*`) to the Trash
 When a window misbehaved (a stopped turn, a lost connection, a crash loop), read its audit log before guessing:
 `<NOTA_BENE_HOME>/audit/YYYY-MM-DD.jsonl` (UTC days), one JSON object per line with `ts`, `port`, `pid`, `ev` and the
 event's fields. `ev` is `server-start` (`root`, `agent`, `node`, `supervised`), `server-stop`, `server-exit` (`code`: 75
-is the user's restart), `ws-open` / `ws-close` (`conn`, `code`; 4001 is a takeover), `client` (the page's message `type`;
+is the user's restart), `ws-open` / `ws-close` (`conn`, `code`), `client` (the page's message `type`;
 `send` has `chars`, `force`, `comments`, `images`), `event` (`kind`; `turn-end` has `stop` and `secs`, `tool-call` has
 `tool`) and `agent-system` (an SDK system message the chat does not show). A turn that ended `interrupted` was stopped
 by a `client` `interrupt`, a `send` with `force`, or a `restart` just before it. Text is never logged, so quote freely.
@@ -344,7 +344,7 @@ If the project root is this directory, the chat window you are talking through i
   `NOTA_BENE_HOME` (`node server/src/main.ts <tmpdir> --port 4790`), see it answer `/info` with the token (see
   [Access token](#access-token)), and stop it. A broken server edit crash-loops: the launcher gives up after 5 crashes
   and the user has to relaunch the window.
-- A second browser tab on your own window parks behind the "already open" overlay, and "Work here" there parks the
-  user's tab (4001). Check on a separate 4790 window instead.
+- A second browser tab on your own window is live in it: what you do there reaches the user's agent. Check on a
+  separate 4790 window instead.
 - Tests move the web build with `NOTA_BENE_BUILD_ROOT` and `NOTA_BENE_BUILD_CMD`, so they never touch the checkout's
   `web/dist`.
