@@ -17,6 +17,7 @@ export const es: Dict = {
   earlierLoading: 'Cargando…',
   earlierFailed: 'No se pudo cargar',
   srcBeforeCompact: 'antes de la compactación',
+  alreadyAnswered: 'Esta pregunta ya se respondió.',
   oldServer: 'El servidor es más antiguo que esta página: reinícialo (▾ → Reiniciar el servidor).',
   loginRequiredTitle: 'Esta ventana no ha iniciado sesión',
   loginRequiredBody: 'Ábrela de nuevo con el comando nota-bene, o con la skill nb de tu agente (/nb en Claude Code, $nb en Codex): la dirección que abren lleva el acceso. Un enlace sin él (un marcador, una dirección copiada) no basta.',

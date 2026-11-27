@@ -125,6 +125,7 @@ describe('every client', () => {
     await until(() => b.events.some((e) => e.kind === 'server-error'));
     expect(b.events.find((e) => e.kind === 'server-error')).toMatchObject({ kind: 'server-error', where: 'permission', message: 'already answered' });
     expect(a.events.some((e) => e.kind === 'server-error')).toBe(false);
+    expect(b.events.filter((e) => e.kind === 'permission-done')).toMatchObject([{ id: p.id, allow: true }]);
     await until(() => ends(a) === 1);
   });
 });

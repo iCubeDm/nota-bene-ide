@@ -17,6 +17,7 @@ export const ptBR: Dict = {
   earlierLoading: 'Carregando…',
   earlierFailed: 'Não foi possível carregar',
   srcBeforeCompact: 'antes da compactação',
+  alreadyAnswered: 'Esta pergunta já foi respondida.',
   oldServer: 'O servidor é mais antigo que esta página: reinicie-o (▾ → Reiniciar o servidor).',
   loginRequiredTitle: 'Esta janela não está autenticada',
   loginRequiredBody: 'Abra-a novamente com o comando nota-bene, ou com a skill nb do seu agente (/nb no Claude Code, $nb no Codex): o endereço que eles abrem contém o login. Um link sem ele (um favorito, um endereço copiado) não basta.',

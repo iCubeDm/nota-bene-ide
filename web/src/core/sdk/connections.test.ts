@@ -178,3 +178,11 @@ it('a thunk fetches through its own store\'s connection, not the page\'s last on
   expect(await a.dispatch(cancelRestart())).toBe(true);
   expect(spy).toHaveBeenCalledWith('/restart-server/cancel', { method: 'POST' });
 });
+
+it('a lost race to answer an ask is a toast in the page\'s language, not a server error', () => {
+  resetToasts();
+  const f = fake();
+  makeStore({ url: 'u', connect: f.connect });
+  f.ev({ kind: 'server-error', where: 'permission', message: 'already answered' });
+  expect(getToasts().map((x) => x.title)).toEqual([t('alreadyAnswered')]);
+});

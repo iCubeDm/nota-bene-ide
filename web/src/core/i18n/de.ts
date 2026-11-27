@@ -17,6 +17,7 @@ export const de: Dict = {
   earlierLoading: 'Lädt…',
   earlierFailed: 'Laden fehlgeschlagen',
   srcBeforeCompact: 'vor der Komprimierung',
+  alreadyAnswered: 'Diese Frage wurde schon beantwortet.',
   oldServer: 'Der Server ist älter als diese Seite: Starte ihn neu (▾ → Server neu starten).',
   loginRequiredTitle: 'Dieses Fenster ist nicht angemeldet',
   loginRequiredBody: 'Öffne es erneut mit dem Befehl nota-bene oder mit dem nb-Skill deines Agenten (/nb in Claude Code, $nb in Codex): Die Adresse, die sie öffnen, enthält die Anmeldung. Ein Link ohne sie (Lesezeichen, kopierte Adresse) reicht nicht.',

@@ -490,13 +490,7 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     // a socket's wiring: replay (via the hub), state frames, hello
     const attach = (ws: WebSocket) => {
       const hubDetach = hub.attach({ send: (d) => ws.send(d), buffered: () => ws.bufferedAmount });
-      let detached = false;
-      if (asksInPause.has(ws)) {
-        askers.add(ws);
-        ws.on('close', () => askers.delete(ws));
-      }
-      const detach = () => { if (!detached) { detached = true; hubDetach(); askers.delete(ws); } };
-      detachers.set(ws, detach);
+      if (asksInPause.has(ws)) askers.add(ws);
       ws.on('pong', () => alive.set(ws, true));
       if (follows.has(ws)) shown.set(ws, ++attaches);
       manager.clientAttached();
@@ -556,11 +550,11 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       // what this server understands (see PROTOCOL); last, so the state above keeps its order
       sendHello(ws);
       ws.on('close', () => {
-        detach();
+        hubDetach();
+        askers.delete(ws);
         shown.delete(ws);
       });
     };
-    const detachers = new WeakMap<WebSocket, () => void>();
 
     // a socket's messages
     const handle = (ws: WebSocket, msg: ClientMessage) => {
@@ -779,7 +773,7 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     let closing: Promise<void> | null = null;
     const close = () => (closing ??= new Promise<void>((resolve) => {
       hubs.delete(hub);
-      if (heartbeat) clearInterval(heartbeat);
+      clearInterval(heartbeat);
       order.stop();
       turnMarks.freeze(); // a stop (SIGTERM, ⏻) during a turn keeps its mark: the close ends the turn
       manager.close();

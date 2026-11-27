@@ -32,6 +32,8 @@ export const toastMiddleware: Middleware = () => (next) => (action) => {
     // a warning the server names by `where` is shown in the page's language, not as the server's English text
     if (action.payload.where === 'git-bash') toast(t('gitBashTitle'), t('gitBashMissing'));
     else if (action.payload.where === 'history-too-large') toast(t('historyTooLargeTitle'), t('historyTooLarge'));
+    // issue 174: another client answered this ask first; this answer did not count
+    else if (action.payload.where === 'permission') toast(t('alreadyAnswered'), '');
     else toast(t('serverError', action.payload.where), action.payload.message);
   }
   // a server before 39 parks a later socket (issue 174): the page waits for a restart of the server, and never takes over
@@ -236,7 +238,6 @@ export const interrupt = (): AppThunk => (_d, getState, { connection }) => {
   if (selectBusy(getState())) connection.send({ type: 'interrupt' });
 };
 
-/** «Работать здесь»: take the window over from the other tab (R-M7-5/8). */
 
 export const answerPermission = (id: string, allow: boolean, response?: import('@nota-bene/shared').InteractionAnswer): AppThunk => (_d, _g, { connection }) => {
   connection.send({ type: 'permission', id, allow, ...(response ? { response } : {}) });
