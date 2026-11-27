@@ -21,10 +21,11 @@ const cm = (id: string): Comment => ({
   id, anchor: { source: { kind: 'message', id: 'u0' }, start: 0, end: 1, quote: 'q', prefix: '', suffix: '' }, text: 'note', status: 'pending', createdAt: 1,
 });
 
+// the draft's writes are draftSync.test.ts's
 function setup(o: { protocol?: number; open?: boolean; comments?: Comment[] } = {}) {
   const sent: ClientMessage[] = [];
   const open = o.open ?? true;
-  const store = makeStore({ url: 'ws://x', connect: ((_u: unknown, _e: unknown, onState: (s: 'open') => void) => (open && onState('open'), { send: (m: ClientMessage) => (sent.push(m), true), close() {} })) as never });
+  const store = makeStore({ url: 'ws://x', connect: ((_u: unknown, _e: unknown, onState: (s: 'open') => void) => (open && onState('open'), { send: (m: ClientMessage) => (m.type === 'draft' || sent.push(m), true), close() {} })) as never });
   const feed = (ev: ServerEvent) => act(() => void store.dispatch(serverEvent(ev)));
   feed({ kind: 'hello', protocol: o.protocol ?? PROTOCOL });
   feed({ kind: 'user', id: 'u0', text: 'first', ts: 0, historic: true });

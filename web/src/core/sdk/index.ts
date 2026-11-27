@@ -100,7 +100,7 @@ export {
 } from '../store/controls.ts';
 
 // the images of the message being written
-export { addImage, removeImage, markAttachment, uploadStarted, uploadFinished, selectImages, selectUploading, selectBuilding, selectMarking } from '../store/message.ts';
+export { addImage, removeImage, imagesApplied, markAttachment, uploadStarted, uploadFinished, selectImages, selectUploading, selectBuilding, selectMarking } from '../store/message.ts';
 
 // the agent's usage figures and its background tasks
 export { selectStats } from '../store/stats.ts';

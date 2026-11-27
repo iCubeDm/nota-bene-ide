@@ -1,7 +1,7 @@
 import { activate, sendCount, sendWaiting, t, tIn, toast, type AppThunk, type SendPart, removeImage, selectBuilding, selectImages, selectUploading } from '@/sdk';
 import { isClearCommand } from './slashRank.ts';
 import { runShellDraft, selectShellMode } from './shellMode.ts';
-import { draftSent, selectDraft, setDraft, type ImageEntry } from './slice.ts';
+import { draftSent, flushDraft, selectDraft, setDraft, type ImageEntry } from './slice.ts';
 
 /**
  * Once the message went: only what was taken leaves the composer, the draft text (a tail typed since stays) and the
@@ -12,6 +12,7 @@ const draftGone = (id: string, draft: string, body: string, own: ImageEntry[]): 
   const cur = selectDraft(getState());
   d(setDraft(draft && cur.startsWith(draft) ? cur.slice(draft.length).trimStart() : cur));
   for (const im of own) d(removeImage(im.id));
+  d(flushDraft()); // every client of the window sees the draft go
   d(activate('chat')); // sent from a file tab: the reply arrives in the chat (prototype parity)
 };
 
