@@ -64,6 +64,12 @@ List<AgentEvent> detect(
     final was = notified.of(hostId, session);
     final here = onScreen?.call(hostId, w) ?? false;
     final unseen = w.unseen;
+    final pending = w.pending == true;
+    // read on some client: the notification goes, unless the agent waits for an answer (that one is still news); first,
+    // so a wait that starts now is posted after it
+    if (unseen == 0 && (was?.unseen ?? 0) > 0 && !pending) {
+      events.add(ReadEvent(hostId, w));
+    }
     var r = was?.replies ?? replies ?? 0;
     var waiting = was?.waiting ?? false;
     if (replies != null) {
@@ -80,14 +86,12 @@ List<AgentEvent> detect(
         r = replies;
       }
     }
-    final pending = w.pending == true;
     if (pending && !waiting) {
       if (!here) events.add(WaitEvent(hostId, w));
       waiting = true;
     } else if (!pending) {
       waiting = false;
     }
-    if (unseen == 0 && (was?.unseen ?? 0) > 0) events.add(ReadEvent(hostId, w));
     if (was == null ||
         was.replies != r ||
         was.waiting != waiting ||

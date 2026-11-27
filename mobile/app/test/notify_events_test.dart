@@ -70,6 +70,12 @@ void main() {
       expect(read, isA<ReadEvent>());
       expect(read.key, 'h1 s1');
       expect(list([win(replies: 2, unseen: 0)]), isEmpty);
+      // a wait is still news: read or not, it stays
+      list([win(replies: 3, unseen: 1)]);
+      expect(
+        list([win(replies: 3, unseen: 0, pending: true)]).single,
+        isA<WaitEvent>(),
+      );
     },
   );
 
