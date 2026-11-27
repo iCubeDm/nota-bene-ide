@@ -25,6 +25,8 @@ export type ControlsState = { mode: Mode | null; modeBeforePlan: Mode | null; re
   suggestion: string;
   /** the session last announced, to tell a real change from the server's title refresh (same id, new title) */
   seen: { id: string | null; root: string } | null;
+  /** protocol 41 (issue 174): when the person last saw the session on any client (`seen`, ms; 0: never, or an older server) */
+  seenAt: number;
   /** the model the agent runs and its effort, as the server last said (null until it has); `model` null: not known yet */
   model: { model: string | null; effort?: EffortLevel } | null;
   /** the models the agent offers (empty until it is up, or for a server older than protocol 6) */
@@ -58,7 +60,7 @@ export type ControlsState = { mode: Mode | null; modeBeforePlan: Mode | null; re
 };
 
 /** The mode as the UI shows it: null until the server has told us (or the user picked one). */
-const initial: ControlsState = { mode: null, modeBeforePlan: null, restoreAfterPlan: null, switching: null, modeInFlight: [], restarting: false, suggestion: '', seen: null, model: null, models: [], commands: [], idleCompact: null, protocol: 0, capabilities: null, restartPending: false, restartAsked: false, compactPending: false, held: [], tmpDirs: [] };
+const initial: ControlsState = { mode: null, modeBeforePlan: null, restoreAfterPlan: null, switching: null, modeInFlight: [], restarting: false, suggestion: '', seen: null, seenAt: 0, model: null, models: [], commands: [], idleCompact: null, protocol: 0, capabilities: null, restartPending: false, restartAsked: false, compactPending: false, held: [], tmpDirs: [] };
 
 /** Entering `plan` from X remembers X (prototype setModeUI). */
 function setMode(s: ControlsState, m: Mode): void {
@@ -121,6 +123,7 @@ export const controlsSlice = createSlice({
           if (s.modeInFlight.length === 0) setMode(s, ev.mode);
         }
       }
+      if (ev.kind === 'seen') s.seenAt = ev.at;
       if (ev.kind === 'model') s.model = { model: ev.model, ...(ev.effort && { effort: ev.effort }) };
       if (ev.kind === 'models') s.models = ev.models;
       if (ev.kind === 'commands') s.commands = ev.commands;

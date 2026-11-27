@@ -125,3 +125,21 @@ it('a turn that failed while away is red until seen; a dropped connection is red
   act(() => { store.dispatch(connState('open')); });
   expect(fill()).toBe(FAV.idle);
 });
+
+it('issue 174: a seen at or after the turn\'s end, from any client, clears the dot; an earlier one does not', () => {
+  const { ev, fill } = setup();
+  focused = false;
+  const end = (id: string, ts: number): ServerEvent => ({ kind: 'agent', ts, e: { t: 'turn-end', stop: 'done', secs: 0, answers: [id], queued: 0 } });
+  ev(user);
+  ev(end('u1', 10));
+  expect(fill()).toBe(FAV.done);
+  ev({ kind: 'seen', at: 9 });
+  expect(fill()).toBe(FAV.done);
+  ev({ kind: 'seen', at: 10 });
+  expect(fill()).toBe(FAV.idle);
+  // the mark of a turn the server makes while another client looks comes before the turn's end
+  ev({ kind: 'user', id: 'u2', text: 'again', ts: 11 } as ServerEvent);
+  ev({ kind: 'seen', at: 20 });
+  ev(end('u2', 20));
+  expect(fill()).toBe(FAV.idle);
+});

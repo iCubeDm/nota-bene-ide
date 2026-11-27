@@ -53,7 +53,6 @@ export const routes = {
   history: (session: string, before: number) => q('/history', { session, before }),
   /** with a session: that session's stored prompts; without: the current one's, or POST one */
   prompts: (session?: string) => q('/prompts', { session }),
-  seen: () => '/seen',
   /** POST: answers an agent's open ask from the server's home page (issue 651), whose base is the top */
   agentPermission: (agent: string) => `${agentPath(seg(agent))}/permission`,
   stop: () => '/stop',
