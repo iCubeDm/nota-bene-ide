@@ -64,3 +64,26 @@ it('a field mounted with a draft has its caret at the end', () => {
   const { field } = setup('keep me');
   expect(field().selection()).toEqual({ from: 7, to: 7 });
 });
+
+it('an outside change keeps the caret in place', () => {
+  const { field, rerender } = setup('hello world');
+  field().setCaret(5);
+  rerender('hello world, again');
+  expect(field().selection()).toEqual({ from: 5, to: 5 });
+  rerender('hello big world, again');
+  expect(field().selection()).toEqual({ from: 5, to: 5 });
+});
+
+it('an outside change before the caret moves it along', () => {
+  const { field, rerender } = setup('hello world');
+  field().setCaret(8);
+  rerender('oh, hello world');
+  expect(field().text()).toBe('oh, hello world');
+  expect(field().selection()).toEqual({ from: 12, to: 12 });
+});
+
+it('a caret at an outside insertion goes after it', () => {
+  const { field, rerender } = setup('foo');
+  rerender('foo two');
+  expect(field().selection()).toEqual({ from: 7, to: 7 });
+});

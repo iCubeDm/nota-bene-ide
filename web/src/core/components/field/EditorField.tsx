@@ -103,12 +103,22 @@ export function EditorField({ fieldRef, id, value, onChange, onKeyDown, onPaste,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, ariaLabel, placeholder]);
 
+  // a value from outside (another client's draft, a recalled prompt) is the change between the two texts only, so the
+  // caret and the selection keep their place in the text around them; into an empty field the caret goes to the end
   useEffect(() => {
     const v = view.current;
-    if (!v || v.state.doc.toString() === value) return;
+    const doc = v?.state.doc.toString();
+    if (!v || doc === undefined || doc === value) return;
+    const max = Math.min(doc.length, value.length);
+    let head = 0;
+    while (head < max && doc[head] === value[head]) head++;
+    let tail = 0;
+    while (tail < max - head && doc[doc.length - 1 - tail] === value[value.length - 1 - tail]) tail++;
+    const changes = v.state.changes({ from: head, to: doc.length - tail, insert: value.slice(head, value.length - tail) });
     v.dispatch({
-      changes: { from: 0, to: v.state.doc.length, insert: value },
-      selection: { anchor: value.length },
+      changes,
+      // a caret at the change goes after it: a recalled prompt that extends the typed words ends with the caret
+      selection: doc === '' ? { anchor: value.length } : v.state.selection.map(changes, 1),
       annotations: [fromHost.of(true), Transaction.addToHistory.of(false)],
     });
   }, [value]);
