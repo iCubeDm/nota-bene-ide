@@ -19,6 +19,12 @@ export const messageSlice = createSlice({
       s.images = s.images.filter((i) => i.id !== a.payload);
       if (s.marking === a.payload) s.marking = null;
     },
+    /** another client's draft (issue 174): its images replace these, not a local edit */
+    imagesApplied: (s, a: PayloadAction<ImageEntry[]>) => {
+      if (a.payload.map((i) => i.id).join() === s.images.map((i) => i.id).join()) return;
+      s.images = a.payload;
+      if (s.marking !== null && !a.payload.some((i) => i.id === s.marking)) s.marking = null;
+    },
     markAttachment: (s, a: PayloadAction<string | null>) => void (s.marking = a.payload),
     uploadStarted: (s) => void (s.uploading += 1),
     uploadFinished: (s) => void (s.uploading = Math.max(0, s.uploading - 1)),
@@ -26,7 +32,7 @@ export const messageSlice = createSlice({
   extraReducers: (b) => b.addCase(sendBuilding, (s, a) => void (s.building = a.payload)),
 });
 
-export const { addImage, removeImage, markAttachment, uploadStarted, uploadFinished } = messageSlice.actions;
+export const { addImage, removeImage, imagesApplied, markAttachment, uploadStarted, uploadFinished } = messageSlice.actions;
 export const selectImages = (s: RootState): ImageEntry[] => s.message.images;
 export const selectUploading = (s: RootState): number => s.message.uploading;
 /** A send is building its combined images: the send buttons are off (a snapshot of the draft and comments is already taken). */

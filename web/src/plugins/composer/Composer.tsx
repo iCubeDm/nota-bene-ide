@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat, sendCount, sendWaiting, nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching, draggedPaths, useSeekStep, insertPaths, hasFiles, ComposerFieldContext, addImage, selectBuilding, selectImages, selectUploading, uploadFinished, uploadStarted, PLAYER_HELP, useService, useFeature, type Field } from '@/sdk';
+import { useT, selectBusy, selectConn, useAppDispatch, useAppSelector, useRegistry, keysLabel, modKey, withKey, chat, sendCount, sendWaiting, nextMode, pickMode, selectCapabilities, selectMode, selectSuggestion, selectSwitching, draggedPaths, useSeekStep, insertPaths, hasFiles, ComposerFieldContext, addImage, selectBuilding, selectImages, selectUploading, uploadFinished, uploadStarted, PLAYER_HELP, useService, useFeature, pageVisible, type Field } from '@/sdk';
 import { Button, MessageInput, MicButton, SendIcon, Slots, Tooltip, TooltipContent, TooltipTrigger } from '@/sdk/ui';
 import { SlashPicker } from './SlashPicker.tsx';
 import { selectShellMode } from './shellMode.ts';
@@ -8,7 +8,7 @@ import { PromptHistory } from './PromptHistory.tsx';
 import { selectPromptItems, selectPromptSid } from './history.ts';
 import { usePromptRecall } from './usePromptRecall.ts';
 import { useComposerKeys } from './useComposerKeys.ts';
-import { selectDraft, setDraft } from './slice.ts';
+import { flushDraft, selectDraft, setDraft } from './slice.ts';
 import { VOICE_KEY } from './commands.ts';
 
 export function Composer() {
@@ -192,6 +192,18 @@ export function Composer() {
     };
   }, []);
 
+  // the draft's last edits go now, not at the throttle's next turn, when the page may be gone: it hides or unloads
+  useEffect(() => {
+    const now = () => void dispatch(flushDraft());
+    const hidden = () => !pageVisible() && now();
+    window.addEventListener('pagehide', now);
+    document.addEventListener('visibilitychange', hidden);
+    return () => {
+      window.removeEventListener('pagehide', now);
+      document.removeEventListener('visibilitychange', hidden);
+    };
+  }, [dispatch]);
+
   // a send that failed while offline is forgotten once the socket is back, so a later drop shows no stale label
   useEffect(() => {
     if (conn === 'open') setFailed(false);
@@ -241,7 +253,7 @@ export function Composer() {
   };
 
   return (
-    <div onDragOver={treeOver} onDrop={treeDrop}>
+    <div onDragOver={treeOver} onDrop={treeDrop} onBlur={() => dispatch(flushDraft())}>
       <div className="flex min-h-0 items-center gap-2.5 pt-2 text-xs text-muted-foreground">
         {busy && (
           <>

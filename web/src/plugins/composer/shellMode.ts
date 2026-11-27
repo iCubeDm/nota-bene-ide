@@ -1,6 +1,6 @@
 import { SHELL_CMD_MAX } from '@nota-bene/shared';
 import { t, toast, byteSize, activate, selectConn, sendWaiting, type AppThunk, type RootState, selectImages, selectFeature } from '@/sdk';
-import { selectDraft, setDraft, shellDraftSent } from './slice.ts';
+import { flushDraft, selectDraft, setDraft, shellDraftSent } from './slice.ts';
 
 
 /**
@@ -36,6 +36,7 @@ export const runShellDraft = (): AppThunk<'sent' | 'blocked' | 'empty' | 'offlin
   if (selectConn(st) !== 'open' || !connection.send({ type: 'shell-run', id, cmd })) return 'offline';
   d(shellDraftSent({ id, draft })); // until the server's shell-start: a refusal puts it back
   d(setDraft(''));
+  d(flushDraft());
   d(activate('chat'));
   return 'sent';
 };

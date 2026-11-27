@@ -37,7 +37,7 @@ test('available → Update → installing → ready restarts in a pause @chat', 
   await expect.poll(() => s.posts.includes('/system/update/restart')).toBe(true); // idle, empty composer: it asks for the restart
 });
 
-test('ready with a draft waits until the composer is empty; failed names the log @chat', async ({ page }) => {
+test('ready with a draft: the server keeps the draft, so the update goes and the draft outlives it; failed names the log @chat', async ({ page }) => {
   const s = await stub(page, { ...base, phase: 'available' });
   await page.goto('');
   await expect(composer(page)).toBeVisible();
@@ -45,10 +45,11 @@ test('ready with a draft waits until the composer is empty; failed names the log
   s.set({ ...base, phase: 'ready' });
   await page.evaluate(() => window.dispatchEvent(new Event('focus'))); // the page asks again on focus
   await expect(page.getByText(en.updateReady('1.99.0'))).toBeVisible();
-  await page.waitForTimeout(1500);
-  expect(s.posts).not.toContain('/system/update/restart'); // a draft: not a pause
-  await composer(page).fill('');
+  // issue 174: a synced draft is no reason to wait (an unsynced one is: draftSync.test.ts)
   await expect.poll(() => s.posts.includes('/system/update/restart')).toBe(true);
+  await page.reload();
+  await expect(composer(page)).toHaveText('half a thought');
+  await composer(page).fill('');
 
   s.set({ ...base, phase: 'failed', failed: 'npm install exited with 1' });
   await page.reload();

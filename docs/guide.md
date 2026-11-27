@@ -287,6 +287,8 @@ Export needs ffmpeg on the machine: the path in `NOTA_BENE_FFMPEG`, else `ffmpeg
 
 Enter sends, Shift+Enter is a new line. The chat tab cannot be closed.
 
+The message you are writing, with its attached images, is the session's draft, kept by the window: every tab and a paired computer show it, and it is still there after a reload, a restart or an update. Each session has its own draft: opening another session shows that one's, and coming back brings yours back. The last edit wins (no merging of two people typing), and sending from anywhere clears it everywhere. The phone app keeps its own draft for now. A draft over 256K characters stays in its tab.
+
 The message box and the comment box draw markdown as you type: `**bold**`, `_italic_`, `~~struck~~`, `` `code` ``, links, lists and quotes look like themselves, and their marks show only where the caret is. Typing ` ``` ` opens a code block and closes it for you; inside it Enter is a new line, and Enter on an empty last line leaves the block. A mark formats what follows it as soon as you type it, before it is closed. Tab and Shift+Tab nest a list item (nested numbered levels count 1., a., i., then 1. again; numbers follow as items move) or indent a line of code; elsewhere Tab leaves the box. Selecting text shows a format bar (bold, italic, strikethrough, code, link, code block, bulleted list, numbered list, quote); ⌘B, ⌘I, ⌘⇧X, ⌘E and ⌘K (Ctrl on Windows and Linux) do the same, and again take the format off. What is sent is the markdown as typed. A `!` shell command is shown as is.
 
 - A message sent while the agent works joins the running turn. Cmd/Ctrl+Enter interrupts and sends; while the agent works it asks first (Cmd/Ctrl+Enter again or **Interrupt and send**; Esc or **Cancel**; plain Enter joins the turn).
@@ -528,7 +530,7 @@ Each column counts its own week only, so past weeks stay fixed; a dash means no 
 
 An installed window checks npm (at most once a minute per machine, and on returning to the tab; nothing about you is sent). A newer version shows `↑ <version>` with its changes; **Later** hides it.
 
-- **Update** installs it beside the current one; the window restarts in a pause (nothing running, empty composer) on the same port and session. **Restart** does it at once.
+- **Update** installs it beside the current one; the window restarts in a pause (nothing running, and no draft the window has not saved yet) on the same port and session. **Restart** does it at once.
 - **Update automatically** (off by default, per machine) does this for every release.
 - A failed install, no answer in 20 s or an exit in the first minute rolls back and shows `runtime/update.log`.
 - Source checkouts never update; versions up to 1.6.0 update once by hand (`npm i -g nota-bene-ide@latest`, then reopen the windows).
@@ -538,7 +540,7 @@ Turn the check off in Settings → Defaults (per agent) or with `NOTA_BENE_NO_UP
 
 <details><summary>More</summary>
 
-The answer is shared through `update-check.json`; changes come from the GitHub CHANGELOG once per version. Only the newest version seen on npm installs, never one the page names. With no page open the server restarts itself. The page reloads when its composer is empty, else offers **Reload**. **Restart** is off while something runs. Auto retries a failed install after an hour, a rolled-back one never.
+The answer is shared through `update-check.json`; changes come from the GitHub CHANGELOG once per version. Only the newest version seen on npm installs, never one the page names. With no page open the server restarts itself. The page reloads when its draft is saved by the window (or empty), else offers **Reload**. **Restart** is off while something runs. Auto retries a failed install after an hour, a rolled-back one never.
 
 </details>
 

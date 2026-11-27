@@ -306,6 +306,39 @@
         },
         {
           "properties": {
+            "id": {
+              "type": "string"
+            },
+            "images": {
+              "items": {
+                "$ref": "#/definitions/DraftImage"
+              },
+              "type": "array"
+            },
+            "sessionId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "const": "draft",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "sessionId",
+            "text"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
             "type": {
               "const": "interrupt",
               "type": "string"
@@ -738,6 +771,22 @@
         "track",
         "src",
         "srcTime"
+      ],
+      "type": "object"
+    },
+    "DraftImage": {
+      "description": "issue 174: an uploaded image of the composer's draft (as the web's `ImageEntry`)",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "mediaType": {
+          "$ref": "#/definitions/ImageType"
+        }
+      },
+      "required": [
+        "id",
+        "mediaType"
       ],
       "type": "object"
     },
@@ -1879,6 +1928,38 @@
           "required": [
             "kind",
             "items"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "ack": {
+              "type": "string"
+            },
+            "images": {
+              "items": {
+                "$ref": "#/definitions/DraftImage"
+              },
+              "type": "array"
+            },
+            "kind": {
+              "const": "draft",
+              "type": "string"
+            },
+            "sessionId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "sessionId",
+            "text"
           ],
           "type": "object"
         },
@@ -3958,6 +4039,7 @@
     "commentOps": 19,
     "compactOrder": 27,
     "cutAnchors": 23,
+    "draft": 40,
     "fireLabel": 3,
     "heldSends": 27,
     "imagesAlone": 26,
@@ -3980,5 +4062,5 @@
     "voiceDetect": 18,
     "wholePicture": 25
   },
-  "x-protocol": 39
+  "x-protocol": 40
 }

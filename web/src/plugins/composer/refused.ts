@@ -1,6 +1,6 @@
 import type { Middleware } from '@reduxjs/toolkit';
 import { t, toast, serverEvent, refusedWhy, addImage } from '@/sdk';
-import { setDraft } from './slice.ts';
+import { flushDraft, setDraft } from './slice.ts';
 import type { SentDraft, ShellDraft } from './slice.ts';
 
 // RootState is derived from this middleware's store: naming it here would make the type circular
@@ -23,6 +23,7 @@ export const refusedMiddleware: Middleware = (api) => (next) => (action) => {
     const why = t(shell.reason === 'running' ? 'shellBusy' : 'shellSwitching');
     if (!(api.getState() as Slice).composer.draft.trim()) {
       api.dispatch(setDraft(last.draft));
+      api.dispatch(flushDraft()); // back on every client of the window
       toast(why, '');
     } else toast(why, last.draft.length > 200 ? `${last.draft.slice(0, 199)}…` : last.draft);
     return result;
@@ -37,6 +38,7 @@ export const refusedMiddleware: Middleware = (api) => (next) => (action) => {
   if (!now.composer.draft.trim() && !now.message.images.length) {
     api.dispatch(setDraft(last.text));
     for (const im of last.images) api.dispatch(addImage(im));
+    api.dispatch(flushDraft());
     toast(why, '');
   } else {
     toast(why, last.text.length > 200 ? `${last.text.slice(0, 199)}…` : last.text);

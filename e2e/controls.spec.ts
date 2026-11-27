@@ -374,6 +374,38 @@ test('switching sessions: only this project\'s are offered, sends wait, the draf
   await expect(page.getByText('alpha answer')).toBeVisible();
 });
 
+test('issue 174: each session shows its own draft, kept by the server @controls', async ({ page }) => {
+  const t = track(page);
+  await open(page);
+  const pick = async (title: string) => {
+    await page.locator('#sessBtn').click();
+    await page.locator('[data-sess-item]').filter({ hasText: title }).click();
+    await page.getByRole('dialog').getByRole('button', { name: en.switchBtn }).click();
+    await expect(page.locator('[data-tab="chat"]')).toContainText(title);
+    await expect(page.locator('#conn')).toHaveText('');
+  };
+  /** types `text` as the draft and waits for the server's echo of it */
+  const type = async (text: string) => {
+    const from = t.got.length;
+    await composer(page).fill(text);
+    await expect.poll(() => t.got.slice(from).some((f) => f.kind === 'draft' && f.ack !== undefined && f.text === text)).toBe(true);
+  };
+  const alpha = uniq('alpha draft');
+  const gamma = uniq('gamma draft');
+  await type(alpha);
+  await pick('Gamma session');
+  await expect.poll(() => fieldText(composer(page))).not.toBe(alpha);
+  await type(gamma);
+  await pick('Alpha session');
+  await expect.poll(() => fieldText(composer(page))).toBe(alpha);
+  await page.reload();
+  await expect.poll(() => fieldText(composer(page))).toBe(alpha);
+  await type(''); // the next tests start from empty drafts
+  await pick('Gamma session');
+  await expect.poll(() => fieldText(composer(page))).toBe(gamma);
+  await type('');
+});
+
 // B1b: the `/` menu and typed commands. The fixture's command list has a user command with a hint, three builtins on the
 // allowlist, one off it (`model`) and one the CLI tags as terminal-only (`doctor`): the last two are never offered.
 test('the / menu offers the session\'s commands, picks with Tab and runs a skill typed from it @controls', async ({ page }) => {

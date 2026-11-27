@@ -115,6 +115,7 @@ export class AuditLog {
       case 'comments': Object.assign(f, { count: msg.items.length }); break;
       case 'comment-op': Object.assign(f, { opId: msg.opId, ops: msg.ops.map((o) => o.op).join(',') }); break;
       case 'activity': return; // a heartbeat of the page, not an event
+      case 'draft': return; // typing, not an event: the words stay out, and so do the writes
       default: break;
     }
     this.write('client', f);

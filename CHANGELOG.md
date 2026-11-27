@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **The draft is shared, per session.** What you are writing and its attached images show in every tab of the window and on a paired computer, survive a reload, a restart and an update, and each session keeps its own: switch away and back and it is still there. The last edit wins, and a send from anywhere clears it. The phone keeps its own draft for now.
 - **A window is live on every client at once, with no Work here.** Browser tabs, the phone and a paired computer's tab all show the window and act in it together; none is parked behind "already open in another tab". When two answer one question, the first counts and the other hears it was already answered. A page that meets an older server says to restart the server.
 
 ## 2.3.0 — 2026-11-26
