@@ -5,7 +5,7 @@ import http from 'node:http';
 import path from 'node:path';
 import type { Duplex } from 'node:stream';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { isAttachmentAnchor, parseClientMessage, PROTOCOL } from '@nota-bene/shared';
+import { isAttachmentAnchor, isSessionId, parseClientMessage, PROTOCOL } from '@nota-bene/shared';
 import type { ClientMessage, Comment, ServerEvent, Stats } from '@nota-bene/shared';
 import type { ProviderBackend as AgentBackend } from './agent/types.ts';
 import type { AgentProvider } from './agent/provider.ts';
@@ -27,7 +27,7 @@ import { tmpDirNames } from './tmpImage.ts';
 import { readPrefs } from './prefs.ts';
 import { httpHandler, isAllowedHost } from './http.ts';
 import { SwitchError, createSessionManager, trackedCommand } from './session.ts';
-import { archiveRoute, deleteRoute, listSessionsView, renameRoute, seenRoute } from './sessions.ts';
+import { archiveRoute, deleteRoute, listSessionsView, renameRoute } from './sessions.ts';
 import { readArchived, setArchived } from './archivedSessions.ts';
 import { markSeen, readSeen } from './seen.ts';
 import { forgetSession, type AgentContext } from './state.ts';
@@ -210,6 +210,23 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     // keeps the history, so the new id gets a copy of the previous one's
     const prompts = new PromptStore({ dir: path.join(agent.stateDir, 'prompts'), report: (e) => reportError(hub, 'prompts', e) });
     hub.tap((ev) => { if (changesWork(ev)) turnMarks.schedule(); });
+    // issue 174: the read state is the server's. While a client looks at the window (`looking`), its session is seen:
+    // when one turns on, on a switch or a new id, and at each final reply and turn end, marked at the event's own time
+    // before any later /info is read (a client's favicon clears on a mark at or after the turn's end)
+    const lookers = new Set<WebSocket>();
+    const seenAt = (): number => { const id = manager.info().id?.toLowerCase(); return id ? readSeen(agent.stateDir)[id] ?? 0 : 0; };
+    const markLooked = (at = Date.now()) => {
+      const id = manager.info().id?.toLowerCase();
+      if (!lookers.size || !id || !isSessionId(id)) return;
+      try {
+        hub.emit({ kind: 'seen', at: markSeen(id, at, agent.stateDir) }, { store: false });
+      } catch (e) {
+        reportError(hub, 'seen', e);
+      }
+    };
+    hub.tap((ev) => { if (ev.kind === 'agent' && (ev.e.t === 'message' || ev.e.t === 'turn-end')) markLooked(ev.ts); });
+    manager.onSessionId(() => markLooked());
+    manager.onSwitch(() => markLooked());
     manager.onSessionId((id, prev) => {
       turnMarks.schedule();
       if (prev === null) store.adopt(id);
@@ -309,7 +326,7 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       const asks = manager.asks();
       // busy (a turn or a running task, issue 667) and clients: for the lists of
       // projects; pending, last, replies: the phone's list
-      return { agent: a.id, root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: working(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(id ? readSeen(agent.stateDir)[id.toLowerCase()] ?? 0 : 0), clients: hub.clients(), icon: projectIcons.versionOrNull(root), agents: s.agents(), ...(asks.length ? { asks: asks.map(clipAsk) } : {}) };
+      return { agent: a.id, root, session: id, title, model, supervised: supervised(), codeChanged: codeChanged(), busy: working(), restartPending: restart.pending(), pending: manager.pending(), ...hub.summary(seenAt()), clients: hub.clients(), icon: projectIcons.versionOrNull(root), agents: s.agents(), ...(asks.length ? { asks: asks.map(clipAsk) } : {}) };
     };
     const handler = httpHandler({
       hub,
@@ -342,7 +359,6 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
         }),
         '/sessions': sessionsRoute,
         '/sessions/rename': renameRoute({ hub, rename: (id, title) => manager.rename(id, title) }),
-        '/seen': seenRoute({ hub, current: () => manager.info().id, mark: (id, at) => markSeen(id, at, agent.stateDir) }),
         '/sessions/archive': archiveRoute({ hub, current: () => manager.info().id, set: (id, on) => setArchived(id, on, agent.stateDir) }),
         '/sessions/delete': deleteRoute({
           hub, current: () => manager.info().id, switching: () => manager.switching(),
@@ -531,6 +547,11 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       } catch (e) {
         reportError(hub, 'draft', e);
       }
+      try {
+        ws.send(JSON.stringify({ kind: 'seen', at: seenAt() }));
+      } catch (e) {
+        reportError(hub, 'seen', e);
+      }
       if (o.remote) {
         try {
           ws.send(JSON.stringify({ kind: 'remote', state: o.remote.state() }));
@@ -585,6 +606,7 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
         hubDetach();
         askers.delete(ws);
         shown.delete(ws);
+        lookers.delete(ws);
       });
     };
 
@@ -745,6 +767,9 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
             break;
           case 'compact-cancel':
             order.cancel();
+            break;
+          case 'looking':
+            if (msg.on) { lookers.add(ws); markLooked(); } else lookers.delete(ws);
             break;
           case 'switch':
             manager.switch({ id: msg.id, dir: msg.dir }).catch(switchFailed);

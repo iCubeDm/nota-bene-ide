@@ -16,10 +16,10 @@ it('a missing or corrupt file is nothing seen', () => {
   expect(readSeen(dir)).toEqual({});
 });
 
-it('marks keep only a later time, per session', () => {
-  markSeen(A, 100, dir);
+it('marks keep only a later time, per session; each answers the mark it leaves', () => {
+  expect(markSeen(A, 100, dir)).toBe(100);
   markSeen(B, 50, dir);
-  markSeen(A, 90, dir);
+  expect(markSeen(A, 90, dir)).toBe(100);
   expect(readSeen(dir)).toEqual({ [A]: 100, [B]: 50 });
   markSeen(A, 120, dir);
   expect(readSeen(dir)[A]).toBe(120);

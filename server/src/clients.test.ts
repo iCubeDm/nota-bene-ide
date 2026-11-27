@@ -6,6 +6,7 @@ import WebSocket from 'ws';
 import type { ServerEvent } from '@nota-bene/shared';
 import { fakeBackend } from './agent/fake.ts';
 import { agentServer } from './testing.ts';
+import { readSeen } from './seen.ts';
 
 let home: string;
 let dist: string;
@@ -25,10 +26,11 @@ afterEach(async () => {
   fs.rmSync(dist, { recursive: true, force: true });
 });
 
-async function boot(o: { heartbeat?: number; turns?: Parameters<typeof fakeBackend>[0] } = {}) {
+async function boot(o: { heartbeat?: number; turns?: Parameters<typeof fakeBackend>[0]; resume?: string; sessions?: { id: string; cwd: string; lastModified: number }[] } = {}) {
   const s = await agentServer({ insecureNoAuth: true,
-    cwd: '/proj', port: 0, backend: fakeBackend(o.turns ?? [{ text: 'hello' }]), webDist: dist,
+    cwd: '/proj', port: 0, backend: fakeBackend(o.turns ?? [{ text: 'hello' }], o.sessions ? { sessions: o.sessions } : {}), webDist: dist,
     ...(o.heartbeat ? { heartbeatMs: o.heartbeat } : {}),
+    ...(o.resume ? { resume: o.resume } : {}),
   });
   closers.push(s.close);
   return s;
@@ -56,7 +58,7 @@ async function until(cond: () => boolean, ms = 3000): Promise<void> {
 }
 const kinds = (c: Client) => c.events.map((e) => e.kind);
 const ends = (c: Client) => c.events.filter((e) => e.kind === 'agent' && e.e.t === 'turn-end').length;
-const info = async (url: string) => (await fetch(`${url}/info`)).json() as Promise<{ clients: number; busy: boolean }>;
+const info = async (url: string) => (await fetch(`${url}/info`)).json() as Promise<{ clients: number; busy: boolean; unseen: number }>;
 
 // issue 174: every socket of a window is attached and live (browser tabs, the phone, another computer's tab)
 describe('every client', () => {
@@ -127,5 +129,113 @@ describe('every client', () => {
     expect(a.events.some((e) => e.kind === 'server-error')).toBe(false);
     expect(b.events.filter((e) => e.kind === 'permission-done')).toMatchObject([{ id: p.id, allow: true }]);
     await until(() => ends(a) === 1);
+  });
+});
+
+// issue 174: the read state is the server's; a reply read on one client is read on all of them
+describe('read state', () => {
+  const SESSION = '33333333-3333-4333-8333-333333333333';
+  const turns = [{ text: 'one' }, { text: 'two' }, { text: 'three' }];
+  const looking = (c: Client, on: boolean) => c.ws.send(JSON.stringify({ type: 'looking', on }));
+  const seen = (c: Client) => c.events.filter((e): e is Extract<ServerEvent, { kind: 'seen' }> => e.kind === 'seen');
+  const reply = async (c: Client) => {
+    const n = ends(c);
+    c.ws.send(JSON.stringify({ type: 'send', id: `u${n}`, text: 'hi' }));
+    await until(() => ends(c) === n + 1);
+  };
+
+  it('a final reply while a client looks is seen at once; with none looking it is unseen', async () => {
+    const s = await boot({ turns, resume: SESSION });
+    const a = await connect(s.url);
+    const b = await connect(s.url);
+    await until(() => kinds(a).includes('hello') && kinds(b).includes('hello'));
+    await reply(a);
+    expect((await info(s.url)).unseen).toBe(1);
+    looking(b, true);
+    await until(() => seen(a).length === 2);
+    expect((await info(s.url)).unseen).toBe(0);
+    await reply(a);
+    expect((await info(s.url)).unseen).toBe(0);
+  });
+
+  it('turning on marks the session and every socket hears the mark, which a late socket gets before hello', async () => {
+    const s = await boot({ turns, resume: SESSION });
+    const a = await connect(s.url);
+    const b = await connect(s.url);
+    await until(() => kinds(a).includes('hello') && kinds(b).includes('hello'));
+    expect(seen(a)).toEqual([{ kind: 'seen', at: 0 }]);
+    const before = Date.now();
+    looking(a, true);
+    await until(() => seen(b).length === 2);
+    const at = seen(b)[1]!.at;
+    expect(at).toBeGreaterThanOrEqual(before);
+    expect(seen(a)[1]).toEqual({ kind: 'seen', at });
+    const late = await connect(s.url);
+    await until(() => kinds(late).includes('hello'));
+    expect(seen(late)).toEqual([{ kind: 'seen', at }]);
+    expect(kinds(late).indexOf('seen')).toBeLessThan(kinds(late).indexOf('hello'));
+    const replay = late.events[0]!;
+    expect(replay.kind === 'replay' && replay.events.some((e) => e.kind === 'seen')).toBe(false);
+  });
+
+  it('a client that turns off, or closes, marks no more', async () => {
+    const s = await boot({ turns, resume: SESSION });
+    const a = await connect(s.url);
+    const b = await connect(s.url);
+    await until(() => kinds(a).includes('hello') && kinds(b).includes('hello'));
+    looking(a, true);
+    looking(a, false);
+    await until(() => seen(a).length === 2);
+    await reply(a);
+    expect((await info(s.url)).unseen).toBe(1);
+    looking(b, true);
+    await until(() => seen(a).length === 3);
+    b.ws.close();
+    await b.closed;
+    await new Promise((r) => setTimeout(r, 50));
+    await reply(a);
+    expect((await info(s.url)).unseen).toBe(1);
+  });
+
+  it('a switch while a client looks marks the session switched to', async () => {
+    const OTHER = '44444444-4444-4444-8444-444444444444';
+    const dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'nb-clients-b-')));
+    closers.push(async () => fs.rmSync(dir, { recursive: true, force: true }));
+    const s = await boot({ turns, resume: SESSION, sessions: [{ id: OTHER, cwd: dir, lastModified: 1 }] });
+    const a = await connect(s.url);
+    await until(() => kinds(a).includes('hello'));
+    looking(a, true);
+    await until(() => seen(a).length === 2);
+    a.ws.send(JSON.stringify({ type: 'switch', id: OTHER, dir }));
+    await until(() => seen(a).length === 3);
+    expect(readSeen(home)[OTHER]).toBe(seen(a)[2]!.at);
+  });
+
+  it('a /clear while a client looks marks the new conversation as soon as it has its id', async () => {
+    const s = await boot({ turns, resume: SESSION });
+    const a = await connect(s.url);
+    await until(() => kinds(a).includes('hello'));
+    looking(a, true);
+    await until(() => seen(a).length === 2);
+    const from = a.events.length;
+    a.ws.send(JSON.stringify({ type: 'command', name: 'clear' }));
+    await until(() => ends(a) === 1);
+    const after = a.events.slice(from);
+    const at = after.findIndex((e) => e.kind === 'session' && !!e.id && e.id !== SESSION);
+    const id = (after[at] as Extract<ServerEvent, { kind: 'session' }>).id!;
+    // one mark at the new id, before the one of the /clear's turn end
+    const marks = after.slice(at).filter((e) => e.kind === 'seen');
+    expect(marks).toHaveLength(2);
+    expect(marks[1]).toEqual({ kind: 'seen', at: readSeen(home)[id] });
+  });
+
+  it('an id that is no session id (the fake\'s own) is never marked, and no error is told', async () => {
+    const s = await boot();
+    const a = await connect(s.url);
+    await until(() => kinds(a).includes('hello'));
+    looking(a, true);
+    await reply(a);
+    expect(seen(a)).toEqual([{ kind: 'seen', at: 0 }]);
+    expect(kinds(a)).not.toContain('server-error');
   });
 });

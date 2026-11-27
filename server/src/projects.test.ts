@@ -331,17 +331,17 @@ it('epic 383: stopOthers from an agent\'s page leaves its own server', async () 
   expect(await stopOthers({ port, agent: id })).toEqual({ stopped: 0, failed: 0 });
 });
 
-it('issue 297: a paired computer\'s windows as rows, the state from its host stream, the proxy\'s own one current', () => {
+it('issue 297: a paired computer\'s windows as rows, the state and unseen replies from its host stream, the proxy\'s own one current', () => {
   const last = { role: 'assistant' as const, text: 'done', at: 5 };
   const rows = remoteRows([{ id: 'h1', name: 'Studio', windows: [
-    { port: 4777, provider: 'claude', root: '/p/a', title: 'T', session: 's1', busy: true, last },
+    { port: 4777, provider: 'claude', root: '/p/a', title: 'T', session: 's1', busy: true, last, unseen: 2 },
     { port: 4778, provider: 'codex', root: '/p/b', busy: true, pending: true },
     { port: 4779, provider: 'omp', root: '/p/c' },
     { port: 4781, provider: 'gpt' as 'omp', root: '/p/d' }, // a newer computer's agent
   ] }], { host: 'h1', port: 4779 });
   expect(rows).toEqual([
-    { provider: 'claude', port: 4777, root: '/p/a', title: 'T', session: 's1', state: 'working', current: false, clients: 0, unseen: 0, last, remote: { host: 'h1', name: 'Studio' } },
-    expect.objectContaining({ port: 4778, state: 'waiting', title: null, last: null }),
+    { provider: 'claude', port: 4777, root: '/p/a', title: 'T', session: 's1', state: 'working', current: false, clients: 0, unseen: 2, last, remote: { host: 'h1', name: 'Studio' } },
+    expect.objectContaining({ port: 4778, state: 'waiting', title: null, last: null, unseen: 0 }),
     expect.objectContaining({ port: 4779, state: 'idle', current: true }),
   ]);
 });

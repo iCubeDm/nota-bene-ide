@@ -510,6 +510,22 @@
         },
         {
           "properties": {
+            "on": {
+              "type": "boolean"
+            },
+            "type": {
+              "const": "looking",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "on"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
             "type": {
               "const": "takeover",
               "type": "string"
@@ -974,6 +990,10 @@
             "string",
             "null"
           ]
+        },
+        "unseen": {
+          "description": "Issue 174: the final replies after the person last saw the session on any client (the window's /info.unseen). Absent from a host before protocol 41.",
+          "type": "integer"
         }
       },
       "required": [
@@ -1960,6 +1980,22 @@
             "kind",
             "sessionId",
             "text"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "at": {
+              "type": "number"
+            },
+            "kind": {
+              "const": "seen",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "at"
           ],
           "type": "object"
         },
@@ -4043,6 +4079,7 @@
     "fireLabel": 3,
     "heldSends": 27,
     "imagesAlone": 26,
+    "looking": 41,
     "mediaAnchors": 4,
     "modeAck": 2,
     "models": 6,
@@ -4062,5 +4099,5 @@
     "voiceDetect": 18,
     "wholePicture": 25
   },
-  "x-protocol": 40
+  "x-protocol": 41
 }

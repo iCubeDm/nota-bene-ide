@@ -79,6 +79,12 @@ void main() {
     },
   );
 
+  test('a row keeps its unseen count through withIcon (issue 174)', () {
+    final w = HostWindow.fromJson(raw({'unseen': 2}));
+    expect(w.unseen, 2);
+    expect(w.withIcon('v1').unseen, 2);
+  });
+
   test(
     'a server\'s agents are rows of the one list, each with its agent id (epic 383)',
     () {

@@ -49,6 +49,8 @@ export function startFavicon(store: Pick<Store<RootState>, 'getState' | 'subscri
   const draw = (fill: string) => { el.href = `data:image/svg+xml,${encodeURIComponent(faviconSvg(fill))}`; };
   const away = () => doc.hidden || !doc.hasFocus();
   let unseen: Unseen = null;
+  /** the end of the turn `unseen` announces: a `seen` from any client at or after it clears the dot (issue 174) */
+  let endedAt = 0;
   let seen = store.getState().feed.turnSeq;
   let cur: FavState | null = null;
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -65,15 +67,18 @@ export function startFavicon(store: Pick<Store<RootState>, 'getState' | 'subscri
     } else draw(FAV[next]);
   };
   const unsub = store.subscribe(() => {
-    const { turnSeq: seq, items } = store.getState().feed;
+    const { feed: { turnSeq: seq, items }, controls: { seenAt } } = store.getState();
     // a live result only: a replay keeps turnSeq, so reconnecting never lights "done"
     if (seq !== seen) {
       seen = seq;
       if (away()) {
         const last = items.findLast((it) => it.kind === 'done');
         unseen = last?.kind === 'done' && last.status === 'failed' ? 'error' : 'done';
+        endedAt = last?.kind === 'done' ? last.ts : Infinity;
       }
     }
+    // the mark of a turn seen elsewhere may come before the turn's end: checked after it too
+    if (unseen && seenAt >= endedAt) unseen = null;
     sync();
   });
   const seenIt = () => { if (unseen && !away()) { unseen = null; sync(); } };

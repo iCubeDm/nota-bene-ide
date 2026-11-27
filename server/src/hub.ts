@@ -179,7 +179,8 @@ export class EventHub {
     for (const ev of this.history) {
       if (ev.kind !== 'agent' || ev.e.t !== 'message') continue;
       replies++;
-      // a replayed reply has ts 0: it is older than any mark
+      // a reply after the mark is unseen. A Claude or Codex replay keeps each reply's recorded time, so a restart keeps the
+      // count; an omp (ACP) replay has ts 0, older than any mark: after a restart its window shows nothing unseen
       if (ev.ts > seenAt) unseen++;
     }
     // the latest, scanned from the end so the text is made one line once; `at` only when the event has a real time
@@ -234,7 +235,7 @@ export class EventHub {
   }
 
   private stamp(ev: EmitInput): ServerEvent {
-    if (ev.kind === 'session' || ev.kind === 'resumed' || ev.kind === 'server-error' || ev.kind === 'send-refused' || ev.kind === 'shell-out' || ev.kind === 'shell-refused' || ev.kind === 'comments' || ev.kind === 'draft' || ev.kind === 'comment-ack' || ev.kind === 'comment-refused' || ev.kind === 'stats' || ev.kind === 'mode' || ev.kind === 'model' || ev.kind === 'models' || ev.kind === 'commands' || ev.kind === 'idle-compact' || ev.kind === 'hello' || ev.kind === 'occupied' || ev.kind === 'taken-over' || ev.kind === 'remote' || ev.kind === 'remote-pair' || ev.kind === 'restart-pending' || ev.kind === 'compact-pending' || ev.kind === 'send-held' || ev.kind === 'open-agent') return ev;
+    if (ev.kind === 'session' || ev.kind === 'resumed' || ev.kind === 'server-error' || ev.kind === 'send-refused' || ev.kind === 'shell-out' || ev.kind === 'shell-refused' || ev.kind === 'comments' || ev.kind === 'draft' || ev.kind === 'seen' || ev.kind === 'comment-ack' || ev.kind === 'comment-refused' || ev.kind === 'stats' || ev.kind === 'mode' || ev.kind === 'model' || ev.kind === 'models' || ev.kind === 'commands' || ev.kind === 'idle-compact' || ev.kind === 'hello' || ev.kind === 'occupied' || ev.kind === 'taken-over' || ev.kind === 'remote' || ev.kind === 'remote-pair' || ev.kind === 'restart-pending' || ev.kind === 'compact-pending' || ev.kind === 'send-held' || ev.kind === 'open-agent') return ev;
     return { ...ev, ts: ev.ts ?? Date.now() } as ServerEvent;
   }
 }

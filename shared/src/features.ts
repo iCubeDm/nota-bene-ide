@@ -125,6 +125,11 @@ export const FEATURES = {
    * event. Only the write is gated; an older server leaves the draft on its client.
    */
   draft: 40,
+  /**
+   * the read state is the server's (issue 174): the client's `looking` and the server's `seen` event; `POST /seen` is
+   * gone. Only `looking` is gated; an older server gets none.
+   */
+  looking: 41,
 } as const;
 
 export type Feature = keyof typeof FEATURES;

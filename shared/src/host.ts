@@ -41,6 +41,12 @@ export type HostWindow = {
    * @asType integer
    */
   replies?: number;
+  /**
+   * Issue 174: the final replies after the person last saw the session on any client (the window's /info.unseen).
+   * Absent from a host before protocol 41.
+   * @asType integer
+   */
+  unseen?: number;
   /** the version (a hash) of the picture of the window's project folder; null when it has none */
   icon?: string | null;
   /**
@@ -54,4 +60,4 @@ export type HostWindow = {
 export type HostStreamMessage = { t: 'windows'; windows: HostWindow[] };
 
 /** The fields of a window's /info the host stream passes on. */
-export const HOST_WINDOW_INFO = ['title', 'session', 'model', 'busy', 'supervised', 'pending', 'last', 'replies', 'icon'] as const satisfies readonly (keyof HostWindow)[];
+export const HOST_WINDOW_INFO = ['title', 'session', 'model', 'busy', 'supervised', 'pending', 'last', 'replies', 'unseen', 'icon'] as const satisfies readonly (keyof HostWindow)[];
