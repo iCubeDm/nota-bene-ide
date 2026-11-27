@@ -250,9 +250,9 @@ it('Esc on empty space focuses the composer and does not stop a busy agent', () 
   expect(sent).not.toContainEqual({ type: 'interrupt' });
 });
 
-it('while the window is occupied or taken (the overlay) no hotkey runs; once open again they do', () => {
+it('while the window is stopped (the overlay) no hotkey runs; once open again they do', () => {
   const s = setup();
-  for (const state of ['occupied', 'taken'] as const) {
+  for (const state of ['stopped'] as const) {
     act(() => void s.dispatch(connState(state)));
     const before = s.getState();
     key('KeyW', { alt: true });

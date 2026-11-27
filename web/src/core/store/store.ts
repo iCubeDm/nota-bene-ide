@@ -34,6 +34,8 @@ export const toastMiddleware: Middleware = () => (next) => (action) => {
     else if (action.payload.where === 'history-too-large') toast(t('historyTooLargeTitle'), t('historyTooLarge'));
     else toast(t('serverError', action.payload.where), action.payload.message);
   }
+  // a server before 39 parks a later socket (issue 174): the page waits for a restart of the server, and never takes over
+  if (serverEvent.match(action) && action.payload.kind === 'occupied') toast(t('oldServer'), '');
   return next(action);
 };
 
@@ -235,7 +237,6 @@ export const interrupt = (): AppThunk => (_d, getState, { connection }) => {
 };
 
 /** «Работать здесь»: take the window over from the other tab (R-M7-5/8). */
-export const takeOver = (): AppThunk => (_d, _g, { connection }) => connection.takeOver();
 
 export const answerPermission = (id: string, allow: boolean, response?: import('@nota-bene/shared').InteractionAnswer): AppThunk => (_d, _g, { connection }) => {
   connection.send({ type: 'permission', id, allow, ...(response ? { response } : {}) });

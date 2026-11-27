@@ -1,10 +1,10 @@
-import { agentOf, agentPath, TAKEN_OVER_CODE, type ClientMessage, type ServerEvent } from '@nota-bene/shared';
+import { agentOf, agentPath, type ClientMessage, type ServerEvent } from '@nota-bene/shared';
 
 const RECONNECT_MS = 1000;
 
 // unauthorized = the server refused the page's login (no cookie): reopen the window through `nota-bene` or `/nb`; no retries
-export type SocketState = 'open' | 'closed' | 'taken' | 'unauthorized';
-export type Connection = { send(m: ClientMessage): boolean; close(): void; reconnect?(): void };
+export type SocketState = 'open' | 'closed' | 'unauthorized';
+export type Connection = { send(m: ClientMessage): boolean; close(): void };
 
 /** The page's agent (epic 383): `/a/<id>` when the page was opened under one, else '' (the window's top, today's URLs). */
 export function agentBase(loc: Location | URL): string {
@@ -40,8 +40,8 @@ export function connect(
     const sock = new WS(typeof url === 'function' ? url() : url, protocols?.() ?? []);
     ws = sock;
     let gotFrame = false;
-    // not `open` on the WebSocket's open: a socket is attached only when the server's replay arrives. A newcomer in the
-    // reload grace, or an occupied one, gets none, and must neither resync nor send (M7-15 fix round 1)
+    // not `open` on the WebSocket's open: a socket is attached only when the server's replay arrives (a server before 39
+    // sends none to an occupied socket), and before it must neither resync nor send (M7-15 fix round 1)
     sock.onopen = () => {};
     sock.onmessage = (e) => {
       gotFrame = true;
@@ -58,15 +58,8 @@ export function connect(
       }
       onEvent(ev);
     };
-    sock.onclose = (e) => {
+    sock.onclose = () => {
       if (ws === sock) ws = null;
-      if (e.code === TAKEN_OVER_CODE && !stopped) { // another tab took the window (R-M7-5): never reconnect by ourselves
-        // another tab owns the window now: stay down until the user asks (reconnect())
-        stopped = true;
-        reportedClosed = true;
-        onState('taken');
-        return;
-      }
       if (!reportedClosed) {
         reportedClosed = true;
         onState('closed');
@@ -86,9 +79,8 @@ export function connect(
   };
   open();
 
-  // a page put into the back/forward cache (a navigation to another URL, e.g. adding `?nudge`) keeps its socket open:
-  // the server still sees it as the owner past the reload grace, and the next page lands on "already open". So close
-  // on the way in; a restored page reconnects as on a drop (`taken` stays down: that is the user's call)
+  // a page put into the back/forward cache (a navigation to another URL, e.g. adding `?nudge`) keeps its socket open, a
+  // client of a page nobody sees. So close on the way in; a restored page reconnects as on a drop
   const onHide = (e: PageTransitionEvent) => {
     if (!e.persisted || stopped) return;
     if (timer) clearTimeout(timer);
@@ -115,16 +107,9 @@ export function connect(
 
   return {
     send(m) {
-      if (!ws || ws.readyState !== WS.OPEN || (reportedClosed && m.type !== 'takeover')) return false; // not attached yet (grace, occupied): only `takeover` goes out
+      if (!ws || ws.readyState !== WS.OPEN || reportedClosed) return false; // not attached yet: nothing goes out before the replay
       ws.send(JSON.stringify(m));
       return true;
-    },
-    /** after a 4001: opens a new socket (the caller sends `takeover` once `occupied` arrives) */
-    reconnect() {
-      if (ws) return;
-      stopped = false;
-      if (timer) clearTimeout(timer);
-      open();
     },
     close() {
       stopped = true;

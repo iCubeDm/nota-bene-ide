@@ -79,9 +79,9 @@ export function installKeymap(store: AppStore): () => void {
   const onKey = (e: KeyboardEvent) => {
     // a held key repeats only the tab stepping
     if (e.defaultPrevented || e.isComposing || (e.repeat && e.code !== 'ArrowLeft' && e.code !== 'ArrowRight')) return;
-    // the overlay of another-tab / taken / stopped makes the DOM inert, the document hotkeys must not reach under it either
+    // the overlay of a stopped window makes the DOM inert, the document hotkeys must not reach under it either
     const conn = selectConn(store.getState());
-    if (conn === 'occupied' || conn === 'taken' || conn === 'stopped') return;
+    if (conn === 'stopped') return;
     const b = registry(store).commands.find((x) => matches(x, e));
     if (!b || (!inField(b) && editable(e.target))) return;
     if (!b.inModal?.(store.getState()) && modalOpen()) return;

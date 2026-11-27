@@ -6,7 +6,6 @@ import { Panes } from './core/tabs/Panes.tsx';
 import { TabStrip } from './core/tabs/TabStrip.tsx';
 import { LoginRequired } from './core/shell/LoginRequired.tsx';
 import { Stopped } from './core/shell/Stopped.tsx';
-import { OneTab } from './core/shell/OneTab.tsx';
 import { useFavicon } from './core/shell/Favicon.ts';
 import { useSounds } from './core/shell/sounds.ts';
 import { Slots } from './core/shell/Slots.tsx';
@@ -18,9 +17,9 @@ export function App() {
   useEffect(() => installKeymap(store), [store]);
   useFavicon();
   useSounds();
-  // another tab owns the window (M7-15): the app stays mounted but inert under the overlay
+  // a refused login or a stopped window: the app stays mounted but inert under its overlay
   const conn = useAppSelector(selectConn);
-  const blocked = conn === 'occupied' || conn === 'taken' || conn === 'unauthorized' || conn === 'stopped';
+  const blocked = conn === 'unauthorized' || conn === 'stopped';
   return (
     <TooltipProvider>
       <div className="contents" inert={blocked}>
@@ -32,7 +31,6 @@ export function App() {
         </div>
       </>} />
       </div>
-      <OneTab />
       <LoginRequired />
       <Stopped />
     </TooltipProvider>

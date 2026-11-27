@@ -114,12 +114,12 @@ export { SEEK_STEPS, seekStep, useSeekStep, type SeekStepValue } from '../store/
 export { applyPlayerKey, inPlayerScope, ONCE, THEIRS, PLAYER_HELP, type Flash } from '../store/playerKeys.ts';
 export { brief, renameSession, archiveSession, deleteSession, sessionsResource, type SessionsView, type SessionRow } from '../store/sessions.ts';
 
-import { answerPermission, interrupt, takeOver } from '../store/store.ts';
+import { answerPermission, interrupt } from '../store/store.ts';
 import { send as sendChat } from '../store/send.ts';
 export { sendCount, sendWaiting } from '../store/send.ts';
 
 /** The chat's thunks. The store reaches no module that loads this one, so its bindings exist when this runs. */
-export const chat = { send: sendChat, interrupt, answer: answerPermission, takeOver };
+export const chat = { send: sendChat, interrupt, answer: answerPermission };
 
 // tabs
 export {

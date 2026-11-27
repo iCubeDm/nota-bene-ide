@@ -78,7 +78,7 @@ export type Stop = (() => void) & { set(o: WatchOptions): void };
 
 const INITIAL: Snapshot<never> = Object.freeze({ data: null, failed: false, error: null, loading: false });
 /** the states in which the poll waits: `connecting` (never open yet) does not, so a page's first reads go out at once */
-const DOWN = new Set<ConnState>(['closed', 'occupied', 'taken', 'unauthorized', 'stopped']);
+const DOWN = new Set<ConnState>(['closed', 'unauthorized', 'stopped']);
 /** unwatched entries kept for a later watcher; older ones are dropped */
 const KEEP = 32;
 

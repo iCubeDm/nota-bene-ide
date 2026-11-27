@@ -84,26 +84,18 @@ describe('connect', () => {
     expect(FakeWS.instances).toHaveLength(2);
   });
 
-  it('does not reconnect after close code 4001, reports taken, and reconnect() opens a new socket', () => {
+  it('a close with 4001 (a server before 39 taking the window) is an ordinary drop: it reconnects (issue 174)', () => {
     const states: string[] = [];
-    const c = connect('ws://x/ws', () => {}, (s) => states.push(s), WS);
+    connect('ws://x/ws', () => {}, (s) => states.push(s), WS);
     FakeWS.instances[0].open();
     replay(FakeWS.instances[0]);
     FakeWS.instances[0].drop(4001);
-    expect(states).toEqual(['open', 'taken']);
-    vi.advanceTimersByTime(10_000);
-    expect(FakeWS.instances).toHaveLength(1);
-    c.reconnect();
-    expect(FakeWS.instances).toHaveLength(2);
-    FakeWS.instances[1].open();
-    replay(FakeWS.instances[1]);
-    FakeWS.instances[1].drop(); // an ordinary drop reconnects again
     vi.advanceTimersByTime(1100);
-    expect(FakeWS.instances).toHaveLength(3);
-    expect(states).toEqual(['open', 'taken', 'open', 'closed']);
+    expect(FakeWS.instances).toHaveLength(2);
+    expect(states).toEqual(['open', 'closed']);
   });
 
-  it('an unattached socket (no replay: the grace or occupied) sends nothing but takeover and reports no state', () => {
+  it('an unattached socket (no replay: an older server\'s occupied) sends nothing, takeover neither, and reports no state', () => {
     const states: string[] = [];
     const c = connect('ws://x/ws', () => {}, (s) => states.push(s), WS);
     const ws = FakeWS.instances[0];
@@ -111,8 +103,8 @@ describe('connect', () => {
     ws.onmessage?.({ data: '{"kind":"occupied"}' });
     ws.onmessage?.({ data: '{"kind":"hello","protocol":5}' });
     expect(c.send({ type: 'interrupt' })).toBe(false);
-    expect(c.send({ type: 'takeover' })).toBe(true);
-    expect(ws.sent).toEqual([JSON.stringify({ type: 'takeover' })]);
+    expect(c.send({ type: 'takeover' })).toBe(false);
+    expect(ws.sent).toEqual([]);
     expect(states).toEqual([]);
   });
 
