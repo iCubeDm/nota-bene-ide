@@ -16,28 +16,23 @@ export const DRAFT_THROTTLE_MS = 300;
  * check: the event proves the server has drafts.
  * - its own echo (`ack` = pending): the wait ends, the text stays, so the typing client's caret never moves;
  * - the same session (or the first event): applied only while clean, otherwise this client's next write wins;
- * - from an id-less session to an id (an adoption, or a switch out of a new conversation): a dirty text stays only
- *   when the event's draft is empty (an adoption's is: it follows a send), otherwise the event wins;
- * - to another session (a switch, a /clear, a fork, from any client): a dirty text goes to the old session first; a
- *   text typed in this client's switch stays and goes to the new one.
+ * - from an id-less session to an id: as the same session, retagged (an adoption carries the adopted draft, which
+ *   may lag the last keystrokes; a dirty text then goes under the new id);
+ * - to another session (a switch, a /clear, a fork, from any client): a dirty text goes to the old session first (kept
+ *   here when it cannot go, a text over DRAFT_MAX); a text typed in this client's switch stays and goes to the new one.
  * An event without `ack` is the server's state, not someone's write: it ends a wait no ack will answer (a write that
  * reached the server in another client's failed switch).
  */
 export function received(s: DraftSync, ev: DraftEvent, switching: boolean): { sync: DraftSync; apply: boolean; owed?: string | null } {
   if (ev.ack !== undefined && ev.ack === s.pending) return { sync: { ...s, scope: ev.sessionId, pending: null }, apply: false };
   const state = ev.ack === undefined;
-  if (s.scope === undefined || ev.sessionId === s.scope) {
+  if (s.scope === undefined || s.scope === null || ev.sessionId === s.scope) {
     return {
       sync: { ...s, scope: ev.sessionId, ...(state ? { pending: null } : {}), ...(state && !switching ? { typedInSwitch: false } : {}) },
       apply: s.pending === null && !s.dirty,
     };
   }
-  const unsynced = s.dirty || s.pending !== null;
   if (s.typedInSwitch) return { sync: { scope: ev.sessionId, pending: null, dirty: true, typedInSwitch: false }, apply: false };
-  if (s.scope === null) {
-    const keep = unsynced && ev.text === '' && !ev.images?.length;
-    return { sync: { scope: ev.sessionId, pending: null, dirty: keep, typedInSwitch: false }, apply: !keep };
-  }
   return { sync: { scope: ev.sessionId, pending: null, dirty: false, typedInSwitch: false }, apply: true, ...(s.dirty ? { owed: s.scope } : {}) };
 }
 
@@ -64,7 +59,11 @@ export const writeDraft = (): AppThunk<boolean> => (d, getState, { connection })
 const receive = (ev: DraftEvent): AppThunk => (d, getState, { connection }) => {
   const st = getState();
   const r = received(st.composer.sync, ev, st.controls.switching !== null);
-  if (r.owed !== undefined) put(connection, r.owed, local(st)); // lands in the old session; no echo comes back
+  // lands in the old session, with no echo; one that cannot go (over DRAFT_MAX) stays here rather than vanish
+  if (r.owed !== undefined && put(connection, r.owed, local(st)) === null) {
+    d(draftSynced({ ...r.sync, dirty: true }));
+    return;
+  }
   d(draftSynced(r.sync));
   if (!r.apply) return;
   d(draftApplied(ev.text));
@@ -90,7 +89,9 @@ export function draftListeners(start: StartListening): void {
   start({
     matcher: isAnyOf(setDraft, addImage, removeImage),
     effect: (_a, api) => {
-      api.dispatch(draftEdited({ inSwitch: api.getState().controls.switching !== null }));
+      // a restart (the agent's or the server's) stays on its session: nothing typed in it waits for another
+      const { switching, restarting } = api.getState().controls;
+      api.dispatch(draftEdited({ inSwitch: switching !== null && !restarting }));
       soon(api);
     },
   });

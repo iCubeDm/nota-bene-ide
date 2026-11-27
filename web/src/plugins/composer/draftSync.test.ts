@@ -64,20 +64,18 @@ it('typing in a switch is held, and carried to the new session', () => {
   expect(writes(conn)).toEqual([expect.objectContaining({ sessionId: 's2', text: 'typed while switching' })]);
 });
 
-it('an adoption keeps a dirty text and retags it; a non-empty draft of another session wins', () => {
+it('an adoption keeps the keystrokes typed since the write that landed, and writes them under the new id', () => {
   const { store, conn, text } = attached(null);
-  store.dispatch(setDraft('a'));
-  store.dispatch(setDraft('ab'));
-  conn.emit(draft('s1', ''));
+  store.dispatch(setDraft('a')); // written, tagged null: the server adopts it
+  store.dispatch(setDraft('ab')); // held by the throttle
+  conn.emit(draft('s1', 'a')); // the adoption's broadcast carries the adopted draft
   expect(text()).toBe('ab');
   store.dispatch(flushDraft());
   expect(writes(conn).at(-1)).toMatchObject({ sessionId: 's1', text: 'ab' });
 
-  const other = attached(null);
-  other.store.dispatch(setDraft('x'));
-  other.store.dispatch(setDraft('xy'));
-  other.conn.emit(draft('s9', 'the other session'));
-  expect(other.text()).toBe('the other session');
+  const clean = attached(null);
+  clean.conn.emit(draft('s9', 'the other session'));
+  expect(clean.text()).toBe('the other session');
 });
 
 it('reconcile at hello: a text typed before the attach draft wins, and so does one typed offline', () => {
@@ -139,4 +137,31 @@ it('the update pause counts the draft only while it is unsynced', () => {
   const old = attached('s1', 39);
   old.store.dispatch(setDraft('words'));
   expect(composerPlugin.pause!(old.store.getState(), { draft: true })).toBe(false);
+});
+
+it('a restart holds no typing for a new session: once it ends, the edits go to the same one', () => {
+  const { store, conn } = attached();
+  store.dispatch({ type: 'controls/switchStarted', payload: true });
+  store.dispatch(setDraft('typed while restarting'));
+  expect(writes(conn)).toEqual([]);
+  store.dispatch({ type: 'controls/switchCleared' }); // a refused or timed-out restart: no draft event follows
+  expect(writes(conn)).toEqual([expect.objectContaining({ sessionId: 's1', text: 'typed while restarting' })]);
+});
+
+it('an oversized draft survives a switch: it stays on this client', () => {
+  const { store, conn, text } = attached();
+  const big = 'x'.repeat(DRAFT_MAX + 1);
+  store.dispatch(setDraft(big));
+  conn.emit(draft('s2', 'in s2'));
+  expect(text()).toBe(big);
+});
+
+it('typing in a switch that fails goes to the session the window stayed on', () => {
+  const { store, conn, text } = attached();
+  store.dispatch({ type: 'controls/switchStarted', payload: false });
+  store.dispatch(setDraft('typed while switching'));
+  conn.emit({ kind: 'server-error', where: 'switch', message: 'the agent is busy' });
+  conn.emit(draft('s1', '')); // the failed switch's broadcast of the current draft
+  expect(text()).toBe('typed while switching');
+  expect(writes(conn)).toEqual([expect.objectContaining({ sessionId: 's1', text: 'typed while switching' })]);
 });

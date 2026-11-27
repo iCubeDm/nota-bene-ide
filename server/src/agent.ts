@@ -196,6 +196,9 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       const { text, images } = drafts.get(sessionId);
       return { kind: 'draft', sessionId, text, ...(images.length ? { images } : {}), ...(ack ? { ack } : {}) };
     };
+    // the current conversation is the id-less one a null-tagged write was typed in: it has no id yet, or got its id by
+    // adoption. One opened by a switch is another session, whose saved draft such a write must not overwrite
+    let adopted = false;
     const broadcastDraft = () => {
       try {
         hub.emit(draftEvent(), { store: false });
@@ -211,7 +214,7 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       turnMarks.schedule();
       if (prev === null) store.adopt(id);
       broadcastComments();
-      if (prev === null) drafts.adopt(id); // a /clear or a fork carries no draft: the old session keeps its own
+      if (prev === null) { drafts.adopt(id); adopted = true; } // a /clear or a fork carries no draft: the old session keeps its own
       broadcastDraft();
       try {
         if (prev !== null) prompts.carry(prev, id);
@@ -226,7 +229,7 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       // session. A restart keeps the same session (and root), so it keeps the set too
       if (!restart) store.dropPending();
       broadcastComments();
-      if (!restart) drafts.dropPending();
+      if (!restart) { drafts.dropPending(); adopted = false; }
       try { drafts.flush(); } catch (e) { reportError(hub, 'draft', e); }
       broadcastDraft();
     });
@@ -691,7 +694,9 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
             }
             break;
           case 'draft': {
-            // a write names the session it was typed in, so one sent across a switch lands there; null is the current one
+            // a write names the session it was typed in, so one sent across a switch lands there; null is the current
+            // one while it is still the id-less conversation it was typed in (no switch since)
+            if (msg.sessionId === null && (manager.switching() || (manager.info().id !== null && !adopted))) break;
             const id = msg.sessionId ?? manager.info().id;
             try {
               drafts.set(id, { text: msg.text, images: msg.images ?? [] });

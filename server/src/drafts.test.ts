@@ -102,9 +102,10 @@ describe('drafts on the socket', () => {
     if (prevHome === undefined) delete process.env.NOTA_BENE_HOME; else process.env.NOTA_BENE_HOME = prevHome;
   });
 
-  async function boot(o: { resume?: string; deleteSession?: boolean } = {}) {
+  async function boot(o: { resume?: string; deleteSession?: boolean; historyDelayMs?: number } = {}) {
     const backend = fakeBackend([{ text: 'hello' }], {
       ...(o.deleteSession ? { capabilities: { deleteSession: true } } : {}),
+      ...(o.historyDelayMs ? { historyDelayMs: o.historyDelayMs } : {}),
       sessions: [{ id: SA, cwd: A, lastModified: 1 }, { id: SB, cwd: B, lastModified: 2 }],
     });
     const s = await agentServer({ insecureNoAuth: true, cwd: A, port: 0, backend, webDist: path.join(path.dirname(home), 'dist'), ...(o.resume ? { resume: o.resume } : {}) });
@@ -199,6 +200,24 @@ describe('drafts on the socket', () => {
     await until(() => drafts(c).length === 2);
     expect(await switchTo(c, SB, B)).toEqual({ kind: 'draft', sessionId: SB, text: '' });
     expect(await switchTo(c, null, A)).toEqual({ kind: 'draft', sessionId: null, text: '' });
+  });
+
+  it('a write tagged null that arrives in or after a switch never lands in the session switched to', async () => {
+    const store = new DraftStore({ dir: path.join(home, 'drafts') });
+    store.set(SB, { text: 'saved in B', images: [] });
+    store.flush();
+    const s = await boot({ historyDelayMs: 200 });
+    const typist = await connect(s.url);
+    const other = await connect(s.url);
+    other.ws.send(JSON.stringify({ type: 'switch', id: SB, dir: B }));
+    await tick(80); // the switch runs: the current id is already B's
+    write(typist, { id: 'w1', sessionId: null, text: 'typed in the new conversation' });
+    await until(() => drafts(typist).some((e) => e.sessionId === SB));
+    expect(drafts(typist).at(-1)).toEqual({ kind: 'draft', sessionId: SB, text: 'saved in B' });
+    write(typist, { id: 'w2', sessionId: null, text: 'still typing there' }); // after the switch: B came from it, not from an adoption
+    write(typist, { id: 'w3', sessionId: SB, text: 'in B' });
+    await until(() => drafts(typist).at(-1)?.ack === 'w3');
+    expect(drafts(typist).some((e) => e.ack === 'w1' || e.ack === 'w2')).toBe(false);
   });
 
   it('the draft survives a server restart', async () => {
