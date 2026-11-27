@@ -550,6 +550,10 @@
       "type": "activity"
     },
     {
+      "type": "looking",
+      "on": true
+    },
+    {
       "type": "idle-compact",
       "on": true
     },
@@ -1426,6 +1430,10 @@
       "kind": "draft",
       "sessionId": null,
       "text": ""
+    },
+    {
+      "kind": "seen",
+      "at": 1700000000000
     },
     {
       "kind": "comment-ack",

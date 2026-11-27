@@ -284,12 +284,12 @@ describe('device channel', () => {
     expect(h.lists[0]!.map((w) => w.id)).toEqual([id, `${id}:${p2}`, windowKey('claude', '/q')]);
   });
 
-  it('the host stream passes the pending, last and replies of a window', async () => {
+  it('the host stream passes the pending, last, replies and unseen of a window', async () => {
     const a = await window();
     const l = await paired(await windows());
     const h = l.phone.host();
     await until(() => h.lists.length > 0);
-    expect(h.lists[0]![0]).toMatchObject({ port: a.port, pending: false, last: null, replies: 0 });
+    expect(h.lists[0]![0]).toMatchObject({ port: a.port, pending: false, last: null, replies: 0, unseen: 0 });
   });
 
   it('the host stream forwards the icon of a window: null, then its version', async () => {

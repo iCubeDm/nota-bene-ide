@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
+import WebSocket from 'ws';
 import { fakeBackend } from './agent/fake.ts';
 import { agentServer } from './testing.ts';
 import { agentContext } from './state.ts';
@@ -30,12 +31,16 @@ afterEach(() => {
   fs.rmSync(dist, { recursive: true, force: true });
 });
 
-/** A window that marks its open session seen and archives another, then closes. */
+/** A window that marks its open session seen (a client looks at it) and archives another, then closes. */
 async function run(extra: Partial<Parameters<typeof agentServer>[0]>): Promise<void> {
   const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, ffmpeg: () => null, resume: SESSION, ...extra });
   try {
     const post = (p: string, body: unknown) => fetch(`${s.url}${p}`, { method: 'POST', headers: { origin: s.server, 'content-type': 'application/json' }, body: JSON.stringify(body) });
-    expect((await post('/seen', { session: SESSION })).status).toBe(200);
+    const ws = new WebSocket(`${s.url.replace('http', 'ws')}/ws`);
+    const marked = new Promise<void>((res) => ws.on('message', (d) => { const e = JSON.parse(String(d)) as { kind: string; at?: number }; if (e.kind === 'seen' && e.at) res(); }));
+    ws.once('open', () => ws.send(JSON.stringify({ type: 'looking', on: true })));
+    await marked;
+    ws.terminate();
     expect((await post('/sessions/archive', { id: OTHER, archived: true })).status).toBe(200);
   } finally {
     await s.close();

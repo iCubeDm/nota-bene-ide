@@ -590,3 +590,10 @@ test('issue 174: an oversized or malformed draft is refused', () => {
   expect(d({ images: [{ id: 'nope', mediaType: 'image/png' }] })).toHaveProperty('error');
   expect(d({ images: [{ id: 'a'.repeat(64), mediaType: 'text/html' }] })).toHaveProperty('error');
 });
+
+test('issue 174: looking parses with a boolean on, anything else is refused', () => {
+  expect(parseClientMessage(JSON.stringify({ type: 'looking', on: true, x: 1 }))).toEqual({ type: 'looking', on: true });
+  expect(parseClientMessage(JSON.stringify({ type: 'looking', on: false }))).toEqual({ type: 'looking', on: false });
+  expect(parseClientMessage(JSON.stringify({ type: 'looking' }))).toHaveProperty('error');
+  expect(parseClientMessage(JSON.stringify({ type: 'looking', on: 1 }))).toHaveProperty('error');
+});

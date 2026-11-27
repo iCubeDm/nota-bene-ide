@@ -57,6 +57,7 @@ extension HostWindowKey on HostWindow {
     pending: pending,
     last: last,
     replies: replies,
+    unseen: unseen,
     icon: icon,
     agent: agent,
   );

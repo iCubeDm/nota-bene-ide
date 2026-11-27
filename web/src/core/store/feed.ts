@@ -346,6 +346,7 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
     case 'compact-pending': // protocol 27: the controls slice
     case 'send-held': // the composer: the draft went (held, not lost)
     case 'draft': // protocol 40: the composer's draft sync (plugins/composer/draftSync.ts)
+    case 'seen': // protocol 41: the controls slice (the favicon reads it)
     case 'open-agent': // protocol 30: the projects plugin moves the tab
       return s;
     default: {

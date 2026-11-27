@@ -156,8 +156,9 @@ export { FEATURES, has, type Feature } from './features.ts';
  * every agent under `/a/<id>/`), 38 the host stream as one list of them: nothing asks for them by name; a managed
  * connector of an older protocol is replaced. 39 (issue 174): every socket of a window is attached and live, with no
  * `occupied`, `taken-over` or close code 4001; a `takeover` is ignored. 40: the shared draft (`FEATURES.draft`).
+ * 41: the shared read state (`FEATURES.looking`).
  */
-export const PROTOCOL = 40;
+export const PROTOCOL = 41;
 
 /** The form of an agent id (epic 383): `<provider>-<6 base32>`, as in `/a/<id>/`. */
 export const AGENT_ID = /^[a-z]+-[a-z2-7]{6}$/;
@@ -329,6 +330,8 @@ export type ClientMessage =
   | { type: 'activity' }
   /** idle compaction on or off for this project */
   | { type: 'idle-compact'; on: boolean }
+  /** protocol 41: whether the person looks at this client (a visible, focused page; the phone's open chat), on a change and again at each `hello` */
+  | { type: 'looking'; on: boolean }
   /** to a server before 39, from an occupied socket (R-M7-5): the window moves here; a server from 39 ignores it */
   | { type: 'takeover' }
   /** protocol 8: stop the running task `id` (a task_id); a refusal comes back as a `server-error` */
@@ -370,6 +373,8 @@ export type ServerEvent =
   | { kind: 'comments'; items: Comment[]; rev?: number; ack?: string[] }
   /** protocol 40, never stored: the current session's draft, on attach, on a switch or a new id, and after a write (`ack`: the writer's `draft` id) */
   | { kind: 'draft'; sessionId: string | null; text: string; images?: DraftImage[]; ack?: string }
+  /** protocol 41, never stored: when the person last saw the current session (ms; 0: never), on attach and after each mark */
+  | { kind: 'seen'; at: number }
   /** protocol 19, to the sender only: its `comment-op` was applied to a session the window does not show */
   | { kind: 'comment-ack'; opId: string }
   /** protocol 19, to the sender only: nothing of the `comment-op` was applied; `id` names the comment that refused it */
@@ -771,6 +776,9 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
     case 'idle-compact':
       if (typeof m.on !== 'boolean') return { error: 'idle-compact needs boolean on' };
       return { type: 'idle-compact', on: m.on };
+    case 'looking':
+      if (typeof m.on !== 'boolean') return { error: 'looking needs boolean on' };
+      return { type: 'looking', on: m.on };
     default:
       return { error: `unknown message type: ${String(m.type)}` };
   }

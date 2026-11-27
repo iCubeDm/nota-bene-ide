@@ -50,6 +50,7 @@ it('what the page asked for, never what it said', () => {
   a.client({ type: 'comments', sessionId: 's', items: [] }, 3);
   a.client({ type: 'activity' }, 3);
   a.client({ type: 'draft', id: 'd1', sessionId: null, text: 'my secret draft' }, 3); // typing, never logged
+  a.client({ type: 'looking', on: true }, 3); // presence, never logged
   expect(lines().map(({ ts: _t, pid: _p, ...r }) => r)).toEqual([
     { port: 4778, ev: 'client', conn: 3, type: 'send', id: 'u1', chars: 14, force: true, comments: 2 },
     { port: 4778, ev: 'client', conn: 3, type: 'interrupt' },
@@ -72,6 +73,7 @@ it('what the server told the window, without streamed text, tool input or output
   a.server({ kind: 'voice-text', id: 'u3', error: 'off', ts: 1 });
   a.server({ kind: 'stats', stats: {} as never });
   a.server({ kind: 'draft', sessionId: null, text: 'private words', ack: 'd1' });
+  a.server({ kind: 'seen', at: 5 });
   expect(lines().map((l) => [l.kind, l.tool ?? l.stop ?? l.chars ?? l.error ?? l.isError])).toEqual([
     ['tool-call', 'Bash'], ['tool-update', false], ['turn-end', 'interrupted'], ['user', 13], ['voice-text', 20], ['voice-text', 'off'],
   ]);
