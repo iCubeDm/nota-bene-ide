@@ -141,7 +141,7 @@ it('a window writes its start, its sockets, the page\'s stop and the turn\'s end
   const prev = process.env.NOTA_BENE_HOME;
   process.env.NOTA_BENE_HOME = home;
   try {
-    const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello', delayMs: 2000 }]), webDist: dist, oneTab: false, audit: { dir, enabled: () => true } });
+    const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello', delayMs: 2000 }]), webDist: dist, audit: { dir, enabled: () => true } });
     const ws = new WebSocket(s.url.replace('http', 'ws') + '/ws');
     await new Promise<void>((res, rej) => { ws.once('open', () => res()); ws.once('error', rej); });
     ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'do the thing' }));

@@ -81,10 +81,7 @@ export type ServerOptions = {
   pluginVersion?: string;
   /** the audit log of system events (audit.ts); absent = none (tests). `dir` / `enabled`: tests */
   audit?: { dir?: string; enabled?: () => boolean };
-  /** one tab at a time (R-M7-5); default true. Tests that need several live sockets pass false */
-  oneTab?: boolean;
-  /** tests shorten the reload grace (R-M7-6) and the heartbeat (R-M7-7) */
-  takeoverGraceMs?: number;
+  /** tests shorten the heartbeat: a socket that answers no ping is ended (R-M7-7) */
   heartbeatMs?: number;
   /** tests shorten how often a pending restart looks for a pause with no page open (restartGate, gh-422) */
   restartEveryMs?: number;
@@ -439,10 +436,8 @@ export async function startServer(o: ServerOptions): Promise<{ url: string; clos
     };
     // `shown`: a tab on this computer shows the agent: one already did, or the last one attached moves to it (the launcher
     // then opens no browser); none: the launcher opens one
-    // an agent another device holds (the phone) is no place to move a tab: it would land there occupied
     const showIn = (a: Agent): { shown?: true } => {
       if (a.shownSince()) return { shown: true };
-      if (a.owned()) return {};
       const tab = [...agents.values()].reduce<Agent | null>((m, x) => (x.shownSince() > (m?.shownSince() ?? 0) ? x : m), null);
       if (!tab) return {};
       tab.show(a.id);

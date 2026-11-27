@@ -261,7 +261,7 @@ test('a comment on an action’s output: named in its card, back after a reload 
   await clearPending(page);
 });
 
-test('a second window takes over: the comment follows through the server, the first window is parked @chat', async ({ page, browser }, testInfo) => {
+test('a second window is live beside the first: the comment follows through the server, both ways (issue 174) @chat', async ({ page, browser }, testInfo) => {
   await open(page);
   await clearPending(page);
   const text = await turn(page, 'two windows');
@@ -274,23 +274,15 @@ test('a second window takes over: the comment follows through the server, the fi
   const ctx = await browser.newContext({ baseURL: testInfo.project.use.baseURL, locale: 'en-US', storageState: testInfo.project.use.storageState });
   const other = await ctx.newPage();
   await other.goto('');
-  await expect(other.getByTestId('onetab')).toHaveAttribute('data-state', 'occupied');
-  await other.getByRole('button', { name: 'Work here' }).click();
-  await expect(other.getByTestId('onetab')).toHaveCount(0);
-  await expect(page.getByTestId('onetab')).toHaveAttribute('data-state', 'taken');
-
   await settled(other, text);
   await openPanel(other);
   await expect(cards(other)).toHaveCount(1);
   await expect(cards(other).first()).toContainText('from window A');
   await expect(marks(other, 'pending').first()).toBeVisible();
 
-  // and deletion reaches the server: the first window takes the window back and finds the set empty
+  // and a deletion in the second reaches the first, which never left
   await cards(other).first().getByRole('button', { name: /^(Delete|Удалить)$/ }).click();
   await expect(cards(other)).toHaveCount(0);
-  await page.getByRole('button', { name: 'Work here' }).click();
-  await expect(page.getByTestId('onetab')).toHaveCount(0);
-  await expect(other.getByTestId('onetab')).toHaveAttribute('data-state', 'taken');
   await openPanel(page);
   await expect(cards(page)).toHaveCount(0);
   await expect(marks(page, 'pending')).toHaveCount(0);

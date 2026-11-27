@@ -55,7 +55,7 @@ function backendFor(turns: FakeTurn[] = [{ text: 'hello' }]) {
 
 async function boot(o: { backend?: ReturnType<typeof fakeBackend>; resume?: string } = {}) {
   const backend = o.backend ?? backendFor();
-  const s = await agentServer({ insecureNoAuth: true, cwd: A, port: 0, backend, webDist: dist, oneTab: false, ...(o.resume ? { resume: o.resume } : {}) });
+  const s = await agentServer({ insecureNoAuth: true, cwd: A, port: 0, backend, webDist: dist, ...(o.resume ? { resume: o.resume } : {}) });
   closers.push(s.close);
   return { ...s, backend };
 }

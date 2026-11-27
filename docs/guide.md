@@ -6,7 +6,7 @@ Contents
 
 - [Quick start](#quick-start)
 - [Starting a window](#starting-a-window)
-- [One window per folder, one tab per window](#one-window-per-folder-one-tab-per-window)
+- [One window per folder, live on every client](#one-window-per-folder-live-on-every-client)
 - [Margin comments and the batch send](#margin-comments-and-the-batch-send)
 - [Images and video](#images-and-video)
 - [HTML pages and diagrams](#html-pages-and-diagrams)
@@ -85,9 +85,9 @@ The launcher supervises the server. **Restart the server** relaunches it at once
 
 Without `--agent` in a terminal, the launcher finds the agents that can start: Claude Code (`claude` on `PATH` or its config folder), Codex CLI 0.166.0+ and omp 18.16.0+ (by `--version`; `NOTA_BENE_CODEX` and `NOTA_BENE_OMP` name other executables). It never reads their login files. With several, it asks `Which agent for this folder?`: Enter takes the folder's last one (else Claude), a number or name picks another, Ctrl+C or Ctrl+D cancels. An agent below its minimum version is listed with the reason and not offered. Without a terminal (a script, `/nb`, `$nb`, `/skill:nb`) Claude starts unless `--agent` says otherwise. The choice is kept in `agent-choice.json`.
 
-## One window per folder, one tab per window
+## One window per folder, live on every client
 
-A folder has at most one window per agent (Claude, Codex and omp can each have one). Launching again brings it to the front, waiting up to 10 s if it is restarting. A window has one owner tab: a second tab says "The window is already open in another tab", and **Work here** takes it over: the first tab shows "Open in another tab" and stops. A quick reload is not a second tab.
+A folder has at most one window per agent (Claude, Codex and omp can each have one). Launching again brings it to the front, waiting up to 10 s if it is restarting. A window is live in every tab that shows it, on the phone and on a paired computer at once: a message, an answer, Stop or a mode change from any of them shows on all. When two answer the same question, the first one counts and the other is told it was already answered.
 
 ## Margin comments and the batch send
 
@@ -591,7 +591,7 @@ The connector stops a minute after the last window closes (and the last tab of a
 
 Once this computer is paired with another, the project switcher and the rail list that computer's running projects and their agents beside this one's: a laptop on the tile and the computer's name in the row (the tooltip in the rail). A computer that is offline drops out of the list until it is back. Choosing one opens it in the same tab with the full interface (chat, files, editor, comments, video, voice, shell), served by that computer through the relay and this computer's connector, end-to-end encrypted. The switcher there still lists both computers and moves to either.
 
-It is a tab of that window like any other: it takes the window over from the other computer's tab and its phone, and **Work here** takes it back. What is not there:
+It is a tab of that window like any other, live beside the other computer's own tabs and its phone. What is not there:
 
 - Starting, creating or stopping the other computer's projects: no **Open folder…**, **New project…**, Recent, stop buttons or **Stop Nota Bene** on its page; its other windows' sessions are not listed, and a new session there starts with the agents of its windows on that folder.
 - **Show in Finder** and **Open in default app**: they act on the computer the window runs on.
@@ -627,7 +627,7 @@ nota-bene remote key                              # save the access key (hidden 
 
 - It reaches every window of every agent with their own credentials, which never leave the computer.
 - `pair` prints both fingerprints; compare with the app. A new `pair`, Ctrl+C or 5 minutes end the code.
-- **A paired device is fully trusted**: it can do what a tab can, including **Work here**. A paired computer counts against the 32 devices.
+- **A paired device is fully trusted**: it can do what a tab can. A paired computer counts against the 32 devices.
 - One connector per user ("already running"); it also stops if the relay reports another with the same key.
 - A project folder named `remote` opens with `nota-bene ./remote`.
 
@@ -638,7 +638,7 @@ Run the Mobile workflow by hand (Actions → Mobile → Run workflow), download 
 - **Unlock** by the phone's biometrics, PIN or pattern; again after 5 minutes away. No screen lock, no app.
 - **Pair**: `nota-bene remote pair` or the Remote tab, then *Pair a host* (or *Paste the code instead* with the `nbremote://` text); compare fingerprints.
 - **Sessions**: one group per host, messenger-style rows with time, last message, a badge (unread or !) and a working dot. Pull to refresh; offline hosts show when last seen; a revoked phone can *Forget*; long-press renames a host locally. The last chat reopens.
-- **One tab**: the phone is a tab of the window; *Work here* takes it, the computer can take it back.
+- **Live beside the computer**: the phone is a tab of the window; the computer's tabs stay live while it is open.
 - **Notifications** for finished replies and waits; a tap opens the chat. Not for the chat on screen; the lock screen says only "New reply in <project>". While an agent works or waits, and 5 minutes after, the app stays connected (a quiet notification, dismissable on Android 13+); otherwise it checks every 15 minutes. Android asks for the permission once, the first time an agent works; Settings → **Notifications** turns it off. Closing from recents disconnects, but the 15-minute check goes on. No Google push.
 
 <details><summary>More: what the app does</summary>

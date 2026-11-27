@@ -279,11 +279,10 @@ describe('credentials', () => {
   });
 });
 
-async function boot(o: { allowedOrigins?: string[]; oneTab?: boolean; nonce?: string; id?: string; port?: number; exit?: (code: number) => void } = {}) {
+async function boot(o: { allowedOrigins?: string[]; nonce?: string; id?: string; port?: number; exit?: (code: number) => void } = {}) {
   const { port: want, ...rest } = o;
   const s = await launchServer({
-    cwd: path.join(tmp, 'proj'), port: want ?? 0, backend: fakeBackend([{ text: 'hello' }]), webDist: path.join(tmp, 'dist'),
-    takeoverGraceMs: 40, exit: () => {}, ...rest, // a /stop or /restart-server that gets through must not end the test process
+    cwd: path.join(tmp, 'proj'), port: want ?? 0, backend: fakeBackend([{ text: 'hello' }]), webDist: path.join(tmp, 'dist'), exit: () => {}, ...rest, // a /stop or /restart-server that gets through must not end the test process
   });
   closers.push(s.close);
   const port = Number(new URL(s.url).port);
@@ -406,7 +405,7 @@ describe('the route matrix: each route x no credentials, cookie, cookie plus key
   });
 
   it('the socket: no credentials, cookie, and a wrong key are refused; cookie + key and a bearer are not', async () => {
-    const s = await boot({ nonce: N1, oneTab: false });
+    const s = await boot({ nonce: N1 });
     expect((await wsTry(s.url)).status).toBe(401);
     expect((await wsTry(s.url, { cookie: s.cookie, origin: s.origin })).status).toBe(401);
     expect((await pageSocket(s, 'f'.repeat(64))).status).toBe(401);
@@ -479,7 +478,7 @@ describe('the agent prefix (epic 383): /a/<id>/… is the route below it, every 
 
   it('names its agent in /info, serves the shell and the socket under it, and keeps the control token rule', async () => {
     const id = 'claude-aaaaaa';
-    const s = await boot({ nonce: N1, id, oneTab: false });
+    const s = await boot({ nonce: N1, id });
     const keyed = { cookie: s.cookie, 'x-nota-bene-key': s.key };
     expect(JSON.parse((await req(s.port, `/a/${id}/info`, { headers: keyed })).body).agent).toBe(id);
     const home = JSON.parse((await req(s.port, '/info', { headers: keyed })).body); // the server's (issue 639)
@@ -582,7 +581,7 @@ describe('the socket', () => {
   });
 
   it('cookie + key opens it; a wrong key, or the key of another port or launch, does not', async () => {
-    const s = await boot({ nonce: N1, oneTab: false });
+    const s = await boot({ nonce: N1 });
     const ok = await pageSocket(s);
     expect(ok.frame).toBeDefined();
     expect(ok.ws.protocol).toBe(`nb.${s.key}`); // echoed, or a browser would drop the socket
@@ -600,7 +599,7 @@ describe('the socket', () => {
   });
 
   it('a helper opens it with Bearer alone', async () => {
-    const s = await boot({ nonce: N1, oneTab: false });
+    const s = await boot({ nonce: N1 });
     expect((await wsTry(s.url, { authorization: `Bearer ${s.helper}` })).frame).toBeDefined();
   });
 
@@ -628,16 +627,12 @@ describe('the socket', () => {
     expect(owner.ws.readyState).toBe(WebSocket.OPEN);
   });
 
-  it('oneTab takeover still works for the page (cookie + key)', async () => {
+  it('issue 174: a second page (cookie + key) is attached beside the first', async () => {
     const s = await boot({ nonce: N1 });
     const first = await pageSocket(s);
-    const taken: string[] = [];
-    first.ws.on('message', (d) => taken.push(String(d)));
     const second = await pageSocket(s);
-    expect(second.frame).toContain('occupied');
-    second.ws.send(JSON.stringify({ type: 'takeover' }));
-    await new Promise((r) => setTimeout(r, 300));
-    expect(taken.join('')).toContain('taken-over');
+    expect(second.frame).not.toContain('occupied');
+    expect(first.ws.readyState).toBe(WebSocket.OPEN);
   });
 });
 
@@ -776,7 +771,7 @@ describe('the token and the nonce stay out of what the window runs and prints', 
   it('a `!` command and the agent see none of them; logs and /info do not print one', async () => {
     const logs: string[] = [];
     for (const m of ['log', 'error', 'warn', 'info'] as const) vi.spyOn(console, m).mockImplementation((...a) => void logs.push(a.join(' ')));
-    const s = await boot({ nonce: N1, oneTab: false });
+    const s = await boot({ nonce: N1 });
     process.env.NOTA_BENE_NONCE = N1; // as if the launcher's: shellEnv drops it
     expect(shellEnv(process.env).NOTA_BENE_NONCE).toBeUndefined();
     delete process.env.NOTA_BENE_NONCE;
@@ -813,7 +808,7 @@ describe('small closings', () => {
   });
 
   it('the socket is upgraded at /ws only', async () => {
-    const s = await boot({ nonce: N1, oneTab: false });
+    const s = await boot({ nonce: N1 });
     const at = (p: string) => new Promise<'open' | 'refused'>((resolve) => {
       const ws = new WebSocket(`${s.url.replace('http', 'ws')}${p}`, [`nb.${s.key}`], { headers: { cookie: s.cookie, origin: s.origin } });
       closers.push(async () => { ws.terminate(); });

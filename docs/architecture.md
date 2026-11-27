@@ -151,7 +151,7 @@ The menu is a list of chats: the web folds the agents of one folder into one row
 |---|---|
 | `main.ts` | Argument parsing, choice of what to resume, exit code 98 when the port is taken, the launcher watchdog. |
 | `server.ts` | The server: one listener, its login and home page, the process's exit, update and restart; it opens, keeps and closes its agents. |
-| `agent.ts` | One agent, under `/a/<id>/`. Composition: the stores, `SessionManager`, the HTTP router and the WSS; the dispatcher of WebSocket messages and the link between comments and the session. One tab per window (owner socket, 700 ms reload grace, 30 s ping, `takeover` closes the old owner with 4001, `?passive=1`). Messages the agent's `capabilities` forbid are rejected as `server-error`. |
+| `agent.ts` | One agent, under `/a/<id>/`. Composition: the stores, `SessionManager`, the HTTP router and the WSS; the dispatcher of WebSocket messages and the link between comments and the session. Every socket is attached (issue 174): each is pinged every 30 s and one with no pong is ended; `open-agent` goes to the newest page that follows the launcher (`go=1`). Messages the agent's `capabilities` forbid are rejected as `server-error`. |
 | `auth.ts` | The access token and every value derived from it ([Access token](agent-reference.md#access-token)). |
 | `stateGuard.ts` | Knows the folders that hold secrets (the current state folder and the two default ones) and refuses to serve, list or search anything inside them. |
 | `http.ts` | No framework. Order: Host allowlist, then `/control/` (token, no Origin) or Origin for non-GET, then the open routes (`/auth`, `/hello`), then auth for everything else, then the routes, `/info`, and last the static files of `web/dist` with an SPA fallback. |
@@ -218,7 +218,7 @@ Two channels with a clear split:
 
 | Channel | What goes through it | Why |
 |---|---|---|
-| **WebSocket `/ws`** | Live session state: `agent` (`AgentEvent`), `user`, `permission*` (including structured interactions), `session`, `mode`, `stats`, `comments`, `idle-compact`, `commands`, `shell-start` / `shell-out` / `shell-end` / `shell-refused`, `hello{capabilities}`, `replay{earlier}`, `send-refused`, `server-error`; window ownership: `occupied`, `taken-over`, from the client `takeover`, closing with code 4001 | Needs push and ordering of events. There is one receiver, the owner tab. |
+| **WebSocket `/ws`** | Live session state: `agent` (`AgentEvent`), `user`, `permission*` (including structured interactions), `session`, `mode`, `stats`, `comments`, `idle-compact`, `commands`, `shell-start` / `shell-out` / `shell-end` / `shell-refused`, `hello{capabilities}`, `replay{earlier}`, `send-refused`, `server-error` | Needs push and ordering of events. Every socket of the window receives them (a server before 39 had one owner tab: `occupied`, `taken-over`, `takeover`, code 4001). |
 | **HTTP** | Files, tree, search, attachments, media markup, temp images (`/tmpimage`), the session list, `/history` (the archive before compactions), `/subagent` (a subagent's conversation), `/task-output` (the tail of a shell task's output), Settings, `/agent-account`, `/info`, `/restart-server` | Request and response, cacheable, Range for video. |
 
 Protocol rules:
@@ -415,7 +415,7 @@ App
 
 | Client | Server | Purpose |
 |---|---|---|
-| `sdk/connections.ts` → `net/socket.ts` | `/ws?tab=<id>` (`&passive=1` for a busy or taken-over tab) | All live session state. |
+| `sdk/connections.ts` → `net/socket.ts` | `/ws?pause=1&held=1` (`&go=1` on this computer) | All live session state. |
 | `tasks/ShellView.tsx` | `GET /task-output?session&task` | A shell task's output. |
 | `subagent/slice.ts` (`fetchSubagent`), `subagent/AgentView.tsx` | `GET /subagent?session&tool` | A subagent's conversation; comments on it go to the main session. |
 | `feed/history.ts`, `feed/EarlierButton.tsx` | `GET /history?session&before` | An archived segment before a compaction. |
@@ -563,18 +563,11 @@ sequenceDiagram
 3. A reloaded page gets a short `replay` with `earlier = n`, and the feed shows the button "Show before compaction".
 4. A click: `GET /history?session=<id>&before=earlier+1`, and `prependHistory` inserts the segment before the feed and `earlier` decreases; an empty 404 removes the button, and a 409 (the conversation is a different one now) shows an error.
 
-**Taking over the window (takeover):**
-
-1. A second tab connects while an owner exists: after 700 ms it gets `occupied` and shows the overlay "The window is already open in another tab".
-2. "Work here" sends `takeover`. The server sends the old owner `taken-over`, detaches it and closes it with code 4001; the new tab attaches as in a normal connection and gets the `replay`.
-3. The old tab shows "Open in another tab" with the same "Work here" button and does not reconnect by itself; its queued comment ops wait and go if it takes the window back.
-
-**Reload of the owner within the grace period:**
-
-1. The new page gets a new `?tab=<id>` while the old page's socket is not yet closed: the server holds the new socket as `pending`, with no overlay.
-2. The old socket closes within 700 ms (`owner` is empty), so the newcomer becomes the owner and gets the `replay`. If it did not close, the newcomer gets `occupied`.
-3. The same `tab` as the owner's means the same page reconnecting after a drop (the old socket is a zombie): it is closed at once, without waiting.
-4. After a server restart both tabs reconnect passively (`&passive=1`): a passive socket cannot claim an empty window first. It gets `occupied` and carries on only on a click of "Work here".
+**Several clients of one window (issue 174):** every socket is attached as it connects and gets the `replay` and the
+state; there is no owner. A reload is a new socket like any other. Each socket is pinged every 30 s, and one whose last
+ping got no pong is ended, so a sleeping laptop holds no update, fold or pending restart. A second answer to an ask
+gets `server-error {where:'permission'}` "already answered" on its socket only. A page that meets an older server's
+`occupied` shows a toast to restart the server and never sends `takeover`.
 
 ## 6. Security (the local threat model)
 

@@ -174,18 +174,22 @@ it('/control/open moves the tab that follows (go=1) to the agent, the last one a
   expect(tab.events.filter((e) => e.kind === 'open-agent')).toHaveLength(1);
 });
 
-it('/control/open with show: false moves no tab; an agent another device owns is not one a tab moves onto', async () => {
+it('/control/open with show: false moves no tab; the phone on the agent does not keep the newest local tab from moving, the older one stays (issue 174)', async () => {
   const b = path.join(tmp, 'b');
   const s = await launchServer({ insecureNoAuth: true, cwd: path.join(tmp, 'a'), port: 0, backend: fakeBackend([]), webDist: path.join(tmp, 'dist'), backends: () => fakeBackend([]) });
   closers.push(s.close);
   const open = async (body: unknown) => (await fetch(`${s.url}/control/open`, { method: 'POST', headers: { [CONTROL_HEADER]: controlToken() }, body: JSON.stringify(body) })).json() as Promise<{ agent: string; shown?: true }>;
-  const tab = await socket((await firstAgent(s.url)).url, '?tab=t1&go=1');
+  const older = await socket((await firstAgent(s.url)).url, '?go=1');
+  const tab = await socket((await firstAgent(s.url)).url, '?go=1');
   const first = await open({ root: b, provider: 'codex', show: false });
   expect(first.shown).toBeUndefined();
-  await socket(`${s.url}/a/${first.agent}`); // the phone holds it
-  expect((await open({ root: b, provider: 'codex' })).shown).toBeUndefined();
   await new Promise((r) => setTimeout(r, 50));
   expect(tab.events.some((e) => e.kind === 'open-agent')).toBe(false);
+  await socket(`${s.url}/a/${first.agent}`); // the phone is on it
+  expect((await open({ root: b, provider: 'codex' })).shown).toBe(true);
+  await until(() => tab.events.some((e) => e.kind === 'open-agent'));
+  expect(tab.events.filter((e) => e.kind === 'open-agent')).toEqual([{ kind: 'open-agent', agent: first.agent }]);
+  expect(older.events.some((e) => e.kind === 'open-agent')).toBe(false);
 });
 
 it('issue 639: the top is the server\'s home (its folder and agents); every agent is under /a/<id>/ only', async () => {

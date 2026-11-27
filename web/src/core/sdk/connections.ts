@@ -10,9 +10,9 @@ import { coalesceChunks } from '../store/chunks.ts';
 import type { Route } from './routes.ts';
 
 // unauthorized = the server refused the page's login (the access token, net/auth.ts)
-// connecting = never open yet; closed = dropped after an open; occupied = another tab owns the window; taken = another tab took it from us (M7-15)
+// connecting = never open yet (or an older server's `occupied`: issue 174); closed = dropped after an open
 /** `stopped`: this tab stopped its own window (the header's Stop Nota Bene); nothing reconnects after it */
-export type ConnState = 'connecting' | 'open' | 'closed' | 'occupied' | 'taken' | 'unauthorized' | 'stopped';
+export type ConnState = 'connecting' | 'open' | 'closed' | 'unauthorized' | 'stopped';
 
 export type HelloEvent = Extract<ServerEvent, { kind: 'hello' }>;
 export type { Route } from './routes.ts';
@@ -30,8 +30,6 @@ export interface AgentConnection {
   fetch(route: Route, init?: RequestInit): Promise<Response>;
   /** for an img, video or iframe src */
   url(route: Route): string;
-  /** «Работать здесь»: take the window over from the other tab (R-M7-5/8) */
-  takeOver(): void;
   /** this tab stopped the window: the socket stays down */
   stop(): void;
   /** the connection's events, after the store has applied them */
@@ -58,13 +56,10 @@ export function agentConnection(o: {
   deliver: (ev: ServerEvent) => void;
   mirror: (s: ConnState) => void;
 }): AgentConnection & { open(): void } {
-  // this page instance's id, in memory only (not sessionStorage: a duplicated tab would copy it and steal the window);
-  // the server recognises a reconnect of the owning tab by it: no grace, no occupied (M7-15 fix round 1)
-  const tabId = crypto.randomUUID();
   // pause=1 (gh-422): this page asks for a pending server restart in its own pause, so the server waits for that ask;
   // held=1 (issue 499): it knows `send-held`, so its sends may wait behind a pending restart or compaction;
   // go=1 (epic 383): a page on this computer moves to the agent the launcher opens (`open-agent`)
-  const baseUrl = `${o.url}${o.url.includes('?') ? '&' : '?'}tab=${tabId}&pause=1&held=1${isLocalPage() ? '&go=1' : ''}`;
+  const url = `${o.url}${o.url.includes('?') ? '&' : '?'}pause=1&held=1${isLocalPage() ? '&go=1' : ''}`;
   let state: ConnState = 'connecting';
   let hello: HelloEvent | null = null;
   const watchers = new Set<() => void>();
@@ -77,13 +72,8 @@ export function agentConnection(o: {
     o.mirror(s);
     for (const fn of [...watchers]) fn();
   };
-  // an occupied or taken page reconnects passive: after a restart both tabs retry, and the one that was parked must not
-  // win the window by being first (the server answers a passive socket `occupied` even with no owner)
-  const url = () => (state === 'occupied' || state === 'taken' ? `${baseUrl}&passive=1` : baseUrl);
   let sock: Connection | null = null;
   const send = (m: ClientMessage): boolean => sock?.send(m) ?? false;
-  // «Работать здесь» was pressed: the next `occupied` is answered with `takeover` at once (and never shown)
-  let takeoverWanted = false;
   const conn: AgentConnection & { open(): void } = {
     base: o.base,
     state: () => state,
@@ -92,16 +82,6 @@ export function agentConnection(o: {
     send,
     fetch: (route, init) => apiFetch(o.base + route, init),
     url: (route) => o.base + route,
-    takeOver: () => {
-      takeoverWanted = true;
-      if (state === 'occupied') {
-        // a send that did not go out (socket not open) keeps the wish: the next `occupied` is answered with takeover
-        takeoverWanted = !send({ type: 'takeover' });
-      } else {
-        // from `taken`: the overlay stays up (inert) until the attach, or `occupied` to answer with takeover
-        sock?.reconnect?.();
-      }
-    },
     // the window was stopped from this tab: the socket stays down, and its close must not turn `stopped` back into `closed`
     stop: () => {
       setState('stopped');
@@ -112,13 +92,6 @@ export function agentConnection(o: {
       sock = (o.connect ?? realConnectFn)(
         url,
         coalesceChunks((ev) => {
-          if (ev.kind === 'occupied') {
-            if (takeoverWanted) {
-              takeoverWanted = false;
-              send({ type: 'takeover' });
-            } else setState('occupied');
-          } else if (ev.kind === 'taken-over') setState('taken');
-          else if (ev.kind === 'replay') takeoverWanted = false; // a replay goes to the owner only: the takeover went through
           if (ev.kind === 'hello') hello = ev;
           o.deliver(ev);
           for (const fn of [...listeners]) fn(ev);
@@ -154,7 +127,6 @@ export const connection: AgentConnection = {
   send: (m) => pageConnection().send(m),
   fetch: (route, init) => pageConnection().fetch(route, init),
   url: (route) => pageConnection().url(route),
-  takeOver: () => pageConnection().takeOver(),
   stop: () => pageConnection().stop(),
   onEvent: (fn) => pageConnection().onEvent(fn),
 };

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **A window is live on every client at once, with no Work here.** Browser tabs, the phone and a paired computer's tab all show the window and act in it together; none is parked behind "already open in another tab". When two answer one question, the first counts and the other hears it was already answered. A page that meets an older server says to restart the server.
+
 ## 2.3.0 — 2026-11-26
 
 - **Message fields show markdown as you type.** The chat's field and the comment popup draw bold, italics, strikethrough, code, links, lists, quotes and code blocks while you write and still send the markdown itself; a mark hides once the caret leaves it. ` ``` ` opens a code block with the caret inside, as in Slack.

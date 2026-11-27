@@ -335,7 +335,7 @@ export function reduce(s: FeedState, ev: ServerEvent): FeedState {
     case 'commands': // the controls slice
     case 'idle-compact': // the controls slice
     case 'hello':
-    case 'occupied': // the conn slice (M7-15)
+    case 'occupied': // a server before 39 (issue 174): a toast (store.ts)
     case 'taken-over':
     case 'send-refused': // plugins/composer/refused.ts: restores the draft, never the feed
     case 'shell-refused': // the same, for a `! cmd`

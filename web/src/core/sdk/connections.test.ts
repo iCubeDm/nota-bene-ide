@@ -6,6 +6,8 @@ import type { ClientMessage, ServerEvent } from '@nota-bene/shared';
 import { makeStore } from '@/core/testing';
 import { cancelRestart } from '../store/controls.ts';
 import { selectConn } from '../store/store.ts';
+import { getToasts, resetToasts } from '../shell/toast.ts';
+import { t } from '../i18n/index.ts';
 import type { SocketState } from '../net/socket.ts';
 import { agentConnection, connectionOf, useFeature, type AgentConnection, type ConnState } from './connections.ts';
 
@@ -67,16 +69,36 @@ it('the connection owns its state; the store mirrors each change with one connSt
   expect(conn.state()).toBe('connecting');
   f.state('open');
   const afterOpen = dispatches;
-  f.ev({ kind: 'occupied' });
-  f.ev({ kind: 'occupied' }); // no change: nothing mirrored
-  expect(seen).toEqual(['open', 'occupied']);
-  expect(mirrored).toEqual(['open', 'occupied']);
-  // the first occupied: one connState and its serverEvent; the second only its serverEvent
-  expect(dispatches - afterOpen).toBe(3);
-  off();
   f.state('closed');
-  expect(seen).toEqual(['open', 'occupied']);
-  expect(store.getState().conn.state).toBe('closed');
+  f.state('closed'); // no change: nothing mirrored
+  expect(seen).toEqual(['open', 'closed']);
+  expect(mirrored).toEqual(['open', 'closed']);
+  expect(dispatches - afterOpen).toBe(1);
+  off();
+  f.state('open');
+  expect(seen).toEqual(['open', 'closed']);
+  expect(store.getState().conn.state).toBe('open');
+});
+
+// issue 174: every client of a window is attached, so the page names no tab and is never passive
+it('the socket url carries no tab= or passive=1', () => {
+  const f = fake();
+  makeStore({ url: 'ws://x/ws', connect: f.connect });
+  const url = f.connect.mock.calls[0]![0] as string | (() => string);
+  // one address for every (re)connect: nothing about this page's past changes it
+  expect(typeof url === 'function' ? url() : url).toMatch(/^ws:\/\/x\/ws\?pause=1&held=1(&go=1)?$/);
+});
+
+it('an older server\'s occupied leaves the page connecting, answered by no takeover, and shows one oldServer toast', () => {
+  resetToasts();
+  const f = fake();
+  const store = makeStore({ url: 'u', connect: f.connect });
+  f.ev({ kind: 'occupied' });
+  f.ev({ kind: 'hello', protocol: 38 } as ServerEvent);
+  f.ev({ kind: 'occupied' }); // its retry after a drop: the same toast, counted, not a second one
+  expect(store.getState().conn.state).toBe('connecting');
+  expect(f.sent).toEqual([]);
+  expect(getToasts().map((x) => x.title)).toEqual([t('oldServer')]);
 });
 
 it('onEvent sees each event after the store applied it', () => {
@@ -155,4 +177,12 @@ it('a thunk fetches through its own store\'s connection, not the page\'s last on
   const spy = vi.spyOn(conn, 'fetch');
   expect(await a.dispatch(cancelRestart())).toBe(true);
   expect(spy).toHaveBeenCalledWith('/restart-server/cancel', { method: 'POST' });
+});
+
+it('a lost race to answer an ask is a toast in the page\'s language, not a server error', () => {
+  resetToasts();
+  const f = fake();
+  makeStore({ url: 'u', connect: f.connect });
+  f.ev({ kind: 'server-error', where: 'permission', message: 'already answered' });
+  expect(getToasts().map((x) => x.title)).toEqual([t('alreadyAnswered')]);
 });

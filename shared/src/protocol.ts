@@ -150,9 +150,10 @@ export { FEATURES, has, type Feature } from './features.ts';
  * The protocol this server speaks, announced in `hello`; `FEATURES` names the additions a client gates on. 30 to 37 are
  * the agents of one server (epic 383, issue 639: `open-agent`, agents in the host stream and the connector's `open`,
  * every agent under `/a/<id>/`), 38 the host stream as one list of them: nothing asks for them by name; a managed
- * connector of an older protocol is replaced.
+ * connector of an older protocol is replaced. 39 (issue 174): every socket of a window is attached and live, with no
+ * `occupied`, `taken-over` or close code 4001; a `takeover` is ignored.
  */
-export const PROTOCOL = 38;
+export const PROTOCOL = 39;
 
 /** The form of an agent id (epic 383): `<provider>-<6 base32>`, as in `/a/<id>/`. */
 export const AGENT_ID = /^[a-z]+-[a-z2-7]{6}$/;
@@ -211,7 +212,7 @@ export type RemoteState = {
 
 export type RemotePairResult = 'paired' | 'refused' | 'expired' | 'cancelled';
 
-/** close code the owner gets when another tab takes the window over (R-M7-5/8); the page never reconnects after it by itself */
+/** a server before 39: the close code its owner socket got when another tab took the window over (R-M7-5/8) */
 export const TAKEN_OVER_CODE = 4001;
 
 export const MODES = ['default', 'acceptEdits', 'plan', 'auto'] as const;
@@ -322,7 +323,7 @@ export type ClientMessage =
   | { type: 'activity' }
   /** idle compaction on or off for this project */
   | { type: 'idle-compact'; on: boolean }
-  /** from an occupied socket (R-M7-5): the window moves here; the old owner is closed with 4001 */
+  /** to a server before 39, from an occupied socket (R-M7-5): the window moves here; a server from 39 ignores it */
   | { type: 'takeover' }
   /** protocol 8: stop the running task `id` (a task_id); a refusal comes back as a `server-error` */
   | { type: 'task-stop'; id: string }
@@ -341,9 +342,9 @@ export type ClientMessage =
 export type IdleCompact = { on: boolean; blocked: boolean; minutes: number; awayMinutes: number; minTokens: number };
 
 export type ServerEvent =
-  /** another tab owns the window (R-M7-5): to a later socket only, followed by `hello`; no replay, no state */
+  /** a server before 39: another tab owns the window (R-M7-5), to a later socket only, followed by `hello`; no replay, no state */
   | { kind: 'occupied' }
-  /** to the owner just before it is closed with code 4001: another tab took the window over */
+  /** a server before 39: to the owner just before it is closed with code 4001, another tab took the window over */
   | { kind: 'taken-over' }
   /** right after the replay on every connection (servers before it send none: protocol 0) */
   | { kind: 'hello'; protocol: number; capabilities?: Capabilities; /** the UI language chosen on any window (server prefs.json); absent = none chosen yet */ lang?: UiLang; /** the interface scale chosen on any window, the same way; absent = none chosen (1) */ uiScale?: UiScale; /** the colour theme chosen on any window, the same way; absent = none chosen (the default theme) */ theme?: ThemeId; /** the temp folders (real and as named) whose images /tmpimage serves; the page links a path under one of them */ tmpDirs?: string[]; /** protocol 18: where the user chose the spoken language of dictation (server prefs.json): `auto` or an ISO 639 code; absent = none chosen (auto) */ dictationLang?: string }

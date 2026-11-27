@@ -32,7 +32,7 @@ afterEach(() => {
 
 /** A window that marks its open session seen and archives another, then closes. */
 async function run(extra: Partial<Parameters<typeof agentServer>[0]>): Promise<void> {
-  const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false, ffmpeg: () => null, resume: SESSION, ...extra });
+  const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, ffmpeg: () => null, resume: SESSION, ...extra });
   try {
     const post = (p: string, body: unknown) => fetch(`${s.url}${p}`, { method: 'POST', headers: { origin: s.server, 'content-type': 'application/json' }, body: JSON.stringify(body) });
     expect((await post('/seen', { session: SESSION })).status).toBe(200);

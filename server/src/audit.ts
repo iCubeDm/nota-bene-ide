@@ -158,7 +158,6 @@ function serverFields(ev: ServerEvent): Fields | null {
     case 'shell-start': return { kind: 'shell-start', id: ev.id };
     case 'shell-end': return { kind: 'shell-end', id: ev.id, code: ev.code, stop: ev.stop, error: short(ev.error) };
     case 'shell-refused': return { kind: 'shell-refused', id: ev.id, reason: ev.reason };
-    case 'occupied': case 'taken-over': return { kind: ev.kind };
     default: return null; // replay, hello, stats, comments, models, commands, shell output, idle-compact
   }
 }

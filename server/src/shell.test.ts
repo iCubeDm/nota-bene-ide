@@ -44,12 +44,12 @@ afterEach(async () => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
-async function boot(o: { turns?: FakeTurn[]; oneTab?: boolean; shell?: { timeoutMs?: number; killMs?: number }; historyDelayMs?: number } = {}) {
+async function boot(o: { turns?: FakeTurn[]; shell?: { timeoutMs?: number; killMs?: number }; historyDelayMs?: number } = {}) {
   const backend = fakeBackend(o.turns ?? [{ text: 'hello' }], {
     historyDelayMs: o.historyDelayMs ?? 0,
     sessions: [{ id: SB, cwd: other, summary: 'B', lastModified: 2, fileSize: 20, history: [{ role: 'user', text: 'before' }] }],
   });
-  const s = await agentServer({ insecureNoAuth: true, cwd: proj, port: 0, backend, webDist: path.join(tmp, 'dist'), oneTab: o.oneTab ?? false, takeoverGraceMs: 40, ...(o.shell ? { shell: o.shell } : {}) });
+  const s = await agentServer({ insecureNoAuth: true, cwd: proj, port: 0, backend, webDist: path.join(tmp, 'dist'), ...(o.shell ? { shell: o.shell } : {}) });
   closers.push(s.close);
   return { ...s, backend };
 }
@@ -340,24 +340,15 @@ describe('it adds no way in but the owner’s socket', () => {
     expect(ran()).toBe(false);
   });
 
-  it('a second tab parked behind the overlay can neither run nor stop', async () => {
-    const s = await boot({ oneTab: true });
-    const owner = await connect(s.url);
-    await until(() => owner.events.some((e) => e.kind === 'hello'));
-    const parked = await connect(s.url);
-    await until(() => parked.events.some((e) => e.kind === 'occupied'));
-    parked.send({ type: 'shell-run', id: 'p1', cmd: `touch ${marker()}` });
-    await sleep(150);
-    expect(ran()).toBe(false);
-    expect(ofKind(owner, 'shell-start')).toEqual([]);
-    // and it cannot stop the owner's run either
-    owner.send({ type: 'shell-run', id: 'r1', cmd: 'sleep 30' });
-    await until(() => ofKind(owner, 'shell-start').length === 1);
-    parked.send({ type: 'shell-stop', id: 'r1' });
-    await sleep(150);
-    expect(endOf(owner)).toBeUndefined();
-    owner.send({ type: 'shell-stop', id: 'r1' });
-    await until(() => !!endOf(owner));
+  it('issue 174: a second tab sees the first one\'s run and can stop it', async () => {
+    const s = await boot();
+    const first = await connect(s.url);
+    const second = await connect(s.url);
+    await until(() => first.events.some((e) => e.kind === 'hello') && second.events.some((e) => e.kind === 'hello'));
+    first.send({ type: 'shell-run', id: 'r1', cmd: 'sleep 30' });
+    await until(() => ofKind(second, 'shell-start').length === 1);
+    second.send({ type: 'shell-stop', id: 'r1' });
+    await until(() => !!endOf(first) && !!endOf(second));
   });
 
   it('takes the command as one argv item: the shell sees exactly the text', async () => {
