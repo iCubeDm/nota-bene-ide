@@ -211,6 +211,24 @@ describe('read state', () => {
     expect(readSeen(home)[OTHER]).toBe(seen(a)[2]!.at);
   });
 
+  it('a /clear while a client looks marks the new conversation as soon as it has its id', async () => {
+    const s = await boot({ turns, resume: SESSION });
+    const a = await connect(s.url);
+    await until(() => kinds(a).includes('hello'));
+    looking(a, true);
+    await until(() => seen(a).length === 2);
+    const from = a.events.length;
+    a.ws.send(JSON.stringify({ type: 'command', name: 'clear' }));
+    await until(() => ends(a) === 1);
+    const after = a.events.slice(from);
+    const at = after.findIndex((e) => e.kind === 'session' && !!e.id && e.id !== SESSION);
+    const id = (after[at] as Extract<ServerEvent, { kind: 'session' }>).id!;
+    // one mark at the new id, before the one of the /clear's turn end
+    const marks = after.slice(at).filter((e) => e.kind === 'seen');
+    expect(marks).toHaveLength(2);
+    expect(marks[1]).toEqual({ kind: 'seen', at: readSeen(home)[id] });
+  });
+
   it('an id that is no session id (the fake\'s own) is never marked, and no error is told', async () => {
     const s = await boot();
     const a = await connect(s.url);
