@@ -124,7 +124,7 @@ phone sees the relay's close (4403) and shows that it is not paired.
 The `OPEN` body names what the stream is:
 
 - `{"kind":"host"}`: the host's own stream. The host sends one message
-  `{"t":"windows","windows":[{id?, port, provider, root, title?, session?, model?, busy?, supervised?, pending?, last?, replies?, icon?, agent?}]}`, one row per agent of every server
+  `{"t":"windows","windows":[{id?, port, provider, root, title?, session?, model?, busy?, supervised?, pending?, last?, replies?, unseen?, icon?, agent?}]}`, one row per agent of every server
   (`HostStreamMessage` in `shared/src/host.ts`, generated for the phone;
   `id`: the window's stable id, `<provider>:<first 16 hex of sha1(root)>`, the
   same across restarts and port changes; a second window of the same folder and
@@ -141,7 +141,9 @@ The `OPEN` body names what the stream is:
   text blocks of the window's current history, which after a compaction is the
   compacted history, so the count can drop. The phone treats a drop as a reset
   and may miss replies that arrived after a compaction while it was away. An
-  older window sends none of the three.)
+  older window sends none of the three. `unseen` (protocol 41): the final
+  replies after the person last saw the session on any client, the window's
+  `/info.unseen`.)
   `agent` (epic 383): the row's agent id: its `ws`, `http` and `public` streams
   go to the server's `port` under `/a/<agent>` (#639: every agent is under its
   prefix, the server's top is no agent's). The row's `id` is its folder's, so a
