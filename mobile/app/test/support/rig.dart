@@ -10,7 +10,6 @@ import 'package:nb_app/sdk.dart';
 import 'package:nb_app/main.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/notify/visible.dart';
-import 'package:nb_app/store/seen.dart';
 import 'package:nb_app/store/sizes.dart';
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_app/store/voice_lang.dart';
@@ -39,7 +38,6 @@ class Rig {
     WidgetTester t, {
     List<Map<String, Object?>> events = const [],
     Map<String, Object?>? hello,
-    Seen? seen,
     AppVisible? visible,
     HostWindow? win,
     // false when something on screen animates for good (a pulsing dot)
@@ -80,7 +78,6 @@ class Rig {
             link: link,
             window: window(4791, '/home/u/notes'),
             stores: stores,
-            seen: seen,
             visible: visible,
             onTab: (x) => tab = x,
             retry: (_) async {},

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nb_app/main.dart' show watchSeen;
 import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/hosts/link_life.dart';
 import 'package:nb_app/l10n/app_localizations.dart';
@@ -10,7 +9,6 @@ import 'package:nb_app/notify/background.dart';
 import 'package:nb_app/notify/visible.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/notified.dart';
-import 'package:nb_app/store/seen.dart';
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_channel/nb_channel.dart';
 
@@ -23,6 +21,7 @@ HostWindow w({
   bool pending = false,
   int replies = 1,
   String? text,
+  int? unseen,
 }) => HostWindow(
   port: 4791,
   provider: AgentProvider.claude,
@@ -31,6 +30,7 @@ HostWindow w({
   busy: busy,
   pending: pending,
   replies: replies,
+  unseen: unseen,
   last: text == null
       ? null
       : LastMessage(role: LastMessageRole.assistant, text: text),
@@ -40,7 +40,6 @@ class Kit {
   late FakeFactory f;
   late FakeChannel ch;
   late Links links;
-  late Seen seen;
   late Notified notified;
   late AppVisible visible;
   late FakeBackground platform;
@@ -78,8 +77,6 @@ class Kit {
       await Identity.load(MemoryVault()),
       sleep: (_) => Completer<void>().future,
     );
-    seen = await Seen.load(v);
-    watchSeen(seen, hosts, links);
     notified = await Notified.load(v);
     visible = AppVisible.test();
     platform = FakeBackground(answer: answer, allow: allow);
@@ -87,7 +84,6 @@ class Kit {
     bg = Background(
       links: links,
       life: life,
-      seen: seen,
       notified: notified,
       visible: visible,
       platform: platform,
@@ -171,6 +167,25 @@ void main() {
       expect(n['tag'], '${k.hostId} s1');
       final before = k.platform.of('cancel').length;
       k.visible.visible = true;
+      await t.pump();
+      expect(k.platform.of('cancel').skip(before).map((c) => c['tag']), [
+        '${k.hostId} s1',
+      ]);
+      k.dispose();
+    },
+  );
+
+  testWidgets(
+    'issue 174: a reply read on another client takes its notification back',
+    (t) async {
+      final k = Kit();
+      await k.start(t);
+      k.visible.visible = false;
+      k.ch.push([w(replies: 2, unseen: 1)]);
+      await t.pump();
+      expect(k.platform.of('notify'), hasLength(1));
+      final before = k.platform.of('cancel').length;
+      k.ch.push([w(replies: 2, unseen: 0)]);
       await t.pump();
       expect(k.platform.of('cancel').skip(before).map((c) => c['tag']), [
         '${k.hostId} s1',

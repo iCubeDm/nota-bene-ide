@@ -1,5 +1,5 @@
-// Whether the app is on screen, and which chat is: an open chat counts replies as seen only while someone can see it,
-// and a notification is not posted for the chat in front of the user.
+// Whether the app is on screen, and which chat is: an open chat tells its window the person looks only while someone
+// can see it (issue 174), and a notification is not posted for the chat in front of the user.
 import 'package:flutter/widgets.dart';
 import 'package:nb_channel/nb_channel.dart';
 

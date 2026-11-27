@@ -1,15 +1,14 @@
-// What the phone has already notified about, per host and session: the reply count notified and whether the current wait
-// was. Kept apart from Seen (a notification is no reading) and on disk, so the periodic check and the app never notify
-// the same thing twice.
+// What the phone has already notified about, per host and session: the reply count notified, whether the current wait
+// was, and the unread count last listed (one that drops to 0 takes the notification back). On disk, so the periodic
+// check and the app never notify the same thing twice.
 import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
-import 'seen.dart';
 import 'vault.dart';
 
-typedef NotifiedSession = ({int replies, bool waiting});
+typedef NotifiedSession = ({int replies, bool waiting, int? unseen});
 
 class Notified extends ChangeNotifier {
   Notified._(this._v, this._m);
@@ -18,6 +17,9 @@ class Notified extends ChangeNotifier {
   final Map<String, Map<String, NotifiedSession>> _m;
 
   static const _slot = 'nb.notified';
+
+  /// Sessions kept per host: the most recently updated ones.
+  static const maxPerHost = 200;
 
   static Future<Notified> load(Vault v) async => Notified._(v, await _read(v));
 
@@ -34,11 +36,12 @@ class Notified extends ChangeNotifier {
             e.key as String: (
               replies: (e.value as Map)['r'] as int,
               waiting: (e.value as Map)['w'] == true,
+              unseen: (e.value as Map)['u'] as int?,
             ),
         };
       });
     } on Object {
-      // unreadable: start empty, as Seen does
+      // unreadable: start empty
       m.clear();
     }
     return m;
@@ -55,12 +58,12 @@ class Notified extends ChangeNotifier {
 
   NotifiedSession? of(String hostId, String session) => _m[hostId]?[session];
 
-  /// Records [s] for [session], as the most recently updated of its host, within [Seen.maxPerHost]. Saved by [save].
+  /// Records [s] for [session], as the most recently updated of its host, within [maxPerHost]. Saved by [save].
   void put(String hostId, String session, NotifiedSession s) {
     final per = _m[hostId] ??= {};
     per.remove(session);
     per[session] = s;
-    while (per.length > Seen.maxPerHost) {
+    while (per.length > maxPerHost) {
       per.remove(per.keys.first);
     }
   }
@@ -71,7 +74,11 @@ class Notified extends ChangeNotifier {
       for (final h in _m.entries)
         h.key: {
           for (final s in h.value.entries)
-            s.key: {'r': s.value.replies, 'w': s.value.waiting},
+            s.key: {
+              'r': s.value.replies,
+              'w': s.value.waiting,
+              'u': ?s.value.unseen,
+            },
         },
     }),
   );

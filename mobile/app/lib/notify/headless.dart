@@ -14,7 +14,6 @@ import '../store/hosts.dart';
 import '../store/lang_choice.dart';
 import '../store/notified.dart';
 import '../store/notify_choice.dart';
-import '../store/seen.dart';
 import '../store/vault.dart';
 import 'background.dart' show postEvent;
 import 'events.dart';
@@ -52,7 +51,6 @@ Future<void> runCheck({
   final hosts = await Hosts.load(vault);
   if (hosts.all.isEmpty) return;
   final id = await Identity.load(vault);
-  final seen = await Seen.load(vault);
   final notified = await Notified.load(vault);
   // one attempt per host: no backoff retries within a check
   final links = Links(
@@ -65,12 +63,10 @@ Future<void> runCheck({
     await linksSettled(links, wait);
     for (final l in links.all) {
       if (l.state != LinkState.online) continue;
-      seen.observe(l.host.id, l.windows);
-      for (final e in detect(l.host.id, l.windows, seen, notified)) {
+      for (final e in detect(l.host.id, l.windows, notified)) {
         await postEvent(platform, e, strings);
       }
     }
-    await seen.save();
     await notified.save();
   } finally {
     links.dispose();

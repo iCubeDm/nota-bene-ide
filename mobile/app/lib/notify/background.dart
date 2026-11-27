@@ -10,39 +10,43 @@ import '../hosts/host_link.dart';
 import '../hosts/link_life.dart';
 import '../l10n/app_localizations.dart';
 import '../store/notified.dart';
-import '../store/seen.dart';
 import 'events.dart';
 import 'platform.dart';
 import 'settle.dart';
 import 'visible.dart';
 
 /// Posts [e] as a notification: the project as title, the reply's start (or "waits for you") as text; the lock screen
-/// shows only the public title.
+/// shows only the public title. A [ReadEvent] takes the session's notification back.
 Future<void> postEvent(
   BackgroundPlatform platform,
   AgentEvent e,
   AppLocalizations s,
-) => platform.notify(
-  tag: e.key,
-  title: e.project,
-  text: switch (e) {
-    ReplyEvent(:final text) => text,
-    WaitEvent() => s.notifyWaitingText,
-  },
-  publicTitle: switch (e) {
-    ReplyEvent() => s.notifyReplyPublic(e.project),
-    WaitEvent() => s.notifyWaitingPublic(e.project),
-  },
-  hostId: e.hostId,
-  window: e.w.key,
-  channelName: s.notifyChannelEvents,
-);
+) => switch (e) {
+  ReadEvent() => platform.cancel(e.key),
+  ReplyEvent(:final text) => platform.notify(
+    tag: e.key,
+    title: e.project,
+    text: text,
+    publicTitle: s.notifyReplyPublic(e.project),
+    hostId: e.hostId,
+    window: e.w.key,
+    channelName: s.notifyChannelEvents,
+  ),
+  WaitEvent() => platform.notify(
+    tag: e.key,
+    title: e.project,
+    text: s.notifyWaitingText,
+    publicTitle: s.notifyWaitingPublic(e.project),
+    hostId: e.hostId,
+    window: e.w.key,
+    channelName: s.notifyChannelEvents,
+  ),
+};
 
 class Background {
   Background({
     required this.links,
     required this.life,
-    required this.seen,
     required this.notified,
     required this.visible,
     required this.platform,
@@ -61,7 +65,6 @@ class Background {
 
   /// What keeps the links: the service and a check hold them.
   final LinkLife life;
-  final Seen seen;
   final Notified notified;
   final AppVisible visible;
   final BackgroundPlatform platform;
@@ -136,11 +139,9 @@ class Background {
     if (_enabled && _granted) {
       final s = strings();
       for (final l in online) {
-        seen.observe(l.host.id, l.windows);
         for (final e in detect(
           l.host.id,
           l.windows,
-          seen,
           notified,
           onScreen: visible.onScreen,
         )) {
@@ -222,7 +223,6 @@ class Background {
     if (now != _wasVisible) {
       _wasVisible = now;
       if (now) {
-        unawaited(seen.reload());
         unawaited(notified.reload());
         unawaited(_recheck());
       }

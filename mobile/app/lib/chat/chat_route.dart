@@ -9,7 +9,6 @@ import '../hosts/host_link.dart';
 import '../l10n/app_localizations.dart';
 import '../notify/visible.dart';
 import '../sdk.dart';
-import '../store/seen.dart';
 import '../theme.dart';
 import '../comments/comment_strip.dart';
 import '../comments/comments_pane.dart';
@@ -31,7 +30,6 @@ class ChatRoute extends StatefulWidget {
     required this.link,
     required this.window,
     required this.stores,
-    this.seen,
     this.visible,
     this.onTab,
     this.retry,
@@ -43,10 +41,7 @@ class ChatRoute extends StatefulWidget {
   final HostWindow window;
   final AppStores stores;
 
-  /// Told the window's replies while the chat is open, so the list shows none of them unread.
-  final Seen? seen;
-
-  /// Whether the app is on screen: replies count as seen only while it is (none: always, as in tests).
+  /// Whether the app is on screen: the window is told the person looks only while it is (none, as in tests: not told).
   final AppVisible? visible;
 
   /// for tests: the tab once made
@@ -76,31 +71,21 @@ class _ChatRouteState extends State<ChatRoute> {
   void initState() {
     super.initState();
     widget.onTab?.call(_tab);
-    widget.link.addListener(_see);
-    _tab.addListener(_see);
-    widget.visible?.addListener(_see);
+    widget.link.addListener(_follow);
+    _tab.addListener(_follow);
     widget.visible?.open(widget.link.host.id, _shown);
-    _see();
+    _follow();
   }
 
   /// The key the chat was last shown under (the window's key can change: issue 511, a duplicate's id).
   late String _shown = _tab.connection.key;
 
-  /// The chat in front keeps its window's current key; while the tab is open and the app on screen, the window's
-  /// replies count as seen.
-  void _see() {
-    final w = _tab.connection.window;
-    if (_tab.connection.key != _shown) {
-      widget.visible?.close(widget.link.host.id, _shown);
-      _shown = _tab.connection.key;
-      widget.visible?.open(widget.link.host.id, _shown);
-    }
-    final seen = widget.seen;
-    if (seen == null || _tab.connection.state != TabState.open) return;
-    if (widget.visible?.visible == false) return;
-    final session = w?.session, replies = w?.replies;
-    if (session == null || replies == null) return;
-    unawaited(seen.see(widget.link.host.id, session, replies));
+  /// The chat in front keeps its window's current key.
+  void _follow() {
+    if (_tab.connection.key == _shown) return;
+    widget.visible?.close(widget.link.host.id, _shown);
+    _shown = _tab.connection.key;
+    widget.visible?.open(widget.link.host.id, _shown);
   }
 
   @override
@@ -111,10 +96,13 @@ class _ChatRouteState extends State<ChatRoute> {
 
   @override
   void dispose() {
-    widget.link.removeListener(_see);
-    _tab.removeListener(_see);
-    widget.visible?.removeListener(_see);
+    widget.link.removeListener(_follow);
+    _tab.removeListener(_follow);
     widget.visible?.close(widget.link.host.id, _shown);
+    // the window marked what was shown here read; the list shows it so before its next poll says
+    if (_tab.connection.window case final w?) {
+      widget.stores.unread.read(widget.link.host.id, w);
+    }
     _asks?.dispose();
     _tab.dispose();
     _depth.dispose();

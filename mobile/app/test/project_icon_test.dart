@@ -16,7 +16,7 @@ import 'package:nb_app/media/attach.dart' show Prepared, UnsupportedImage;
 import 'package:nb_app/media/gallery.dart';
 import 'package:nb_app/media/picker.dart';
 import 'package:nb_app/store/hosts.dart';
-import 'package:nb_app/store/seen.dart';
+import 'package:nb_app/store/unread.dart';
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_channel/nb_channel.dart';
 
@@ -191,10 +191,8 @@ void main() {
     late Identity id;
     late Hosts hosts;
     late FakeFactory f;
-    late Seen seen;
 
     setUp(() async {
-      seen = await Seen.load(MemoryVault());
       final v = MemoryVault();
       id = await Identity.load(v);
       hosts = await Hosts.load(v);
@@ -221,7 +219,7 @@ void main() {
           home: Home(
             hosts: hosts,
             icons: ProjectIcons(),
-            seen: seen,
+            unread: Unread(),
             links: links,
             onPair: () {},
             chat: (hostId, w) => const Scaffold(),

@@ -13,7 +13,7 @@ import 'hosts/rename_host.dart';
 import 'l10n/app_localizations.dart';
 import 'notify/visible.dart';
 import 'store/hosts.dart';
-import 'store/seen.dart';
+import 'store/unread.dart';
 
 typedef ChatBuilder = Widget Function(String hostId, HostWindow w);
 
@@ -21,7 +21,7 @@ class Home extends StatefulWidget {
   const Home({
     super.key,
     required this.hosts,
-    required this.seen,
+    required this.unread,
     required this.icons,
     required this.links,
     required this.onPair,
@@ -32,7 +32,7 @@ class Home extends StatefulWidget {
   });
 
   final Hosts hosts;
-  final Seen seen;
+  final Unread unread;
   final ProjectIcons icons;
   final DateTime Function() clock;
   final Links links;
@@ -59,7 +59,7 @@ class _HomeState extends State<Home> {
     super.initState();
     widget.links.addListener(_changed);
     widget.hosts.addListener(_changed);
-    widget.seen.addListener(_changed);
+    widget.unread.addListener(_changed);
     _tapped = widget.opened?.listen((p) {
       _want = '${p.hostId} ${p.window}';
       _lastTried = false;
@@ -72,7 +72,7 @@ class _HomeState extends State<Home> {
   void dispose() {
     widget.links.removeListener(_changed);
     widget.hosts.removeListener(_changed);
-    widget.seen.removeListener(_changed);
+    widget.unread.removeListener(_changed);
     unawaited(_tapped?.cancel());
     super.dispose();
   }
@@ -166,7 +166,7 @@ class _HomeState extends State<Home> {
             )
           : HostsList(
               links: widget.links.all,
-              seen: widget.seen,
+              unread: widget.unread,
               icons: widget.icons,
               clock: widget.clock,
               onOpen: _open,

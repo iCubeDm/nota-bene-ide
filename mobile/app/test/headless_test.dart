@@ -7,7 +7,8 @@ import 'package:nb_app/l10n/locale.dart';
 import 'package:nb_app/notify/headless.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/notify_choice.dart';
-import 'package:nb_app/store/seen.dart';
+import 'package:nb_app/notify/events.dart' show detect;
+import 'package:nb_app/store/notified.dart';
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_channel/nb_channel.dart';
 
@@ -44,12 +45,18 @@ void main() {
 
   final a = b64u(List.filled(32, 1)), b = b64u(List.filled(32, 2));
 
+  /// The phone has met [ws] of [host] before: their replies so far are no news.
+  Future<void> known(Vault v, String host, List<HostWindow> ws) async {
+    final n = await Notified.load(v);
+    detect(host, ws, n);
+    await n.save();
+  }
+
   test(
     'a host with a new reply gives one notification; every channel closes after',
     () async {
       final v = await paired([a]);
-      final seen = await Seen.load(v);
-      seen.observe(a, [w(1)]);
+      await known(v, a, [w(1)]);
       final f = FakeFactory();
       final ch = FakeChannel([w(2)]);
       f.results.add(ch);
@@ -69,8 +76,7 @@ void main() {
     'an unreachable host gives nothing and does not hold up the others',
     () async {
       final v = await paired([a, b]);
-      final seen = await Seen.load(v);
-      seen.observe(b, [w(1, root: '/home/u/web')]);
+      await known(v, b, [w(1, root: '/home/u/web')]);
       final f = FakeFactory();
       f.results.addAll([
         Completer<Channel>().future, // a: the relay never answers
@@ -94,7 +100,7 @@ void main() {
     'notifications turned off in Settings: the check posts nothing',
     () async {
       final v = await paired([a]);
-      (await Seen.load(v)).observe(a, [w(1)]);
+      await known(v, a, [w(1)]);
       await (await NotifyChoice.load(v)).set(false);
       final f = FakeFactory()..results.add(FakeChannel([w(2)]));
       final p = FakeBackground();
@@ -106,7 +112,7 @@ void main() {
 
   test('a list that comes after the connection is still read', () async {
     final v = await paired([a]);
-    (await Seen.load(v)).observe(a, [w(1)]);
+    await known(v, a, [w(1)]);
     final late = FakeChannel(); // connected, the host's list not sent yet
     final f = FakeFactory()..results.add(late);
     final p = FakeBackground();
