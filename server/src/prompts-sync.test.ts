@@ -26,7 +26,7 @@ afterEach(async () => {
 });
 
 async function boot(extra: { resume?: string; fork?: boolean } = {}) {
-  const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }, { text: 'again' }]), webDist: dist, oneTab: false, ...extra });
+  const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }, { text: 'again' }]), webDist: dist, ...extra });
   closers.push(s.close);
   return s;
 }

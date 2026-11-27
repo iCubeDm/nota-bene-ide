@@ -26,7 +26,7 @@ afterEach(async () => {
 });
 
 async function boot(remote?: RemoteKeeper) {
-  const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, oneTab: false, ...(remote ? { remote } : {}) });
+  const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello' }]), webDist: dist, ...(remote ? { remote } : {}) });
   closers.push(s.close);
   return s;
 }

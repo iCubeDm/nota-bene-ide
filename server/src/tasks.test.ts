@@ -37,7 +37,7 @@ const turn: FakeTurn = {
 
 async function boot(o: { background?: boolean | 'throw'; refuseStop?: string[] } = {}) {
   const backend = fakeBackend([turn], { shells, ...o });
-  const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend, webDist: dist, oneTab: false, resume: 'fake-session' });
+  const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend, webDist: dist, resume: 'fake-session' });
   closers.push(s.close);
   const ws = new WebSocket(s.url.replace('http', 'ws') + '/ws');
   const events: ServerEvent[] = [];

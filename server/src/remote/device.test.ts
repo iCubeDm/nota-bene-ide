@@ -49,7 +49,7 @@ const until = async (cond: () => boolean, ms = 5000) => {
 };
 
 async function window(port = 0) {
-  const s = await launchServer({ cwd: path.join(tmp, 'proj'), port, backend: fakeBackend([{ text: 'hello' }]), backends: () => fakeBackend([]), webDist: path.join(tmp, 'dist'), takeoverGraceMs: 40, exit: () => {} });
+  const s = await launchServer({ cwd: path.join(tmp, 'proj'), port, backend: fakeBackend([{ text: 'hello' }]), backends: () => fakeBackend([]), webDist: path.join(tmp, 'dist'), exit: () => {} });
   const p = Number(new URL(s.url).port);
   registerWindow(p, path.join(tmp, 'proj'), process.pid);
   let open = true;
@@ -322,18 +322,16 @@ describe('device channel', () => {
     expect((await l.phone.http(a.port, 'GET', `${a.at}/project-icon`)).status).toBe(404);
   });
 
-  it('a ws stream is a tab of the window, one-tab rule included', async () => {
+  it('a ws stream is a tab of the window, live beside another (issue 174)', async () => {
     const a = await window();
     const l = await paired(await windows());
     const t1 = l.phone.ws(a.port, `${a.at}/ws?tab=t1`);
     await until(() => t1.events.some((e) => e.kind === 'hello'));
     const t2 = l.phone.ws(a.port, `${a.at}/ws?tab=t2`);
     await until(() => t2.events.some((e) => e.kind === 'hello'));
-    expect(t2.events.map((e) => e.kind)).toContain('occupied');
-    t2.send({ type: 'takeover' });
-    expect((await t1.closed).code).toBe(4001);
+    expect(t2.events.map((e) => e.kind)).not.toContain('occupied');
     t2.send({ type: 'send', id: 'u1', text: 'from the phone' });
-    await until(() => t2.events.some((e) => e.kind === 'user' && e.id === 'u1'));
+    await until(() => t1.events.some((e) => e.kind === 'user' && e.id === 'u1'));
   });
 
   it('under the agent\'s prefix (epic 383): the same window, the same refusals', async () => {

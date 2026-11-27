@@ -15,7 +15,7 @@ export const FEATURES = {
   /** media anchors and `/marks` */
   mediaAnchors: 4,
   /**
-   * the agent's output as `agent` events (AgentEvent) instead of raw SDK frames; `replay.earlier`; one tab per window
+   * the agent's output as `agent` events (AgentEvent) instead of raw SDK frames; `replay.earlier`; one tab per window until 38
    * (`occupied`, `taken-over`, the client's `takeover`, close code 4001, `?tab=` and `?passive=1` on the ws url);
    * `hello.capabilities`
    */

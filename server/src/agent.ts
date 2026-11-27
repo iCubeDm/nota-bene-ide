@@ -4,9 +4,8 @@ import { randomUUID } from 'node:crypto';
 import http from 'node:http';
 import path from 'node:path';
 import type { Duplex } from 'node:stream';
-import { EventEmitter } from 'node:events';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { isAttachmentAnchor, parseClientMessage, PROTOCOL, TAKEN_OVER_CODE } from '@nota-bene/shared';
+import { isAttachmentAnchor, parseClientMessage, PROTOCOL } from '@nota-bene/shared';
 import type { ClientMessage, Comment, ServerEvent, Stats } from '@nota-bene/shared';
 import type { ProviderBackend as AgentBackend } from './agent/types.ts';
 import type { AgentProvider } from './agent/provider.ts';
@@ -53,14 +52,12 @@ import { cutRoutes } from './cut/routes.ts';
 import { usageRoutes } from './usage/routes.ts';
 import { KEY_PROTOCOL } from './auth.ts';
 
-/** how long a newcomer waits for the owner to close before it is told `occupied` (R-M7-6) */
-export const TAKEOVER_GRACE_MS = 700;
-/** ping period for the owner socket (R-M7-7) */
+/** ping period of every socket: one whose last ping got no pong is ended (R-M7-7) */
 export const HEARTBEAT_MS = 30_000;
 
 // every running agent's hub: the process-wide handlers report to them (server.ts)
 export const hubs = new Set<EventHub>();
-let attaches = 0; // orders the owners' attaches across a server's agents: the launcher moves the last one (Agent.shownSince)
+let attaches = 0; // orders the attaches of the pages that follow (`go=1`) across a server's agents: the launcher moves the last one (Agent.shownSince)
 
 /** One agent of a server (epic 383): a provider's session line in a folder, today's window minus the process. */
 export type AgentOptions = {
@@ -129,11 +126,9 @@ export type Agent = {
   notPaused(): boolean;
   /** its sockets that ask for a pending restart in their own pause (gh-422) */
   askers(): number;
-  /** when its owner socket, a page that follows the launcher (`go=1`), attached (a growing count); 0 with no such owner */
+  /** when its newest page that follows the launcher (`go=1`) attached (a growing count); 0 with no such page */
   shownSince(): number;
-  /** any socket owns it (a page, the phone, another computer's page) */
-  owned(): boolean;
-  /** sends that owner to the agent `id` (protocol 30 `open-agent`) */
+  /** sends that page to the agent `id` (protocol 30 `open-agent`) */
   show(id: string): void;
   restartChanged(pending: boolean): void;
   onSwitch(fn: (restart: boolean) => void): void;
@@ -462,22 +457,27 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     const caps = a.backend.capabilities;
     const refuse = (what: string) => reportError(hub, 'capability', new Error(`${what}: the agent does not support it`));
 
-    const oneTab = o.oneTab ?? true;
-    const graceMs = o.takeoverGraceMs ?? TAKEOVER_GRACE_MS;
-    // the owner socket (R-M7-5); only used with oneTab. `alive`: false while a ping waits for its pong
-    let owner: { ws: WebSocket; alive: boolean; tab: string | null; since: number } | null = null;
-    const heartbeat = oneTab
-      ? setInterval(() => {
-        if (!owner) return;
-        if (!owner.alive) { owner.ws.terminate(); return; } // the previous ping got no pong (R-M7-7)
-        owner.alive = false;
-        try { owner.ws.ping(); } catch { /* socket gone: its close handler follows */ }
-      }, o.heartbeatMs ?? HEARTBEAT_MS)
-      : null;
-    heartbeat?.unref();
-    undo.push(() => { if (heartbeat) clearInterval(heartbeat); });
+    // issue 174: every socket is attached (a page, the phone, another computer's page). Each is pinged; one whose last
+    // ping got no pong is ended (R-M7-7), so a dead one holds no update, fold or pending restart. `alive`: false while a ping waits
+    const alive = new WeakMap<WebSocket, boolean>();
+    const heartbeat = setInterval(() => {
+      for (const ws of wss.clients) {
+        if (alive.get(ws) === false) { ws.terminate(); continue; }
+        alive.set(ws, false);
+        try { ws.ping(); } catch { /* socket gone: its close handler follows */ }
+      }
+    }, o.heartbeatMs ?? HEARTBEAT_MS);
+    heartbeat.unref();
+    undo.push(() => clearInterval(heartbeat));
+    // the pages that follow the launcher (`go=1`, protocol 30), by when they attached: `open-agent` goes to the newest
+    const shown = new Map<WebSocket, number>();
+    const newestShown = (): WebSocket | null => {
+      let top: WebSocket | null = null;
+      for (const [ws, since] of shown) if (ws.readyState === ws.OPEN && since > (top ? shown.get(top)! : 0)) top = ws;
+      return top;
+    };
 
-    // the hello every socket gets, owner or not
+    // the hello every socket gets
     const sendHello = (ws: WebSocket) => {
       try {
         const { lang, uiScale, theme, whisper, dictationLang } = readPrefs(); // the user's UI language, scale and theme, shared by every window; absent until chosen
@@ -487,8 +487,8 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       }
     };
 
-    // the owner's wiring: replay (via the hub), state frames, hello. Returns nothing; the message handler is shared
-    const attachOwner = (ws: WebSocket, tab: string | null) => {
+    // a socket's wiring: replay (via the hub), state frames, hello
+    const attach = (ws: WebSocket) => {
       const hubDetach = hub.attach({ send: (d) => ws.send(d), buffered: () => ws.bufferedAmount });
       let detached = false;
       if (asksInPause.has(ws)) {
@@ -497,11 +497,8 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       }
       const detach = () => { if (!detached) { detached = true; hubDetach(); askers.delete(ws); } };
       detachers.set(ws, detach);
-      if (oneTab) {
-        const me = { ws, alive: true, tab, since: follows.has(ws) ? ++attaches : 0 };
-        owner = me;
-        ws.on('pong', () => { me.alive = true; });
-      }
+      ws.on('pong', () => alive.set(ws, true));
+      if (follows.has(ws)) shown.set(ws, ++attaches);
       manager.clientAttached();
       try {
         ws.send(JSON.stringify(commentsEvent()));
@@ -560,15 +557,13 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       sendHello(ws);
       ws.on('close', () => {
         detach();
-        if (owner?.ws === ws) owner = null;
-        ownerGone.emit('gone');
+        shown.delete(ws);
       });
     };
     const detachers = new WeakMap<WebSocket, () => void>();
-    const ownerGone = new EventEmitter();
 
-    // the owner's messages
-    const handleOwner = (ws: WebSocket, msg: ClientMessage) => {
+    // a socket's messages
+    const handle = (ws: WebSocket, msg: ClientMessage) => {
         switch (msg.type) {
           case 'send':
             // issue 499: a typed /compact while the agent works (or behind a pending order) is the pending compaction
@@ -695,8 +690,9 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
             manager.interrupt();
             break;
           case 'permission':
-            // the agent gets the ORIGINAL input back: a client never rewrites the input of an approved tool call
-            manager.answer(msg.id, msg.allow, msg.response);
+            // the agent gets the ORIGINAL input back: a client never rewrites the input of an approved tool call.
+            // Another client may have answered first: this one alone hears so, as the HTTP route's 409
+            if (!manager.answer(msg.id, msg.allow, msg.response)) ws.send(JSON.stringify({ kind: 'server-error', where: 'permission', message: 'already answered' }));
             break;
           case 'command':
             if (!caps[msg.name]) return refuse(`command ${msg.name}`);
@@ -745,22 +741,6 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
         }
     };
 
-    // a newer socket takes the window (R-M7-5): the owner is told and closed with 4001, then the newcomer attaches as on a connect
-    const takeover = (ws: WebSocket, tab: string | null) => {
-      const old = owner;
-      if (old) {
-        owner = null;
-        detachers.get(old.ws)?.(); // no more frames to it, not even those between now and its close
-        try {
-          old.ws.send(JSON.stringify({ kind: 'taken-over' }));
-        } catch { /* already dying */ }
-        role.set(old.ws, 'occupied'); // a message it already had in flight is not the owner's any more
-        old.ws.close(TAKEN_OVER_CODE);
-      }
-      attachOwner(ws, tab);
-      role.set(ws, 'owner');
-    };
-    const role = new WeakMap<WebSocket, 'pending' | 'occupied' | 'owner'>();
     // gh-422: sockets of a page (protocol 22+, `?pause=1`) that asks for a pending restart in its own pause; while one
     // is attached the server leaves that moment to it, otherwise its own pause rule restarts
     const asksInPause = new WeakSet<WebSocket>();
@@ -772,78 +752,27 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
 
     let conns = 0;
     wss.on('connection', (ws, req) => {
-      // this page instance's id (in memory on the page): the same tab reconnecting after a drop is not a second tab
       const params = new URL(req.url ?? '/', 'http://x').searchParams;
-      const tab = params.get('tab') || null;
-      // a page that is occupied or taken reconnects passive: with no owner it must not win the window by being first
-      // (a restart drops both tabs); it is told `occupied` and takes over only on the user's click
-      const passive = params.get('passive') === '1';
       if (params.get('pause') === '1') asksInPause.add(ws);
       if (params.get('held') === '1') holds.add(ws);
       if (params.get('go') === '1') follows.add(ws);
       const conn = ++conns;
-      audit?.write('ws-open', { conn, tab, passive });
+      audit?.write('ws-open', { conn });
       ws.on('close', (code) => audit?.write('ws-close', { conn, code }));
       ws.on('error', (e) => reportError(hub, 'ws', e));
       ws.on('message', guard(hub, 'ws', (data) => {
-        const r = role.get(ws);
-        if (r === 'pending') return; // still waiting out the grace: nothing it says counts yet
         const msg = parseClientMessage(String(data));
-        if (r === 'occupied') {
-          if (!('error' in msg) && msg.type === 'takeover') {
-            audit?.write('client', { conn, type: 'takeover' });
-            takeover(ws, tab);
-          }
-          return; // everything else from an occupied socket is ignored
-        }
         if ('error' in msg) {
           reportError(hub, 'ws', msg.error);
           // a comment op that can never be applied: answered, so the client drops it instead of sending it forever (issue 494)
           if (msg.opId !== undefined) ws.send(JSON.stringify({ kind: 'comment-refused', opId: msg.opId, reason: 'invalid' }));
           return;
         }
-        if (msg.type === 'takeover') return; // the owner has nothing to take
+        if (msg.type === 'takeover') return; // a client of a server before 39 (an older phone): there is nothing to take
         audit?.client(msg, conn);
-        handleOwner(ws, msg);
+        handle(ws, msg);
       }));
-      if (oneTab && !passive && owner && tab !== null && owner.tab === tab) {
-        // the owner's own reconnect (its old socket is a zombie the server has not noticed yet): out with the old, no grace
-        const old = owner;
-        owner = null;
-        detachers.get(old.ws)?.();
-        old.ws.terminate();
-      }
-      if (!oneTab || (!owner && !passive)) {
-        role.set(ws, 'owner');
-        attachOwner(ws, tab);
-        return;
-      }
-      // an owner exists: a reloading tab's old socket closes within the grace, so wait before answering occupied (R-M7-6)
-      role.set(ws, 'pending');
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const settle = () => {
-        clearTimeout(timer);
-        ownerGone.off('gone', onGone);
-        ws.off('close', onClose);
-        if (ws.readyState !== ws.OPEN) return;
-        if (!owner && !passive) {
-          role.set(ws, 'owner');
-          attachOwner(ws, tab);
-          return;
-        }
-        role.set(ws, 'occupied');
-        try {
-          ws.send(JSON.stringify({ kind: 'occupied' }));
-        } catch (e) {
-          reportError(hub, 'occupied', e);
-        }
-        sendHello(ws);
-      };
-      const onGone = () => settle();
-      const onClose = () => { clearTimeout(timer); ownerGone.off('gone', onGone); };
-      ownerGone.on('gone', onGone);
-      ws.on('close', onClose);
-      timer = setTimeout(settle, graceMs);
+      attach(ws);
     });
 
 
@@ -874,11 +803,10 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       working,
       notPaused,
       askers: () => askers.size,
-      owned: () => !!owner && owner.ws.readyState === owner.ws.OPEN,
-      shownSince: () => (owner && owner.ws.readyState === owner.ws.OPEN ? owner.since : 0),
+      shownSince: () => { const ws = newestShown(); return ws ? shown.get(ws)! : 0; },
       show: (id) => {
         try {
-          owner?.ws.send(JSON.stringify({ kind: 'open-agent', agent: id }));
+          newestShown()?.send(JSON.stringify({ kind: 'open-agent', agent: id }));
         } catch (e) {
           reportError(hub, 'open-agent', e);
         }
