@@ -834,7 +834,6 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
           if (msg.opId !== undefined) ws.send(JSON.stringify({ kind: 'comment-refused', opId: msg.opId, reason: 'invalid' }));
           return;
         }
-        if (msg.type === 'takeover') return; // a client of a server before 39 (an older phone): there is nothing to take
         audit?.client(msg, conn);
         handle(ws, msg);
       }));

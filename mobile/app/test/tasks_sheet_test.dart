@@ -197,7 +197,7 @@ void main() {
       events: [session],
       hello: {
         'kind': 'hello',
-        'protocol': 18,
+        'protocol': 41,
         'capabilities': {...Rig.caps(), 'taskBackground': false},
       },
     );

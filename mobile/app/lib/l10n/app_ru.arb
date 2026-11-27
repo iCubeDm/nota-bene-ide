@@ -97,9 +97,6 @@
   "effortMax": "максимум",
   "effortNone": "нет",
   "effortMinimal": "минимальное",
-  "occupiedTitle": "Это окно открыто в другой вкладке.",
-  "takenTitle": "Другая вкладка забрала это окно.",
-  "workHere": "Работать здесь",
   "pairedHosts": "Сопряжённые хосты",
   "forgetTitle": "Забыть {host}?",
   "forgetBody": "Телефон перестанет к нему подключаться. Хост будет помнить телефон, пока там не запустить `nota-bene remote revoke`.",
@@ -289,7 +286,6 @@
   "idleCompactBlocked": "Выключено в настройках агента",
   "windowGoneTitle": "Окно закрылось или перезапускается",
   "windowGoneBody": "Ждём, пока оно вернётся",
-  "stateOtherTab": "открыто в другой вкладке",
   "toolActions": "{count, plural, one{{count} действие} few{{count} действия} many{{count} действий} other{{count} действия}}",
   "@toolActions": {
     "placeholders": {

@@ -27,19 +27,6 @@ void main() {
     await t.pumpAndSettle();
   }
 
-  testWidgets('the context sheet: compact is disabled while busy', (t) async {
-    await r.open(
-      t,
-      events: [
-        {'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1},
-      ],
-    );
-    await r.openContextSheet(t);
-    await t.tap(find.text('Compact'));
-    await t.pumpAndSettle();
-    expect(r.sent, isEmpty);
-  });
-
   testWidgets('compact sends the command', (t) async {
     await r.open(t);
     await r.openContextSheet(t);
@@ -97,7 +84,7 @@ void main() {
       t,
       hello: {
         'kind': 'hello',
-        'protocol': 18,
+        'protocol': 41,
         'capabilities': Rig.caps(models: false),
       },
     );
@@ -115,15 +102,5 @@ void main() {
     await t.tap(find.widgetWithText(FilledButton, 'Restart'));
     await t.pumpAndSettle();
     expect(r.sent.single, {'type': 'restart'});
-  });
-
-  testWidgets('Work here calls takeover', (t) async {
-    await r.open(t);
-    r.event({'kind': 'occupied'});
-    await t.pumpAndSettle();
-    expect(find.text('open in another tab'), findsOneWidget);
-    expect(textIn('This window is open in another tab'), findsOneWidget);
-    await t.tapText('Work here');
-    expect(r.sent.last, {'type': 'takeover'});
   });
 }

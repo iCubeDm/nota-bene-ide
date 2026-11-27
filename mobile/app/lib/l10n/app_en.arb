@@ -194,9 +194,6 @@
   "effortMax": "max",
   "effortNone": "none",
   "effortMinimal": "minimal",
-  "occupiedTitle": "This window is open in another tab.",
-  "takenTitle": "Another tab took over this window.",
-  "workHere": "Work here",
   "@allowTool": {
     "placeholders": {
       "tool": {
@@ -515,7 +512,6 @@
   "idleCompactBlocked": "Turned off in the agent's settings",
   "windowGoneTitle": "The window closed or restarted",
   "windowGoneBody": "Waiting for it to come back",
-  "stateOtherTab": "open in another tab",
   "toolActions": "{count, plural, =1{1 action} other{{count} actions}}",
   "@toolActions": {
     "placeholders": {

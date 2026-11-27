@@ -369,7 +369,6 @@ sealed class ClientMessage implements _Json {
       'activity' => ClientMessageActivity.fromJson(json),
       'idle-compact' => ClientMessageIdleCompact.fromJson(json),
       'looking' => ClientMessageLooking.fromJson(json),
-      'takeover' => ClientMessageTakeover.fromJson(json),
       'task-stop' => ClientMessageTaskStop.fromJson(json),
       'task-background' => ClientMessageTaskBackground.fromJson(json),
       'shell-run' => ClientMessageShellRun.fromJson(json),
@@ -771,19 +770,6 @@ final class ClientMessageSwitch extends ClientMessage {
   @override
   Map<String, Object?> toJson() {
     return {'type': 'switch', 'id': id, 'dir': dir};
-  }
-}
-
-final class ClientMessageTakeover extends ClientMessage {
-  const ClientMessageTakeover();
-
-  factory ClientMessageTakeover.fromJson(Map<String, Object?> json) {
-    return const ClientMessageTakeover();
-  }
-
-  @override
-  Map<String, Object?> toJson() {
-    return {'type': 'takeover'};
   }
 }
 
@@ -2243,7 +2229,6 @@ sealed class ServerEvent implements _Json {
   factory ServerEvent.fromJson(Map<String, Object?> json) {
     return switch (json['kind']) {
       'occupied' => ServerEventOccupied.fromJson(json),
-      'taken-over' => ServerEventTakenOver.fromJson(json),
       'hello' => ServerEventHello.fromJson(json),
       'replay' => ServerEventReplay.fromJson(json),
       'agent' => ServerEventAgent.fromJson(json),
@@ -3058,19 +3043,6 @@ final class ServerEventStats extends ServerEvent {
   @override
   Map<String, Object?> toJson() {
     return {'kind': 'stats', 'stats': stats.toJson()};
-  }
-}
-
-final class ServerEventTakenOver extends ServerEvent {
-  const ServerEventTakenOver();
-
-  factory ServerEventTakenOver.fromJson(Map<String, Object?> json) {
-    return const ServerEventTakenOver();
-  }
-
-  @override
-  Map<String, Object?> toJson() {
-    return {'kind': 'taken-over'};
   }
 }
 

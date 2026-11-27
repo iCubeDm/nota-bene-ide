@@ -1,7 +1,6 @@
-// What covers the feed when the window is not simply there. The one-tab rule of the window server: another tab owns the
-// window (occupied), or took it from this one (taken); work here takes it over either way, and the desktop tab then
-// offers the same. A window that closed or restarted (gone): a spinner over the dimmed feed, and after a while a way to
-// try again. The composer is not covered: the draft stays.
+// What covers the feed when the window is not simply there: a window that closed or restarted (gone), a spinner over
+// the dimmed feed and after a while a way to try again; a window too old for the app, what to do about it. The composer
+// is not covered: the draft stays.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -121,30 +120,14 @@ class _OneTabOverlayState extends State<OneTabOverlay> {
           ),
         );
       }
-      final text = switch (tab.connection.state) {
-        TabState.occupied => t.occupiedTitle,
-        TabState.taken => t.takenTitle,
-        TabState.old => t.hostTooOld,
-        _ => null,
-      };
-      if (text == null) return const SizedBox.shrink();
+      if (tab.connection.state != TabState.old) return const SizedBox.shrink();
       return Positioned.fill(
         child: ColoredBox(
           color: c.background.withValues(alpha: 0.92),
           child: Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(text, textAlign: TextAlign.center),
-                  const SizedBox(height: 16),
-                  FilledButton(
-                    onPressed: tab.connection.takeOver,
-                    child: Text(t.workHere),
-                  ),
-                ],
-              ),
+              child: Text(t.hostTooOld, textAlign: TextAlign.center),
             ),
           ),
         ),

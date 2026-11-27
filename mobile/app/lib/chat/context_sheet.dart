@@ -168,12 +168,8 @@ class ContextSheet extends StatelessWidget {
                         NbGlyph.compact,
                         t.tileCompact,
                         tooltip: webString(WebKey.compactTip, lang),
-                        // while the agent works: ordered for its next pause (protocol 27), once
-                        enabled:
-                            open &&
-                            !tab.windowState.compactPending &&
-                            (!tab.windowState.busy ||
-                                tab.connection.has(Feature.compactOrder)),
+                        // while the agent works: ordered for its next pause, once
+                        enabled: open && !tab.windowState.compactPending,
                         onTap: () {
                           // the web shows no note for a refused Compact; the phone says why, as it does for Clear
                           final messenger = ScaffoldMessenger.maybeOf(outer);

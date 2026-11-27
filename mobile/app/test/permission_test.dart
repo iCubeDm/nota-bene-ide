@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_channel/nb_channel.dart';
 
 import 'support/rig.dart';
 
@@ -258,7 +259,7 @@ void main() {
       await r.open(t);
       r.event(plain('p1', 'ls'));
       await t.pumpAndSettle();
-      r.event({'kind': 'occupied'});
+      r.ch.host(Close(r.ch.lastWsId, 1006));
       await t.pumpAndSettle();
       expect(find.byType(BottomSheet), findsNothing);
       expect(r.sent, isEmpty);

@@ -97,9 +97,6 @@
   "effortMax": "máximo",
   "effortNone": "ninguno",
   "effortMinimal": "mínimo",
-  "occupiedTitle": "Esta ventana está abierta en otra pestaña.",
-  "takenTitle": "Otra pestaña tomó el control de esta ventana.",
-  "workHere": "Trabajar aquí",
   "pairedHosts": "Equipos vinculados",
   "forgetTitle": "¿Olvidar {host}?",
   "forgetBody": "Este teléfono dejará de conectarse. El equipo seguirá listando el teléfono hasta que ejecutes allí `nota-bene remote revoke`.",
@@ -289,7 +286,6 @@
   "idleCompactBlocked": "Desactivado en los ajustes del agente",
   "windowGoneTitle": "La ventana se cerró o se reinició",
   "windowGoneBody": "Esperando a que vuelva",
-  "stateOtherTab": "abierta en otra pestaña",
   "toolActions": "{count, plural, =1{1 acción} other{{count} acciones}}",
   "@toolActions": {
     "placeholders": {

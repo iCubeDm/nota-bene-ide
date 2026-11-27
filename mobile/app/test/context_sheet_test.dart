@@ -180,7 +180,7 @@ void main() {
       t,
       hello: {
         'kind': 'hello',
-        'protocol': 18,
+        'protocol': 41,
         'capabilities': {...Rig.caps(), 'idleCompact': false},
       },
     );
@@ -198,27 +198,13 @@ void main() {
     expect(find.byType(ContextSheet), findsNothing);
   });
 
-  testWidgets('Compact is off while the agent works', (t) async {
-    await r.open(t);
-    await r.openContextSheet(t);
-    r.event({'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1});
-    await t.pumpAndSettle();
-    await t.tap(find.text('Compact'));
-    await t.pumpAndSettle();
-    expect(r.sent, isEmpty);
-    expect(
-      runWindowCommand(r.tab!, ClientMessageCommandName.compact, 'en'),
-      webString(WebKey.working, 'en'),
-    );
-  });
-
-  // issue 499: a window of protocol 27 orders a Compact while the agent works for its next pause
+  // issue 499: a Compact while the agent works is ordered for its next pause
   testWidgets(
-    'protocol 27: Compact while the agent works is ordered; once pending it is off',
+    'Compact while the agent works is ordered; once pending it is off',
     (t) async {
       await r.open(
         t,
-        hello: {'kind': 'hello', 'protocol': 27, 'capabilities': Rig.caps()},
+        hello: {'kind': 'hello', 'protocol': 41, 'capabilities': Rig.caps()},
       );
       await r.openContextSheet(t);
       r.event({'kind': 'user', 'id': 'u1', 'text': 'go', 'ts': 1});
@@ -239,7 +225,7 @@ void main() {
     (t) async {
       await r.open(
         t,
-        hello: {'kind': 'hello', 'protocol': 27, 'capabilities': Rig.caps()},
+        hello: {'kind': 'hello', 'protocol': 41, 'capabilities': Rig.caps()},
       );
       r.event({
         'kind': 'compact-pending',
@@ -284,7 +270,7 @@ void main() {
       t,
       hello: {
         'kind': 'hello',
-        'protocol': 18,
+        'protocol': 41,
         'capabilities': Rig.caps(compact: false),
       },
     );
@@ -381,7 +367,7 @@ void main() {
     (t) async {
       await r.open(
         t,
-        hello: {'kind': 'hello', 'protocol': 27, 'capabilities': Rig.caps()},
+        hello: {'kind': 'hello', 'protocol': 41, 'capabilities': Rig.caps()},
       );
       r.event({'kind': 'compact-pending', 'pending': true, 'held': <Object>[]});
       await r.openContextSheet(t);
@@ -401,7 +387,7 @@ void main() {
       t,
       hello: {
         'kind': 'hello',
-        'protocol': 18,
+        'protocol': 41,
         'capabilities': Rig.caps(clear: false),
       },
     );

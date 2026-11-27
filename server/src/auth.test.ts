@@ -602,17 +602,14 @@ describe('the socket', () => {
     expect((await wsTry(s.url, { authorization: `Bearer ${s.helper}` })).frame).toBeDefined();
   });
 
-  it('the review\'s reproduction: a raw client with the cookie (and a forged Origin) cannot take over or run a command', async () => {
+  it('the review\'s reproduction: a raw client with the cookie (and a forged Origin) cannot run a command', async () => {
     const s = await boot({ nonce: N1 });
     const owner = await pageSocket(s);
-    const events: ServerEvent[] = [];
-    owner.ws.on('message', (d) => events.push(JSON.parse(String(d)) as ServerEvent));
     const marker = path.join(tmp, 'pwned');
     for (const headers of [{ cookie: s.cookie, origin: s.origin }, { cookie: s.cookie }, {} as Record<string, string>]) {
       await new Promise<void>((resolve) => {
         const ws = new WebSocket(s.url.replace('http', 'ws') + '/ws', { headers });
         ws.on('open', () => {
-          ws.send(JSON.stringify({ type: 'takeover' }));
           ws.send(JSON.stringify({ type: 'shell-run', id: 'x', cmd: `touch ${marker}` }));
         });
         ws.on('error', () => resolve());
@@ -622,7 +619,6 @@ describe('the socket', () => {
     }
     await new Promise((r) => setTimeout(r, 300));
     expect(fs.existsSync(marker)).toBe(false);
-    expect(events.some((e) => e.kind === 'taken-over')).toBe(false);
     expect(owner.ws.readyState).toBe(WebSocket.OPEN);
   });
 

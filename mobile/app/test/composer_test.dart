@@ -73,9 +73,9 @@ void main() {
     await t.enter('Keep me');
     await t.tap(find.byTooltip('Send'));
     await t.pumpAndSettle();
-    r.event({
-      'kind': 'occupied',
-    }); // another tab took the window while the dialog was up
+    r.ch.host(
+      Close(r.ch.lastWsId, 1006),
+    ); // the window went while the dialog was up
     await t.pumpAndSettle();
     await t.tapText('Send now');
     expect(r.sent, isEmpty);
@@ -200,7 +200,7 @@ void main() {
 
     Future<void> openVoice(
       WidgetTester t, {
-      int protocol = 18,
+      int protocol = 41,
       String? dictation = 'whisper',
       List<Map<String, Object?>> events = const [],
     }) => r.open(
@@ -378,7 +378,7 @@ void main() {
     testWidgets(
       'issue 655: pending comments with an empty field: Send beside the mic, and it sends them',
       (t) async {
-        await openVoice(t, protocol: 18);
+        await openVoice(t, protocol: 41);
         r.event(pending);
         await t.pumpAndSettle();
         expect(find.text('1 comment to send'), findsOneWidget);
@@ -412,7 +412,7 @@ void main() {
     testWidgets(
       'a recording made with comments pending sends their ids and batch',
       (t) async {
-        await openVoice(t, protocol: 18);
+        await openVoice(t, protocol: 41);
         r.event(pending);
         await t.pumpAndSettle();
         r.ch.onHttp = (port, method, path) async => ok();
@@ -431,7 +431,7 @@ void main() {
     testWidgets(
       'the batch is written when the recording leaves: a comment the desktop sent meanwhile is left out',
       (t) async {
-        await openVoice(t, protocol: 18);
+        await openVoice(t, protocol: 41);
         r.event(pending);
         await t.pumpAndSettle();
         final up = Completer<HttpAnswer>();
@@ -458,7 +458,7 @@ void main() {
     testWidgets(
       'comments held by a recording in the outbox are not offered to a second send',
       (t) async {
-        await openVoice(t, protocol: 18);
+        await openVoice(t, protocol: 41);
         r.event(pending);
         await t.pumpAndSettle();
         final up = Completer<HttpAnswer>();
@@ -542,7 +542,7 @@ void main() {
       t,
     ) async {
       r.voiceLang = await VoiceLang.load(MemoryVault());
-      await openVoice(t, protocol: 18);
+      await openVoice(t, protocol: 41);
       r.ch.onHttp = (port, method, path) async => ok();
       await record(t);
       await t.pump();
@@ -554,7 +554,7 @@ void main() {
       final v = await VoiceLang.load(MemoryVault());
       await v.choose('ru');
       r.voiceLang = v;
-      await openVoice(t, protocol: 18);
+      await openVoice(t, protocol: 41);
       r.ch.onHttp = (port, method, path) async => ok();
       await record(t);
       await t.pump();
@@ -743,7 +743,7 @@ void main() {
           keepStore: true,
           hello: {
             'kind': 'hello',
-            'protocol': 18,
+            'protocol': 41,
             'capabilities': Rig.caps(dictation: 'whisper'),
           },
         );
@@ -774,7 +774,7 @@ void main() {
           keepStore: true,
           hello: {
             'kind': 'hello',
-            'protocol': 18,
+            'protocol': 41,
             'capabilities': Rig.caps(dictation: 'whisper'),
           },
         );

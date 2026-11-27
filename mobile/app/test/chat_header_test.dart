@@ -80,7 +80,7 @@ void main() {
       t,
       hello: {
         'kind': 'hello',
-        'protocol': 18,
+        'protocol': 41,
         'capabilities': Rig.caps(provider: 'codex'),
       },
       events: [session(title: 'Spec work')],
@@ -99,7 +99,7 @@ void main() {
       t,
       hello: {
         'kind': 'hello',
-        'protocol': 18,
+        'protocol': 41,
         'capabilities': Rig.caps(modes: modes),
       },
       events: [session(title: 'x')],

@@ -721,13 +721,8 @@ class _SheetState extends State<_Sheet> {
   Widget _field(AppLocalizations t, NbColors c) {
     final tab = widget.tab;
     final typed = _text.text.trim().isNotEmpty;
-    // images alone: an older window would refuse the comment
     final sendable =
-        typed ||
-        _label != null ||
-        _clips.isNotEmpty ||
-        (_images.isNotEmpty &&
-            has(tab?.connection.protocol, Feature.imagesAlone));
+        typed || _label != null || _clips.isNotEmpty || _images.isNotEmpty;
     final voice = tab != null;
     return Builder(
       // a context under the sheet's own messenger, so "Whisper is on" shows above the sheet

@@ -75,7 +75,7 @@ void main() {
     apply([
       {
         'kind': 'hello',
-        'protocol': 27,
+        'protocol': 41,
         'tmpDirs': ['/tmp/x/', 'rel', '/'],
       },
       {

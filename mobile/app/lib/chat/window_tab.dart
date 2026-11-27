@@ -1,4 +1,4 @@
-// One window on the phone (issue 511): its [AgentConnection] (the socket, the one-tab rule, reconnects), its
+// One window on the phone (issue 511): its [AgentConnection] (the socket, reconnects), its
 // [Repository] (the window's data over it), its [WindowState] (what the window said), its [Tasks] (issue 573) and the
 // window's comments, voice outbox and media cache, wired together for the window's lifetime. The screens read the parts themselves (issue 547)
 // and send through [WindowTab.send] and [WindowTab.sendVoice], giving the question (issue 565).
@@ -15,7 +15,7 @@ import '../tasks/tasks.dart';
 import 'agent_connection.dart';
 import 'window_state.dart';
 
-export 'agent_connection.dart' show TabState, takenOverCode, uuidV4;
+export 'agent_connection.dart' show TabState, floor, uuidV4;
 
 /// The modes the agent offers (the known ones, in its order).
 List<AgentMode> offeredModes(WindowTab tab) => [
@@ -75,7 +75,7 @@ class WindowTab extends ChangeNotifier {
     connection.start();
   }
 
-  /// The window's socket: the one-tab rule, reconnects, sends.
+  /// The window's socket: reconnects, sends.
   late final AgentConnection connection;
 
   /// The window's data (files, git) over it.

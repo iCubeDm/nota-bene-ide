@@ -406,9 +406,7 @@ class _ImageScreenState extends State<ImageScreen>
               _glide.stop();
               _markup.marking = true;
             }),
-          // a comment without marks: an older window would refuse it (issue 494)
-          if (_item.markable &&
-              has(widget.tab.connection.protocol, Feature.wholePicture))
+          if (_item.markable)
             _action('act-comment', NbGlyph.comments, t.comment, _comment),
           _action('act-share', NbGlyph.share, t.share, _share),
         ],

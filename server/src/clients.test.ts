@@ -90,18 +90,6 @@ describe('every client', () => {
     expect(a.ws.readyState).toBe(WebSocket.OPEN);
   });
 
-  it('a takeover is ignored: nobody gets taken-over or code 4001', async () => {
-    const s = await boot();
-    const a = await connect(s.url);
-    const b = await connect(s.url);
-    await until(() => kinds(a).includes('hello') && kinds(b).includes('hello'));
-    b.ws.send(JSON.stringify({ type: 'takeover' }));
-    await new Promise((r) => setTimeout(r, 100));
-    expect(kinds(a)).not.toContain('taken-over');
-    expect(a.ws.readyState).toBe(WebSocket.OPEN);
-    expect(b.ws.readyState).toBe(WebSocket.OPEN);
-  });
-
   it('a socket that answers no ping is terminated; the other stays and clients counts it no more', async () => {
     const s = await boot({ heartbeat: 30 });
     const live = await connect(s.url);

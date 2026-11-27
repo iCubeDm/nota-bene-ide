@@ -90,7 +90,7 @@ class Rig {
     );
     await t.pump();
     if (greet) {
-      event(hello ?? {'kind': 'hello', 'protocol': 18, 'capabilities': caps()});
+      event(hello ?? {'kind': 'hello', 'protocol': 41, 'capabilities': caps()});
       if (replay) event({'kind': 'replay', 'events': events});
     }
     if (settle) {
@@ -145,6 +145,11 @@ class Rig {
 
   /// What the phone sent on the window's socket.
   List<Map<String, Object?>> get sent => ch.sentOn(ch.lastWsId);
+
+  /// The comments as the tab shows them: the window's set with the ops sent since folded over it.
+  List<Map<String, Object?>> get comments => [
+    for (final c in tab!.comments.all) c.toJson(),
+  ];
 
   void dispose() => link.dispose();
 }
