@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { agentOf, agentPath, generatedImages, isAttachmentAnchor, isCutAnchor, parseClientMessage, POLYGON_MAX_POINTS, SHELL_CMD_MAX, toAnchor, type MediaAnchor } from './protocol.ts';
+import { agentOf, agentPath, DRAFT_MAX, generatedImages, isAttachmentAnchor, isCutAnchor, parseClientMessage, POLYGON_MAX_POINTS, SHELL_CMD_MAX, toAnchor, type MediaAnchor } from './protocol.ts';
 
 test('accepts a send', () => expect(parseClientMessage('{"type":"send","id":"u1","text":"hi"}')).toEqual({ type: 'send', id: 'u1', text: 'hi' }));
 test('rejects bad json', () => expect(parseClientMessage('{nope')).toHaveProperty('error'));
@@ -571,4 +571,22 @@ test('comment-op: an add may carry before and restore; anything else in them is 
 test('agentOf reads the id agentPath writes; a path with no agent id has none', () => {
   for (const tail of ['', '/', '/ws', '/deep/link']) expect(agentOf(`${agentPath('codex-m2x7aa')}${tail}`), tail).toBe('codex-m2x7aa');
   for (const p of ['/', '/a/', '/a/claude-K3F7QZ/', '/a/claude-k3f7qz0/', '/ab/claude-k3f7qz/', '/x/a/claude-k3f7qz/']) expect(agentOf(p), p).toBeNull();
+});
+
+test('issue 174: a draft parses with its images and a null session; unknown keys are dropped', () => {
+  const img = { id: 'a'.repeat(64), mediaType: 'image/png' };
+  expect(parseClientMessage(JSON.stringify({ type: 'draft', id: 'd1', sessionId: null, text: 'hi', images: [{ ...img, label: 'x' }], x: 1 })))
+    .toEqual({ type: 'draft', id: 'd1', sessionId: null, text: 'hi', images: [img] });
+  expect(parseClientMessage(JSON.stringify({ type: 'draft', id: 'd1', sessionId: 's1', text: '' }))).toEqual({ type: 'draft', id: 'd1', sessionId: 's1', text: '' });
+});
+
+test('issue 174: an oversized or malformed draft is refused', () => {
+  const d = (o: Record<string, unknown>) => parseClientMessage(JSON.stringify({ type: 'draft', id: 'd1', sessionId: null, text: '', ...o }));
+  expect(d({ text: 'x'.repeat(DRAFT_MAX + 1) })).toHaveProperty('error');
+  expect(d({ text: 'x'.repeat(DRAFT_MAX) })).not.toHaveProperty('error');
+  expect(d({ id: '' })).toHaveProperty('error');
+  expect(d({ sessionId: 3 })).toHaveProperty('error');
+  expect(d({ text: 3 })).toHaveProperty('error');
+  expect(d({ images: [{ id: 'nope', mediaType: 'image/png' }] })).toHaveProperty('error');
+  expect(d({ images: [{ id: 'a'.repeat(64), mediaType: 'text/html' }] })).toHaveProperty('error');
 });

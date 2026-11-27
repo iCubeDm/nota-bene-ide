@@ -623,6 +623,24 @@
           "id": "c0"
         }
       ]
+    },
+    {
+      "type": "draft",
+      "id": "d1",
+      "sessionId": null,
+      "text": "half a thought",
+      "images": [
+        {
+          "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mediaType": "image/png"
+        }
+      ]
+    },
+    {
+      "type": "draft",
+      "id": "d2",
+      "sessionId": "s1",
+      "text": ""
     }
   ],
   "server": [
@@ -1391,6 +1409,23 @@
       "ack": [
         "op-1"
       ]
+    },
+    {
+      "kind": "draft",
+      "sessionId": "s1",
+      "text": "half a thought",
+      "images": [
+        {
+          "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "mediaType": "image/png"
+        }
+      ],
+      "ack": "d1"
+    },
+    {
+      "kind": "draft",
+      "sessionId": null,
+      "text": ""
     },
     {
       "kind": "comment-ack",

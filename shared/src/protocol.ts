@@ -105,6 +105,10 @@ export const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'
 export type ImageType = (typeof IMAGE_TYPES)[number];
 /** id = sha256 hex (64 chars) of the stored bytes */
 export type ImageRef = { id: string; mediaType: ImageType; label: string };
+/** issue 174: an uploaded image of the composer's draft (as the web's `ImageEntry`) */
+export type DraftImage = { id: string; mediaType: ImageType };
+/** the longest draft text a client syncs (chars); a longer one stays on its client */
+export const DRAFT_MAX = 256 * 1024;
 /** A stored recording (POST /voice): id = sha256 hex of the WAV, ms = its length, wave = VOICE_BARS bars of 0..31 (loudest = 31). */
 export type Voice = { id: string; ms: number; wave: number[] };
 /** A recording of a comment with its transcript. */
@@ -151,9 +155,9 @@ export { FEATURES, has, type Feature } from './features.ts';
  * the agents of one server (epic 383, issue 639: `open-agent`, agents in the host stream and the connector's `open`,
  * every agent under `/a/<id>/`), 38 the host stream as one list of them: nothing asks for them by name; a managed
  * connector of an older protocol is replaced. 39 (issue 174): every socket of a window is attached and live, with no
- * `occupied`, `taken-over` or close code 4001; a `takeover` is ignored.
+ * `occupied`, `taken-over` or close code 4001; a `takeover` is ignored. 40: the shared draft (`FEATURES.draft`).
  */
-export const PROTOCOL = 39;
+export const PROTOCOL = 40;
 
 /** The form of an agent id (epic 383): `<provider>-<6 base32>`, as in `/a/<id>/`. */
 export const AGENT_ID = /^[a-z]+-[a-z2-7]{6}$/;
@@ -306,6 +310,8 @@ export type ClientMessage =
   | { type: 'comments'; sessionId: string | null; items: Comment[] }
   /** protocol 19: applied to `sessionId`'s set (null: the window's current one), all or none */
   | { type: 'comment-op'; opId: string; sessionId: string | null; ops: CommentOp[] }
+  /** protocol 40: the composer's draft of `sessionId` (null: the window's current one); the last write wins. `id`: echoed as the `draft` event's `ack` */
+  | { type: 'draft'; id: string; sessionId: string | null; text: string; images?: DraftImage[] }
   | { type: 'interrupt' }
   /** `input` is ignored by the server (an allow always runs the original input); no client sends it. */
   | { type: 'permission'; id: string; allow: boolean; response?: InteractionAnswer }
@@ -362,6 +368,8 @@ export type ServerEvent =
   /** full comment set; never stored in history, so no ts */
   /** protocol 19: `rev` grows with every change of the set; `ack` names the `comment-op`s this change applied */
   | { kind: 'comments'; items: Comment[]; rev?: number; ack?: string[] }
+  /** protocol 40, never stored: the current session's draft, on attach, on a switch or a new id, and after a write (`ack`: the writer's `draft` id) */
+  | { kind: 'draft'; sessionId: string | null; text: string; images?: DraftImage[]; ack?: string }
   /** protocol 19, to the sender only: its `comment-op` was applied to a session the window does not show */
   | { kind: 'comment-ack'; opId: string }
   /** protocol 19, to the sender only: nothing of the `comment-op` was applied; `id` names the comment that refused it */
@@ -668,6 +676,10 @@ function toCommentOp(o: CommentOp): CommentOp {
   return { op: 'add', comment: toComment(o.comment), ...(o.before === undefined ? {} : { before: o.before }), ...(o.restore ? { restore: true } : {}) };
 }
 
+function isDraftImage(v: unknown): v is DraftImage {
+  return isObj(v) && isImageId(v.id) && (IMAGE_TYPES as readonly unknown[]).includes(v.mediaType);
+}
+
 function toImageRef(i: ImageRef): ImageRef {
   return { id: i.id, mediaType: i.mediaType, label: i.label };
 }
@@ -703,6 +715,13 @@ export function parseClientMessage(raw: string): ClientMessage | { error: string
       if (!Array.isArray(m.ops) || m.ops.length === 0 || m.ops.length > COMMENT_OPS_MAX) return { error: 'comment-op needs ops: 1 to 50 valid CommentOp', opId: m.opId };
       if (!m.ops.every(isCommentOp)) return { error: `comment-op needs ops: 1 to 50 valid CommentOp; ${opFault(m.ops)} is not`, opId: m.opId };
       return { type: 'comment-op', opId: m.opId, sessionId: m.sessionId, ops: (m.ops as CommentOp[]).map(toCommentOp) };
+    case 'draft':
+      if (typeof m.id !== 'string' || m.id === '' || m.id.length > 100) return { error: 'draft needs id: a short string' };
+      if (m.sessionId !== null && typeof m.sessionId !== 'string') return { error: 'draft needs sessionId: string | null' };
+      if (typeof m.text !== 'string' || m.text.length > DRAFT_MAX) return { error: `draft needs text: a string of at most ${DRAFT_MAX} chars` };
+      if (m.images !== undefined && (!Array.isArray(m.images) || !m.images.every(isDraftImage))) return { error: 'draft images must be uploaded images' };
+      return { type: 'draft', id: m.id, sessionId: m.sessionId, text: m.text,
+        ...(m.images === undefined ? {} : { images: (m.images as DraftImage[]).map((i) => ({ id: i.id, mediaType: i.mediaType })) }) };
     case 'interrupt':
       return { type: 'interrupt' };
     case 'permission':

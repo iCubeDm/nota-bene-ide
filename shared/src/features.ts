@@ -120,6 +120,11 @@ export const FEATURES = {
    * need it: the flag comes from the proxy, the page from the other computer.
    */
   remoteProjects: 29,
+  /**
+   * the composer's draft is the server's, per session (issue 174): the client's `draft` write and the server's `draft`
+   * event. Only the write is gated; an older server leaves the draft on its client.
+   */
+  draft: 40,
 } as const;
 
 export type Feature = keyof typeof FEATURES;
