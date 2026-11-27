@@ -169,6 +169,7 @@
   "sendNow": "Send now",
   "refusedBusy": "The window is busy; the message was not sent.",
   "refusedSwitching": "The window is switching sessions; the message was not sent.",
+  "shellOnComputer": "Commands starting with ! run only on the computer.",
   "allow": "Allow",
   "deny": "Deny",
   "allowSession": "Allow for this session",

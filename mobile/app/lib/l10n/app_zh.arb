@@ -72,6 +72,7 @@
   "sendNow": "立即发送",
   "refusedBusy": "窗口正忙，消息未发送。",
   "refusedSwitching": "窗口正在切换会话，消息未发送。",
+  "shellOnComputer": "以 ! 开头的命令只能在电脑上运行。",
   "allow": "允许",
   "deny": "拒绝",
   "allowSession": "本会话内允许",

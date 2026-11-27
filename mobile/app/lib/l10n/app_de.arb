@@ -72,6 +72,7 @@
   "sendNow": "Jetzt senden",
   "refusedBusy": "Das Fenster ist beschäftigt; die Nachricht wurde nicht gesendet.",
   "refusedSwitching": "Das Fenster wechselt die Sitzung; die Nachricht wurde nicht gesendet.",
+  "shellOnComputer": "Befehle, die mit ! beginnen, laufen nur auf dem Computer.",
   "allow": "Erlauben",
   "deny": "Ablehnen",
   "allowSession": "Für diese Sitzung erlauben",

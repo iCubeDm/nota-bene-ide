@@ -1,7 +1,9 @@
 // One window on the phone (issue 511): its [AgentConnection] (the socket, reconnects), its
 // [Repository] (the window's data over it), its [WindowState] (what the window said), its [Tasks] (issue 573) and the
-// window's comments, voice outbox and media cache, wired together for the window's lifetime. The screens read the parts themselves (issue 547)
-// and send through [WindowTab.send] and [WindowTab.sendVoice], giving the question (issue 565).
+// window's comments, draft (issue 174), voice outbox and media cache, wired together for the window's lifetime. The
+// screens read the parts themselves (issue 547) and send through [WindowTab.send] and [WindowTab.sendVoice], giving the
+// question (issue 565). It tells the window whether the person looks at it (`looking`, issue 174): the window marks
+// its replies read then, on every client.
 
 import 'package:flutter/foundation.dart';
 import 'package:nb_protocol/nb_protocol.dart';
@@ -10,9 +12,11 @@ import '../comments/comments.dart';
 import '../files/repository.dart';
 import '../hosts/host_link.dart';
 import '../media/fetch.dart';
+import '../notify/visible.dart';
 import '../sdk.dart';
 import '../tasks/tasks.dart';
 import 'agent_connection.dart';
+import 'draft_sync.dart';
 import 'window_state.dart';
 
 export 'agent_connection.dart' show TabState, floor, uuidV4;
@@ -52,6 +56,7 @@ class WindowTab extends ChangeNotifier {
     HostLink link,
     HostWindow w, {
     required this.stores,
+    this.visible,
     Future<void> Function(Duration)? retry,
   }) {
     connection = AgentConnection(
@@ -72,8 +77,13 @@ class WindowTab extends ChangeNotifier {
     voiceOutbox.addListener(comments.refresh);
     connection.addListener(_notify);
     windowState.addListener(_notify);
+    _shown = visible?.visible ?? false;
+    visible?.addListener(_seen);
     connection.start();
   }
+
+  /// Whether the app is on screen and which chat is; none (as in tests): the window is not told.
+  final AppVisible? visible;
 
   /// The window's socket: reconnects, sends.
   late final AgentConnection connection;
@@ -105,6 +115,9 @@ class WindowTab extends ChangeNotifier {
     has: connection.has,
     queue: stores.comments.of(_box),
   );
+
+  /// The composer's draft, the window's of its session: it outlives the chat's widgets, and goes with the tab.
+  late final draft = DraftSync(send: connection.send, has: connection.has);
 
   /// The voice messages recorded for this window that it has not shown yet. They belong to the app, by host and
   /// window, and outlive this tab: leaving the chat loses none.
@@ -179,9 +192,45 @@ class WindowTab extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  /// A new socket: the comment queue waits for its hello (issue 494), and the window says its state again.
+  bool _shown = false;
+
+  /// What the window was last told of `looking` on this socket.
+  bool? _told;
+
+  /// The person looks at this window: the app is on screen with its chat in it.
+  bool get looking {
+    final v = visible;
+    return v != null &&
+        v.visible &&
+        v.chat == (hostId: connection.link.host.id, window: connection.key);
+  }
+
+  /// The window is told when that changes, and on each socket once it speaks `looking`.
+  void _look() {
+    if (visible == null ||
+        _told == looking ||
+        !connection.has(Feature.looking)) {
+      return;
+    }
+    final on = looking;
+    if (connection.send(ClientMessageLooking(on: on))) _told = on;
+  }
+
+  void _seen() {
+    if (_disposed) return;
+    final shown = visible!.visible;
+    // the app goes to the background: what was typed goes now, the process may not come back
+    if (_shown && !shown) draft.flush();
+    _shown = shown;
+    _look();
+  }
+
+  /// A new socket: the comment queue waits for its hello (issue 494), a draft write it did not ack is typed again, and
+  /// the window says its state again.
   void _socket() {
     comments.closed();
+    draft.closed();
+    _told = null;
     windowState.socket();
   }
 
@@ -189,6 +238,7 @@ class WindowTab extends ChangeNotifier {
   void _opened() {
     voiceOutbox.opened();
     comments.flush();
+    _look();
   }
 
   /// An event of the window: the comments take theirs, the state all, then the voice outbox (while this tab is its
@@ -197,6 +247,10 @@ class WindowTab extends ChangeNotifier {
     switch (e) {
       case ServerEventHello():
         comments.hello();
+        draft.hello();
+        _look();
+      case ServerEventDraft():
+        draft.received(e);
       case ServerEventComments(:final items, :final ack):
         comments.apply(items, ack: ack);
       case ServerEventCommentAck(:final opId):
@@ -220,6 +274,9 @@ class WindowTab extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    visible?.removeListener(_seen);
+    // the last keystrokes go before the socket
+    draft.dispose();
     connection.dispose();
     windowState.dispose();
     tasks.dispose();

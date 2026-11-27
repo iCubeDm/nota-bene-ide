@@ -33,6 +33,73 @@ void main() {
     expect(find.text('Next step please'), findsNothing);
   });
 
+  group('the shared draft (issue 174)', () {
+    testWidgets('a send writes the emptied draft at once', (t) async {
+      await r.open(t);
+      await t.enter('hello');
+      await t.tap(find.byTooltip('Send'));
+      await t.pumpAndSettle();
+      expect(r.sent.single['text'], 'hello');
+      expect(r.drafts.first['text'], 'hello');
+      expect(r.drafts.last['text'], '');
+      final all = [for (final m in r.ch.sentOn(r.ch.lastWsId)) m['type']];
+      expect(all.lastIndexOf('draft'), greaterThan(all.indexOf('send')));
+    });
+
+    testWidgets('leaving the chat writes what was typed last', (t) async {
+      await r.open(t);
+      await t.enter('a');
+      await t.enter('ab');
+      await t.pumpWidget(const SizedBox());
+      expect(r.drafts.last['text'], 'ab');
+    });
+
+    testWidgets('another client\'s draft shows, its image read from /attach', (
+      t,
+    ) async {
+      final png = base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      );
+      await r.open(t);
+      r.ch.onHttp = (port, method, path) async =>
+          (status: 200, headers: const <String, String>{}, body: png);
+      final id = 'c' * 64;
+      r.event({
+        'kind': 'draft',
+        'sessionId': null,
+        'text': 'from the computer',
+        'images': [
+          {'id': id, 'mediaType': 'image/png'},
+        ],
+        'ack': 'theirs',
+      });
+      await t.pumpAndSettle();
+      expect(find.text('from the computer'), findsOneWidget);
+      expect(find.byKey(const ValueKey('draft')), findsOneWidget);
+      expect(r.ch.requests, contains('GET /attach/$id'));
+      expect(r.drafts, isEmpty, reason: 'a foreign draft is no local edit');
+    });
+
+    testWidgets(
+      'a ! draft is not sent: the phone runs no shell command; ![ is an image link',
+      (t) async {
+        await r.open(t);
+        await t.enter('! ls -la');
+        await t.tap(find.byTooltip('Send'));
+        await t.pumpAndSettle();
+        expect(r.sent, isEmpty);
+        expect(find.text('! ls -la'), findsOneWidget);
+        expect(textIn('only on the computer'), findsOneWidget);
+        await t.pump(const Duration(seconds: 5)); // the note goes
+        await t.pumpAndSettle();
+        await t.enter('![a](b.png)');
+        await t.tap(find.byTooltip('Send'));
+        await t.pumpAndSettle();
+        expect(r.sent.single['text'], '![a](b.png)');
+      },
+    );
+  });
+
   testWidgets('send while busy asks and sends force', (t) async {
     await r.open(
       t,

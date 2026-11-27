@@ -1,5 +1,5 @@
 // A window's chat as a route: it owns the tab (made on push, closed on pop) and puts the composer, the agent menu,
-// the asks and the one-tab overlay around the feed.
+// the asks and the window cover around the feed.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -62,10 +62,10 @@ class _ChatRouteState extends State<ChatRoute> {
     widget.link,
     widget.window,
     stores: widget.stores,
+    visible: widget.visible,
     retry: widget.retry,
   );
   PermissionWatcher? _asks;
-  final _draft = TextEditingController();
   final _panes = PanesController();
   final _focus_ = ChatFocus();
   final _filesNav = GlobalKey<NavigatorState>();
@@ -117,7 +117,6 @@ class _ChatRouteState extends State<ChatRoute> {
     widget.visible?.close(widget.link.host.id, _shown);
     _asks?.dispose();
     _tab.dispose();
-    _draft.dispose();
     _depth.dispose();
     _focus.dispose();
     super.dispose();
@@ -125,10 +124,11 @@ class _ChatRouteState extends State<ChatRoute> {
 
   /// Reply: the quote goes after what is already typed, and the field is focused with the caret behind it.
   void _reply(String quote) {
-    final had = _draft.text;
+    final draft = _tab.draft.text;
+    final had = draft.text;
     final sep = had.isEmpty || had.endsWith('\n') ? '' : '\n';
     final text = '$had$sep$quote';
-    _draft.value = TextEditingValue(
+    draft.value = TextEditingValue(
       text: text,
       selection: TextSelection.collapsed(offset: text.length),
     );
@@ -185,7 +185,7 @@ class _ChatRouteState extends State<ChatRoute> {
           mainAxisSize: MainAxisSize.min,
           children: [
             CommentStrip(tab: _tab, onTap: () => _panes.show(Pane.comments)),
-            Composer(tab: _tab, controller: _draft, focus: _focus),
+            Composer(tab: _tab, focus: _focus),
           ],
         ),
         overlay: OneTabOverlay(tab: _tab),

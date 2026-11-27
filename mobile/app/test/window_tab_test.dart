@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/feed.dart';
 import 'package:nb_app/chat/window_tab.dart';
 import 'package:nb_app/hosts/host_link.dart';
+import 'package:nb_app/notify/visible.dart';
 import 'package:nb_app/sdk.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/vault.dart';
@@ -81,6 +82,49 @@ void main() {
     expect(tab.windowState.feed.items.single, isA<UserItem>());
     expect(tab.connection.protocol, floor.protocol);
   });
+
+  test(
+    'looking (issue 174): on with the app shown and this chat in it, off when hidden, again on each socket',
+    () async {
+      final visible = AppVisible.test();
+      final seen = WindowTab(
+        link,
+        window(4791, '/p'),
+        stores: stores,
+        visible: visible,
+        retry: (_) async {},
+      );
+      addTearDown(seen.dispose);
+      await settle();
+      List<Object?> looks() => [
+        for (final m in ch.sentOn(ch.lastWsId))
+          if (m['type'] == 'looking') m['on'],
+      ];
+      ch.event(ch.lastWsId, replay([]));
+      ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': floor.protocol});
+      await settle();
+      expect(looks(), [false], reason: 'its chat is not open yet');
+      visible.open(link.host.id, seen.connection.key);
+      await settle();
+      expect(looks(), [false, true]);
+      seen.draft.text.text = 'typed';
+      visible.visible = false;
+      await settle();
+      expect(looks(), [false, true, false]);
+      expect(
+        ch.sentOn(ch.lastWsId).where((m) => m['type'] == 'draft').last['text'],
+        'typed',
+        reason: 'the draft is written as the app goes',
+      );
+      visible.visible = true;
+      ch.host(Close(ch.lastWsId, 1006));
+      await settle();
+      ch.event(ch.lastWsId, replay([]));
+      ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': floor.protocol});
+      await settle();
+      expect(looks(), [true], reason: 'told again on the new socket');
+    },
+  );
 
   test('reconnect replaces the feed', () async {
     ch.event(ch.lastWsId, replay([user('u1')]));
