@@ -18,6 +18,7 @@ import { AttachmentStore, attachmentRoutes } from './attachments.ts';
 import { ProjectIconStore, projectIconRoutes } from './projectIcon.ts';
 import { MarkFiles, markRoutes } from './marks.ts';
 import { CommentStore } from './comments.ts';
+import { DraftStore } from './drafts.ts';
 import { PromptStore, promptRoutes } from './prompts.ts';
 import { EventHub } from './hub.ts';
 import { complete, fileRoutes } from './fileRoutes.ts';
@@ -188,6 +189,20 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       return { kind: 'comments', items, rev, ...(ack ? { ack: [ack] } : {}) };
     };
     const broadcastComments = (ack?: string) => hub.emit(commentsEvent(ack), { store: false });
+    // the composer's draft of each session (issue 174): live state as the comments, the last write wins; never cleared by a send
+    const drafts = new DraftStore({ dir: path.join(agent.stateDir, 'drafts'), report: (e) => reportError(hub, 'draft', e) });
+    const draftEvent = (ack?: string): Extract<ServerEvent, { kind: 'draft' }> => {
+      const sessionId = manager.info().id;
+      const { text, images } = drafts.get(sessionId);
+      return { kind: 'draft', sessionId, text, ...(images.length ? { images } : {}), ...(ack ? { ack } : {}) };
+    };
+    const broadcastDraft = () => {
+      try {
+        hub.emit(draftEvent(), { store: false });
+      } catch (e) {
+        reportError(hub, 'draft', e);
+      }
+    };
     // the web's prompt history: a new session's first prompts wait in memory for its id (as comments do); a /clear or a fork
     // keeps the history, so the new id gets a copy of the previous one's
     const prompts = new PromptStore({ dir: path.join(agent.stateDir, 'prompts'), report: (e) => reportError(hub, 'prompts', e) });
@@ -196,6 +211,8 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       turnMarks.schedule();
       if (prev === null) store.adopt(id);
       broadcastComments();
+      if (prev === null) drafts.adopt(id); // a /clear or a fork carries no draft: the old session keeps its own
+      broadcastDraft();
       try {
         if (prev !== null) prompts.carry(prev, id);
         prompts.adopt(id); // a fork or an id-less /clear too: its first prompts waited in memory
@@ -209,6 +226,9 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       // session. A restart keeps the same session (and root), so it keeps the set too
       if (!restart) store.dropPending();
       broadcastComments();
+      if (!restart) drafts.dropPending();
+      try { drafts.flush(); } catch (e) { reportError(hub, 'draft', e); }
+      broadcastDraft();
     });
     // the one source of the project root: a switch changes it, so every route reads it per request
     const root = () => manager.info().root;
@@ -255,7 +275,7 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
     // a deleted session: Nota Bene's own data of it goes too, each part on its own (a failure is reported, the rest still goes)
     const forgetDeleted = (id: string) => {
       const parts: [string, () => void][] = [
-        ['history', () => archive.forget(id)], ['prompts', () => prompts.forget(id)], ['comments', () => store.forget(id)],
+        ['history', () => archive.forget(id)], ['prompts', () => prompts.forget(id)], ['comments', () => store.forget(id)], ['draft', () => drafts.forget(id)],
         ['archived', () => setArchived(id, false, agent.stateDir)], ['last session', () => void forgetSession(agent.stateDir, id)], ['compact-pending', () => order.forget(id)],
       ];
       for (const [what, drop] of parts) {
@@ -437,7 +457,11 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       controlToken: () => s.control,
       info,
     });
-    const switchFailed = (e: unknown) => reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);
+    // a failed switch: the window stays on its session, whose draft a write during the switch may have changed unseen
+    const switchFailed = (e: unknown) => {
+      reportError(hub, e instanceof SwitchError ? e.where : 'switch', e);
+      broadcastDraft();
+    };
     const wss = new WebSocketServer({
       noServer: true,
       // the page's key travels as the `nb.<key>` subprotocol (never in the URL); echo it or the browser drops the socket
@@ -498,6 +522,11 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
         ws.send(JSON.stringify(commentsEvent()));
       } catch (e) {
         reportError(hub, 'comments', e);
+      }
+      try {
+        ws.send(JSON.stringify(draftEvent()));
+      } catch (e) {
+        reportError(hub, 'draft', e);
       }
       if (o.remote) {
         try {
@@ -661,6 +690,19 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
               }
             }
             break;
+          case 'draft': {
+            // a write names the session it was typed in, so one sent across a switch lands there; null is the current one
+            const id = msg.sessionId ?? manager.info().id;
+            try {
+              drafts.set(id, { text: msg.text, images: msg.images ?? [] });
+            } catch (e) {
+              reportError(hub, 'draft', e);
+              break;
+            }
+            // another session's draft is no one's view, and during a switch its end sends the new session's
+            if (id === manager.info().id && !manager.switching()) hub.emit(draftEvent(msg.id), { store: false });
+            break;
+          }
           case 'mode':
             if (!caps.modes.includes(msg.mode)) {
               refuse(`mode ${msg.mode}`);
@@ -776,6 +818,7 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
       clearInterval(heartbeat);
       order.stop();
       turnMarks.freeze(); // a stop (SIGTERM, ⏻) during a turn keeps its mark: the close ends the turn
+      try { drafts.flush(); } catch (e) { reportError(hub, 'draft', e); }
       manager.close();
       const backendClose = a.backend.close?.().catch((e) => reportError(hub, 'backend-close', e));
       cutExporter.dispose();
