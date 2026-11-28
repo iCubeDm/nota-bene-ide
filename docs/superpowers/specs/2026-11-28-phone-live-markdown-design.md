@@ -41,8 +41,8 @@ of the way. The text stays the markdown that is sent, saved as the shared draft 
 - Code blocks use the feed's `highlightSpans` (`lib/chat/code.dart`) and monospace with the code background
   (`c.muted`); the background is per line, not a full-width box (builder's call: a `TextField` has no block layout).
 - The composing (IME) range keeps its underline; hiding never applies inside it.
-- The opening fence (the language) shows while the caret is anywhere in its block: the phone has no ArrowUp (the web's way) to
-  reach a hidden line.
+- The opening fence (the language) shows while the caret is anywhere in its block: the phone has no ArrowUp (the
+  web's way) to reach a hidden line.
 - Enter on the phone is a newline everywhere (the keyboard's action); Send stays the button.
 
 ## Left to the builder
