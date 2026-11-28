@@ -35,6 +35,7 @@ class HostsList extends StatelessWidget {
     required this.icons,
     required this.onOpen,
     required this.onForget,
+    required this.onMarkRead,
     this.onRename,
     this.onRefresh,
     this.onSetIcon,
@@ -51,6 +52,9 @@ class HostsList extends StatelessWidget {
   final ProjectIcons icons;
   final void Function(HostLink link, HostWindow w) onOpen;
   final void Function(HostLink link) onForget;
+
+  /// Mark read in a row's menu.
+  final void Function(HostLink link, HostWindow w) onMarkRead;
 
   /// Long-press on a host row.
   final void Function(HostLink link)? onRename;
@@ -123,7 +127,7 @@ class HostsList extends StatelessWidget {
               onRemoveIcon: onRemoveIcon == null || w.icon == null
                   ? null
                   : () => onRemoveIcon!(l, w),
-              onMarkRead: () => unread.read(l.host.id, w),
+              onMarkRead: () => onMarkRead(l, w),
             ),
           );
         }

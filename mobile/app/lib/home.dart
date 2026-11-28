@@ -1,6 +1,7 @@
 // The start screen: the session list grouped by host; at start, the chat opened last on this phone when its host is
 // online and still lists that window.
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:nb_channel/nb_channel.dart';
@@ -124,6 +125,22 @@ class _HomeState extends State<Home> {
       );
   }
 
+  /// Mark read: the window marks its session read for every client (issue 174); the row shows none at once, held until
+  /// a list after it says so (an older computer has no such route: the phone alone holds it).
+  void _markRead(HostLink link, HostWindow w) {
+    widget.unread.read(link.host.id, w);
+    final http = windowHttp(link, w), session = w.session;
+    if (http == null || session == null) return;
+    unawaited(
+      http(
+        'POST',
+        '/seen',
+        headers: {'content-type': 'application/json'},
+        body: utf8.encode(jsonEncode({'session': session})),
+      ).then((_) {}, onError: (Object _) {}),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
@@ -171,6 +188,7 @@ class _HomeState extends State<Home> {
               clock: widget.clock,
               onOpen: _open,
               onForget: (l) => widget.hosts.forget(l.host.id),
+              onMarkRead: _markRead,
               onRename: (l) => renameHostDialog(context, widget.hosts, l.host),
               onRefresh: widget.links.refresh,
               onSetIcon: (l, w) => setProjectIconFlow(context, l, w),

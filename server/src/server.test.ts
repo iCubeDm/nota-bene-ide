@@ -155,6 +155,25 @@ describe('server', () => {
     expect(j.asks[0]!.input.n).toBe(3);
   });
 
+  it('POST /seen (the phone\'s Mark read) marks the open session seen and tells every socket', async () => {
+    const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'one' }, { text: 'two' }]), webDist: dist, resume: '33333333-3333-4333-8333-333333333333' });
+    closers.push(s.close);
+    const info = async () => (await (await fetch(`${s.url}/info`)).json()) as { session: string; unseen: number };
+    const c = await connect(s.url);
+    c.ws.send(JSON.stringify({ type: 'send', id: 'u1', text: 'hi' }));
+    await until(() => c.events.some(isResult));
+    const first = await info();
+    expect(first.unseen).toBe(1);
+    const before = c.events.filter((e) => e.kind === 'seen').length;
+    const seen = await fetch(`${s.url}/seen`, { method: 'POST', headers: { origin: s.server, 'content-type': 'application/json' }, body: JSON.stringify({ session: first.session }) });
+    expect(seen.status).toBe(200);
+    expect((await info()).unseen).toBe(0);
+    await until(() => c.events.filter((e) => e.kind === 'seen').length > before);
+    c.ws.send(JSON.stringify({ type: 'send', id: 'u2', text: 'again' }));
+    await until(() => c.events.filter(isResult).length === 2);
+    expect((await info()).unseen).toBe(1);
+  });
+
   it('a new socket gets the current stats, and stats never enter the replay', async () => {
     const hot = { used: 180000, max: 200000, pct: 90 };
     const s = await agentServer({ insecureNoAuth: true, cwd: '/proj', port: 0, backend: fakeBackend([{ text: 'hello', context: hot }]), webDist: dist });

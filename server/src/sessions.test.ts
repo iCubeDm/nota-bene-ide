@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import http from 'node:http';
 import { SessionNotFoundError } from './agent/types.ts';
 import { EventHub } from './hub.ts';
-import { archiveRoute, cwdOf, deleteRoute, listSessionsView, renameRoute, titleOf } from './sessions.ts';
+import { archiveRoute, cwdOf, deleteRoute, listSessionsView, renameRoute, seenRoute, titleOf } from './sessions.ts';
 import { wirePath } from './wirePath.ts';
 
 let dir: string;
@@ -170,6 +170,24 @@ const post = async (route: http.RequestListener, body: string, method = 'POST') 
   server.close();
   return { status: res.status, text: await res.text() };
 };
+
+describe('POST /seen', () => {
+  const route = (mark: (id: string, at: number) => void) => seenRoute({ hub: new EventHub(), current: () => OPEN, mark, now: () => 1234 });
+
+  it('marks the open session seen now, in one form', async () => {
+    const mark = vi.fn();
+    expect((await post(route(mark), JSON.stringify({ session: OPEN.toUpperCase() }))).status).toBe(200);
+    expect(mark.mock.calls).toEqual([[OPEN, 1234]]);
+  });
+
+  it('refuses another session and a bad id', async () => {
+    const mark = vi.fn();
+    expect((await post(route(mark), JSON.stringify({ session: ID }))).status).toBe(409);
+    expect((await post(route(mark), JSON.stringify({ session: '../x' }))).status).toBe(400);
+    expect((await post(route(mark), '{}')).status).toBe(400);
+    expect(mark).not.toHaveBeenCalled();
+  });
+});
 
 describe('POST /sessions/archive', () => {
   const route = (set: (id: string, on: boolean) => void) => archiveRoute({ hub: new EventHub(), current: () => OPEN, set });

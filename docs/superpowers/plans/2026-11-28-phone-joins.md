@@ -54,7 +54,7 @@ goes. A foreign text is applied as the minimal diff, the caret kept. A foreign i
 
 ## 5. Unread
 
-- `store/seen.dart`, `watchSeen`, `seen_test`, `chat_seen_test` go; `AppStores.unread` (`hosts/unread.dart`, in memory):
+- `store/seen.dart`, `watchSeen`, `seen_test`, `chat_seen_test` go; Mark read posts the window's `POST /seen {session}`; `AppStores.unread` (`hosts/unread.dart`, in memory):
   `of(hostId, w)` = `w.unseen`, 0 for a chat left or marked read here while `replies` is unchanged; `read(hostId, w)`.
 - `notify/events.dart` `detect(hostId, windows, notified, {onScreen})`: a reply notifies when `replies` grew and
   `unseen` is absent or > 0; `ReadEvent` when `unseen` drops to 0 (the notified record keeps the last `unseen`), posted

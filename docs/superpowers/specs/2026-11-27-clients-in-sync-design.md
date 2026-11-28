@@ -182,8 +182,10 @@ The two never agree, and a notification races the POST against the host stream's
   - on `onSessionId` and on a switch.
 - Each mark broadcasts `{ kind: 'seen'; at: number }` (`store:false`), and attach sends it too. Receiving it is not
   gated.
-- `POST /seen` and `seenRoute` go. An old page left open across a restart then marks nothing until it is reloaded;
+- The page's throttled `POST /seen` goes. An old page left open across a restart then marks nothing until it is reloaded;
   this is accepted and written down here.
+- `POST /seen {session}` stays for the phone's **Mark read** (PR 4): an explicit mark is a user action, not the
+  throttled presence POST that raced the poll. It marks the open session and broadcasts `seen`.
 
 **Host stream:** `unseen` is added to `HostWindow` and `HOST_WINDOW_INFO` (`shared/src/host.ts`). `projects.ts` (about
 l.130) uses `w.unseen ?? 0` for another computer's rows instead of 0.
@@ -235,8 +237,8 @@ unread count clears. The phone's local count used to keep it. Fix the stale comm
 - **Covers and strings:** `one_tab.dart` keeps only the gone-window cover. `session_state.dart` loses its occupied/taken
   branch, and the `occupiedTitle`, `takenTitle` and `workHere` strings leave all six ARBs.
 - **Draft:**
-  - A `DraftSync` lives in `WindowTab`, so the draft outlives the chat route. Today it dies with `chat_route.dart`'s
-    controller.
+  - A `DraftSync` lives in `WindowTab`. `ChatRoute` owns the tab, so in memory the draft goes with the route; it
+    outlives it on the server, where the last write is flushed as the route goes.
   - It follows the rule in §3, and its writes are flushed on send and on app pause.
   - A draft image from another client renders from the window's attachment URL.
   - Send refuses a draft that starts with `!` (but not `![`): the phone has no shell run, and that text must not reach

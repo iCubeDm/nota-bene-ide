@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -347,28 +349,38 @@ void main() {
     links.dispose();
   });
 
-  testWidgets('long-press, Mark read clears the count until a new reply', (
-    t,
-  ) async {
-    await hosts.add(paired(a, 'laptop'));
-    final ch = FakeChannel([full()]);
-    f.results.add(ch);
-    final links = await pump(t);
-    expect(find.text('3'), findsOneWidget);
-    await t.longPress(find.text('Plan'));
-    await t.pumpAndSettle();
-    expect(find.text('Open'), findsOneWidget);
-    await t.tap(find.text('Mark read'));
-    await t.pumpAndSettle();
-    expect(find.text('3'), findsNothing);
-    ch.push([full()]);
-    await t.pumpAndSettle();
-    expect(find.text('3'), findsNothing, reason: 'the same replies');
-    ch.push([full(replies: 6, unseen: 4)]);
-    await t.pumpAndSettle();
-    expect(find.text('4'), findsOneWidget);
-    links.dispose();
-  });
+  testWidgets(
+    'long-press, Mark read tells the window (issue 174) and clears the count until a new reply',
+    (t) async {
+      await hosts.add(paired(a, 'laptop'));
+      // an older computer: no such route; the count stays cleared on the phone
+      final ch = FakeChannel([full()])
+        ..onHttp = (port, method, path) async => (
+          status: 404,
+          headers: const <String, String>{},
+          body: Uint8List(0),
+        );
+      f.results.add(ch);
+      final links = await pump(t);
+      expect(find.text('3'), findsOneWidget);
+      await t.longPress(find.text('Plan'));
+      await t.pumpAndSettle();
+      expect(find.text('Open'), findsOneWidget);
+      await t.tap(find.text('Mark read'));
+      await t.pumpAndSettle();
+      expect(find.text('3'), findsNothing);
+      final call = ch.calls.single;
+      expect((call.method, call.path), ('POST', '/seen'));
+      expect(jsonDecode(utf8.decode(call.body)), {'session': 's1'});
+      ch.push([full()]);
+      await t.pumpAndSettle();
+      expect(find.text('3'), findsNothing, reason: 'the same replies');
+      ch.push([full(replies: 6, unseen: 4)]);
+      await t.pumpAndSettle();
+      expect(find.text('4'), findsOneWidget);
+      links.dispose();
+    },
+  );
 
   testWidgets('long-press, Open opens the chat', (t) async {
     await hosts.add(paired(a, 'laptop'));
