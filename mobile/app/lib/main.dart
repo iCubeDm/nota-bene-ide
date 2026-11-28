@@ -31,6 +31,9 @@ import 'theme.dart';
 import 'ui/focus_across_away.dart';
 import 'voice/player.dart' show VoicePlayer;
 
+// Android's worker starts an engine at it by name; Flutter compiles only what main.dart reaches
+export 'notify/headless.dart' show backgroundCheck;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // the usage dates are written in the app's language

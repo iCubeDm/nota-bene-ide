@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/l10n/app_localizations.dart';
 import 'package:nb_app/l10n/locale.dart';
+import 'package:nb_app/main.dart' as app;
 import 'package:nb_app/notify/headless.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/notify_choice.dart';
@@ -133,4 +134,9 @@ void main() {
       expect(resolveLocale(null), const Locale('en'));
     },
   );
+
+  test('the build holds the check: main.dart reaches it', () {
+    // Flutter compiles only what main.dart reaches; Android's worker looks the entry point up by name
+    expect(app.backgroundCheck, same(backgroundCheck));
+  });
 }
