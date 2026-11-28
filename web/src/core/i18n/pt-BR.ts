@@ -175,7 +175,7 @@ export const ptBR: Dict = {
   toolsLeft: 'Janelas de ferramentas à esquerda',
   resizeFiles: 'Largura do painel de arquivos',
   resizeComments: 'Largura do painel de comentários',
-  resizeTip: 'Redimensionar (clique duplo: largura padrão)',
+  resizeTip: 'Redimensionar (clique duplo: tamanho padrão)',
   toolsRight: 'Janelas de ferramentas à direita',
   files: 'Arquivos',
   refresh: 'Atualizar',
@@ -980,6 +980,7 @@ export const ptBR: Dict = {
   cutFrameBack: "Um quadro para trás",
   cutFrameFwd: "Um quadro para a frente",
   cutPreview: "Prévia",
+  cutResizePreview: "Altura da prévia",
   cutPreviewBlocked: "Corrija os problemas da edição para vê-la",
   cutNoClips: "Ainda não há clipes",
   // the video editor's editing (web/src/cut, issue 409)

@@ -175,7 +175,7 @@ export const es: Dict = {
   toolsLeft: 'Ventanas de herramientas izquierdas',
   resizeFiles: 'Ancho del panel de archivos',
   resizeComments: 'Ancho del panel de comentarios',
-  resizeTip: 'Redimensionar (doble clic: ancho predeterminado)',
+  resizeTip: 'Redimensionar (doble clic: tamaño predeterminado)',
   toolsRight: 'Ventanas de herramientas derechas',
   files: 'Archivos',
   refresh: 'Actualizar',
@@ -980,6 +980,7 @@ export const es: Dict = {
   cutFrameBack: "Un fotograma atrás",
   cutFrameFwd: "Un fotograma adelante",
   cutPreview: "Vista previa",
+  cutResizePreview: "Altura de la vista previa",
   cutPreviewBlocked: "Corrige los problemas de la edición para verla",
   cutNoClips: "Aún no hay clips",
   // the video editor's editing (web/src/cut, issue 409)

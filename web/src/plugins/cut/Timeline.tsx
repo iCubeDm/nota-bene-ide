@@ -18,6 +18,8 @@ import { applyCutKey } from './useCutKeys.ts';
 
 const HEAD = 144; // the track headers' column, px
 const STEP = 1.5; // one zoom button press
+/** the lanes' least height, px: the ruler (24), the add-track row (24) and one video lane (56); the toolbar comes on top */
+export const LANES_MIN = 104;
 
 /**
  * The edit's tracks read-only (issue 407): a ruler, the lanes with their clips placed by time, zoom (buttons, Ctrl/⌘+wheel
@@ -36,7 +38,7 @@ const STEP = 1.5; // one zoom button press
  * video lanes and end the audio ones in the track column (issue 490). `flash` (issue 412): what a change of the file from outside did, shown for a moment
  * (the caller clears it): the added and changed clips highlighted, a ghost where a removed one stood.
  */
-export function Timeline({ player, lanes, blocks, end, frame, problems, missing, fileSrc, active, tools, editing, notes = [], onNote, flash = null, copyOf }: {
+export function Timeline({ player, lanes, blocks, end, frame, problems, missing, fileSrc, active, tools, editing, notes = [], onNote, flash = null, copyOf, grow = 1 }: {
   player: CutPlayer;
   lanes: Lane[]; blocks: Block[]; end: number; frame: { width: number; height: number; fps: number } | null;
   problems: ReadonlyMap<number, string[]>; missing: ReadonlySet<string>; fileSrc: string; active: boolean;
@@ -48,6 +50,8 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
   flash?: CutFlash | null;
   /** what is known of a reversed clip's copy (issue 492) */
   copyOf?: (p: Part) => Reversed | null;
+  /** its flex-grow against the preview's (useSplit) */
+  grow?: number;
 }) {
   const t = useT();
   const lit = new Set(flash ? [...flash.added, ...flash.changed] : []);
@@ -322,8 +326,8 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
 
 
   return (
-    <div data-timeline data-pps={pps} className="flex min-h-0 flex-[2_1_0%] flex-col">
-      <div className="flex min-h-8 flex-none flex-wrap items-center gap-x-2 gap-y-1 border-b border-border-soft bg-chrome px-3 py-0.5 font-mono text-[0.71875rem] text-muted-foreground">
+    <div data-timeline data-pps={pps} className="flex basis-0 flex-col" style={{ flexGrow: grow }}>
+      <div data-timeline-bar className="flex min-h-8 flex-none flex-wrap items-center gap-x-2 gap-y-1 border-b border-border-soft bg-chrome px-3 py-0.5 font-mono text-[0.71875rem] text-muted-foreground">
         <button type="button" aria-label={t('cutZoomOut', mod)} title={t('cutZoomOut', mod)} onClick={() => zoom(1 / STEP)} className={btn}>−</button>
         <button type="button" aria-label={t('cutZoomIn', mod)} title={t('cutZoomIn', mod)} onClick={() => zoom(STEP)} className={btn}>+</button>
         <button type="button" aria-label={t('cutZoomFit')} title={t('cutZoomFit')} onClick={fit} className={btn}>↔</button>
@@ -336,7 +340,7 @@ export function Timeline({ player, lanes, blocks, end, frame, problems, missing,
       </div>
       <div
         ref={scroller} data-timeline-scroll onScroll={onScroll}
-        onPointerDown={(e) => { if (e.target === e.currentTarget) manual.current = true; }} className="relative min-h-0 flex-1 overflow-auto bg-background">
+        onPointerDown={(e) => { if (e.target === e.currentTarget) manual.current = true; }} className="relative grow basis-0 overflow-auto bg-background" style={{ minHeight: LANES_MIN }}>
         <div ref={inner} className="relative min-w-full" style={{ width: HEAD + width }}>
           <div className="sticky top-0 z-30 flex h-6 border-b border-border-soft bg-chrome">
             <div className="sticky left-0 z-40 flex-none border-r border-border-soft bg-chrome" style={{ width: HEAD }} />
