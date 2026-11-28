@@ -31,6 +31,8 @@ enum NbGlyph {
   trash,
   chevronLeft,
   chevronUp,
+  indent,
+  outdent,
 }
 
 /// One drawn shape of a glyph.
@@ -145,6 +147,9 @@ const Map<NbGlyph, List<_Shape>> _shapes = {
   ],
   NbGlyph.chevronLeft: [_D('m15 18-6-6 6-6')],
   NbGlyph.chevronUp: [_D('m18 15-6-6-6 6')],
+  // lucide's indent and outdent
+  NbGlyph.indent: [_D('m3 8 4 4-4 4M21 12H11M21 6H11M21 18H11')],
+  NbGlyph.outdent: [_D('m7 8-4 4 4 4M21 12H11M21 6H11M21 18H11')],
 };
 
 final Map<NbGlyph, Path> _paths = {
