@@ -112,7 +112,6 @@ class WindowTab extends ChangeNotifier {
   late final comments = Comments(
     connection.send,
     () => windowState.feed.sessionId,
-    has: connection.has,
     queue: stores.comments.of(_box),
   );
 
@@ -207,6 +206,7 @@ class WindowTab extends ChangeNotifier {
 
   /// The window is told when that changes, and on each socket once it speaks `looking`.
   void _look() {
+    // below the floor (41) no window opens: `has` here means the window said hello
     if (visible == null ||
         _told == looking ||
         !connection.has(Feature.looking)) {
@@ -263,11 +263,7 @@ class WindowTab extends ChangeNotifier {
     tasks.apply(e);
     // the outbox is the app's: a tab that was replaced and is still closing must not touch the new tab's sends
     if (voiceOutbox.attachedTo(this)) {
-      voiceOutbox.event(
-        e,
-        windowState,
-        holdsUntold: connection.has(Feature.compactOrder),
-      );
+      voiceOutbox.event(e, windowState);
     }
   }
 

@@ -60,7 +60,6 @@ class Window {
         return true;
       },
       () => session,
-      has: (f) => has(this.protocol, f),
       queue: queue,
     );
     if (protocol != null) hello(protocol);
@@ -210,24 +209,6 @@ void main() {
         w.cs.restore(d, 2);
         expect((w.ops.last.ops.single as CommentOpAdd).before, isNull);
         expect(w.shown, ['a', 'b', 'd']);
-      },
-    );
-
-    test(
-      'a window older than 19 gets the set with the queued changes, once, and the queue is done',
-      () {
-        final w = Window(protocol: null)..open = false;
-        w.cs.add(c('x').anchor, 'new', null, id: 'n');
-        w.hello(13);
-        w.cs.apply([c('a')]);
-        expect(w.sent, isEmpty);
-        w.open = true;
-        w.cs.apply([c('a')]);
-        final set = w.sent.whereType<ClientMessageComments>().single;
-        expect([for (final x in set.items) x.id], ['a', 'n']);
-        w.cs.flush();
-        expect(w.sent.length, 1);
-        expect(w.ops, isEmpty);
       },
     );
   });

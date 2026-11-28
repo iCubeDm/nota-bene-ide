@@ -1,8 +1,7 @@
 // The window's comments, as the desktop keeps them: the server holds the set of the session (the `comments` event, on
 // connect and after every change). A change made here is queued as an op (protocol 19: `comment-op`, answered by the
 // set's `ack`, `comment-ack` or `comment-refused`) and shown at once, folded over the server's set; the queue is on disk,
-// so a change made offline outlives the app. A window older than 19 gets the whole set instead, as before. A send with
-// `commentIds` makes the server mark them sent. The batch text is the desktop's (web/src/plugins/comments/compose.ts).
+// so a change made offline outlives the app. A send with `commentIds` makes the server mark them sent. The batch text is the desktop's (web/src/plugins/comments/compose.ts).
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -20,11 +19,9 @@ class Comments extends ChangeNotifier {
   Comments(
     this._send,
     this._session, {
-    required bool Function(Feature) has,
     DateTime Function()? now,
     CommentQueue? queue,
-  }) : _has = has,
-       _now = now ?? DateTime.now,
+  }) : _now = now ?? DateTime.now,
        _queue = queue ?? CommentQueue.memory() {
     // what the disk kept from an earlier run shows, and goes once the window is there
     _queue.ready.then((_) {
@@ -36,15 +33,13 @@ class Comments extends ChangeNotifier {
   final bool Function(ClientMessage) _send;
   final String? Function() _session;
 
-  /// What the window speaks, as its connection knows it from the last hello.
-  final bool Function(Feature) _has;
   final DateTime Function() _now;
   final CommentQueue _queue;
 
   List<Comment> _server = const [];
 
-  /// Whether the window takes ops (its hello); null before the first hello, when nothing goes out.
-  bool? _ops;
+  /// The socket said hello: before it nothing goes out.
+  bool _hello = false;
 
   /// The queued ops sent on this socket: each goes once, and again on the next one.
   final _wired = <String>{};
@@ -204,14 +199,13 @@ class Comments extends ChangeNotifier {
 
   /// The socket is gone: nothing goes until the next one's hello, and what went on this one goes again then.
   void closed() {
-    _ops = null;
+    _hello = false;
     _wired.clear();
   }
 
-  /// A new socket said hello: what it speaks says how the changes go. The window says hello after its replay and set
-  /// (issue 494), so the queue goes now.
+  /// A new socket said hello, after its replay and set (issue 494): the queue goes now.
   void hello() {
-    _ops = _has(Feature.commentOps);
+    _hello = true;
     _wired.clear();
     flush();
   }
@@ -249,22 +243,10 @@ class Comments extends ChangeNotifier {
   }
 
   /// Sends what the window has not had: the queued ops not on this socket yet, in order (the socket keeps it, and an op
-  /// applied twice changes nothing, so a message sent after them finds them applied). A window older than 19 gets the
-  /// set with them instead, which is then its set; nothing goes before the first hello or while the tab is not open.
+  /// applied twice changes nothing, so a message sent after them finds them applied); nothing goes before the hello or
+  /// while the tab is not open.
   void flush() {
-    final ops = _ops;
-    if (ops == null || _queue.ops.isEmpty) return;
-    if (!ops) {
-      final items = all;
-      if (!_send(ClientMessageComments(sessionId: _session(), items: items))) {
-        return;
-      }
-      _server = List.unmodifiable(items);
-      _queue.ops.clear();
-      _queue.save();
-      notifyListeners();
-      return;
-    }
+    if (!_hello || _queue.ops.isEmpty) return;
     for (final q in _queue.ops) {
       if (_wired.contains(q.opId)) continue;
       if (!_send(q)) break;

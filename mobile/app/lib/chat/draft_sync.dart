@@ -125,6 +125,7 @@ class DraftSync extends ChangeNotifier {
   void flush() {
     _timer?.cancel();
     _timer = null;
+    // below the floor (41) no window opens: `has` here means the window said hello
     if (!_dirty || !_has(Feature.draft)) return;
     final id = _put(_scope);
     if (id == null) return;
