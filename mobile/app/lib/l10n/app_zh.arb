@@ -66,6 +66,8 @@
   "send": "发送",
   "stop": "停止",
   "messageHint": "消息",
+  "indent": "增加缩进",
+  "outdent": "减少缩进",
   "cannotSend": "窗口不可用时无法发送",
   "sendNowTitle": "立即发送？",
   "sendNowBody": "智能体正在工作。可以在本回合结束后发送，或立即发送并中断当前回合。",

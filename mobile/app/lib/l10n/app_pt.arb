@@ -66,6 +66,8 @@
   "send": "Enviar",
   "stop": "Parar",
   "messageHint": "Mensagem",
+  "indent": "Aumentar recuo",
+  "outdent": "Diminuir recuo",
   "cannotSend": "Não é possível enviar enquanto a janela não estiver acessível",
   "sendNowTitle": "Enviar agora?",
   "sendNowBody": "O agente está trabalhando. Envie a mensagem após este turno, ou agora interrompendo o turno atual.",
