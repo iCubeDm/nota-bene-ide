@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:nb_app/chat/markdown_text.dart';
 import 'package:nb_app/theme.dart';
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_app/store/voice_lang.dart';
@@ -31,6 +32,17 @@ void main() {
     expect(m['id'], matches(RegExp(r'^[0-9a-f-]{36}$')));
     expect(m.containsKey('force'), isFalse);
     expect(find.text('Next step please'), findsNothing);
+  });
+
+  testWidgets('the field draws markdown and continues a list (issue 726)', (
+    t,
+  ) async {
+    await r.open(t);
+    await t.enter('- a');
+    await t.enter('- a\n');
+    final field = t.widget<TextField>(find.byType(TextField));
+    expect(field.controller, isA<MarkdownText>());
+    expect(field.controller!.text, '- a\n- ');
   });
 
   group('the shared draft (issue 174)', () {
