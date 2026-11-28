@@ -4,7 +4,6 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:highlight/highlight.dart' show highlight, Node;
 
 import '../files/file_markdown.dart' show MarkBadge;
 import '../l10n/app_localizations.dart';
@@ -12,77 +11,9 @@ import '../theme.dart';
 import '../ui/nb_icon.dart';
 import 'code_screen.dart';
 import 'comment_target.dart';
+import 'highlight.dart';
 
-Color? _colorOf(String? cls, NbColors c) => switch (cls) {
-  null => null,
-  'keyword' ||
-  'built_in' ||
-  'selector-tag' ||
-  'section' ||
-  'bullet' ||
-  'literal' ||
-  'doctag' => c.synKeyword,
-  'string' ||
-  'regexp' ||
-  'symbol' ||
-  'template-variable' ||
-  'link' => c.synString,
-  'number' => c.synNumber,
-  'comment' || 'quote' || 'meta' => c.synComment,
-  'title' || 'function' || 'title.function' => c.synFunction,
-  'type' || 'class' || 'title.class' => c.synType,
-  'variable' || 'template-tag' => c.synVariable,
-  'attr' ||
-  'attribute' ||
-  'property' ||
-  'params' ||
-  'selector-attr' ||
-  'selector-class' => c.synProperty,
-  'name' || 'tag' || 'selector-id' => c.synTag,
-  'addition' => c.synAdd,
-  'deletion' => c.synDel,
-  _ => null,
-};
-
-List<TextSpan> highlightSpans(String code, String? lang, NbColors c) {
-  if (lang == null || lang.isEmpty) return [TextSpan(text: code)];
-  final List<Node> nodes;
-  try {
-    nodes = highlight.parse(code, language: lang).nodes ?? const [];
-  } on Object {
-    return [TextSpan(text: code)];
-  }
-  // flattened into leaves that carry their own colours, inherited from the enclosing scope where they have none
-  final out = <TextSpan>[];
-  void walk(Node n, Color? color, Color? bg) {
-    final own = _colorOf(n.className, c) ?? color;
-    final ownBg =
-        switch (n.className) {
-          'addition' => c.synAddBg,
-          'deletion' => c.synDelBg,
-          _ => null,
-        } ??
-        bg;
-    if (n.value != null) {
-      out.add(
-        TextSpan(
-          text: n.value,
-          style: own == null && ownBg == null
-              ? null
-              : TextStyle(color: own, backgroundColor: ownBg),
-        ),
-      );
-    }
-    for (final ch in n.children ?? const <Node>[]) {
-      walk(ch, own, ownBg);
-    }
-  }
-
-  for (final n in nodes) {
-    walk(n, null, null);
-  }
-  return out;
-}
+export 'highlight.dart';
 
 /// A comment's passage inside a code block: [start]..[end] of the block's text; [n] > 0 puts the comment's number in
 /// the block's bar.

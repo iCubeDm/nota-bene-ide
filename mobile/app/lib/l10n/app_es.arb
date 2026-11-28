@@ -66,6 +66,8 @@
   "send": "Enviar",
   "stop": "Detener",
   "messageHint": "Mensaje",
+  "indent": "Aumentar sangría",
+  "outdent": "Reducir sangría",
   "cannotSend": "No se puede enviar mientras la ventana no esté disponible",
   "sendNowTitle": "¿Enviar ahora?",
   "sendNowBody": "El agente está trabajando. Envía el mensaje tras este turno, o ahora e interrumpe el turno actual.",

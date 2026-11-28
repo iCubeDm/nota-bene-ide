@@ -10,7 +10,9 @@ import 'package:flutter/services.dart' show PlatformException;
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../chat/attach_sheet.dart';
+import '../chat/markdown_text.dart';
 import '../chat/message_field.dart';
+import '../chat/nest_buttons.dart';
 import '../chat/window_tab.dart';
 import '../dictation/whisper_sheet.dart';
 import '../l10n/app_localizations.dart';
@@ -90,7 +92,7 @@ class _Sheet extends StatefulWidget {
 }
 
 class _SheetState extends State<_Sheet> {
-  late final _text = TextEditingController(text: widget.editing?.text ?? '');
+  late final _text = MarkdownText(text: widget.editing?.text ?? '');
   late QuickLabelId? _label = widget.editing?.label;
   late final _clips = [
     for (final v in widget.editing?.voice ?? const <VoiceClip>[]) _Clip.done(v),
@@ -658,6 +660,8 @@ class _SheetState extends State<_Sheet> {
                     icon: NbIcon(NbGlyph.clip, color: c.mutedFg),
                     onPressed: _attach,
                   ),
+                // in this row, not over the field: above it are the labels and the clips
+                if (!_session.active) NestButtons(text: _text, focus: _focus),
                 const Spacer(),
                 if (widget.editing != null)
                   IconButton(
