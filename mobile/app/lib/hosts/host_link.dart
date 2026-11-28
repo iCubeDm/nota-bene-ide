@@ -228,6 +228,15 @@ class HostLink extends ChangeNotifier {
   }
 }
 
+/// [w]'s own requests through [link]'s channel; null while the host is offline.
+WindowHttp? windowHttp(HostLink link, HostWindow w) {
+  final ch = link.channel;
+  if (ch == null) return null;
+  final a = w.address;
+  return (method, path, {headers, body}) =>
+      ch.http(a.port, method, a.at(path), headers: headers, body: body);
+}
+
 /// A link per paired host, made and dropped as the host list changes.
 class Links extends ChangeNotifier {
   Links(

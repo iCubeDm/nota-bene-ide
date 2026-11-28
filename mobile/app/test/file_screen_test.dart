@@ -62,9 +62,6 @@ Future<Rig> openFile(
   return r;
 }
 
-Map<String, Object?> lastComments(Rig r) =>
-    r.sent.lastWhere((m) => m['type'] == 'comments');
-
 void main() {
   testWidgets('the file is read through the window and shown', (t) async {
     final r = await openFile(t);
@@ -92,7 +89,7 @@ void main() {
     await t.enterText(find.byType(TextField), 'really?');
     await sendNote(t);
     await t.pumpAndSettle();
-    final items = lastComments(r)['items'] as List;
+    final items = r.comments as List;
     final c = Comment.fromJson((items.single as Map).cast());
     final a = c.anchor as TextAnchor;
     expect(a.quote, 'written');
@@ -112,9 +109,7 @@ void main() {
     await t.pumpAndSettle();
     await sendNote(t);
     await t.pumpAndSettle();
-    final c = Comment.fromJson(
-      ((lastComments(r)['items'] as List).single as Map).cast(),
-    );
+    final c = Comment.fromJson((r.comments.single as Map).cast());
     final a = c.anchor as TextAnchor;
     expect(a.quote, 'cache');
     expect(a.prefix, endsWith('read once. Then the '));
@@ -167,7 +162,7 @@ void main() {
     );
     await t.tap(find.byTooltip('Delete comment'));
     await t.pumpAndSettle();
-    expect(lastComments(r)['items'], isEmpty);
+    expect(r.comments, isEmpty);
     r.dispose();
   });
 
@@ -201,9 +196,7 @@ void main() {
       await sendNote(t);
       await t.pumpAndSettle();
       final a =
-          Comment.fromJson(
-                ((lastComments(r)['items'] as List).single as Map).cast(),
-              ).anchor
+          Comment.fromJson((r.comments.single as Map).cast()).anchor
               as TextAnchor;
       expect(a.prefix, endsWith('value = 5 the cache, the '));
       r.dispose();
@@ -228,9 +221,7 @@ void main() {
     await sendNote(t);
     await t.pumpAndSettle();
     final a =
-        Comment.fromJson(
-              ((lastComments(r)['items'] as List).single as Map).cast(),
-            ).anchor
+        Comment.fromJson((r.comments.single as Map).cast()).anchor
             as TextAnchor;
     expect(a.quote, 'Intro. Read the config. Open the store. a b var x; Done.');
     r.dispose();

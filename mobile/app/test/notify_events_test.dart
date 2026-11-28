@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/notify/events.dart';
 import 'package:nb_app/store/notified.dart';
-import 'package:nb_app/store/seen.dart';
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_channel/nb_channel.dart';
 
@@ -13,6 +12,7 @@ HostWindow win({
   bool pending = false,
   String? title,
   LastMessage? last,
+  int? unseen,
 }) => HostWindow(
   port: 4791,
   provider: AgentProvider.claude,
@@ -22,30 +22,26 @@ HostWindow win({
   replies: replies,
   pending: pending,
   last: last,
+  unseen: unseen,
 );
 
 void main() {
   late MemoryVault v;
-  late Seen seen;
   late Notified notified;
 
   setUp(() async {
     v = MemoryVault();
-    seen = await Seen.load(v);
     notified = await Notified.load(v);
   });
 
-  /// What the app does with each window list: Seen records it first, then the events are taken.
+  /// What the app does with each window list.
   List<AgentEvent> list(
     List<HostWindow> ws, {
     bool Function(String, HostWindow)? onScreen,
-  }) {
-    seen.observe(host, ws);
-    return detect(host, ws, seen, notified, onScreen: onScreen);
-  }
+  }) => detect(host, ws, notified, onScreen: onScreen);
 
   test(
-    'a reply beyond the seen count is one event, the same list again is none',
+    'a reply beyond the count notified is one event, the same list again is none',
     () {
       expect(list([win(replies: 1)]), isEmpty);
       final e = list([win(replies: 2)]);
@@ -59,11 +55,29 @@ void main() {
     },
   );
 
-  test('a reply already seen on the phone is no event', () async {
-    list([win(replies: 1)]);
-    await seen.see(host, 's1', 2);
-    expect(list([win(replies: 2)]), isEmpty);
+  test('issue 174: a reply read on another client (unseen 0) is no event', () {
+    list([win(replies: 1, unseen: 0)]);
+    expect(list([win(replies: 2, unseen: 0)]), isEmpty);
+    expect(list([win(replies: 3, unseen: 1)]).single, isA<ReplyEvent>());
   });
+
+  test(
+    'issue 174: unseen dropping to 0 takes the session\'s notification back, once',
+    () {
+      list([win(replies: 1, unseen: 0)]);
+      expect(list([win(replies: 2, unseen: 1)]).single, isA<ReplyEvent>());
+      final read = list([win(replies: 2, unseen: 0)]).single;
+      expect(read, isA<ReadEvent>());
+      expect(read.key, 'h1 s1');
+      expect(list([win(replies: 2, unseen: 0)]), isEmpty);
+      // a wait is still news: read or not, it stays
+      list([win(replies: 3, unseen: 1)]);
+      expect(
+        list([win(replies: 3, unseen: 0, pending: true)]).single,
+        isA<WaitEvent>(),
+      );
+    },
+  );
 
   test('a session first met is no reply event', () {
     expect(list([win(replies: 5)]), isEmpty);
@@ -137,13 +151,11 @@ void main() {
       list([win(replies: 1)]);
       list([win(replies: 2)]);
       final again = await Notified.load(v);
-      // a fresh Seen that has the old count would see the reply as unread: notified keeps it from notifying twice
-      final fresh = await Seen.load(MemoryVault());
-      fresh.observe(host, [win(replies: 1)]);
-      expect(detect(host, [win(replies: 2)], fresh, again), isEmpty);
+      // another engine (the periodic check) notifies nothing twice
+      expect(detect(host, [win(replies: 2)], again), isEmpty);
       v.values['nb.notified'] = '{not json';
       final broken = await Notified.load(v);
-      expect(detect(host, [win(pending: true)], fresh, broken), hasLength(1));
+      expect(detect(host, [win(pending: true)], broken), hasLength(1));
     },
   );
 }

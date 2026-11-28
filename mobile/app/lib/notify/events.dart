@@ -1,11 +1,11 @@
-// What deserves a notification in a host's window list: a final reply the phone has neither shown nor notified, and an
-// agent that starts waiting for the user (a permission, a question, a plan).
+// What deserves a notification in a host's window list: a final reply nobody has read (the window's `unseen`, issue
+// 174) that the phone has not notified, and an agent that starts waiting for the user (a permission, a question, a
+// plan); and a notification that is read now, on any client.
 import 'dart:async';
 
 import 'package:nb_channel/nb_channel.dart';
 
 import '../store/notified.dart';
-import '../store/seen.dart';
 
 sealed class AgentEvent {
   AgentEvent(this.hostId, this.w) : project = projectOf(w);
@@ -31,6 +31,11 @@ class WaitEvent extends AgentEvent {
   WaitEvent(super.hostId, super.w);
 }
 
+/// The session's replies were read (its `unseen` dropped to 0): its notification goes.
+class ReadEvent extends AgentEvent {
+  ReadEvent(super.hostId, super.w);
+}
+
 /// The window's title, else the last segment of its folder.
 String projectOf(HostWindow w) {
   final title = w.title?.trim();
@@ -41,13 +46,13 @@ String projectOf(HostWindow w) {
 
 const _textMax = 120;
 
-/// The events of [windows] for [hostId], recorded in [notified] (saved once when anything changed). A session not in
-/// [seen] yet gives no reply event: Seen counts it as seen up to its replies. The session [onScreen] gives none, but
-/// its counts still advance, so leaving its chat does not notify old things.
+/// The events of [windows] for [hostId], recorded in [notified] (saved once when anything changed). A session met for
+/// the first time gives no reply event: its replies so far are no news. A reply notifies while the window says it is
+/// unread (an older host, which says nothing: always). The session [onScreen] gives none, but its counts still advance,
+/// so leaving its chat does not notify old things.
 List<AgentEvent> detect(
   String hostId,
   List<HostWindow> windows,
-  Seen seen,
   Notified notified, {
   bool Function(String hostId, HostWindow w)? onScreen,
 }) {
@@ -58,13 +63,20 @@ List<AgentEvent> detect(
     if (session == null) continue;
     final was = notified.of(hostId, session);
     final here = onScreen?.call(hostId, w) ?? false;
-    var r = was?.replies ?? seen.seenOf(hostId, session);
+    final unseen = w.unseen;
+    final pending = w.pending == true;
+    // read on some client: the notification goes, unless the agent waits for an answer (that one is still news); first,
+    // so a wait that starts now is posted after it
+    if (unseen == 0 && (was?.unseen ?? 0) > 0 && !pending) {
+      events.add(ReadEvent(hostId, w));
+    }
+    var r = was?.replies ?? replies ?? 0;
     var waiting = was?.waiting ?? false;
     if (replies != null) {
       if (replies < r) {
         r = replies; // a new history: count from here
       } else if (replies > r) {
-        if (!here && replies > seen.seenOf(hostId, session)) {
+        if (!here && (unseen == null || unseen > 0)) {
           final last = w.last;
           final text = last != null && last.role == LastMessageRole.assistant
               ? _cut(last.text)
@@ -74,15 +86,21 @@ List<AgentEvent> detect(
         r = replies;
       }
     }
-    final pending = w.pending == true;
     if (pending && !waiting) {
       if (!here) events.add(WaitEvent(hostId, w));
       waiting = true;
     } else if (!pending) {
       waiting = false;
     }
-    if (was == null || was.replies != r || was.waiting != waiting) {
-      notified.put(hostId, session, (replies: r, waiting: waiting));
+    if (was == null ||
+        was.replies != r ||
+        was.waiting != waiting ||
+        was.unseen != unseen) {
+      notified.put(hostId, session, (
+        replies: r,
+        waiting: waiting,
+        unseen: unseen,
+      ));
       changed = true;
     }
   }

@@ -72,6 +72,7 @@
   "sendNow": "Enviar agora",
   "refusedBusy": "A janela está ocupada; a mensagem não foi enviada.",
   "refusedSwitching": "A janela está trocando de sessão; a mensagem não foi enviada.",
+  "shellOnComputer": "Comandos que começam com ! só rodam no computador.",
   "allow": "Permitir",
   "deny": "Negar",
   "allowSession": "Permitir nesta sessão",
@@ -97,9 +98,6 @@
   "effortMax": "máximo",
   "effortNone": "nenhum",
   "effortMinimal": "mínimo",
-  "occupiedTitle": "Esta janela está aberta em outra aba.",
-  "takenTitle": "Outra aba assumiu esta janela.",
-  "workHere": "Trabalhar aqui",
   "pairedHosts": "Hosts pareados",
   "forgetTitle": "Esquecer {host}?",
   "forgetBody": "Este telefone deixa de se conectar a ele. O host continua listando o telefone até você executar `nota-bene remote revoke` lá.",
@@ -289,7 +287,6 @@
   "idleCompactBlocked": "Desativado nas configurações do agente",
   "windowGoneTitle": "A janela foi fechada ou reiniciada",
   "windowGoneBody": "Aguardando a volta",
-  "stateOtherTab": "aberta em outra aba",
   "toolActions": "{count, plural, =1{1 ação} other{{count} ações}}",
   "@toolActions": {
     "placeholders": {

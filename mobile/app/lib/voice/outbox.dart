@@ -422,17 +422,13 @@ class VoiceOutbox extends ChangeNotifier {
   bool _reconcileHeld = false;
 
   /// An event of the window, once [state] has applied it: what the window answered of the sends, and after a replay
-  /// the [reconcile]. A window that [holdsUntold] (protocol 27) may hold a message it never told this socket of (issue
-  /// 499): it is judged once its `compact-pending`, which follows the replay, says what it holds.
-  void event(ServerEvent e, WindowState state, {required bool holdsUntold}) {
+  /// the [reconcile]. The window may hold a message it never told this socket of (issue 499): it is judged once its
+  /// `compact-pending`, which follows the replay, says what it holds.
+  void event(ServerEvent e, WindowState state) {
     switch (e) {
       case ServerEventReplay():
         _retrying.clear();
-        if (holdsUntold) {
-          _reconcileHeld = true;
-        } else {
-          _reconcileWith(state);
-        }
+        _reconcileHeld = true;
       case ServerEventCompactPending():
         if (_reconcileHeld) _reconcileWith(state);
       case ServerEventSendRefused(:final id):

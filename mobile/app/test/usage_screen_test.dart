@@ -133,7 +133,7 @@ void main() {
       t,
       hello: {
         'kind': 'hello',
-        'protocol': 18,
+        'protocol': 41,
         'capabilities': Rig.caps(provider: provider),
       },
     );
@@ -447,7 +447,7 @@ void main() {
       t,
       hello: {
         'kind': 'hello',
-        'protocol': 18,
+        'protocol': 41,
         'capabilities': Rig.caps(usage: false),
       },
     );

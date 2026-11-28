@@ -10,7 +10,6 @@ import 'package:nb_app/sdk.dart';
 import 'package:nb_app/main.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/notify/visible.dart';
-import 'package:nb_app/store/seen.dart';
 import 'package:nb_app/store/sizes.dart';
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_app/store/voice_lang.dart';
@@ -39,7 +38,6 @@ class Rig {
     WidgetTester t, {
     List<Map<String, Object?>> events = const [],
     Map<String, Object?>? hello,
-    Seen? seen,
     AppVisible? visible,
     HostWindow? win,
     // false when something on screen animates for good (a pulsing dot)
@@ -80,7 +78,6 @@ class Rig {
             link: link,
             window: window(4791, '/home/u/notes'),
             stores: stores,
-            seen: seen,
             visible: visible,
             onTab: (x) => tab = x,
             retry: (_) async {},
@@ -90,7 +87,7 @@ class Rig {
     );
     await t.pump();
     if (greet) {
-      event(hello ?? {'kind': 'hello', 'protocol': 18, 'capabilities': caps()});
+      event(hello ?? {'kind': 'hello', 'protocol': 41, 'capabilities': caps()});
       if (replay) event({'kind': 'replay', 'events': events});
     }
     if (settle) {
@@ -143,8 +140,22 @@ class Rig {
 
   void event(Map<String, Object?> e) => ch.event(ch.lastWsId, e);
 
-  /// What the phone sent on the window's socket.
-  List<Map<String, Object?>> get sent => ch.sentOn(ch.lastWsId);
+  /// What the phone sent on the window's socket, but its draft writes and presence ([drafts], `looking`).
+  List<Map<String, Object?>> get sent => [
+    for (final m in ch.sentOn(ch.lastWsId))
+      if (m['type'] != 'draft' && m['type'] != 'looking') m,
+  ];
+
+  /// The draft writes the phone sent on the window's socket.
+  List<Map<String, Object?>> get drafts => [
+    for (final m in ch.sentOn(ch.lastWsId))
+      if (m['type'] == 'draft') m,
+  ];
+
+  /// The comments as the tab shows them: the window's set with the ops sent since folded over it.
+  List<Map<String, Object?>> get comments => [
+    for (final c in tab!.comments.all) c.toJson(),
+  ];
 
   void dispose() => link.dispose();
 }

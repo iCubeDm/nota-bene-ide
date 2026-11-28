@@ -176,7 +176,7 @@ void main() {
         settle: false,
         hello: {
           'kind': 'hello',
-          'protocol': 18,
+          'protocol': 41,
           'capabilities': Rig.caps(dictation: 'whisper'),
         },
       );
@@ -189,7 +189,7 @@ void main() {
 
   Map<String, Object?> hello18() => {
     'kind': 'hello',
-    'protocol': 18,
+    'protocol': 41,
     'capabilities': Rig.caps(dictation: 'whisper'),
   };
 
@@ -322,7 +322,7 @@ void main() {
       (t) async {
         await r.open(
           t,
-          hello: {'kind': 'hello', 'protocol': 27, 'capabilities': Rig.caps()},
+          hello: {'kind': 'hello', 'protocol': 41, 'capabilities': Rig.caps()},
         );
         r.ch.onHttp = (port, method, path) async => (
           status: 200,

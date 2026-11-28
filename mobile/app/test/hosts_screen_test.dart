@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,7 +11,7 @@ import 'package:nb_app/hosts/hosts_screen.dart' show rowTime;
 import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/main.dart';
 import 'package:nb_app/store/hosts.dart';
-import 'package:nb_app/store/seen.dart';
+import 'package:nb_app/store/unread.dart';
 import 'package:nb_app/store/vault.dart';
 import 'package:nb_app/store/project_icons.dart';
 import 'package:nb_channel/nb_channel.dart';
@@ -29,13 +31,13 @@ void main() {
   late Identity id;
   late Hosts hosts;
   late FakeFactory f;
-  late Seen seen;
+  late Unread unread;
   final now = DateTime(2026, 11, 9, 15, 30);
 
   setUpAll(() => initializeDateFormatting('en'));
 
   setUp(() async {
-    seen = await Seen.load(MemoryVault());
+    unread = Unread();
     final v = MemoryVault();
     id = await Identity.load(v);
     hosts = await Hosts.load(v);
@@ -58,7 +60,7 @@ void main() {
         home: Home(
           hosts: hosts,
           icons: ProjectIcons(),
-          seen: seen,
+          unread: unread,
           clock: () => now,
           links: links,
           onPair: () {},
@@ -227,6 +229,7 @@ void main() {
     bool pending = false,
     LastMessageRole role = LastMessageRole.assistant,
     int replies = 5,
+    int? unseen = 3,
     DateTime? at,
   }) => HostWindow(
     port: 4791,
@@ -238,6 +241,7 @@ void main() {
     busy: true,
     pending: pending,
     replies: replies,
+    unseen: unseen,
     last: LastMessage(
       role: role,
       text: 'Done, see the diff',
@@ -245,9 +249,8 @@ void main() {
     ),
   );
 
-  Future<Links> pumpOne(WidgetTester t, HostWindow w, {int seenTo = 2}) async {
+  Future<Links> pumpOne(WidgetTester t, HostWindow w) async {
     await hosts.add(paired(a, 'laptop'));
-    await seen.see(a, 's1', seenTo);
     f.results.add(FakeChannel([w]));
     return pump(t);
   }
@@ -339,17 +342,45 @@ void main() {
     expect(rowTime(DateTime(2026, 11, 9, 8, 5), now, 'en'), '08:05');
   });
 
-  testWidgets('long-press, Mark read clears the count', (t) async {
-    final links = await pumpOne(t, full());
-    await t.longPress(find.text('Plan'));
-    await t.pumpAndSettle();
-    expect(find.text('Open'), findsOneWidget);
-    await t.tap(find.text('Mark read'));
-    await t.pumpAndSettle();
-    expect(seen.seenOf(a, 's1'), 5);
-    expect(find.text('3'), findsNothing);
+  testWidgets('issue 174: the badge is the window\'s unseen count', (t) async {
+    final links = await pumpOne(t, full(unseen: 0));
+    expect(find.text('3'), findsNothing, reason: 'read on another client');
+    expect(find.text('5'), findsNothing);
     links.dispose();
   });
+
+  testWidgets(
+    'long-press, Mark read tells the window (issue 174) and clears the count until a new reply',
+    (t) async {
+      await hosts.add(paired(a, 'laptop'));
+      // an older computer: no such route; the count stays cleared on the phone
+      final ch = FakeChannel([full()])
+        ..onHttp = (port, method, path) async => (
+          status: 404,
+          headers: const <String, String>{},
+          body: Uint8List(0),
+        );
+      f.results.add(ch);
+      final links = await pump(t);
+      expect(find.text('3'), findsOneWidget);
+      await t.longPress(find.text('Plan'));
+      await t.pumpAndSettle();
+      expect(find.text('Open'), findsOneWidget);
+      await t.tap(find.text('Mark read'));
+      await t.pumpAndSettle();
+      expect(find.text('3'), findsNothing);
+      final call = ch.calls.single;
+      expect((call.method, call.path), ('POST', '/seen'));
+      expect(jsonDecode(utf8.decode(call.body)), {'session': 's1'});
+      ch.push([full()]);
+      await t.pumpAndSettle();
+      expect(find.text('3'), findsNothing, reason: 'the same replies');
+      ch.push([full(replies: 6, unseen: 4)]);
+      await t.pumpAndSettle();
+      expect(find.text('4'), findsOneWidget);
+      links.dispose();
+    },
+  );
 
   testWidgets('long-press, Open opens the chat', (t) async {
     await hosts.add(paired(a, 'laptop'));
@@ -386,7 +417,7 @@ void main() {
         home: Home(
           hosts: hosts,
           icons: ProjectIcons(),
-          seen: seen,
+          unread: unread,
           clock: () => now,
           links: links,
           onPair: () {},

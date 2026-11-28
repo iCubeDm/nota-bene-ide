@@ -59,16 +59,15 @@ void main() {
     test('one added while the tab is not open stays and goes out later', () {
       var open = false;
       var now = DateTime(2026);
-      final sent = <ClientMessageComments>[];
+      final sent = <ClientMessageCommentOp>[];
       final cs = Comments(
         (m) {
           if (!open) return false;
-          sent.add(m as ClientMessageComments);
+          sent.add(m as ClientMessageCommentOp);
           return true;
         },
         () => 's',
         now: () => now,
-        has: (f) => has(13, f),
       )..hello();
       cs.add(_c('a').anchor, 'hi', null, id: 'a');
       now = now.add(const Duration(minutes: 1));
@@ -78,16 +77,17 @@ void main() {
       expect(cs.pending.map((x) => x.id), ['d', 'a']);
       open = true;
       cs.apply([_c('d')]);
-      expect(sent.last.items.map((x) => x.id), ['d', 'a']);
-      // once it went out, the window's next set is the list (no ack before protocol 19)
-      cs.apply([_c('d')]);
-      expect(cs.all.map((x) => x.id), ['d']);
+      final op = sent.single;
+      expect((op.ops.single as CommentOpAdd).comment.id, 'a');
+      // once it went out, the window's set that acks it is the list
+      cs.apply([_c('d'), _c('a')], ack: [op.opId]);
+      expect(cs.all.map((x) => x.id), ['d', 'a']);
       expect(sent.length, 1);
     });
 
     test('an edit made offline is not undone by the server\'s older copy', () {
       var open = false;
-      final cs = Comments((m) => open, () => 's', has: (_) => false);
+      final cs = Comments((m) => open, () => 's');
       cs.apply([_c('a')]);
       cs.edit('a', 'new', null);
       cs.apply([_c('a')]);
@@ -100,15 +100,11 @@ void main() {
       var open = false;
       var sid = 's1';
       final sent = <ClientMessageComments>[];
-      final cs = Comments(
-        (m) {
-          if (!open) return false;
-          sent.add(m as ClientMessageComments);
-          return true;
-        },
-        () => sid,
-        has: (_) => false,
-      );
+      final cs = Comments((m) {
+        if (!open) return false;
+        sent.add(m as ClientMessageComments);
+        return true;
+      }, () => sid);
       cs.add(_c('a').anchor, 'hi', null, id: 'a');
       sid = 's2';
       open = true;
@@ -125,15 +121,11 @@ void main() {
       () {
         var open = false;
         final sent = <ClientMessageComments>[];
-        final cs = Comments(
-          (m) {
-            if (!open) return false;
-            sent.add(m as ClientMessageComments);
-            return true;
-          },
-          () => 's',
-          has: (_) => false,
-        );
+        final cs = Comments((m) {
+          if (!open) return false;
+          sent.add(m as ClientMessageComments);
+          return true;
+        }, () => 's');
         cs.apply([_c('a'), _c('b')]);
         cs.edit('a', 'new', null);
         open = true;
@@ -148,14 +140,10 @@ void main() {
 
     test('an edit that went out is not overlaid or pushed again', () {
       final sent = <ClientMessageComments>[];
-      final cs = Comments(
-        (m) {
-          sent.add(m as ClientMessageComments);
-          return true;
-        },
-        () => 's',
-        has: (_) => false,
-      );
+      final cs = Comments((m) {
+        sent.add(m as ClientMessageComments);
+        return true;
+      }, () => 's');
       cs.apply([_c('a')]);
       cs.edit('a', 'new', null);
       final n = sent.length;
@@ -167,7 +155,7 @@ void main() {
 
   group('one count of comments to send', () {
     test('held ones are counted out everywhere', () {
-      final cs = Comments((_) => true, () => 's', has: (_) => false);
+      final cs = Comments((_) => true, () => 's');
       cs.held = () => {'b'};
       cs.apply([_c('a'), _c('b'), _c('x', status: CommentStatus.sent)]);
       expect(cs.pending.length, 2);

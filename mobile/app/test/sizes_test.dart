@@ -14,7 +14,7 @@ import 'package:nb_app/hosts/host_link.dart';
 import 'package:nb_app/main.dart';
 import 'package:nb_app/settings_screen.dart';
 import 'package:nb_app/store/hosts.dart';
-import 'package:nb_app/store/seen.dart';
+import 'package:nb_app/store/unread.dart';
 import 'package:nb_app/store/sizes.dart';
 import 'package:nb_app/store/theme_choice.dart';
 import 'package:nb_app/store/vault.dart';
@@ -318,7 +318,7 @@ void main() {
           home: Home(
             hosts: hosts,
             icons: ProjectIcons(),
-            seen: await Seen.load(MemoryVault()),
+            unread: Unread(),
             clock: () => DateTime(2026, 11, 9),
             links: links,
             onPair: () {},

@@ -13,14 +13,6 @@ import '../media/picker.dart';
 import 'host_link.dart';
 import 'project_icon.dart';
 
-WindowHttp? _httpOf(HostLink link, HostWindow w) {
-  final ch = link.channel;
-  if (ch == null) return null;
-  final a = w.address;
-  return (method, path, {headers, body}) =>
-      ch.http(a.port, method, a.at(path), headers: headers, body: body);
-}
-
 /// Asks where the picture comes from, then sets it as the icon of [w]'s project folder. Errors end in a snackbar.
 Future<void> setProjectIconFlow(
   BuildContext context,
@@ -56,7 +48,7 @@ Future<void> setProjectIconFlow(
     } finally {
       await first.delete();
     }
-    final http = _httpOf(link, w);
+    final http = windowHttp(link, w);
     if (http == null) {
       fail();
       return;
@@ -78,7 +70,7 @@ Future<void> removeProjectIconFlow(
   final messenger = ScaffoldMessenger.of(context);
   final failed = AppLocalizations.of(context).iconFailed;
   try {
-    final http = _httpOf(link, w);
+    final http = windowHttp(link, w);
     if (http == null) throw IconError('offline');
     await deleteProjectIcon(http);
     await link.refresh();

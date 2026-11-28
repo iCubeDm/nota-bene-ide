@@ -526,18 +526,6 @@
         },
         {
           "properties": {
-            "type": {
-              "const": "takeover",
-              "type": "string"
-            }
-          },
-          "required": [
-            "type"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
             "id": {
               "type": "string"
             },
@@ -1694,18 +1682,6 @@
           "properties": {
             "kind": {
               "const": "occupied",
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "kind": {
-              "const": "taken-over",
               "type": "string"
             }
           },

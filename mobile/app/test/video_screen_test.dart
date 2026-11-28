@@ -266,11 +266,7 @@ void main() {
           'POST /attach',
         ]),
       );
-      final sets = [
-        for (final m in r.sent)
-          if (m['type'] == 'comments') m,
-      ];
-      final a = ((sets.last['items'] as List).single as Map)['anchor'] as Map;
+      final a = r.comments.single['anchor'] as Map;
       expect(a['kind'], 'media');
       expect(a['time'], 61.5);
       expect((a['width'], a['height']), (72, 128));
@@ -291,10 +287,7 @@ void main() {
     expect(find.textContaining('could not be taken'), findsOneWidget);
     expect(find.text('Comment'), findsNothing);
     expect(find.byTooltip('Undo'), findsNothing, reason: 'no toolbar');
-    expect([
-      for (final m in r.sent)
-        if (m['type'] == 'comments') m,
-    ], isEmpty);
+    expect(r.comments, isEmpty);
     r.dispose();
   });
 

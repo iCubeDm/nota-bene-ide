@@ -1,4 +1,4 @@
-// The window's socket on its own (issue 511): the one-tab rule, reconnects and what it hands on, without a tab.
+// The window's socket on its own (issue 511): reconnects and what it hands on, without a tab.
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -70,7 +70,7 @@ void main() {
       addTearDown(a.dispose);
       await settle();
       expect(ch.wsOpens.last, containsPair('port', 4791));
-      expect(ch.wsOpens.last['path'], startsWith('/a/claude-abcdef/ws?tab='));
+      expect(ch.wsOpens.last['path'], '/a/claude-abcdef/ws?held=1');
       expect(
         a.address.at('/file?path=a.md'),
         '/a/claude-abcdef/file?path=a.md',
@@ -121,25 +121,25 @@ void main() {
     });
 
     test(
-      'a replay goes on before the tab is open; the open after it; occupied stays here',
+      'every client is live (issue 174): /ws?held=1, a replay goes on before the tab is open, the open after it',
       () async {
-        ch.event(ch.lastWsId, {'kind': 'occupied'});
-        ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': 27});
+        expect(ch.wsOpens.single['path'], '/ws?held=1');
         ch.event(ch.lastWsId, {'kind': 'replay', 'events': <Object?>[]});
+        ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': floor.protocol});
         await settle();
         expect(calls, [
-          'ServerEventHello:occupied',
-          'ServerEventReplay:occupied',
+          'ServerEventReplay:connecting',
           'open:open',
+          'ServerEventHello:open',
         ]);
-        expect(c.protocol, 27);
-        expect(c.has(Feature.compactOrder), isTrue);
+        expect(c.has(Feature.looking), isTrue);
       },
     );
 
     test(
-      'a window below the protocol floor is not opened: old, its socket closed, nothing passed on',
+      'a window below the protocol floor (41: the shared read state) is not opened: old, its socket closed, nothing passed on',
       () async {
+        expect(floor, Feature.looking);
         final id = ch.lastWsId;
         ch.event(id, {'kind': 'hello', 'protocol': floor.protocol - 1});
         ch.event(id, {'kind': 'replay', 'events': <Object?>[]});
@@ -150,67 +150,13 @@ void main() {
       },
     );
 
-    test('4001: taken, no reconnect of its own', () async {
-      ch.event(ch.lastWsId, {'kind': 'replay', 'events': <Object?>[]});
+    test('a socket closed under a live link reopens after the retry', () async {
+      ch.host(Close(ch.lastWsId, 1006));
       await settle();
-      ch.host(Close(ch.lastWsId, takenOverCode));
-      await settle();
-      expect(c.state, TabState.taken);
-      expect(c.send(const ClientMessageInterrupt()), isFalse);
-      ch.push([window(4791, '/p')]);
-      await settle();
-      expect(ch.wsOpens, hasLength(1));
+      expect(ch.wsOpens, hasLength(2));
+      expect(ch.wsOpens.last['path'], '/ws?held=1');
+      expect(calls, ['socket']);
     });
-
-    test(
-      'Work here after 4001 reopens passive; the takeover wish is kept until an occupied takes it',
-      () async {
-        ch.event(ch.lastWsId, {'kind': 'replay', 'events': <Object?>[]});
-        await settle();
-        ch.host(Close(ch.lastWsId, takenOverCode));
-        await settle();
-        c.takeOver();
-        await settle();
-        expect(ch.wsOpens.last['path'], endsWith('&passive=1'));
-        expect(
-          ch.sentOn(ch.lastWsId),
-          isEmpty,
-          reason: 'nothing to answer yet',
-        );
-        ch.event(ch.lastWsId, {'kind': 'occupied'});
-        await settle();
-        expect(ch.sentOn(ch.lastWsId).single, {'type': 'takeover'});
-        expect(c.state, isNot(TabState.occupied));
-        ch.event(ch.lastWsId, {'kind': 'replay', 'events': <Object?>[]});
-        await settle();
-        expect(c.state, TabState.open);
-        // the wish went with the replay: a later occupied is shown, not answered
-        ch.host(Close(ch.lastWsId, 1006));
-        await settle();
-        expect(
-          ch.wsOpens.last['path'],
-          isNot(endsWith('&passive=1')),
-          reason: 'the replay made it the owner again',
-        );
-        ch.event(ch.lastWsId, {'kind': 'occupied'});
-        await settle();
-        expect(c.state, TabState.occupied);
-        expect(ch.sentOn(ch.lastWsId), isEmpty);
-      },
-    );
-
-    test(
-      'a socket closed under a live link reopens after the retry; passive while occupied',
-      () async {
-        ch.event(ch.lastWsId, {'kind': 'occupied'});
-        await settle();
-        ch.host(Close(ch.lastWsId, 1006));
-        await settle();
-        expect(ch.wsOpens, hasLength(2));
-        expect(ch.wsOpens.last['path'], endsWith('&passive=1'));
-        expect(calls, ['socket']);
-      },
-    );
 
     test(
       '4904: gone until a list after the close shows the window, then reopens',

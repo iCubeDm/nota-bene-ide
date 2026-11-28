@@ -94,9 +94,15 @@ void openViewer(
   ),
 );
 
-/// An image of the window read for this card: its bytes, or why it has none.
-class _Picture extends StatefulWidget {
-  const _Picture({required this.tab, required this.url, required this.width});
+/// An image of the window read through its channel ([url]: `/file`, `/tmpimage`, `/attach/<id>`): its bytes, or why it
+/// has none.
+class WindowPicture extends StatefulWidget {
+  const WindowPicture({
+    super.key,
+    required this.tab,
+    required this.url,
+    required this.width,
+  });
   final WindowTab tab;
   final String url;
 
@@ -104,14 +110,14 @@ class _Picture extends StatefulWidget {
   final double width;
 
   @override
-  State<_Picture> createState() => _PictureState();
+  State<WindowPicture> createState() => _WindowPictureState();
 }
 
-class _PictureState extends State<_Picture> {
+class _WindowPictureState extends State<WindowPicture> {
   late Future<Fetched> _got = cachedMedia(widget.tab, widget.url);
 
   @override
-  void didUpdateWidget(_Picture old) {
+  void didUpdateWidget(WindowPicture old) {
     super.didUpdateWidget(old);
     if (old.url != widget.url || old.tab != widget.tab) {
       _got = cachedMedia(widget.tab, widget.url);
@@ -199,7 +205,11 @@ class AttachThumb extends StatelessWidget {
           width: width,
           height: height,
           color: c.codeBg,
-          child: _Picture(tab: tab, url: '/attach/${image.id}', width: width),
+          child: WindowPicture(
+            tab: tab,
+            url: '/attach/${image.id}',
+            width: width,
+          ),
         ),
       ),
     );
@@ -285,7 +295,7 @@ class MediaCard extends StatelessWidget {
                               ),
                             )
                           : LayoutBuilder(
-                              builder: (context, box) => _Picture(
+                              builder: (context, box) => WindowPicture(
                                 tab: tab,
                                 url: url,
                                 width: box.maxWidth,

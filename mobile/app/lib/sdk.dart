@@ -9,43 +9,44 @@ import 'notify/background.dart';
 import 'store/hosts.dart';
 import 'store/notified.dart';
 import 'store/notify_choice.dart';
-import 'store/seen.dart';
+import 'store/unread.dart';
 import 'store/storage.dart';
 import 'voice/files.dart';
 import 'voice/outbox.dart';
 
-/// The app's stores, built on its [Storage]: what the vault keeps (the pairings, what was seen and notified, the
-/// notification choice), the voice outboxes and comment queues in its files, and the project pictures fetched so far.
+/// The app's stores, built on its [Storage]: what the vault keeps (the pairings, what was notified, the notification
+/// choice), the voice outboxes and comment queues in its files, and in memory the project pictures fetched so far and
+/// the chats read here.
 class AppStores {
   AppStores({
     required this.hosts,
-    required this.seen,
     required this.notified,
     required this.notify,
     required this.voice,
     required this.comments,
     required this.icons,
+    required this.unread,
   });
 
   /// The stores kept in [s], the outboxes caching what they send in [sounds] (the player).
   static Future<AppStores> load(Storage s, {required Sounds sounds}) async =>
       AppStores(
         hosts: await Hosts.load(s.vault),
-        seen: await Seen.load(s.vault),
         notified: await Notified.load(s.vault),
         notify: await NotifyChoice.load(s.vault),
         voice: VoiceStore(s.files, sounds: sounds),
         comments: CommentQueues(s.files),
         icons: ProjectIcons(),
+        unread: Unread(),
       );
 
   final Hosts hosts;
-  final Seen seen;
   final Notified notified;
   final NotifyChoice notify;
   final VoiceStore voice;
   final CommentQueues comments;
   final ProjectIcons icons;
+  final Unread unread;
 }
 
 class Sdk {

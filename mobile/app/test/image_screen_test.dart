@@ -42,7 +42,7 @@ Future<Rig> openImage(
   List<Map<String, Object?>> comments = const [],
   List<ViewerImage>? items,
   int index = 0,
-  num protocol = 18,
+  num protocol = 41,
 }) async {
   final r = Rig();
   await r.open(
@@ -82,11 +82,6 @@ Future<Rig> openImage(
   await settleReal(t, 3);
   return r;
 }
-
-List<Map<String, Object?>> commentSets(Rig r) => [
-  for (final m in r.sent)
-    if (m['type'] == 'comments') m,
-];
 
 /// Draws a box from a quarter to three quarters of the picture and opens the sheet.
 Future<void> drawAndComment(WidgetTester t, String text) async {
@@ -184,7 +179,7 @@ void main() {
         'POST /attach',
       ]),
     );
-    final added = (commentSets(r).last['items'] as List).single as Map;
+    final added = r.comments.single as Map;
     expect(added['id'], id);
     expect(added['text'], 'this one');
     expect(added['images'], [attachId]);
@@ -218,7 +213,7 @@ void main() {
         .path
         .split('/')[2];
     expect(r.ch.requests.last, 'DELETE /marks/$id');
-    expect(commentSets(r), isEmpty);
+    expect(r.comments, isEmpty);
     expect(find.textContaining('could not be saved'), findsOneWidget);
     expect(find.text('Undo'), findsNothing);
     expect(find.byTooltip('Undo'), findsOneWidget, reason: 'the drawing stays');
@@ -428,9 +423,7 @@ void main() {
   /// The shapes of the comment last sent.
   List<Map<String, Object?>> lastShapes(Rig r) => [
     for (final s
-        in ((((commentSets(r).last['items'] as List).last as Map)['anchor']
-                as Map)['shapes']
-            as List))
+        in (((r.comments.last as Map)['anchor'] as Map)['shapes'] as List))
       (s as Map).cast<String, Object?>(),
   ];
 
@@ -668,27 +661,17 @@ void main() {
   });
 
   testWidgets('the bottom actions are Mark up, Comment and Share', (t) async {
-    final r = await openImage(t, protocol: 25);
+    final r = await openImage(t);
     expect(find.byKey(const ValueKey('act-markup')), findsOneWidget);
     expect(find.byKey(const ValueKey('act-comment')), findsOneWidget);
     expect(find.byKey(const ValueKey('act-share')), findsOneWidget);
     r.dispose();
   });
 
-  testWidgets(
-    'issue 494: a window older than 25 would refuse a comment without marks, so there is no Comment',
-    (t) async {
-      final r = await openImage(t, protocol: 24);
-      expect(find.byKey(const ValueKey('act-markup')), findsOneWidget);
-      expect(find.byKey(const ValueKey('act-comment')), findsNothing);
-      r.dispose();
-    },
-  );
-
   testWidgets('Comment without a drawing is a comment on the whole image', (
     t,
   ) async {
-    final r = await openImage(t, protocol: 25);
+    final r = await openImage(t);
     await t.tap(find.byKey(const ValueKey('act-comment')));
     await t.pumpAndSettle();
     await t.enterText(find.byType(TextField), 'whole');

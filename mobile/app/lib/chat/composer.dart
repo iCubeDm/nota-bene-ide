@@ -1,7 +1,7 @@
 // The message field: the text, with the paperclip and the mic (Send once there is something to send) inside it, and a
 // floating Stop while the agent works. Sending while the agent works asks first and then interrupts (force), as the
-// desktop does; a send the window refuses gives its text back. A draft is written whenever; the send waits for a tab
-// that owns a live window.
+// desktop does; a send the window refuses gives its text back. The draft is the window's ([DraftSync], issue 174),
+// written whenever; the send waits for an open window.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -20,6 +20,8 @@ import '../store/voice_lang.dart';
 import '../voice/record_session.dart';
 import '../voice/recorder.dart';
 import 'attach_sheet.dart';
+import 'draft_sync.dart';
+import 'media_card.dart' show WindowPicture;
 import 'message_field.dart';
 import 'send_now.dart';
 import 'window_tab.dart';
@@ -28,22 +30,9 @@ import 'window_tab.dart';
 @visibleForTesting
 Future<Prepared> Function(Uint8List, String) prepareFor = prepareImage;
 
-/// An image of the message being written, prepared and uploaded in the background. It keeps only its prepared [bytes]
-/// (the thumbnail; null until prepared), never the original. It holds [ref] once uploaded and [failed] when the upload
-/// did not work (the image stays, marked, until the user removes it).
-class _Draft {
-  Uint8List? bytes;
-  ImageRef? ref;
-  bool failed = false;
-  bool get pending => ref == null && !failed;
-}
-
 class Composer extends StatefulWidget {
-  const Composer({super.key, required this.tab, this.controller, this.focus});
+  const Composer({super.key, required this.tab, this.focus});
   final WindowTab tab;
-
-  /// The draft, when the page needs to write into it (Reply); the composer owns one otherwise.
-  final TextEditingController? controller;
   final FocusNode? focus;
 
   @override
@@ -51,12 +40,13 @@ class Composer extends StatefulWidget {
 }
 
 class _ComposerState extends State<Composer> {
-  late final _own = widget.controller == null ? TextEditingController() : null;
-  TextEditingController get _text => widget.controller ?? _own!;
+  DraftSync get _draft => widget.tab.draft;
+  TextEditingController get _text => _draft.text;
+  List<DraftPicture> get _drafts => _draft.pictures;
   StreamSubscription<ServerEventSendRefused>? _refused;
   StreamSubscription<void>? _elsewhere;
-  ({String id, String text, Set<String> comments, List<_Draft> images})? _last;
-  final _drafts = <_Draft>[];
+  ({String id, String text, Set<String> comments, List<DraftPicture> images})?
+  _last;
   late final _session = RecordSession(
     onRecorded: _recorded,
     onError: _recordFailed,
@@ -84,7 +74,6 @@ class _ComposerState extends State<Composer> {
     _text.removeListener(_changed);
     _refused?.cancel();
     _elsewhere?.cancel();
-    _own?.dispose();
     _session.dispose();
     super.dispose();
   }
@@ -95,7 +84,7 @@ class _ComposerState extends State<Composer> {
     widget.tab.comments.unsending(last.comments);
     if (_text.text.isEmpty) _text.text = last.text;
     // as the desktop: the images come back only into an empty draft, they are not mixed with newer ones
-    if (_drafts.isEmpty) setState(() => _drafts.addAll(last.images));
+    if (_drafts.isEmpty) _draft.addAll(last.images);
     final t = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -135,8 +124,8 @@ class _ComposerState extends State<Composer> {
       _say(t.attachUnreadable(got.unreadable.join(', ')));
     }
     for (final p in got.images) {
-      final d = _Draft();
-      setState(() => _drafts.add(d));
+      final d = DraftPicture();
+      _draft.add(d);
       unawaited(_upload(d, p));
     }
   }
@@ -151,7 +140,7 @@ class _ComposerState extends State<Composer> {
 
   /// [p] read, prepared and its file deleted, when its turn comes; null when it was removed or the composer left
   /// meanwhile. The type comes from the bytes, the provider's own only when they say nothing.
-  Future<Prepared?> _prepare(_Draft d, PickedImage p) {
+  Future<Prepared?> _prepare(DraftPicture d, PickedImage p) {
     final run = _turn.then((_) async {
       try {
         if (!mounted || !_drafts.contains(d)) return null;
@@ -166,8 +155,9 @@ class _ComposerState extends State<Composer> {
     return run;
   }
 
-  Future<void> _upload(_Draft d, PickedImage p) async {
+  Future<void> _upload(DraftPicture d, PickedImage p) async {
     final t = AppLocalizations.of(context);
+    final draft = _draft;
     try {
       final prepared = await _prepare(d, p);
       if (prepared == null) return;
@@ -175,17 +165,20 @@ class _ComposerState extends State<Composer> {
       if (mounted) setState(() {});
       // the label is the position at the send (`composeSend`); this one only has to be something
       final ref = await uploadImage(widget.tab, prepared, '');
+      // the chat left (its draft went with it), or the image was removed meanwhile
+      if (!mounted || !draft.pictures.contains(d)) return;
       d.ref = ref;
     } on UnsupportedImage {
-      if (mounted) {
-        _drafts.remove(d);
-        _say(t.attachUnsupported);
-      }
+      if (!mounted) return;
+      draft.remove(d);
+      _say(t.attachUnsupported);
+      return;
     } on Object {
+      if (!mounted) return;
       d.failed = true;
-      if (mounted) _say(t.attachFailed);
+      _say(t.attachFailed);
     }
-    if (mounted) setState(() {});
+    draft.uploaded(d);
   }
 
   bool get _uploading => _drafts.any((d) => d.pending);
@@ -258,6 +251,14 @@ class _ComposerState extends State<Composer> {
   Future<void> _send() async {
     final text = _text.text.trim();
     if (_uploading || _failed) return;
+    // a `! cmd` as the desktop reads it (shellMode.ts): the phone runs none, and it must not reach the agent as a prompt
+    final raw = _text.text;
+    if (raw.startsWith('!') &&
+        !raw.startsWith('![') &&
+        !raw.trimRight().contains('\n')) {
+      _say(AppLocalizations.of(context).shellOnComputer);
+      return;
+    }
     if (text.isEmpty &&
         widget.tab.comments.sendable.isEmpty &&
         _drafts.isEmpty) {
@@ -265,7 +266,7 @@ class _ComposerState extends State<Composer> {
     }
     // the pending comments leave with it, in the desktop's batch; the server marks them sent
     final lang = Localizations.localeOf(context).languageCode;
-    var drafts = const <_Draft>[];
+    var drafts = const <DraftPicture>[];
     final sent = await widget.tab.send(
       text,
       lang: lang,
@@ -279,14 +280,18 @@ class _ComposerState extends State<Composer> {
     // the text stays when the window is not there to take it (the tab went offline or was taken meanwhile)
     if (sent == null) return;
     _last = (id: sent.id, text: text, comments: sent.comments, images: drafts);
-    _text.clear();
     // only what was sent leaves: an image added while the dialog was up stays for the next message
-    setState(() => _drafts.removeWhere(drafts.contains));
+    _draft.sent(drafts);
   }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([widget.tab, widget.tab.comments, _session]),
+    listenable: Listenable.merge([
+      widget.tab,
+      widget.tab.comments,
+      widget.tab.draft,
+      _session,
+    ]),
     builder: (context, _) {
       final t = AppLocalizations.of(context);
       final open = widget.tab.connection.state == TabState.open;
@@ -418,15 +423,22 @@ class _ComposerState extends State<Composer> {
                       ),
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: d.bytes == null
-                        ? null
-                        : Image.memory(
-                            d.bytes!,
-                            fit: BoxFit.cover,
-                            cacheWidth: 120,
-                            errorBuilder: (_, _, _) =>
-                                const Center(child: Icon(Icons.image_outlined)),
-                          ),
+                    child: switch (d) {
+                      DraftPicture(:final bytes?) => Image.memory(
+                        bytes,
+                        fit: BoxFit.cover,
+                        cacheWidth: 120,
+                        errorBuilder: (_, _, _) =>
+                            const Center(child: Icon(Icons.image_outlined)),
+                      ),
+                      // another client's: read from the window
+                      DraftPicture(:final ref?) => WindowPicture(
+                        tab: widget.tab,
+                        url: '/attach/${ref.id}',
+                        width: 60,
+                      ),
+                      _ => null,
+                    },
                   ),
                   if (d.pending)
                     const Positioned.fill(
@@ -463,7 +475,7 @@ class _ComposerState extends State<Composer> {
                         backgroundColor: c.popover,
                         foregroundColor: c.foreground,
                       ),
-                      onPressed: () => setState(() => _drafts.remove(d)),
+                      onPressed: () => _draft.remove(d),
                     ),
                   ),
                 ],

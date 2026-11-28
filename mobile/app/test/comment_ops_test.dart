@@ -52,7 +52,7 @@ class Window {
   /// The protocol of the window's last hello.
   num? protocol;
 
-  Window({CommentQueue? queue, num? protocol = 19}) {
+  Window({CommentQueue? queue, num? protocol = 41}) {
     cs = Comments(
       (m) {
         if (!open) return false;
@@ -60,7 +60,6 @@ class Window {
         return true;
       },
       () => session,
-      has: (f) => has(this.protocol, f),
       queue: queue,
     );
     if (protocol != null) hello(protocol);
@@ -212,24 +211,6 @@ void main() {
         expect(w.shown, ['a', 'b', 'd']);
       },
     );
-
-    test(
-      'a window older than 19 gets the set with the queued changes, once, and the queue is done',
-      () {
-        final w = Window(protocol: null)..open = false;
-        w.cs.add(c('x').anchor, 'new', null, id: 'n');
-        w.hello(13);
-        w.cs.apply([c('a')]);
-        expect(w.sent, isEmpty);
-        w.open = true;
-        w.cs.apply([c('a')]);
-        final set = w.sent.whereType<ClientMessageComments>().single;
-        expect([for (final x in set.items) x.id], ['a', 'n']);
-        w.cs.flush();
-        expect(w.sent.length, 1);
-        expect(w.ops, isEmpty);
-      },
-    );
   });
 
   group('the queue on disk', () {
@@ -296,7 +277,7 @@ void main() {
       final r = Rig();
       await r.open(
         t,
-        hello: {'kind': 'hello', 'protocol': 19, 'capabilities': Rig.caps()},
+        hello: {'kind': 'hello', 'protocol': 41, 'capabilities': Rig.caps()},
       );
       r.event({
         'kind': 'comments',
@@ -353,7 +334,7 @@ void main() {
       expect([for (final x in r.tab!.comments.all) x.id], ['n']);
       r.event({'kind': 'replay', 'events': <Object?>[]});
       r.event({'kind': 'comments', 'items': <Object?>[]});
-      r.event({'kind': 'hello', 'protocol': 19, 'capabilities': Rig.caps()});
+      r.event({'kind': 'hello', 'protocol': 41, 'capabilities': Rig.caps()});
       await t.pump();
       final op = r.sent.singleWhere((m) => m['type'] == 'comment-op');
       expect(
@@ -370,7 +351,7 @@ void main() {
       final r = Rig();
       await r.open(
         t,
-        hello: {'kind': 'hello', 'protocol': 19, 'capabilities': Rig.caps()},
+        hello: {'kind': 'hello', 'protocol': 41, 'capabilities': Rig.caps()},
         replay: false,
       );
       r.tab!.comments.add(c('x').anchor, 'early', null, id: 'n');

@@ -252,7 +252,7 @@ void main() {
 
     Future<void> openSheet(
       WidgetTester t, {
-      int protocol = 18,
+      int protocol = 41,
       String? cap = 'whisper',
       Comment? editing,
     }) async {
@@ -343,7 +343,7 @@ void main() {
 
     testWidgets('Automatic asks for detection (protocol 18)', (t) async {
       r.voiceLang = await VoiceLang.load(MemoryVault());
-      await openSheet(t, protocol: 18);
+      await openSheet(t, protocol: 41);
       await record(t);
       await t.pumpAndSettle();
       expect(r.ch.requests.last, endsWith('/text?lang=en&detect=1'));
@@ -353,7 +353,7 @@ void main() {
       final v = await VoiceLang.load(MemoryVault());
       await v.choose('ru');
       r.voiceLang = v;
-      await openSheet(t, protocol: 18);
+      await openSheet(t, protocol: 41);
       await record(t);
       await t.pumpAndSettle();
       expect(r.ch.requests.last, endsWith('/text?lang=ru'));

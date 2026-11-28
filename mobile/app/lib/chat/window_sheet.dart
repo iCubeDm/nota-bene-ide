@@ -36,11 +36,8 @@ String? runWindowCommand(
   ClientMessageCommandName name,
   String lang,
 ) {
-  // a Compact while the agent works waits for its next pause on a window of protocol 27 (issue 499)
-  final ordered =
-      name == ClientMessageCommandName.compact &&
-      tab.connection.has(Feature.compactOrder);
-  if ((tab.windowState.busy && !ordered) ||
+  // a Compact while the agent works waits for its next pause (issue 499)
+  if ((tab.windowState.busy && name != ClientMessageCommandName.compact) ||
       (name == ClientMessageCommandName.clear && tab.windowState.orderWaits)) {
     return webString(WebKey.working, lang);
   }

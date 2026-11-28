@@ -72,6 +72,7 @@
   "sendNow": "立即发送",
   "refusedBusy": "窗口正忙，消息未发送。",
   "refusedSwitching": "窗口正在切换会话，消息未发送。",
+  "shellOnComputer": "以 ! 开头的命令只能在电脑上运行。",
   "allow": "允许",
   "deny": "拒绝",
   "allowSession": "本会话内允许",
@@ -97,9 +98,6 @@
   "effortMax": "最高",
   "effortNone": "无",
   "effortMinimal": "最低",
-  "occupiedTitle": "此窗口已在另一个标签页中打开。",
-  "takenTitle": "另一个标签页接管了此窗口。",
-  "workHere": "在这里工作",
   "pairedHosts": "已配对的主机",
   "forgetTitle": "移除 {host}？",
   "forgetBody": "这部手机将不再连接它。在主机上运行 `nota-bene remote revoke` 之前，主机仍会保留这部手机。",
@@ -289,7 +287,6 @@
   "idleCompactBlocked": "已在代理设置中关闭",
   "windowGoneTitle": "窗口已关闭或正在重启",
   "windowGoneBody": "正在等待其恢复",
-  "stateOtherTab": "已在另一个标签页打开",
   "toolActions": "{count, plural, other{{count} 个操作}}",
   "@toolActions": {
     "placeholders": {

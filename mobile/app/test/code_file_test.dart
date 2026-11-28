@@ -53,8 +53,7 @@ void main() {
     await t.pumpAndSettle();
     await sendNote(t);
     await t.pumpAndSettle();
-    final items = r.sent.lastWhere((m) => m['type'] == 'comments')['items'];
-    final c = Comment.fromJson(((items as List).single as Map).cast());
+    final c = Comment.fromJson(r.comments.single);
     final a = c.anchor as TextAnchor;
     expect(a.quote, 'foo');
     // the third foo of `foo(1); foo(1); foo(1);`

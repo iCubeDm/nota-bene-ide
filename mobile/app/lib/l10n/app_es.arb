@@ -72,6 +72,7 @@
   "sendNow": "Enviar ahora",
   "refusedBusy": "La ventana está ocupada; el mensaje no se envió.",
   "refusedSwitching": "La ventana está cambiando de sesión; el mensaje no se envió.",
+  "shellOnComputer": "Los comandos que empiezan por ! solo se ejecutan en el ordenador.",
   "allow": "Permitir",
   "deny": "Denegar",
   "allowSession": "Permitir en esta sesión",
@@ -97,9 +98,6 @@
   "effortMax": "máximo",
   "effortNone": "ninguno",
   "effortMinimal": "mínimo",
-  "occupiedTitle": "Esta ventana está abierta en otra pestaña.",
-  "takenTitle": "Otra pestaña tomó el control de esta ventana.",
-  "workHere": "Trabajar aquí",
   "pairedHosts": "Equipos vinculados",
   "forgetTitle": "¿Olvidar {host}?",
   "forgetBody": "Este teléfono dejará de conectarse. El equipo seguirá listando el teléfono hasta que ejecutes allí `nota-bene remote revoke`.",
@@ -289,7 +287,6 @@
   "idleCompactBlocked": "Desactivado en los ajustes del agente",
   "windowGoneTitle": "La ventana se cerró o se reinició",
   "windowGoneBody": "Esperando a que vuelva",
-  "stateOtherTab": "abierta en otra pestaña",
   "toolActions": "{count, plural, =1{1 acción} other{{count} acciones}}",
   "@toolActions": {
     "placeholders": {

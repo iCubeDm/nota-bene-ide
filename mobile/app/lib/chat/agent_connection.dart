@@ -1,6 +1,5 @@
-// The phone as an ordinary tab of one window (/ws?tab=<id>), over a host link. The one-tab rule is the server's:
-// occupied → Work here sends takeover; a 4001 means another tab took the window, and Work here takes it back. A
-// window that went away (4904) is reopened when the host lists it again; a link that went down keeps the feed
+// The phone as one more client of a window (/ws), over a host link: every client of a window is live at once (issue
+// 174). A window that went away (4904) is reopened when the host lists it again; a link that went down keeps the feed
 // readable until the next replay replaces it. What the window says goes to [AgentConnection.onEvent] (issue 511).
 import 'dart:async';
 import 'dart:convert';
@@ -13,13 +12,11 @@ import 'package:nb_protocol/nb_protocol.dart' as nb show has;
 
 import '../hosts/host_link.dart';
 
-enum TabState { connecting, open, occupied, taken, gone, offline, old }
+enum TabState { connecting, open, gone, offline, old }
 
-/// The app's floor, protocol 18 (voice messages with language detection): everything up to it is used without asking,
-/// and a window that lacks it is not opened ([TabState.old]).
-const floor = Feature.voiceDetect;
-
-const takenOverCode = 4001;
+/// The app's floor, protocol 41 (the shared read state, issue 174): everything up to it is used without asking, and a
+/// window that lacks it is not opened ([TabState.old]).
+const floor = Feature.looking;
 
 String uuidV4() {
   final r = Random.secure();
@@ -46,7 +43,7 @@ class AgentConnection extends ChangeNotifier {
 
   final HostLink link;
 
-  /// Each event the window sends but `occupied`, the connection's own; a replay's before the tab is open.
+  /// Each event the window sends; a replay's before the tab is open.
   final void Function(ServerEvent) onEvent;
 
   /// A new socket is about to open: what the last one said is stale.
@@ -91,9 +88,6 @@ class AgentConnection extends ChangeNotifier {
 
   final Future<void> Function(Duration) _retry;
 
-  /// In memory only: a tab id kept on disk would let a second copy of the app steal the window.
-  final String tabId = uuidV4();
-
   /// The window's protocol, from its hello.
   num? protocol;
 
@@ -113,8 +107,6 @@ class AgentConnection extends ChangeNotifier {
   TabState _state = TabState.connecting;
   MuxStream? _stream;
   Channel? _on;
-  bool _passive = false;
-  bool _takeoverWanted = false;
   bool _reopening = false;
   List<HostWindow>? _goneList;
   bool _started = false;
@@ -144,7 +136,7 @@ class AgentConnection extends ChangeNotifier {
     if (_disposed) return;
     final ch = link.channel;
     if (link.state != LinkState.online || ch == null) {
-      if (_state != TabState.taken) _set(TabState.offline);
+      _set(TabState.offline);
       return;
     }
     if (_state == TabState.gone) {
@@ -155,11 +147,7 @@ class AgentConnection extends ChangeNotifier {
       }
       return;
     }
-    if (!identical(ch, _on) &&
-        _state != TabState.taken &&
-        _state != TabState.gone) {
-      _open(ch);
-    }
+    if (!identical(ch, _on)) _open(ch);
   }
 
   void _open(Channel ch) {
@@ -170,7 +158,7 @@ class AgentConnection extends ChangeNotifier {
     final s = _stream = ch.ws(
       a.port,
       // held=1 (issue 499): the phone knows `send-held`, so its messages may wait behind a pending restart or compaction
-      a.at('/ws?tab=$tabId&held=1${_passive ? '&passive=1' : ''}'),
+      a.at('/ws?held=1'),
     );
     _set(TabState.connecting);
     s.messages.listen((m) {
@@ -191,11 +179,6 @@ class AgentConnection extends ChangeNotifier {
   }
 
   void _closed(int code) {
-    if (code == takenOverCode) {
-      _passive = true;
-      _set(TabState.taken);
-      return;
-    }
     if (code == unknownWindow) {
       _goneList = link.windows;
       _set(TabState.gone);
@@ -225,16 +208,7 @@ class AgentConnection extends ChangeNotifier {
 
   void _event(ServerEvent e) {
     switch (e) {
-      case ServerEventOccupied():
-        _passive = true;
-        if (_takeoverWanted) {
-          _raw(const ClientMessageTakeover());
-        } else {
-          _set(TabState.occupied);
-        }
       case ServerEventReplay():
-        _takeoverWanted = false;
-        _passive = false;
         onEvent(e);
         _set(TabState.open);
         onOpen?.call();
@@ -254,15 +228,13 @@ class AgentConnection extends ChangeNotifier {
     }
   }
 
-  bool _raw(ClientMessage m) {
+  /// Sends [m] once the window is open (after its replay); false when it did not go.
+  bool send(ClientMessage m) {
     final s = _stream;
-    if (s == null || s.isClosed) return false;
+    if (_state != TabState.open || s == null || s.isClosed) return false;
     s.send(utf8.encode(jsonEncode(m.toJson()))).catchError((_) {});
     return true;
   }
-
-  /// Sends [m] when the tab owns the window (anything else would be dropped by the server); false when it did not go.
-  bool send(ClientMessage m) => _state == TabState.open && _raw(m);
 
   /// Opens the window's socket again by hand, for a window that went and has not come back on its own. The phone cannot
   /// start a window (the protocol has no such request), so this is only another try at reaching it.
@@ -274,17 +246,6 @@ class AgentConnection extends ChangeNotifier {
       return;
     }
     _open(ch);
-  }
-
-  /// Work here: from occupied, at once; from taken, on a new socket whose occupied is answered with takeover.
-  void takeOver() {
-    _takeoverWanted = true;
-    if (_state == TabState.occupied) {
-      _raw(const ClientMessageTakeover());
-    } else if (_state == TabState.taken) {
-      final ch = link.channel;
-      if (ch != null && link.state == LinkState.online) _open(ch);
-    }
   }
 
   @override

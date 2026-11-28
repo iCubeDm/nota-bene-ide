@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/feed.dart';
 import 'package:nb_app/chat/window_tab.dart';
 import 'package:nb_app/hosts/host_link.dart';
+import 'package:nb_app/notify/visible.dart';
 import 'package:nb_app/sdk.dart';
 import 'package:nb_app/store/hosts.dart';
 import 'package:nb_app/store/vault.dart';
@@ -71,55 +72,63 @@ void main() {
     link.dispose();
   });
 
-  test('opens /ws with a tab id and waits for the replay', () async {
-    final path = ch.wsOpens.single['path'] as String;
-    expect(path, matches(RegExp(r'^/ws\?tab=[0-9a-f-]{36}&held=1$')));
+  test('opens /ws?held=1 and waits for the replay', () async {
+    expect(ch.wsOpens.single['path'], '/ws?held=1');
     expect(tab.connection.state, TabState.connecting);
-    ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': 18});
+    ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': floor.protocol});
     ch.event(ch.lastWsId, replay([user('u1')]));
     await settle();
     expect(tab.connection.state, TabState.open);
     expect(tab.windowState.feed.items.single, isA<UserItem>());
-    expect(tab.connection.protocol, 18);
-  });
-
-  test('occupied then Work here sends takeover and opens on replay', () async {
-    ch.event(ch.lastWsId, {'kind': 'occupied'});
-    await settle();
-    expect(tab.connection.state, TabState.occupied);
-    tab.connection.takeOver();
-    await settle();
-    expect(ch.sentOn(ch.lastWsId).single, {'type': 'takeover'});
-    ch.event(ch.lastWsId, replay([user('u1')]));
-    await settle();
-    expect(tab.connection.state, TabState.open);
+    expect(tab.connection.protocol, floor.protocol);
   });
 
   test(
-    '4001 goes to taken and does not reconnect; Work here reopens passive',
+    'looking (issue 174): on with the app shown and this chat in it, off when hidden, again on each socket',
     () async {
+      final visible = AppVisible.test();
+      final seen = WindowTab(
+        link,
+        window(4791, '/p'),
+        stores: stores,
+        visible: visible,
+        retry: (_) async {},
+      );
+      addTearDown(seen.dispose);
+      await settle();
+      List<Object?> looks() => [
+        for (final m in ch.sentOn(ch.lastWsId))
+          if (m['type'] == 'looking') m['on'],
+      ];
       ch.event(ch.lastWsId, replay([]));
+      ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': floor.protocol});
       await settle();
-      ch.event(ch.lastWsId, {'kind': 'taken-over'});
-      ch.host(Close(ch.lastWsId, 4001));
+      expect(looks(), [false], reason: 'its chat is not open yet');
+      visible.open(link.host.id, seen.connection.key);
       await settle();
-      expect(tab.connection.state, TabState.taken);
-      expect(ch.wsOpens, hasLength(1));
-      tab.connection.takeOver();
+      expect(looks(), [false, true]);
+      List<Object?> drafts() => [
+        for (final m in ch.sentOn(ch.lastWsId))
+          if (m['type'] == 'draft') m['text'],
+      ];
+      seen.draft.text.text = 't'; // written at once
+      seen.draft.text.text = 'typed'; // held by the throttle
+      expect(drafts(), ['t']);
+      visible.visible = false;
       await settle();
-      expect(ch.wsOpens, hasLength(2));
-      expect(ch.wsOpens.last['path'], endsWith('&passive=1'));
-      ch.event(ch.lastWsId, {'kind': 'occupied'});
+      expect(looks(), [false, true, false]);
+      expect(drafts(), ['t', 'typed'], reason: 'written as the app goes');
+      visible.visible = true;
+      ch.host(Close(ch.lastWsId, 1006));
       await settle();
-      expect(ch.sentOn(ch.lastWsId).single, {
-        'type': 'takeover',
-      }, reason: 'the wanted takeover goes at once');
-      expect(tab.connection.state, isNot(TabState.occupied));
+      ch.event(ch.lastWsId, replay([]));
+      ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': floor.protocol});
+      await settle();
+      expect(looks(), [true], reason: 'told again on the new socket');
     },
   );
 
-  test('reconnect keeps the tab id and replaces the feed', () async {
-    final first = ch.wsOpens.single['path'];
+  test('reconnect replaces the feed', () async {
     ch.event(ch.lastWsId, replay([user('u1')]));
     await settle();
     // the network drops; the link comes back on a new channel
@@ -137,7 +146,7 @@ void main() {
     link.stop();
     link.start();
     await settle();
-    expect(ch2.wsOpens.single['path'], first);
+    expect(ch2.wsOpens.single['path'], '/ws?held=1');
     ch2.event(ch2.lastWsId, replay([user('u1'), user('u2')]));
     await settle();
     expect(tab.windowState.feed.items.map((i) => (i as UserItem).id), [
@@ -154,7 +163,7 @@ void main() {
       Future<void> connect(int id) async {
         ch.event(id, replay([]));
         ch.event(id, {'kind': 'comments', 'items': <Object?>[]});
-        ch.event(id, {'kind': 'hello', 'protocol': 19});
+        ch.event(id, {'kind': 'hello', 'protocol': 41});
         await settle();
       }
 
@@ -188,7 +197,7 @@ void main() {
         isEmpty,
         reason: 'nothing goes before the hello',
       );
-      ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': 19});
+      ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': 41});
       await settle();
       final ops = [
         for (final m in ch.sentOn(ch.lastWsId))
@@ -374,7 +383,7 @@ void main() {
     Future<void> open(Map<String, Object?> c) async {
       ch.event(ch.lastWsId, {
         'kind': 'hello',
-        'protocol': 18,
+        'protocol': 41,
         'capabilities': c,
       });
       ch.event(ch.lastWsId, replay([]));
@@ -449,7 +458,7 @@ void main() {
 
   group('send', () {
     // the replay leaves the agent working: a user message with no reply yet
-    Future<void> openBusy({bool busy = true, num protocol = 18}) async {
+    Future<void> openBusy({bool busy = true, num protocol = 41}) async {
       ch.event(ch.lastWsId, {'kind': 'hello', 'protocol': protocol});
       ch.event(
         ch.lastWsId,

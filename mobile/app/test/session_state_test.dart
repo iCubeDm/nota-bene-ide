@@ -258,14 +258,6 @@ void main() {
     expect(lineText(t), 'offline · seen 4 min ago');
   });
 
-  testWidgets('a window open elsewhere has its own line', (t) async {
-    await r.open(t, replay: false);
-    r.event({'kind': 'occupied'});
-    await flush(t);
-    expect(lineText(t), 'open in another tab');
-    expect(lineColor(t), colors(t).mutedFg);
-  });
-
   testWidgets('Stop and the ring have names and actions for TalkBack', (
     t,
   ) async {

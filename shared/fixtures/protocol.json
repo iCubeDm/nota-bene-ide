@@ -558,9 +558,6 @@
       "on": true
     },
     {
-      "type": "takeover"
-    },
-    {
       "type": "task-stop",
       "id": "task_1"
     },
@@ -650,9 +647,6 @@
   "server": [
     {
       "kind": "occupied"
-    },
-    {
-      "kind": "taken-over"
     },
     {
       "kind": "hello",

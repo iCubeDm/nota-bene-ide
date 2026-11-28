@@ -5,7 +5,7 @@ import 'package:nb_channel/nb_channel.dart';
 import '../l10n/app_localizations.dart';
 import '../chat/chat_header.dart' show providerLetter;
 import '../store/project_icons.dart';
-import '../store/seen.dart';
+import '../store/unread.dart';
 import '../theme.dart';
 import '../ui/time.dart';
 import 'host_link.dart';
@@ -31,10 +31,11 @@ class HostsList extends StatelessWidget {
   const HostsList({
     super.key,
     required this.links,
-    required this.seen,
+    required this.unread,
     required this.icons,
     required this.onOpen,
     required this.onForget,
+    required this.onMarkRead,
     this.onRename,
     this.onRefresh,
     this.onSetIcon,
@@ -43,12 +44,17 @@ class HostsList extends StatelessWidget {
   });
 
   final Iterable<HostLink> links;
-  final Seen seen;
+
+  /// The badges: the windows' unread counts, none for a chat just read here.
+  final Unread unread;
 
   /// The project pictures fetched so far.
   final ProjectIcons icons;
   final void Function(HostLink link, HostWindow w) onOpen;
   final void Function(HostLink link) onForget;
+
+  /// Mark read in a row's menu.
+  final void Function(HostLink link, HostWindow w) onMarkRead;
 
   /// Long-press on a host row.
   final void Function(HostLink link)? onRename;
@@ -114,19 +120,14 @@ class HostsList extends StatelessWidget {
               window: w,
               nested: e.nested,
               online: l.state == LinkState.online,
-              unread: seen.unread(l.host.id, w),
+              unread: unread.of(l.host.id, w),
               now: clock(),
               onOpen: () => onOpen(l, w),
               onSetIcon: onSetIcon == null ? null : () => onSetIcon!(l, w),
               onRemoveIcon: onRemoveIcon == null || w.icon == null
                   ? null
                   : () => onRemoveIcon!(l, w),
-              onMarkRead: () {
-                final session = w.session, replies = w.replies;
-                if (session != null && replies != null) {
-                  seen.see(l.host.id, session, replies);
-                }
-              },
+              onMarkRead: () => onMarkRead(l, w),
             ),
           );
         }

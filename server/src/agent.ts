@@ -27,7 +27,7 @@ import { tmpDirNames } from './tmpImage.ts';
 import { readPrefs } from './prefs.ts';
 import { httpHandler, isAllowedHost } from './http.ts';
 import { SwitchError, createSessionManager, trackedCommand } from './session.ts';
-import { archiveRoute, deleteRoute, listSessionsView, renameRoute } from './sessions.ts';
+import { archiveRoute, deleteRoute, listSessionsView, renameRoute, seenRoute } from './sessions.ts';
 import { readArchived, setArchived } from './archivedSessions.ts';
 import { markSeen, readSeen } from './seen.ts';
 import { forgetSession, type AgentContext } from './state.ts';
@@ -358,6 +358,8 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
           isSent: (id) => store.get(manager.info().id).some((c) => c.id === id && c.status === 'sent'),
         }),
         '/sessions': sessionsRoute,
+        // every socket hears the mark, as a looking client's
+        '/seen': seenRoute({ hub, current: () => manager.info().id, mark: (id, at) => hub.emit({ kind: 'seen', at: markSeen(id, at, agent.stateDir) }, { store: false }) }),
         '/sessions/rename': renameRoute({ hub, rename: (id, title) => manager.rename(id, title) }),
         '/sessions/archive': archiveRoute({ hub, current: () => manager.info().id, set: (id, on) => setArchived(id, on, agent.stateDir) }),
         '/sessions/delete': deleteRoute({
@@ -834,7 +836,6 @@ export async function startAgent(s: Shared, a: AgentOptions): Promise<Agent> {
           if (msg.opId !== undefined) ws.send(JSON.stringify({ kind: 'comment-refused', opId: msg.opId, reason: 'invalid' }));
           return;
         }
-        if (msg.type === 'takeover') return; // a client of a server before 39 (an older phone): there is nothing to take
         audit?.client(msg, conn);
         handle(ws, msg);
       }));

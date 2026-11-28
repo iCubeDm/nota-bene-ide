@@ -231,12 +231,11 @@ void main() {
       await settle();
       final state = WindowState(send: (_) => true, http: () => null);
       addTearDown(state.dispose);
-      box.event(const ServerEventReplay(events: []), state, holdsUntold: true);
+      box.event(const ServerEventReplay(events: []), state);
       expect(box.entries.single.stage, OutStage.sent);
       box.event(
         const ServerEventCompactPending(pending: false, held: []),
         state,
-        holdsUntold: true,
       );
       expect(box.entries.single.stage, OutStage.failed);
       box.detach(owner);

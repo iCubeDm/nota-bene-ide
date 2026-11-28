@@ -50,8 +50,8 @@ void main() {
     expect(row('second'), findsOneWidget);
     expect(held(), ['b']);
     expect(find.text('Comment deleted'), findsOneWidget);
-    expect(r.sent.last['type'], 'comments');
-    expect((r.sent.last['items'] as List).length, 1);
+    expect(r.sent.last['type'], 'comment-op');
+    expect(r.comments, hasLength(1));
   });
 
   testWidgets('Undo puts it back in the same place and state', (t) async {
@@ -66,7 +66,7 @@ void main() {
       t.getTopLeft(row('first')).dy,
       lessThan(t.getTopLeft(row('second')).dy),
     );
-    final back = (r.sent.last['items'] as List).cast<Map>();
+    final back = r.comments;
     expect([for (final i in back) i['id']], ['a', 'b']);
     expect(back.first['status'], 'pending');
   });

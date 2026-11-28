@@ -25,7 +25,7 @@ Map<String, Object?> hello({
   String? provider,
 }) => {
   'kind': 'hello',
-  'protocol': 18,
+  'protocol': 41,
   'capabilities': Rig.caps(
     compact: compact,
     clear: clear,

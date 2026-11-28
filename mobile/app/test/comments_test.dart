@@ -98,7 +98,7 @@ void main() {
       },
     );
     test('it stays pending for the desktop', () {
-      final cs = Comments((_) => true, () => null, has: (_) => false);
+      final cs = Comments((_) => true, () => null);
       cs.apply([cut(voice)]);
       expect(cs.pending.map((x) => x.id), ['k']);
       expect(cs.sendable, isEmpty);
@@ -154,14 +154,10 @@ void main() {
 
     test('add and edit keep the clips', () {
       final sent = <ClientMessage>[];
-      final cs = Comments(
-        (m) {
-          sent.add(m);
-          return true;
-        },
-        () => 's',
-        has: (f) => has(13, f),
-      )..hello();
+      final cs = Comments((m) {
+        sent.add(m);
+        return true;
+      }, () => 's')..hello();
       final x = cs.add(
         c('z', 'q', '').anchor,
         'hi',
@@ -173,8 +169,11 @@ void main() {
       expect(cs.all.single.voice!.map((v) => v.text), ['one', 'two']);
       cs.edit(x.id, 'hi', null);
       expect(cs.all.single.voice, isNull);
-      final m = sent.whereType<ClientMessageComments>().first;
-      expect(m.items.single.toJson()['voice'], isNotNull);
+      final m = sent.whereType<ClientMessageCommentOp>().first;
+      expect(
+        (m.ops.single as CommentOpAdd).comment.toJson()['voice'],
+        isNotNull,
+      );
     });
   });
 
@@ -192,7 +191,6 @@ void main() {
           },
           () => null,
           now: () => DateTime.fromMillisecondsSinceEpoch(1),
-          has: (f) => has(13, f),
         )..hello();
         final w = Comment.fromJson(want);
         cs.add(
@@ -203,9 +201,11 @@ void main() {
           images: w.images,
           genImages: w.genImages?.toInt(),
         );
-        final m = sent.whereType<ClientMessageComments>().single;
+        final m = sent.whereType<ClientMessageCommentOp>().single;
         expect(
-          jsonDecode(jsonEncode(m.items.single.toJson())),
+          jsonDecode(
+            jsonEncode((m.ops.single as CommentOpAdd).comment.toJson()),
+          ),
           jsonDecode(jsonEncode(want)),
         );
       }
@@ -377,14 +377,10 @@ void main() {
     setUp(() {
       out = [];
       // a window older than protocol 19: the whole set
-      cs = Comments(
-        (m) {
-          out.add(m);
-          return true;
-        },
-        () => 's1',
-        has: (f) => has(13, f),
-      )..hello();
+      cs = Comments((m) {
+        out.add(m);
+        return true;
+      }, () => 's1')..hello();
     });
 
     test('the server set replaces the list; pending and per file', () {
@@ -397,39 +393,38 @@ void main() {
       expect(cs.forFile('docs/plan.md').map((x) => x.id), ['a', 'b']);
     });
 
-    test(
-      'add sends the whole set with the new one, keeping the desktop\'s',
-      () {
-        cs.apply([c('a', 'x', 'desk')]);
-        final n = cs.add(
-          c('tmp', 'q', '').anchor as TextAnchor,
-          'mine',
-          QuickLabelId.fire,
-        );
-        final m = out.single as ClientMessageComments;
-        expect(m.sessionId, 's1');
-        expect(m.items.map((x) => x.id), ['a', n.id]);
-        expect(m.items.last.label, QuickLabelId.fire);
-        expect(m.items.last.status, CommentStatus.pending);
-      },
-    );
+    test('add sends its op and shows it after the desktop\'s', () {
+      cs.apply([c('a', 'x', 'desk')]);
+      final n = cs.add(
+        c('tmp', 'q', '').anchor as TextAnchor,
+        'mine',
+        QuickLabelId.fire,
+      );
+      final m = out.single as ClientMessageCommentOp;
+      expect(m.sessionId, 's1');
+      final added = (m.ops.single as CommentOpAdd).comment;
+      expect(added.id, n.id);
+      expect(added.label, QuickLabelId.fire);
+      expect(added.status, CommentStatus.pending);
+      expect(cs.all.map((x) => x.id), ['a', n.id]);
+    });
 
-    test('edit and remove send the changed set', () {
+    test('edit and remove send their ops', () {
       cs.apply([c('a', 'x', '1'), c('b', 'y', '2')]);
       cs.edit('a', 'new', QuickLabelId.example);
-      expect((out.last as ClientMessageComments).items.first.text, 'new');
+      final edit = (out.last as ClientMessageCommentOp).ops.single;
+      expect((edit as CommentOpEdit).comment.text, 'new');
       cs.remove('b');
-      expect((out.last as ClientMessageComments).items.map((x) => x.id), ['a']);
+      final remove = (out.last as ClientMessageCommentOp).ops.single;
+      expect((remove as CommentOpRemove).id, 'b');
+      expect(cs.all.map((x) => x.id), ['a']);
     });
 
     test('remove keeps a comment of ours the server has not echoed yet', () {
       cs.apply([c('a', 'x', '1'), c('b', 'y', '2')]);
       final n = cs.add(c('tmp', 'q', '').anchor as TextAnchor, 'mine', null);
       cs.remove('b');
-      expect((out.last as ClientMessageComments).items.map((x) => x.id), [
-        'a',
-        n.id,
-      ]);
+      expect(cs.all.map((x) => x.id), ['a', n.id]);
     });
 
     test(

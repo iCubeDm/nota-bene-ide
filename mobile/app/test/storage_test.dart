@@ -19,7 +19,6 @@ void main() {
         'nb.hosts':
             '[{"id":"aG9zdA","relay":"wss://r.example","label":"notes","pairedAt":"2026-01-02T03:04:05.000Z","computerName":"desk","customName":"Work"}]',
         'nb.lastChat': 'aG9zdA w1',
-        'nb.seen': '{"aG9zdA":{"s1":3}}',
         'nb.notified': '{"aG9zdA":{"s1":{"r":2,"w":true}}}',
         'nb.notify': 'off',
       });
@@ -40,8 +39,11 @@ void main() {
     expect((h.id, h.label, h.computerName), ('aG9zdA', 'Work', 'desk'));
     expect(h.pairedAt, DateTime.utc(2026, 1, 2, 3, 4, 5));
     expect(s.hosts.lastChat, 'aG9zdA w1');
-    expect(s.seen.seenOf('aG9zdA', 's1'), 3);
-    expect(s.notified.of('aG9zdA', 's1'), (replies: 2, waiting: true));
+    expect(s.notified.of('aG9zdA', 's1'), (
+      replies: 2,
+      waiting: true,
+      unseen: null,
+    ));
     expect(s.notify.on, isFalse);
 
     await s.comments.ready;

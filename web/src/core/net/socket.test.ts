@@ -95,7 +95,7 @@ describe('connect', () => {
     expect(states).toEqual(['open', 'closed']);
   });
 
-  it('an unattached socket (no replay: an older server\'s occupied) sends nothing, takeover neither, and reports no state', () => {
+  it('an unattached socket (no replay: an older server\'s occupied) sends nothing and reports no state', () => {
     const states: string[] = [];
     const c = connect('ws://x/ws', () => {}, (s) => states.push(s), WS);
     const ws = FakeWS.instances[0];
@@ -103,7 +103,6 @@ describe('connect', () => {
     ws.onmessage?.({ data: '{"kind":"occupied"}' });
     ws.onmessage?.({ data: '{"kind":"hello","protocol":5}' });
     expect(c.send({ type: 'interrupt' })).toBe(false);
-    expect(c.send({ type: 'takeover' })).toBe(false);
     expect(ws.sent).toEqual([]);
     expect(states).toEqual([]);
   });
