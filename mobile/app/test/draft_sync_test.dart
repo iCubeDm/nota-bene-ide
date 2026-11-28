@@ -214,4 +214,36 @@ void main() {
       expect(writes.last.images, isNull);
     },
   );
+
+  test('a send clears the text and the sent images in one write', () {
+    final eager = DraftSync(
+      send: (m) {
+        writes.add(m as ClientMessageDraft);
+        return true;
+      },
+      has: (f) => has(41, f),
+      throttle: Duration.zero,
+    );
+    addTearDown(eager.dispose);
+    eager.received(draft('s1', ''));
+    final p = DraftPicture(
+      ref: const ImageRef(
+        id: 'cccc',
+        mediaType: ImageType.image_png,
+        label: '',
+      ),
+    );
+    eager.text.text = 'with a picture';
+    eager.add(p);
+    writes.clear();
+    eager.sent([p]);
+    expect(writes.single.toJson(), {
+      'type': 'draft',
+      'id': writes.single.id,
+      'sessionId': 's1',
+      'text': '',
+    });
+    expect(eager.text.text, '');
+    expect(eager.pictures, isEmpty);
+  });
 }

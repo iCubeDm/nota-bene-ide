@@ -107,15 +107,17 @@ void main() {
       visible.open(link.host.id, seen.connection.key);
       await settle();
       expect(looks(), [false, true]);
-      seen.draft.text.text = 'typed';
+      List<Object?> drafts() => [
+        for (final m in ch.sentOn(ch.lastWsId))
+          if (m['type'] == 'draft') m['text'],
+      ];
+      seen.draft.text.text = 't'; // written at once
+      seen.draft.text.text = 'typed'; // held by the throttle
+      expect(drafts(), ['t']);
       visible.visible = false;
       await settle();
       expect(looks(), [false, true, false]);
-      expect(
-        ch.sentOn(ch.lastWsId).where((m) => m['type'] == 'draft').last['text'],
-        'typed',
-        reason: 'the draft is written as the app goes',
-      );
+      expect(drafts(), ['t', 'typed'], reason: 'written as the app goes');
       visible.visible = true;
       ch.host(Close(ch.lastWsId, 1006));
       await settle();

@@ -281,9 +281,7 @@ class _ComposerState extends State<Composer> {
     if (sent == null) return;
     _last = (id: sent.id, text: text, comments: sent.comments, images: drafts);
     // only what was sent leaves: an image added while the dialog was up stays for the next message
-    _draft.removeAll(drafts);
-    _text.clear();
-    _draft.flush();
+    _draft.sent(drafts);
   }
 
   @override

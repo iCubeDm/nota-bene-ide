@@ -102,6 +102,24 @@ class DraftSync extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// A send went: its text and [ps] leave the draft in one write, now.
+  void sent(List<DraftPicture> ps) {
+    final gone = ps.toSet();
+    _pictures = [
+      for (final p in _pictures)
+        if (!gone.contains(p)) p,
+    ];
+    _applying = true;
+    try {
+      text.clear();
+    } finally {
+      _applying = false;
+    }
+    _dirty = true;
+    flush();
+    notifyListeners();
+  }
+
   void _local() {
     _dirty = true;
     _soon();
