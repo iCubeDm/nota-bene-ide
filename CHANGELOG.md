@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Phone: notifications come with the app closed.** The periodic check that runs without the app never started (its entry point was left out of the build), so a finished reply was notified only once the app was open again.
 - **Video editor: drag the edge between the preview and the timeline.** It shares the height between a big frame and many lanes, as a docked panel's edge sets its width: ↑/↓ when focused, double-click or Home for the default 3:2; kept across reloads, the same for every edit.
 - **Phone: the message field draws markdown as you type.** As on the computer, bold, italic, strikethrough, code, links, lists and quotes look like themselves and their marks show only where the caret is; typing ` ``` ` opens a code block highlighted by its language, and Enter continues a list or leaves a block. The text sent and shared as the draft stays the markdown as typed.
 - **Phone: list items nest with ⇥ and ⇤.** With the caret on a list item or in a code block, two buttons by the field nest and un-nest the item (its sub-items with it, numbers renumbered) or indent the code line, as Tab and Shift+Tab do on the computer; Backspace on an empty nested item takes it up a level.
