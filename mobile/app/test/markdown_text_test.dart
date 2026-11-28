@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/markdown_text.dart';
+import 'package:nb_app/chat/nest_buttons.dart';
+import 'package:nb_app/main.dart';
 import 'package:nb_app/theme.dart';
 
 const base = TextStyle(fontSize: 14);
@@ -286,13 +288,44 @@ void main() {
       expect(of(type('```ts\n```', '\n', 5)), ('```ts\n\n```', 6));
     });
 
-    test('nothing happens while the keyboard composes', () {
-      const word = TextRange(start: 2, end: 4);
-      expect(of(type('- a', '\n', 3, word)), ('- a\n', 4));
+    test('a backtick the keyboard composes is only a backtick', () {
       expect(of(type('``', '`', 2, const TextRange(start: 0, end: 3))), (
         '```',
         3,
       ));
+    });
+
+    /// The keyboard's Enter in one update with its word: [old] the word composing at the caret's end, [word] what it
+    /// commits in its place, then the newline.
+    TextEditingValue commit(String text, int from, String word) {
+      final i = text.length;
+      final now = text.replaceRange(from, i, '$word\n');
+      return const MarkdownBlocks().formatEditUpdate(
+        TextEditingValue(
+          text: text,
+          selection: TextSelection.collapsed(offset: i),
+          composing: TextRange(start: from, end: i),
+        ),
+        TextEditingValue(
+          text: now,
+          selection: TextSelection.collapsed(offset: now.length),
+        ),
+      );
+    }
+
+    test('Enter with the keyboard\'s word continues the list (issue 738)', () {
+      // the word as it was, corrected, or a suggestion with its space
+      expect(of(commit('- a\n  - два', 8, 'два')), ('- a\n  - два\n  - ', 16));
+      expect(of(commit('- a\n  - ldf', 8, 'два')), ('- a\n  - два\n  - ', 16));
+      expect(of(commit('- a\n  - дв', 8, 'два ')), ('- a\n  - два \n  - ', 17));
+      // the newline still composing, as a voice "new line"
+      const word = TextRange(start: 2, end: 4);
+      expect(of(type('- a', '\n', 3, word)), ('- a\n- ', 6));
+      expect(of(type('  - b', '\n', null, word)), ('  - b\n  - ', 10));
+    });
+
+    test('a pasted text ending in a newline goes in as it is', () {
+      expect(of(type('- a', 'b\n')), ('- ab\n', 5));
     });
 
     test('a list number past nine digits is no item', () {
@@ -331,6 +364,46 @@ void main() {
       expect(of(type('hi', '\n')), ('hi\n', 3));
     });
 
+    /// Backspace at [at] (the end by default) of [text], [composing] the old value's.
+    TextEditingValue back(
+      String text, [
+      int? at,
+      TextRange composing = TextRange.empty,
+    ]) {
+      final i = at ?? text.length;
+      return const MarkdownBlocks().formatEditUpdate(
+        TextEditingValue(
+          text: text,
+          selection: TextSelection.collapsed(offset: i),
+          composing: composing,
+        ),
+        TextEditingValue(
+          text: text.replaceRange(i - 1, i, ''),
+          selection: TextSelection.collapsed(offset: i - 1),
+        ),
+      );
+    }
+
+    test('Backspace on an empty nested item takes it up a level', () {
+      expect(of(back('- a\n  - b\n    - ')), ('- a\n  - b\n  - ', 14));
+      expect(of(back('1. a\n   - ')), ('1. a\n- ', 7));
+    });
+
+    test('Backspace on an empty nested item with Windows line ends', () {
+      expect(of(back('- a\r\n  - \r\n- c', 9)), ('- a\r\n- \r\n- c', 7));
+    });
+
+    test('Backspace elsewhere deletes as it does', () {
+      expect(of(back('- a\n- ')), ('- a\n-', 5));
+      expect(of(back('- a\n  - b')), ('- a\n  - ', 8));
+      expect(of(back('- a\n  - x', 8)), ('- a\n  -x', 7));
+      expect(of(back('```\n  - \n```', 8)), ('```\n  -\n```', 7));
+      expect(of(back('- a\n  - ', null, const TextRange(start: 7, end: 8))), (
+        '- a\n  -',
+        7,
+      ));
+    });
+
     test('a `!` draft has no block rules, a `!` comment has them', () {
       expect(of(type('!ls\n``', '`', null, TextRange.empty, true)), (
         '!ls\n```',
@@ -342,6 +415,164 @@ void main() {
       ));
       expect(of(type('!ls\n``', '`')), ('!ls\n```\n\n```', 8));
     });
+  });
+
+  group('⇥ and ⇤ (the web\'s Tab and Shift+Tab)', () {
+    TextEditingValue at(String text, [int? caret]) => TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: caret ?? text.length),
+    );
+    (String, int) of(TextEditingValue v) => (v.text, v.selection.baseOffset);
+
+    test('an item nests under the one above and goes back out', () {
+      final v = nested(at('- a\n- b'), 1);
+      expect(of(v), ('- a\n  - b', 9));
+      expect(of(nested(v, -1)), ('- a\n- b', 7));
+    });
+
+    test('a numbered item nests under its number\'s width', () {
+      expect(nested(at('1. a\n2. b'), 1).text, '1. a\n   1. b');
+    });
+
+    test('with nowhere to go nothing changes; plain text and fences are not '
+        'nestable', () {
+      for (final (v, dir) in [
+        (at('- a'), 1),
+        (at('- a'), -1),
+        (at('- a\n  - b\n    - '), 1),
+        (at('```\nab\n```', 5), -1),
+      ]) {
+        expect(nestable(v), isTrue);
+        expect(nested(v, dir), same(v));
+      }
+      expect(nestable(at('hi')), isFalse);
+      expect(nestable(at('```\nab\n```', 2)), isFalse);
+      expect(nestable(at('```\nab\n```', 9)), isFalse);
+      expect(nested(at('hi'), 1).text, 'hi');
+    });
+
+    test('a code line gains and loses an indent, the caret past it', () {
+      final v = nested(at('```\nab\n```', 5), 1);
+      expect(of(v), ('```\n  ab\n```', 7));
+      expect(of(nested(v, -1)), ('```\nab\n```', 5));
+      expect(of(nested(at('```\nmain() {\n\n}\n```', 13), 1)), (
+        '```\nmain() {\n  \n}\n```',
+        15,
+      ));
+    });
+
+    test('a numbered item nested starts its own list at 1, the list it left '
+        'numbered on; out again, back in sequence', () {
+      final v = nested(at('1. a\n2. b\n3. c\n4. d', 12), 1);
+      expect(v.text, '1. a\n2. b\n   1. c\n3. d');
+      expect(nested(v, -1).text, '1. a\n2. b\n3. c\n4. d');
+    });
+
+    test('an item taken out of the middle of a nested list leaves the ones '
+        'after it as its own list from 1', () {
+      expect(
+        nested(at('1. a\n   1. b\n   2. c\n   3. d', 16), -1).text,
+        '1. a\n   1. b\n2. c\n   1. d',
+      );
+    });
+
+    test('an item moves with its children', () {
+      final v = nested(at('- a\n- b\n  - c', 7), 1);
+      expect(v.text, '- a\n  - b\n    - c');
+      expect(nested(v, -1).text, '- a\n- b\n  - c');
+    });
+
+    test('an item nests over a blank line or a continuation line above', () {
+      expect(nested(at('- a\n  more\n- b'), 1).text, '- a\n  more\n  - b');
+      expect(nested(at('- a\n\n- b'), 1).text, '- a\n\n  - b');
+    });
+
+    test('the caret and the selection stay on their text', () {
+      expect(of(nested(at('- a\n- bc', 7), 1)), ('- a\n  - bc', 9));
+      final s = nested(
+        const TextEditingValue(
+          text: '- a\n- bc',
+          selection: TextSelection(baseOffset: 6, extentOffset: 8),
+        ),
+        1,
+      ).selection;
+      expect((s.baseOffset, s.extentOffset), (8, 10));
+    });
+
+    test('a list somewhere else is not numbered again', () {
+      expect(
+        nested(at('1. x\n1. y\n\npara\n\n- a\n- b'), 1).text,
+        '1. x\n1. y\n\npara\n\n- a\n  - b',
+      );
+    });
+  });
+
+  testWidgets('⇤ and ⇥ show while the field is focused and one of them can '
+      'act; ⇥ nests, the field keeps its focus, an off one is off for '
+      'TalkBack too', (t) async {
+    final m = MarkdownText();
+    final focus = FocusNode();
+    addTearDown(() {
+      m.dispose();
+      focus.dispose();
+    });
+    await t.pumpWidget(
+      NbApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              NestButtons(text: m, focus: focus),
+              TextField(controller: m, focusNode: focus, maxLines: 6),
+            ],
+          ),
+        ),
+      ),
+    );
+    final indent = find.byKey(const ValueKey('nest-in'));
+    final outdent = find.byKey(const ValueKey('nest-out'));
+    Future<void> type(String text, [int? caret]) async {
+      m.value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: caret ?? text.length),
+      );
+      await t.pump();
+    }
+
+    await t.tap(find.byType(TextField));
+    await type('hi');
+    expect(focus.hasFocus, isTrue);
+    expect(indent, findsNothing);
+    // a first item with nothing above: neither can act
+    await type('- a');
+    expect(indent, findsNothing);
+    await type('- a\n- b');
+    expect(indent, findsOneWidget);
+    expect(outdent, findsOneWidget);
+    bool? enabled(Finder f) => t
+        .widget<Semantics>(
+          find.ancestor(of: f, matching: find.byType(Semantics)).first,
+        )
+        .properties
+        .enabled;
+    expect(enabled(outdent), isFalse);
+    expect(enabled(indent), isTrue);
+    await t.tap(indent);
+    await t.pump();
+    expect(m.text, '- a\n  - b');
+    expect(m.selection.baseOffset, 9);
+    expect(focus.hasFocus, isTrue);
+    await t.tap(outdent);
+    await t.pump();
+    expect(m.text, '- a\n- b');
+    expect(t.widget<IconButton>(outdent).onPressed, isNull);
+    await type('```\nab\n```', 5);
+    expect(indent, findsOneWidget);
+    await type('- a\n- b\nplain');
+    expect(indent, findsNothing);
+    await type('- a\n- b');
+    focus.unfocus();
+    await t.pump();
+    expect(indent, findsNothing);
   });
 
   testWidgets('in a field: typing a fence closes it, and the field draws it', (

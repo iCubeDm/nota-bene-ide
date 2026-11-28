@@ -163,6 +163,8 @@
   "send": "Send",
   "stop": "Stop",
   "messageHint": "Message",
+  "indent": "Increase indent",
+  "outdent": "Decrease indent",
   "cannotSend": "Sending is off while the window is not reachable",
   "sendNowTitle": "Send now?",
   "sendNowBody": "The agent is working. Send the message after this turn, or now and interrupt the current turn.",

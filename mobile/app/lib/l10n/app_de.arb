@@ -66,6 +66,8 @@
   "send": "Senden",
   "stop": "Stoppen",
   "messageHint": "Nachricht",
+  "indent": "Einzug vergrößern",
+  "outdent": "Einzug verkleinern",
   "cannotSend": "Senden ist aus, solange das Fenster nicht erreichbar ist",
   "sendNowTitle": "Jetzt senden?",
   "sendNowBody": "Der Agent arbeitet. Sende die Nachricht nach diesem Zug oder jetzt und unterbrich den laufenden Zug.",
