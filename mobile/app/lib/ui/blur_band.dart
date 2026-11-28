@@ -119,17 +119,28 @@ class BandInset extends InheritedNotifier<ValueNotifier<double>> {
       0;
 }
 
-/// Whether a floating button other than Stop (the paperclip, once text is typed) sits over the bottom of the feed: the
-/// composer says so, the feed keeps its last message clear of it as it does of Stop.
+/// Whether a floating button other than Stop (the paperclip once text is typed, ⇤ and ⇥) sits over the bottom of the
+/// feed: the composer says so, the feed keeps its last message clear of it as it does of Stop. [band] is the top of the
+/// floating band, which ⇤ and ⇥ float above (over the strips in the band they would cover their buttons).
 class FloatingRoom extends InheritedWidget {
-  const FloatingRoom({super.key, required this.clip, required super.child});
+  const FloatingRoom({
+    super.key,
+    required this.clip,
+    required this.band,
+    required super.child,
+  });
   final ValueNotifier<bool> clip;
+  final LayerLink band;
 
   static ValueNotifier<bool>? maybeOf(BuildContext context) =>
       context.getInheritedWidgetOfExactType<FloatingRoom>()?.clip;
 
+  static LayerLink? bandOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<FloatingRoom>()?.band;
+
   @override
-  bool updateShouldNotify(FloatingRoom old) => clip != old.clip;
+  bool updateShouldNotify(FloatingRoom old) =>
+      clip != old.clip || band != old.band;
 }
 
 /// Reports its child's size after layout, when it changes: the floating band's height, which the feed keeps clear.

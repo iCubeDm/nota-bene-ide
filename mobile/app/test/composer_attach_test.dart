@@ -430,6 +430,32 @@ void main() {
       expect(t.widget<IconButton>(floating).onPressed, isNull);
     });
   });
+
+  testWidgets('⇤ and ⇥ float above the composer, clear of the thumbnails '
+      '(issue 738)', (t) async {
+    await open(t);
+    await attach(t, 'Gallery');
+    expect(thumbs, findsNWidgets(2));
+    final indent = find.byKey(const ValueKey('nest-in'));
+    await t.enter('- a\nb');
+    expect(indent, findsNothing);
+    final composer = t.getRect(find.byKey(const ValueKey('composer')));
+    await t.enter('- a\n- b');
+    expect(indent, findsOneWidget);
+    expect(t.getRect(find.byKey(const ValueKey('composer'))), composer);
+    for (final b in [indent, find.byKey(const ValueKey('nest-out'))]) {
+      expect(t.getRect(b).bottom, lessThanOrEqualTo(composer.top));
+      expect(t.getRect(b).overlaps(t.getRect(thumbs.first)), isFalse);
+    }
+    await t.tap(indent);
+    await t.pump();
+    expect(
+      t.widget<TextField>(find.byType(TextField)).controller!.text,
+      '- a\n  - b',
+    );
+    await t.enter('- a\n- b\nplain');
+    expect(indent, findsNothing);
+  });
 }
 
 /// A gallery of two photos whose chosen items come back as [files].
