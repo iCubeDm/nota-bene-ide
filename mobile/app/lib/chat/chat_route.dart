@@ -98,11 +98,14 @@ class _ChatRouteState extends State<ChatRoute> {
   void dispose() {
     widget.link.removeListener(_follow);
     _tab.removeListener(_follow);
-    widget.visible?.close(widget.link.host.id, _shown);
-    // the window marked what was shown here read; the list shows it so before its next poll says
-    if (_tab.connection.window case final w?) {
-      widget.stores.unread.read(widget.link.host.id, w);
+    // the window marked what was shown here read (it was told the person looked): the list shows it so before its next
+    // poll says, once the tree settles (the list listens)
+    final w = _tab.connection.window;
+    if (w != null && _tab.toldLooking) {
+      final unread = widget.stores.unread, host = widget.link.host.id;
+      scheduleMicrotask(() => unread.read(host, w));
     }
+    widget.visible?.close(widget.link.host.id, _shown);
     _asks?.dispose();
     _tab.dispose();
     _depth.dispose();

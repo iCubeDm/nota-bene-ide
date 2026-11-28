@@ -196,6 +196,9 @@ class WindowTab extends ChangeNotifier {
   /// What the window was last told of `looking` on this socket.
   bool? _told;
 
+  /// The window was last told, on this socket, that the person looks.
+  bool get toldLooking => _told == true;
+
   /// The person looks at this window: the app is on screen with its chat in it.
   bool get looking {
     final v = visible;

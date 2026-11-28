@@ -1,6 +1,7 @@
 // The unread count of a row is the window's (`unseen`, issue 174), held at 0 for a chat read here until its next reply.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nb_app/notify/visible.dart';
 import 'package:nb_app/store/unread.dart';
 import 'package:nb_channel/nb_channel.dart';
 
@@ -29,13 +30,46 @@ void main() {
     },
   );
 
-  testWidgets('leaving a chat reads its window here', (t) async {
-    final rig = Rig();
-    await rig.open(t, win: win());
-    final unread = rig.stores!.unread;
-    expect(unread.of(rig.link.host.id, win()), 1);
-    await t.pumpWidget(const SizedBox());
-    expect(unread.of(rig.link.host.id, win()), 0);
-    rig.dispose();
-  });
+  testWidgets(
+    'leaving a chat it told the window it looked at reads it here, after the tree settles',
+    (t) async {
+      final rig = Rig();
+      await rig.open(t, win: win(), visible: AppVisible.test());
+      final unread = rig.stores!.unread;
+      expect(unread.of(rig.link.host.id, win()), 1);
+      // the list under the chat listens, as Home does
+      await t.pumpWidget(
+        ListenableBuilder(
+          listenable: unread,
+          builder: (_, _) => const SizedBox(),
+        ),
+      );
+      await t.pump();
+      expect(t.takeException(), isNull);
+      expect(unread.of(rig.link.host.id, win()), 0);
+      rig.dispose();
+    },
+  );
+
+  testWidgets(
+    'leaving before the window said hello, or never looked at, reads nothing',
+    (t) async {
+      final rig = Rig();
+      await rig.open(t, win: win(), visible: AppVisible.test(), greet: false);
+      await t.pumpWidget(const SizedBox());
+      await t.pump();
+      expect(rig.stores!.unread.of(rig.link.host.id, win()), 1);
+      final hidden = Rig();
+      await hidden.open(
+        t,
+        win: win(),
+        visible: AppVisible.test(visible: false),
+      );
+      await t.pumpWidget(const SizedBox());
+      await t.pump();
+      expect(hidden.stores!.unread.of(hidden.link.host.id, win()), 1);
+      rig.dispose();
+      hidden.dispose();
+    },
+  );
 }
