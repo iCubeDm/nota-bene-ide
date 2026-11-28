@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/comments/comment_sheet.dart';
 import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_app/chat/composer.dart';
+import 'package:nb_app/chat/markdown_text.dart';
 import 'package:nb_channel/nb_channel.dart';
 import 'package:nb_app/voice/player.dart';
 import 'package:nb_app/voice/record_button.dart';
@@ -100,6 +101,19 @@ void main() {
     await t.pumpAndSettle();
     final r = got as SheetSave;
     expect((r.label, r.text), (l.id, 'because'));
+  });
+
+  testWidgets('the field draws markdown and closes a fence (issue 726)', (
+    t,
+  ) async {
+    await open(t);
+    await t.enterText(field, '``');
+    await t.enterText(field, '```');
+    final f = t.widget<TextField>(field);
+    expect(f.controller, isA<MarkdownText>());
+    expect(f.controller!.text, '```\n\n```');
+    // a comment has no shell mode: a leading `!` is markdown too
+    expect((f.controller! as MarkdownText).shell, isFalse);
   });
 
   testWidgets('there are no Save and Cancel buttons: the field has Send', (

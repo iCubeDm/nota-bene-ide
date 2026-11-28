@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 import 'package:nb_protocol/nb_protocol.dart';
 
 import 'agent_connection.dart' show uuidV4;
+import 'markdown_text.dart';
 
 /// The longest text a draft write carries (`DRAFT_MAX`); a longer one stays on the phone.
 const draftMax = 256 * 1024;
@@ -43,7 +44,7 @@ class DraftSync extends ChangeNotifier {
   final Duration throttle;
 
   /// The draft's text, as the composer edits it.
-  final text = TextEditingController();
+  final text = MarkdownText(shell: true);
 
   List<DraftPicture> _pictures = [];
 

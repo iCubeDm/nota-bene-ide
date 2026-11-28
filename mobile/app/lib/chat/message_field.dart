@@ -11,6 +11,7 @@ import '../ui/nb_icon.dart';
 import '../voice/record_button.dart';
 import '../voice/record_row.dart';
 import '../voice/record_session.dart';
+import 'markdown_text.dart';
 
 /// The mic, Send and the paperclip inside the field.
 const _button = 40.0;
@@ -97,6 +98,11 @@ class _MessageFieldState extends State<MessageField> {
         minLines: 1,
         maxLines: widget.maxLines,
         textCapitalization: TextCapitalization.sentences,
+        // code blocks and lists as on the computer (typed only: a paste goes in as it is)
+        inputFormatters: [
+          if (widget.controller case MarkdownText(:final shell))
+            MarkdownBlocks(shell: shell),
+        ],
         decoration: InputDecoration(
           hintText: widget.hint,
           border: InputBorder.none,

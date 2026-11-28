@@ -10,6 +10,7 @@ import 'package:flutter/services.dart' show PlatformException;
 import 'package:nb_protocol/nb_protocol.dart';
 
 import '../chat/attach_sheet.dart';
+import '../chat/markdown_text.dart';
 import '../chat/message_field.dart';
 import '../chat/window_tab.dart';
 import '../dictation/whisper_sheet.dart';
@@ -90,7 +91,7 @@ class _Sheet extends StatefulWidget {
 }
 
 class _SheetState extends State<_Sheet> {
-  late final _text = TextEditingController(text: widget.editing?.text ?? '');
+  late final _text = MarkdownText(text: widget.editing?.text ?? '');
   late QuickLabelId? _label = widget.editing?.label;
   late final _clips = [
     for (final v in widget.editing?.voice ?? const <VoiceClip>[]) _Clip.done(v),
