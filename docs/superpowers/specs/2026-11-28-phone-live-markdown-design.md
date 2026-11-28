@@ -13,8 +13,8 @@ of the way. The text stays the markdown that is sent, saved as the shared draft 
 - Same rendered set and rules as the web field: fenced code blocks (highlighted by the fence's language), inline code,
   bold, italic, strikethrough, links (styled, not tappable), block quotes, bulleted and numbered lists. Headings and
   tables stay plain. A `!` draft renders nothing.
-- Marks hide while the caret is outside their construct and show when the caret or selection touches it; a fence line
-  shows only while the caret is on it.
+- Marks hide while the caret is outside their construct and show when the caret or selection touches it; a closing
+  fence shows only while the caret is on it, an opening fence while the caret is in its block.
 - Typing ` ``` ` at the start of a line inserts the closing fence and puts the caret inside. A newline on an empty last
   line of a block removes that line and puts the caret after the block. A newline in a list item or quote continues
   it; a newline on an empty item ends it. Paste and dictation insert text as is.
@@ -41,6 +41,8 @@ of the way. The text stays the markdown that is sent, saved as the shared draft 
 - Code blocks use the feed's `highlightSpans` (`lib/chat/code.dart`) and monospace with the code background
   (`c.muted`); the background is per line, not a full-width box (builder's call: a `TextField` has no block layout).
 - The composing (IME) range keeps its underline; hiding never applies inside it.
+- The opening fence (the language) shows while the caret is anywhere in its block: the phone has no ArrowUp (the web's way) to
+  reach a hidden line.
 - Enter on the phone is a newline everywhere (the keyboard's action); Send stays the button.
 
 ## Left to the builder

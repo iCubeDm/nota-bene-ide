@@ -29,8 +29,9 @@ void main() {
     TextSelection? selection,
     TextRange composing = TextRange.empty,
     bool focused = true,
+    bool shell = false,
   }) {
-    final m = MarkdownText()
+    final m = MarkdownText(shell: shell)
       ..value = TextEditingValue(
         text: text,
         selection:
@@ -53,14 +54,28 @@ void main() {
     ];
     for (final text in texts) {
       for (var caret = 0; caret <= text.length; caret++) {
-        final plain = draw(text, caret: caret).toPlainText();
-        expect(plain.length, text.length, reason: text);
-        for (var i = 0; i < text.length; i++) {
-          final same =
-              plain[i] == text[i] ||
-              (plain[i] == '•' && '-*+'.contains(text[i])) ||
-              (plain[i] == '▎' && text[i] == '>');
-          expect(same, isTrue, reason: '$text at $i');
+        // a caret, a selection up to it, and a composing word before it
+        for (final s in [
+          draw(text, caret: caret),
+          draw(
+            text,
+            selection: TextSelection(baseOffset: 0, extentOffset: caret),
+          ),
+          draw(
+            text,
+            caret: caret,
+            composing: TextRange(start: caret < 2 ? 0 : caret - 2, end: caret),
+          ),
+        ]) {
+          final plain = s.toPlainText();
+          expect(plain.length, text.length, reason: text);
+          for (var i = 0; i < text.length; i++) {
+            final same =
+                plain[i] == text[i] ||
+                (plain[i] == '•' && '-*+'.contains(text[i])) ||
+                (plain[i] == '▎' && text[i] == '>');
+            expect(same, isTrue, reason: '$text at $i');
+          }
         }
       }
     }
@@ -122,16 +137,21 @@ void main() {
     expect(shown(draw('`**x**` ')), '**x** ');
   });
 
-  testWidgets('a fence shows only while the caret is on its line', (t) async {
-    await host(t);
-    const text = '```ts\nlet a\n```\n';
-    expect(shown(draw(text)), '\nlet a\n\n');
-    expect(shown(draw(text, caret: 2)), '```ts\nlet a\n\n');
-    expect(shown(draw(text, caret: 14)), '\nlet a\n```\n');
-    final code = styleAt(draw(text), 7);
-    expect(code.fontFamily, 'monospace');
-    expect(code.backgroundColor, c.muted);
-  });
+  testWidgets(
+    'the opening fence shows while the caret is in its block, the closing one while on its line',
+    (t) async {
+      await host(t);
+      const text = '```ts\nlet a\n```\n';
+      expect(shown(draw(text)), '\nlet a\n\n');
+      expect(shown(draw(text, caret: 2)), '```ts\nlet a\n\n');
+      // no arrow key on a phone: the language line is reached from the code
+      expect(shown(draw(text, caret: 7)), '```ts\nlet a\n\n');
+      expect(shown(draw(text, caret: 14)), '```ts\nlet a\n```\n');
+      final code = styleAt(draw(text), 7);
+      expect(code.fontFamily, 'monospace');
+      expect(code.backgroundColor, c.muted);
+    },
+  );
 
   testWidgets('code in a block is highlighted by its fence\'s language', (
     t,
@@ -139,6 +159,13 @@ void main() {
     await host(t);
     expect(styleAt(draw('```js\nlet a\n```\n'), 6).color, c.synKeyword);
     expect(styleAt(draw('```\nlet a\n```\n'), 4).color, isNot(c.synKeyword));
+  });
+
+  testWidgets('a fence with Windows line ends is a fence', (t) async {
+    await host(t);
+    const text = '```js\r\nlet a\r\n```\r\nx';
+    expect(styleAt(draw(text), 7).color, c.synKeyword);
+    expect(shown(draw(text)), '\nlet a\r\n\nx');
   });
 
   testWidgets(
@@ -165,11 +192,14 @@ void main() {
     expect(draw('-x *y*', caret: 0).toPlainText(), '-x *y*');
   });
 
-  testWidgets('a `!` draft is drawn as it is', (t) async {
+  testWidgets('a `!` draft is drawn as it is, a `!` comment as markdown', (
+    t,
+  ) async {
     await host(t);
-    final s = draw('!ls **a** - b');
+    final s = draw('!ls **a** - b', shell: true);
     expect(s.toPlainText(), '!ls **a** - b');
     expect(leaves(s).every((l) => l.$2.fontWeight == null), isTrue);
+    expect(shown(draw('!ls **a** b')), '!ls a b');
   });
 
   testWidgets('headings and tables stay plain', (t) async {
@@ -192,12 +222,16 @@ void main() {
   });
 
   group('the block rules', () {
-    const f = MarkdownBlocks();
-
-    /// [ch] typed at [at] (the end by default) of [text].
-    TextEditingValue type(String text, String ch, [int? at]) {
+    /// [ch] typed at [at] (the end by default) of [text], [composing] the new value's.
+    TextEditingValue type(
+      String text,
+      String ch, [
+      int? at,
+      TextRange composing = TextRange.empty,
+      bool shell = false,
+    ]) {
       final i = at ?? text.length;
-      return f.formatEditUpdate(
+      return MarkdownBlocks(shell: shell).formatEditUpdate(
         TextEditingValue(
           text: text,
           selection: TextSelection.collapsed(offset: i),
@@ -205,6 +239,7 @@ void main() {
         TextEditingValue(
           text: text.replaceRange(i, i, ch),
           selection: TextSelection.collapsed(offset: i + ch.length),
+          composing: composing,
         ),
       );
     }
@@ -247,6 +282,31 @@ void main() {
       expect(of(type('```js\nlet a\n```', '\n', 5)), ('```js\nlet a\n```', 6));
     });
 
+    test('a newline on the opening fence of an empty block makes its line', () {
+      expect(of(type('```ts\n```', '\n', 5)), ('```ts\n\n```', 6));
+    });
+
+    test('nothing happens while the keyboard composes', () {
+      const word = TextRange(start: 2, end: 4);
+      expect(of(type('- a', '\n', 3, word)), ('- a\n', 4));
+      expect(of(type('``', '`', 2, const TextRange(start: 0, end: 3))), (
+        '```',
+        3,
+      ));
+    });
+
+    test('a list number past nine digits is no item', () {
+      const n = '99999999999999999999. a';
+      expect(of(type(n, '\n')), ('$n\n', n.length + 1));
+    });
+
+    test('a fence with Windows line ends is a fence', () {
+      expect(of(type('```js\r\nab\r\n```', '\n', 5)), (
+        '```js\r\nab\r\n```',
+        7,
+      ));
+    });
+
     test(
       'a newline continues a list or a quote and ends it on an empty item',
       () {
@@ -271,9 +331,16 @@ void main() {
       expect(of(type('hi', '\n')), ('hi\n', 3));
     });
 
-    test('a `!` draft has no block rules', () {
-      expect(of(type('!ls\n``', '`')), ('!ls\n```', 7));
-      expect(of(type('!- a', '\n')), ('!- a\n', 5));
+    test('a `!` draft has no block rules, a `!` comment has them', () {
+      expect(of(type('!ls\n``', '`', null, TextRange.empty, true)), (
+        '!ls\n```',
+        7,
+      ));
+      expect(of(type('!- a', '\n', null, TextRange.empty, true)), (
+        '!- a\n',
+        5,
+      ));
+      expect(of(type('!ls\n``', '`')), ('!ls\n```\n\n```', 8));
     });
   });
 

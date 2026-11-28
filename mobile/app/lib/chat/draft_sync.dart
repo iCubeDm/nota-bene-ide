@@ -44,7 +44,7 @@ class DraftSync extends ChangeNotifier {
   final Duration throttle;
 
   /// The draft's text, as the composer edits it.
-  final text = MarkdownText();
+  final text = MarkdownText(shell: true);
 
   List<DraftPicture> _pictures = [];
 

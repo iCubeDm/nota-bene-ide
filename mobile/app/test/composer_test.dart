@@ -43,6 +43,20 @@ void main() {
     final field = t.widget<TextField>(find.byType(TextField));
     expect(field.controller, isA<MarkdownText>());
     expect(field.controller!.text, '- a\n- ');
+    expect((field.controller! as MarkdownText).shell, isTrue);
+  });
+
+  testWidgets('the field hides a mark the caret is away from (issue 726)', (
+    t,
+  ) async {
+    await r.open(t);
+    await t.enter('**a** b');
+    final span = t
+        .state<EditableTextState>(find.byType(EditableText))
+        .buildTextSpan();
+    final mark = span.children!.first as TextSpan;
+    expect(mark.text, '**');
+    expect(mark.style!.fontSize, 0);
   });
 
   group('the shared draft (issue 174)', () {

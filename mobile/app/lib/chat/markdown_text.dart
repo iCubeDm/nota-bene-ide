@@ -18,7 +18,8 @@ typedef _Block = ({
   String lang,
 });
 
-final _fence = RegExp(r'^ {0,3}(`{3,}|~{3,})(.*)$');
+// a line of a Windows text ends in `\r`
+final _fence = RegExp(r'^ {0,3}(`{3,}|~{3,})(.*?)\r?$');
 
 /// The fenced blocks of [text], in order.
 List<_Block> _blocks(String text) {
@@ -79,7 +80,8 @@ const _hidden = TextStyle(
 const _underline = TextStyle(decoration: TextDecoration.underline);
 
 final _quote = RegExp(r'^ {0,3}(?:> ?)+');
-final _item = RegExp(r'^( *)([-*+]|(\d+)([.)]))( +)');
+// CommonMark's longest list number: nine digits
+final _item = RegExp(r'^( *)([-*+]|(\d{1,9})([.)]))( +)');
 final _escape = RegExp(r'\\[!-/:-@\[-`{-~]');
 final _link = RegExp(r'\[([^\[\]\n]+)\]\(([^()\s]*)\)');
 
@@ -118,9 +120,12 @@ final _spans = <(RegExp, int, TextStyle)>[
   ),
 ];
 
-/// The message field's controller: its text drawn as markdown. A `!` draft (a shell command) is drawn as it is.
+/// The message field's controller: its text drawn as markdown.
 class MarkdownText extends TextEditingController {
-  MarkdownText({super.text});
+  MarkdownText({super.text, this.shell = false});
+
+  /// A `!` text is a shell command (the composer's), drawn as it is.
+  final bool shell;
 
   /// The highlighted code of the last blocks, by language and code: moving the caret does not highlight it again.
   final _highlighted = <String, List<TextSpan>>{};
@@ -133,7 +138,7 @@ class MarkdownText extends TextEditingController {
     required bool withComposing,
   }) {
     final c = Theme.of(context).extension<NbColors>();
-    if (c == null || text.startsWith('!')) {
+    if (c == null || (shell && text.startsWith('!'))) {
       return super.buildTextSpan(
         context: context,
         style: style,
@@ -209,12 +214,14 @@ class _Draw {
     if (to > from) _styles.add((from, to, s));
   }
 
-  /// A line of a block: a fence shows only while the caret is on it.
+  /// A line of a block: the opening fence shows while the caret is in the block (a phone has no arrow key to reach
+  /// it), the closing one while the caret is on its line.
   void _codeLine(_Block b, int ls, int le) {
     final fence = ls == b.open || ls == b.close;
     if (!fence) return _style(ls, le, _mono);
     _style(ls, le, TextStyle(fontFamily: 'monospace', color: c.mutedFg));
-    if (!_touched(ls, le)) _hide.add((ls, le));
+    final end = ls == b.close ? le : (b.close < 0 ? text.length : b.closeEnd);
+    if (!_touched(ls, end)) _hide.add((ls, le));
   }
 
   /// A block's code, highlighted by its fence's language.
@@ -385,7 +392,10 @@ class _Draw {
 /// third backtick of a line opens a code block and closes it; a newline on a block's opening fence goes into it, on its
 /// empty last line leaves it; a newline continues a list or a quote, on an empty item ends it.
 class MarkdownBlocks extends TextInputFormatter {
-  const MarkdownBlocks();
+  const MarkdownBlocks({this.shell = false});
+
+  /// A `!` text is a shell command: no rules.
+  final bool shell;
 
   @override
   TextEditingValue formatEditUpdate(
@@ -393,7 +403,10 @@ class MarkdownBlocks extends TextInputFormatter {
     TextEditingValue now,
   ) {
     final at = _typed(old, now);
-    if (at == null || old.text.startsWith('!')) return now;
+    if (at == null || (shell && old.text.startsWith('!'))) return now;
+    // the keyboard's own word (a voice "new line", a composed backtick) is the keyboard's
+    final w = now.composing;
+    if (w.isValid && w.start <= at && at < w.end) return now;
     final next = switch (now.text[at]) {
       '`' => _openFence(now.text, at),
       '\n' => _newline(old.text, at),
@@ -446,7 +459,13 @@ TextEditingValue? _newline(String text, int at) {
   for (final b in _blocks(text)) {
     if (ls < b.open || (b.close >= 0 && ls > b.close)) continue;
     if (b.close < 0 || ls == b.close) return null;
-    if (ls == b.open) return _value(text, b.openEnd + 1);
+    if (ls == b.open) {
+      // an empty block gets its line, else the next character would go on the closing fence
+      if (b.close == b.openEnd + 1) {
+        return _value(text.replaceRange(b.close, b.close, '\n'), b.close);
+      }
+      return _value(text, b.openEnd + 1);
+    }
     // the empty last line after some code: it goes, the caret after the block
     if (ls == le && le + 1 == b.close && ls > b.openEnd + 1) {
       var next = text.replaceRange(ls - 1, le, '');

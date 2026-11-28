@@ -112,6 +112,8 @@ void main() {
     final f = t.widget<TextField>(field);
     expect(f.controller, isA<MarkdownText>());
     expect(f.controller!.text, '```\n\n```');
+    // a comment has no shell mode: a leading `!` is markdown too
+    expect((f.controller! as MarkdownText).shell, isFalse);
   });
 
   testWidgets('there are no Save and Cancel buttons: the field has Send', (

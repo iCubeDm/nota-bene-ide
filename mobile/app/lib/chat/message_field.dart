@@ -99,7 +99,10 @@ class _MessageFieldState extends State<MessageField> {
         maxLines: widget.maxLines,
         textCapitalization: TextCapitalization.sentences,
         // code blocks and lists as on the computer (typed only: a paste goes in as it is)
-        inputFormatters: const [MarkdownBlocks()],
+        inputFormatters: [
+          if (widget.controller case MarkdownText(:final shell))
+            MarkdownBlocks(shell: shell),
+        ],
         decoration: InputDecoration(
           hintText: widget.hint,
           border: InputBorder.none,
