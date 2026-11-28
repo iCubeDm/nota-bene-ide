@@ -355,7 +355,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
               </Preview>
               {editing && selected && <Inspector key={selected.id} cut={editing.cut} clip={selected} commit={commit} />}
               {editing && chosen.length > 1 && <GroupInspector key={ids.join('\n')} cut={editing.cut} clips={chosen} commit={commit} />}
-              <PanelResizer edge="bottom" width={heights.height} onWidth={heights.set} onReset={heights.reset} min={heights.min} label={t('cutResizePreview')} />
+              <PanelResizer edge="bottom" width={heights.height} onWidth={heights.set} onReset={heights.reset} min={heights.min} max={heights.max} label={t('cutResizePreview')} />
             </div>
           )}
           {editing && (

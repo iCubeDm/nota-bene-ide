@@ -8,13 +8,21 @@ vi.mock('./durations.ts', () => ({ srcLength: vi.fn(async () => 4) }));
 
 // the drag edge between the preview and the timeline (issue 739)
 setupCut();
-// jsdom lays nothing out: the preview's row and the timeline share 1000 px, whatever the split
+// jsdom lays nothing out: the preview's row and the timeline share `rowH + timelineH` px, whatever the split, and the
+// timeline's toolbar is `barH` high (one line; two when it wraps in a narrow pane)
+let rowH: number, timelineH: number, barH: number;
+const offsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight')!;
 beforeEach(() => {
+  [rowH, timelineH, barH] = [600, 400, 32];
   localStorage.clear();
   HTMLElement.prototype.setPointerCapture = () => {};
   Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
     configurable: true,
-    get(this: HTMLElement) { return this.hasAttribute('data-timeline') ? 400 : this.querySelector(':scope > [data-cut-preview]') ? 600 : 0; },
+    get(this: HTMLElement) {
+      if (this.hasAttribute('data-timeline')) return timelineH;
+      if (this.hasAttribute('data-timeline-bar')) return barH;
+      return this.querySelector(':scope > [data-cut-preview]') ? rowH : 0;
+    },
   });
   vi.stubGlobal('ResizeObserver', class {
     cb: () => void;
@@ -22,7 +30,7 @@ beforeEach(() => {
     observe() { this.cb(); }
     disconnect() {}
   });
-  return () => { delete (HTMLElement.prototype as { offsetHeight?: number }).offsetHeight; };
+  return () => { Object.defineProperty(HTMLElement.prototype, 'offsetHeight', offsetHeight); };
 });
 
 const edge = () => screen.getByRole('separator', { name: 'Preview height' });
@@ -60,6 +68,7 @@ it('↑/↓ step it, not the playhead; Home and double-click go back to 3:2', as
   expect(localStorage.getItem('cut:preview:share')).toBeNull();
   key('ArrowDown');
   expect(height()).toBe(616);
+  expect(container.querySelector('[data-cut-time]')!.textContent).toMatch(/^0:00\.0 /); // ↓ goes to the next clip edge otherwise
   fireEvent.doubleClick(edge());
   expect(height()).toBe(600);
 });
@@ -69,10 +78,29 @@ it('each side keeps its minimum: on a drag, and for a stored share that no longe
   drag(-1000);
   expect(height()).toBe(96);
   drag(2000);
-  expect(height()).toBe(864); // the timeline keeps its header, ruler, add-track row and one video lane
+  expect(height()).toBe(864); // the timeline keeps its toolbar, ruler, add-track row and one video lane
+  expect(edge()).toHaveAttribute('aria-valuemax', '864');
   cleanup();
   localStorage.setItem('cut:preview:share', '0.95');
   await show();
   expect(height()).toBe(864);
   expect(grows()).toEqual(['0.864', '0.136']);
+});
+
+it('the timeline keeps a lane under a toolbar wrapped to two lines', async () => {
+  barH = 65;
+  const { container } = await show();
+  drag(2000);
+  expect(height()).toBe(831); // 1000 - 65 - 104
+  expect(edge()).toHaveAttribute('aria-valuemax', '831');
+  // and the layout holds it, before anything is measured too: the lanes keep their least height, the timeline its content's
+  expect(container.querySelector<HTMLElement>('[data-timeline-scroll]')!.style.minHeight).toBe('104px');
+  expect(container.querySelector('[data-timeline]')).not.toHaveClass('min-h-0');
+});
+
+it('a pane too short for both minimums stores nothing', async () => {
+  [rowH, timelineH] = [50, 40];
+  await show();
+  drag(100);
+  expect(localStorage.getItem('cut:preview:share')).toBeNull();
 });

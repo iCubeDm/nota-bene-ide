@@ -83,3 +83,11 @@ it('a stored width wider than the window allows is clamped on load', () => {
   render(<Panel />);
   expect(panel().style.width).toBe('648px');
 });
+
+it('the window cursor is restored when the edge goes away mid-drag', () => {
+  const { unmount } = render(<Panel edge="bottom" />);
+  fireEvent.pointerDown(bar(), { button: 0, clientX: 500, clientY: 500, pointerId: 1 });
+  expect(document.body.style.cursor).toBe('row-resize');
+  unmount();
+  expect(document.body.style.cursor).toBe('');
+});

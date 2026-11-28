@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useT } from '@/core/i18n/index.ts';
 import { storage, string } from '@/sdk/storage.ts';
 
@@ -43,10 +43,11 @@ const KEYS = { right: ['ArrowRight', 'ArrowLeft'], left: ['ArrowLeft', 'ArrowRig
 /**
  * The drag edge of a docked panel (IntelliJ: drag the border). `edge`: which side of the panel it sits on, so dragging
  * towards the middle column widens the panel. Arrows step 16 px; double-click or Home restores the default width. A
- * `bottom` edge sets a height instead (the video editor's preview over its timeline): `width` is then that height.
+ * `bottom` edge sets a height instead (the video editor's preview over its timeline): `width` is then that height. `max`:
+ * the most it may take, when the caller knows it.
  */
-export function PanelResizer({ edge, width, onWidth, onReset, min, label }: {
-  edge: 'left' | 'right' | 'bottom'; width: number; onWidth: (w: number) => void; onReset: () => void; min: number; label: string;
+export function PanelResizer({ edge, width, onWidth, onReset, min, max, label }: {
+  edge: 'left' | 'right' | 'bottom'; width: number; onWidth: (w: number) => void; onReset: () => void; min: number; max?: number; label: string;
 }) {
   const t = useT();
   const drag = useRef<{ at: number; w: number } | null>(null);
@@ -68,6 +69,8 @@ export function PanelResizer({ edge, width, onWidth, onReset, min, label }: {
     drag.current = null;
     document.body.style.cursor = '';
   };
+  // gone mid-drag (its view closed): the window's cursor must not stay a resize one
+  useEffect(() => () => { if (drag.current) document.body.style.cursor = ''; }, []);
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const [grow, shrink] = KEYS[edge];
     if (e.key === grow) onWidth(width + STEP);
@@ -84,6 +87,7 @@ export function PanelResizer({ edge, width, onWidth, onReset, min, label }: {
       aria-label={label}
       aria-valuenow={width}
       aria-valuemin={min}
+      aria-valuemax={max}
       tabIndex={0}
       title={t('resizeTip')}
       data-resizer={edge}
