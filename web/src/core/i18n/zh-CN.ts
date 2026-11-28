@@ -175,7 +175,7 @@ export const zhCN: Dict = {
   toolsLeft: '左侧工具窗口',
   resizeFiles: '文件面板宽度',
   resizeComments: '评论面板宽度',
-  resizeTip: '调整大小（双击：默认宽度）',
+  resizeTip: '调整大小（双击：默认大小）',
   toolsRight: '右侧工具窗口',
   files: '文件',
   refresh: '刷新',
@@ -980,6 +980,7 @@ export const zhCN: Dict = {
   cutFrameBack: "后退一帧",
   cutFrameFwd: "前进一帧",
   cutPreview: "预览",
+  cutResizePreview: "预览高度",
   cutPreviewBlocked: "修正剪辑中的问题后才能预览",
   cutNoClips: "还没有片段",
   // the video editor's editing (web/src/cut, issue 409)

@@ -9,7 +9,8 @@ const sec = (n: number, unit: string) => `${n < 0 ? MINUS : '+'}${Math.abs(n)} $
 
 /** Where focus may sit for the keys to stay ours: the tab's own file view, the tab strip, the file tree. */
 const OURS = '[data-file-view], [role="tablist"], #tree-sheet';
-export const THEIRS = '[role="dialog"], [role="menu"], [role="listbox"], [data-nb-modal]';
+/** Where focus takes the keys itself: a popup, or a panel's drag edge (its arrows resize). */
+export const THEIRS = '[role="dialog"], [role="menu"], [role="listbox"], [role="separator"], [data-nb-modal]';
 export const inPlayerScope = (f: Element): boolean => !f.closest(THEIRS) && !!f.closest(OURS);
 
 /** The one-per-press keys: a held key must not toggle again and again. */

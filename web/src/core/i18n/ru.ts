@@ -183,7 +183,7 @@ export const ru = {
   toolsLeft: 'Панели слева',
   resizeFiles: 'Ширина панели «Файлы»',
   resizeComments: 'Ширина панели комментариев',
-  resizeTip: 'Изменить ширину (двойной щелчок — по умолчанию)',
+  resizeTip: 'Изменить размер (двойной щелчок — по умолчанию)',
   toolsRight: 'Панели справа',
   refresh: 'Обновить',
   tabsAll: 'Все вкладки',
@@ -997,6 +997,7 @@ export const ru = {
   cutFrameBack: "Кадр назад",
   cutFrameFwd: "Кадр вперёд",
   cutPreview: "Просмотр",
+  cutResizePreview: "Высота просмотра",
   cutPreviewBlocked: "Исправь ошибки в монтаже, чтобы его просмотреть",
   cutNoClips: "Клипов пока нет",
   // the video editor's editing (web/src/cut, issue 409)

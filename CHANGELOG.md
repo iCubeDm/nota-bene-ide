@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Video editor: drag the edge between the preview and the timeline.** It shares the height between a big frame and many lanes, as a docked panel's edge sets its width: ↑/↓ when focused, double-click or Home for the default 3:2; kept across reloads, the same for every edit.
 - **Phone: live beside the computer, with the shared draft and read state.** There is no Work here: the phone and the computer's tabs act in the window together. What you type is the session's draft, the same as on the computer (a `!` command is not sent from the phone: it runs only on the computer), and a reply read on any client is not unread on the phone and its notification goes away; *Mark read* on the phone marks it read on the computer too. The app needs a Nota Bene released after 2.3.0; with an older one the chat says to update the computer.
 - **A reply read on one client is read on all.** The window keeps the read state: while any tab of it is visible and focused, its replies count as read, so the switcher and Inbox badges, a paired computer's list and the favicon's done dot agree everywhere.
 - **The draft is shared, per session.** What you are writing and its attached images show in every tab of the window and on a paired computer, survive a reload, a restart and an update, and each session keeps its own: switch away and back and it is still there. The last edit wins, and a send from anywhere clears it.

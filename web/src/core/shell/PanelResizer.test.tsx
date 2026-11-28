@@ -12,7 +12,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-function Panel({ edge = 'right' as 'left' | 'right' }) {
+function Panel({ edge = 'right' as 'left' | 'right' | 'bottom' }) {
   const s = usePanelWidth('w', 300, 200);
   return (
     <aside data-testid="panel" style={{ width: s.width }}>
@@ -22,10 +22,10 @@ function Panel({ edge = 'right' as 'left' | 'right' }) {
 }
 const panel = () => screen.getByTestId('panel');
 const bar = () => screen.getByRole('separator', { name: 'Width' });
-const drag = (dx: number) => {
-  fireEvent.pointerDown(bar(), { button: 0, clientX: 500, pointerId: 1 });
-  fireEvent.pointerMove(bar(), { clientX: 500 + dx, pointerId: 1 });
-  fireEvent.pointerUp(bar(), { clientX: 500 + dx, pointerId: 1 });
+const drag = (dx: number, dy = 0) => {
+  fireEvent.pointerDown(bar(), { button: 0, clientX: 500, clientY: 500, pointerId: 1 });
+  fireEvent.pointerMove(bar(), { clientX: 500 + dx, clientY: 500 + dy, pointerId: 1 });
+  fireEvent.pointerUp(bar(), { clientX: 500 + dx, clientY: 500 + dy, pointerId: 1 });
 };
 
 it('dragging the right edge outwards widens the panel and the width is persisted', () => {
@@ -42,6 +42,18 @@ it('a left-edge panel (the comments) widens when dragged left', () => {
   render(<Panel edge="left" />);
   drag(-60);
   expect(panel().style.width).toBe('360px');
+});
+
+it('a bottom edge (the video editor preview) is a horizontal separator: dragged down or ArrowDown, it grows', () => {
+  render(<Panel edge="bottom" />);
+  expect(bar()).toHaveAttribute('aria-orientation', 'horizontal');
+  drag(200, 40);
+  expect(panel().style.width).toBe('340px');
+  fireEvent.keyDown(bar(), { key: 'ArrowDown' });
+  expect(panel().style.width).toBe('356px');
+  fireEvent.keyDown(bar(), { key: 'ArrowUp' });
+  fireEvent.keyDown(bar(), { key: 'ArrowRight' });
+  expect(panel().style.width).toBe('340px');
 });
 
 it('the width stays between the minimum and 45% of the window', () => {

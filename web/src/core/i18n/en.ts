@@ -183,7 +183,7 @@ export const en: Dict = {
   toolsLeft: 'Left tool windows',
   resizeFiles: 'Files panel width',
   resizeComments: 'Comments panel width',
-  resizeTip: 'Resize (double-click: default width)',
+  resizeTip: 'Resize (double-click: default size)',
   toolsRight: 'Right tool windows',
   files: 'Files',
   refresh: 'Refresh',
@@ -999,6 +999,7 @@ export const en: Dict = {
   cutFrameBack: "One frame back",
   cutFrameFwd: "One frame forward",
   cutPreview: "Preview",
+  cutResizePreview: "Preview height",
   cutPreviewBlocked: "Fix the problems in the edit to preview it",
   cutNoClips: "No clips yet",
   // the video editor's editing (web/src/cut, issue 409)

@@ -4,6 +4,7 @@ import { isCutAnchor, type Comment, type CutAnchor } from '@nota-bene/shared';
 import { AUDIO, isPhotoSrc, validateCut, type Cut, type CutIssue } from '@nota-bene/shared/cut';
 import { basename } from '@nota-bene/shared/paths';
 import { useT, useAppDispatch, useAppSelector, mediaTime, clearJump, selectJump, projectFileUrl, type TextFileView, labelText, useService, type PendingComment, useStored, useFeature } from '@/sdk';
+import { PanelResizer } from '@/sdk/ui';
 import { srcLength } from './durations.ts';
 import { appendMedia } from './assemble.ts';
 import { mediaLen, PHOTO_LEN } from './mediaLen.ts';
@@ -23,6 +24,7 @@ import { FLASH_MS, type CutFlash } from './changes.ts';
 import { useCutDoc } from './useCutDoc.ts';
 import { useCutKeys } from './useCutKeys.ts';
 import { useMissing } from './useMissing.ts';
+import { useSplit } from './useSplit.ts';
 import { setLiveCut } from './live.ts';
 import { followAnchor, pinAnchor, timeOf } from './pin.ts';
 import type { CutNote } from './Timeline.tsx';
@@ -77,6 +79,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
   const clips = isObj(v) && Array.isArray(v.clips) ? v.clips : [];
   const srcs = clips.flatMap((c: unknown) => (isObj(c) && typeof c.src === 'string' && c.src ? [c.src] : []));
   const missing = useMissing('v' in parsed ? srcs : [], src, active);
+  const heights = useSplit();
 
   // one player for the tab's life; an edited file is handed to it, the playhead stays where it was
   const srcRef = useRef(src);
@@ -344,7 +347,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
             <p className="flex-none px-3 py-2 text-sm text-muted-foreground">{t('cutNoClips')}</p>
           )}
           {(draw.lanes.length > 0 || editing) && frame && (
-            <div className="flex min-h-24 flex-[3_1_0%]">
+            <div ref={heights.ref} className="relative flex min-h-24 basis-0" style={{ flexGrow: heights.grow[0] }}>
               <Preview player={player} frame={frame} blocked={check.ok ? undefined : t('cutPreviewBlocked')}>
                 {editing && selected && editing.cut.tracks.find((x) => x.id === selected.track)?.kind === 'video' && (
                   <PlaceBox cut={editing.cut} clip={(draft ?? editing.cut).clips.find((c) => c.id === selected.id) ?? selected} draft={setDraft} commit={commit} />
@@ -352,6 +355,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
               </Preview>
               {editing && selected && <Inspector key={selected.id} cut={editing.cut} clip={selected} commit={commit} />}
               {editing && chosen.length > 1 && <GroupInspector key={ids.join('\n')} cut={editing.cut} clips={chosen} commit={commit} />}
+              <PanelResizer edge="bottom" width={heights.height} onWidth={heights.set} onReset={heights.reset} min={heights.min} label={t('cutResizePreview')} />
             </div>
           )}
           {editing && (
@@ -365,6 +369,7 @@ export function CutBody({ text, src, path, tabId, active }: { text: string; src:
               player={player} lanes={draw.lanes} blocks={draw.blocks} end={draw.end} frame={frame} problems={problems} missing={missing} fileSrc={src} active={active}
               tools={path !== undefined && <ExportControl path={path} blocked={issues.length > 0 ? t('cutExportBlocked') : undefined} />}
               editing={editing} notes={notes} onNote={(n) => goTo(n.id)} flash={active ? flash : null} copyOf={copies.of}
+              grow={frame ? heights.grow[1] : undefined}
             />
           )}
         </>

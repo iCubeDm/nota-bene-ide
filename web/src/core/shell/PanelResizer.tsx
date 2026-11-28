@@ -33,34 +33,43 @@ export function usePanelWidth(key: string, initial: number, min: number) {
   return { width, set, reset };
 }
 
+const PLACE = {
+  right: 'inset-y-0 -right-[3px] w-1.5 cursor-col-resize',
+  left: 'inset-y-0 -left-[3px] w-1.5 cursor-col-resize',
+  bottom: 'inset-x-0 -bottom-[3px] h-1.5 cursor-row-resize',
+};
+const KEYS = { right: ['ArrowRight', 'ArrowLeft'], left: ['ArrowLeft', 'ArrowRight'], bottom: ['ArrowDown', 'ArrowUp'] } as const;
+
 /**
  * The drag edge of a docked panel (IntelliJ: drag the border). `edge`: which side of the panel it sits on, so dragging
- * towards the middle column widens the panel. Arrows step 16 px; double-click or Home restores the default width.
+ * towards the middle column widens the panel. Arrows step 16 px; double-click or Home restores the default width. A
+ * `bottom` edge sets a height instead (the video editor's preview over its timeline): `width` is then that height.
  */
 export function PanelResizer({ edge, width, onWidth, onReset, min, label }: {
-  edge: 'left' | 'right'; width: number; onWidth: (w: number) => void; onReset: () => void; min: number; label: string;
+  edge: 'left' | 'right' | 'bottom'; width: number; onWidth: (w: number) => void; onReset: () => void; min: number; label: string;
 }) {
   const t = useT();
-  const drag = useRef<{ x: number; w: number } | null>(null);
-  const sign = edge === 'right' ? 1 : -1;
+  const drag = useRef<{ at: number; w: number } | null>(null);
+  const sign = edge === 'left' ? -1 : 1;
+  const across = edge === 'bottom';
+  const at = (e: PointerEvent) => (across ? e.clientY : e.clientX);
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     e.preventDefault(); // no text selection while dragging
     e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = { x: e.clientX, w: width };
-    document.body.style.cursor = 'col-resize';
+    drag.current = { at: at(e), w: width };
+    document.body.style.cursor = across ? 'row-resize' : 'col-resize';
   };
   const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
-    if (drag.current) onWidth(drag.current.w + sign * (e.clientX - drag.current.x));
+    if (drag.current) onWidth(drag.current.w + sign * (at(e) - drag.current.at));
   };
   const end = () => {
     drag.current = null;
     document.body.style.cursor = '';
   };
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const grow = edge === 'right' ? 'ArrowRight' : 'ArrowLeft';
-    const shrink = edge === 'right' ? 'ArrowLeft' : 'ArrowRight';
+    const [grow, shrink] = KEYS[edge];
     if (e.key === grow) onWidth(width + STEP);
     else if (e.key === shrink) onWidth(width - STEP);
     else if (e.key === 'Home') onReset();
@@ -71,7 +80,7 @@ export function PanelResizer({ edge, width, onWidth, onReset, min, label }: {
   return (
     <div
       role="separator"
-      aria-orientation="vertical"
+      aria-orientation={across ? 'horizontal' : 'vertical'}
       aria-label={label}
       aria-valuenow={width}
       aria-valuemin={min}
@@ -84,7 +93,7 @@ export function PanelResizer({ edge, width, onWidth, onReset, min, label }: {
       onPointerCancel={end}
       onDoubleClick={onReset}
       onKeyDown={onKeyDown}
-      className={`absolute inset-y-0 z-[6] w-1.5 cursor-col-resize touch-none outline-none hover:bg-primary/40 focus-visible:bg-primary/60 ${edge === 'right' ? '-right-[3px]' : '-left-[3px]'}`}
+      className={`absolute z-[6] touch-none outline-none hover:bg-primary/40 focus-visible:bg-primary/60 ${PLACE[edge]}`}
     />
   );
 }
