@@ -88,8 +88,11 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Only the feed's padding and the popups listen to it.
   final _band = ValueNotifier<double>(0);
 
-  /// The composer's floating paperclip is up (it asks for the room Stop takes).
+  /// The composer's floating paperclip, or ⇤ and ⇥, are up (they ask for the room Stop takes).
   final _clip = ValueNotifier<bool>(false);
+
+  /// The top of the bottom band, which ⇤ and ⇥ float above.
+  final _bandTop = LayerLink();
   bool _seeded = false;
 
   /// The top band's height as the last build knew it (the feed keeps this much clear).
@@ -373,6 +376,7 @@ class _ChatScreenState extends State<ChatScreen> {
           targets: _paragraphs..topInset = top,
           child: FloatingRoom(
             clip: _clip,
+            band: _bandTop,
             child: BandInset(
               inset: _band,
               child: BackdropGroup(
@@ -413,7 +417,10 @@ class _ChatScreenState extends State<ChatScreen> {
                                     inset.right,
                                     safe,
                                   ),
-                                  child: bottom,
+                                  child: CompositedTransformTarget(
+                                    link: _bandTop,
+                                    child: bottom,
+                                  ),
                                 ),
                               ),
                             ),

@@ -23,6 +23,7 @@ import 'attach_sheet.dart';
 import 'draft_sync.dart';
 import 'media_card.dart' show WindowPicture;
 import 'message_field.dart';
+import 'nest_buttons.dart';
 import 'send_now.dart';
 import 'window_tab.dart';
 
@@ -52,6 +53,10 @@ class _ComposerState extends State<Composer> {
     onError: _recordFailed,
   );
 
+  /// The field's focus: the page's, else its own (⇤ and ⇥ show only while it is focused).
+  FocusNode? _own;
+  late final _focus = widget.focus ?? (_own = FocusNode());
+
   @override
   void initState() {
     super.initState();
@@ -65,6 +70,7 @@ class _ComposerState extends State<Composer> {
       );
     });
     _text.addListener(_changed);
+    _focus.addListener(_changed);
   }
 
   void _changed() => setState(() {});
@@ -72,6 +78,8 @@ class _ComposerState extends State<Composer> {
   @override
   void dispose() {
     _text.removeListener(_changed);
+    _focus.removeListener(_changed);
+    _own?.dispose();
     _refused?.cancel();
     _elsewhere?.cancel();
     _session.dispose();
@@ -305,6 +313,8 @@ class _ComposerState extends State<Composer> {
       // the mic while the field is empty (and no image waits), Send otherwise, both while comments wait
       final mic = !hasContent || recording;
       final send = hasContent || (pending && !recording);
+      final nest = !recording && NestButtons.shown(_draft.text, _focus);
+      final band = FloatingRoom.bandOf(context);
       return PopScope(
         // a recording is never dropped by a back press: it is asked about
         canPop: !recording,
@@ -327,7 +337,13 @@ class _ComposerState extends State<Composer> {
                 send: send,
                 canSend: canSend,
                 uploading: uploading,
+                nest: nest,
               ),
+              if (nest && band != null)
+                _FloatingNest(
+                  link: band,
+                  child: NestButtons(text: _draft.text, focus: _focus),
+                ),
             ],
           ),
         ),
@@ -345,9 +361,10 @@ class _ComposerState extends State<Composer> {
     required bool send,
     required bool canSend,
     required bool uploading,
+    required bool nest,
   }) => MessageField(
     controller: _text,
-    focus: widget.focus,
+    focus: _focus,
     hint: t.messageHint,
     session: _session,
     open: open,
@@ -367,9 +384,9 @@ class _ComposerState extends State<Composer> {
       final stop = open && widget.tab.windowState.busy && !holding;
       final clip = _text.text.isNotEmpty && !recording && !holding;
       final room = FloatingRoom.maybeOf(context);
-      if (room != null && room.value != clip) {
+      if (room != null && room.value != (clip || nest)) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) room.value = clip;
+          if (mounted) room.value = clip || nest;
         });
       }
       return stop || clip
@@ -494,6 +511,35 @@ typedef _Floater = ({
   NbGlyph glyph,
   VoidCallback? onTap,
 });
+
+/// ⇤ and ⇥ above the band at the bottom of the chat, at the field's left: over the feed, which keeps its last message
+/// clear of them, not over the strips of images and comments in the band.
+class _FloatingNest extends StatefulWidget {
+  const _FloatingNest({required this.link, required this.child});
+  final LayerLink link;
+  final Widget child;
+
+  @override
+  State<_FloatingNest> createState() => _FloatingNestState();
+}
+
+class _FloatingNestState extends State<_FloatingNest> {
+  final _portal = OverlayPortalController()..show();
+
+  @override
+  Widget build(BuildContext context) => OverlayPortal(
+    controller: _portal,
+    overlayChildBuilder: (_) => CompositedTransformFollower(
+      link: widget.link,
+      showWhenUnlinked: false,
+      targetAnchor: Alignment.topLeft,
+      followerAnchor: Alignment.bottomLeft,
+      // the composer's side margin, and as far above the band
+      offset: const Offset(8, -8),
+      child: Align(alignment: Alignment.bottomLeft, child: widget.child),
+    ),
+  );
+}
 
 /// Grey 44 round buttons 12 above the right button of the field (Stop while the agent works, the paperclip once text is
 /// typed), on the overlay so they float over the feed and take no room from it. The last one sits over the right button,

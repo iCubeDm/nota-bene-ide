@@ -3,10 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nb_app/chat/markdown_text.dart';
-import 'package:nb_app/chat/message_field.dart';
+import 'package:nb_app/chat/nest_buttons.dart';
 import 'package:nb_app/main.dart';
 import 'package:nb_app/theme.dart';
-import 'package:nb_app/voice/record_session.dart';
 
 const base = TextStyle(fontSize: 14);
 const c = NbColors.darcula;
@@ -359,6 +358,10 @@ void main() {
       expect(of(back('1. a\n   - ')), ('1. a\n- ', 7));
     });
 
+    test('Backspace on an empty nested item with Windows line ends', () {
+      expect(of(back('- a\r\n  - \r\n- c', 9)), ('- a\r\n- \r\n- c', 7));
+    });
+
     test('Backspace elsewhere deletes as it does', () {
       expect(of(back('- a\n- ')), ('- a\n-', 5));
       expect(of(back('- a\n  - b')), ('- a\n  - ', 8));
@@ -473,36 +476,22 @@ void main() {
     });
   });
 
-  testWidgets('⇥ and ⇤ show over the focused field on an item or in a block; '
-      '⇥ nests and the field keeps its focus', (t) async {
+  testWidgets('⇤ and ⇥ show while the field is focused and one of them can '
+      'act; ⇥ nests, the field keeps its focus, an off one is off for '
+      'TalkBack too', (t) async {
     final m = MarkdownText();
     final focus = FocusNode();
-    final session = RecordSession(onRecorded: (_, _) {});
     addTearDown(() {
       m.dispose();
       focus.dispose();
-      session.dispose();
     });
     await t.pumpWidget(
       NbApp(
         home: Scaffold(
-          // at the bottom as in the chat, as tall as its lines
           body: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              MessageField(
-                controller: m,
-                focus: focus,
-                hint: 'Message',
-                session: session,
-                open: true,
-                whisperAvailable: true,
-                onWhisperMissing: () {},
-                showMic: true,
-                showSend: false,
-                canSend: false,
-                onSend: () {},
-              ),
+              NestButtons(text: m, focus: focus),
+              TextField(controller: m, focusNode: focus, maxLines: 6),
             ],
           ),
         ),
@@ -510,14 +499,32 @@ void main() {
     );
     final indent = find.byKey(const ValueKey('nest-in'));
     final outdent = find.byKey(const ValueKey('nest-out'));
-    await t.enterText(find.byType(TextField), 'hi');
-    await t.pump();
+    Future<void> type(String text, [int? caret]) async {
+      m.value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: caret ?? text.length),
+      );
+      await t.pump();
+    }
+
+    await t.tap(find.byType(TextField));
+    await type('hi');
     expect(focus.hasFocus, isTrue);
     expect(indent, findsNothing);
-    await t.enterText(find.byType(TextField), '- a\n- b');
-    await t.pump();
+    // a first item with nothing above: neither can act
+    await type('- a');
+    expect(indent, findsNothing);
+    await type('- a\n- b');
     expect(indent, findsOneWidget);
     expect(outdent, findsOneWidget);
+    bool? enabled(Finder f) => t
+        .widget<Semantics>(
+          find.ancestor(of: f, matching: find.byType(Semantics)).first,
+        )
+        .properties
+        .enabled;
+    expect(enabled(outdent), isFalse);
+    expect(enabled(indent), isTrue);
     await t.tap(indent);
     await t.pump();
     expect(m.text, '- a\n  - b');
@@ -526,14 +533,12 @@ void main() {
     await t.tap(outdent);
     await t.pump();
     expect(m.text, '- a\n- b');
-    // nowhere to go: the button is off
     expect(t.widget<IconButton>(outdent).onPressed, isNull);
-    m.value = const TextEditingValue(
-      text: '```\nab\n```',
-      selection: TextSelection.collapsed(offset: 5),
-    );
-    await t.pump();
+    await type('```\nab\n```', 5);
     expect(indent, findsOneWidget);
+    await type('- a\n- b\nplain');
+    expect(indent, findsNothing);
+    await type('- a\n- b');
     focus.unfocus();
     await t.pump();
     expect(indent, findsNothing);

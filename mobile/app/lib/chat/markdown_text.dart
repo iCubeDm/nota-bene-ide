@@ -453,7 +453,10 @@ TextEditingValue? _backspace(TextEditingValue old, TextEditingValue now) {
   }
   final w = old.composing;
   if (w.isValid && w.start < at && at <= w.end) return null;
-  final ls = _lineStart(old.text, at), le = _lineEnd(old.text, at);
+  final ls = _lineStart(old.text, at);
+  var le = _lineEnd(old.text, at);
+  // a line of a Windows text ends in `\r`
+  if (le > ls && old.text[le - 1] == '\r') le--;
   final m = _item.firstMatch(old.text.substring(ls, le));
   if (m == null || m[1]!.isEmpty || ls + m.end != at || at != le) return null;
   final was = _value(old.text, at);

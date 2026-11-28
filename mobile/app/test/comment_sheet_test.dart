@@ -8,6 +8,7 @@ import 'package:nb_app/comments/comment_sheet.dart';
 import 'package:nb_app/comments/strings.g.dart';
 import 'package:nb_app/chat/composer.dart';
 import 'package:nb_app/chat/markdown_text.dart';
+import 'package:nb_app/chat/message_field.dart';
 import 'package:nb_channel/nb_channel.dart';
 import 'package:nb_app/voice/player.dart';
 import 'package:nb_app/voice/record_button.dart';
@@ -624,5 +625,45 @@ void main() {
       await send(t);
       expect((got as SheetSave).voice.map((v) => v.text), ['said0', 'said2']);
     });
+  });
+
+  testWidgets('⇤ and ⇥ sit in the row under the field, clear of the labels, '
+      'and the field does not move (issue 738)', (t) async {
+    final r = Rig();
+    addTearDown(r.dispose);
+    await r.open(t);
+    unawaited(
+      showCommentSheet(
+        t.element(find.byType(Composer)),
+        quote: 'q',
+        tab: r.tab,
+      ),
+    );
+    await t.pumpAndSettle();
+    final box = find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.byType(MessageField),
+    );
+    final indent = find.byKey(const ValueKey('nest-in'));
+    await t.enterText(field, '- a\nb');
+    await t.pump();
+    expect(indent, findsNothing);
+    final before = t.getRect(box);
+    await t.enterText(field, '- a\n- b');
+    await t.pump();
+    expect(indent, findsOneWidget);
+    expect(t.getRect(box), before);
+    for (final b in [indent, find.byKey(const ValueKey('nest-out'))]) {
+      expect(t.getRect(b).top, greaterThanOrEqualTo(before.bottom));
+      for (final l in quickLabels) {
+        expect(t.getRect(b).overlaps(t.getRect(circle(l))), isFalse);
+      }
+    }
+    await t.tap(indent);
+    await t.pump();
+    expect(t.widget<TextField>(field).controller!.text, '- a\n  - b');
+    await t.enterText(field, '- a\n- b\nplain');
+    await t.pump();
+    expect(indent, findsNothing);
   });
 }
