@@ -17,7 +17,8 @@ of the way. The text stays the markdown that is sent, saved as the shared draft 
   fence shows only while the caret is on it, an opening fence while the caret is in its block.
 - Typing ` ``` ` at the start of a line inserts the closing fence and puts the caret inside. A newline on an empty last
   line of a block removes that line and puts the caret after the block. A newline in a list item or quote continues
-  it; a newline on an empty item ends it. Paste and dictation insert text as is.
+  it; a newline on an empty item ends it, also when the keyboard sends it with its word (a correction, a suggestion,
+  a voice "new line"). A pasted text goes in as is.
 - Non-goals: a formatting toolbar; other phone inputs (search, rename, permission answers).
 - Anti-goals: any change to the text itself (no document model); worse plain typing (IME, autocorrect, spellcheck,
   selection handles, the shared draft's minimal-diff apply).

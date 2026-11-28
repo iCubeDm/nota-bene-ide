@@ -414,18 +414,36 @@ class MarkdownBlocks extends TextInputFormatter {
     if (shell && old.text.startsWith('!')) return now;
     final back = _backspace(old, now);
     if (back != null) return back;
+    final enter = _enter(old, now);
+    if (enter != null) return _newline(enter.$1, enter.$2) ?? now;
     final at = _typed(old, now);
-    if (at == null) return now;
-    // the keyboard's own word (a voice "new line", a composed backtick) is the keyboard's
+    if (at == null || now.text[at] != '`') return now;
+    // a backtick the keyboard composes is the keyboard's
     final w = now.composing;
     if (w.isValid && w.start <= at && at < w.end) return now;
-    final next = switch (now.text[at]) {
-      '`' => _openFence(now.text, at),
-      '\n' => _newline(old.text, at),
-      _ => null,
-    };
-    return next ?? now;
+    return _openFence(now.text, at) ?? now;
   }
+}
+
+/// Where [now] is [old] with a newline typed at its caret, also when the keyboard sends it in one update with its word
+/// (the composing word as it was, corrected, or a suggestion): the text before the newline and where it goes.
+(String, int)? _enter(TextEditingValue old, TextEditingValue now) {
+  final s = old.selection, e = now.selection;
+  if (!s.isValid || !s.isCollapsed || !e.isValid || !e.isCollapsed) {
+    return null;
+  }
+  final at = e.baseOffset - 1;
+  if (at < 0 || now.text[at] != '\n') return null;
+  final before = now.text.replaceRange(at, at + 1, '');
+  final tail = old.text.substring(s.baseOffset);
+  if (!before.endsWith(tail) || before.length - tail.length != at) return null;
+  if (before == old.text) return (before, at);
+  // what the keyboard changed is its composing word, ending at the caret
+  final w = old.composing;
+  if (!w.isValid || w.end != s.baseOffset) return null;
+  final head = old.text.substring(0, w.start);
+  final word = before.substring(w.start, at);
+  return before.startsWith(head) && !word.contains('\n') ? (before, at) : null;
 }
 
 /// Where [now] is [old] with one character typed at its caret, else null.

@@ -288,13 +288,44 @@ void main() {
       expect(of(type('```ts\n```', '\n', 5)), ('```ts\n\n```', 6));
     });
 
-    test('nothing happens while the keyboard composes', () {
-      const word = TextRange(start: 2, end: 4);
-      expect(of(type('- a', '\n', 3, word)), ('- a\n', 4));
+    test('a backtick the keyboard composes is only a backtick', () {
       expect(of(type('``', '`', 2, const TextRange(start: 0, end: 3))), (
         '```',
         3,
       ));
+    });
+
+    /// The keyboard's Enter in one update with its word: [old] the word composing at the caret's end, [word] what it
+    /// commits in its place, then the newline.
+    TextEditingValue commit(String text, int from, String word) {
+      final i = text.length;
+      final now = text.replaceRange(from, i, '$word\n');
+      return const MarkdownBlocks().formatEditUpdate(
+        TextEditingValue(
+          text: text,
+          selection: TextSelection.collapsed(offset: i),
+          composing: TextRange(start: from, end: i),
+        ),
+        TextEditingValue(
+          text: now,
+          selection: TextSelection.collapsed(offset: now.length),
+        ),
+      );
+    }
+
+    test('Enter with the keyboard\'s word continues the list (issue 738)', () {
+      // the word as it was, corrected, or a suggestion with its space
+      expect(of(commit('- a\n  - два', 8, 'два')), ('- a\n  - два\n  - ', 16));
+      expect(of(commit('- a\n  - ldf', 8, 'два')), ('- a\n  - два\n  - ', 16));
+      expect(of(commit('- a\n  - дв', 8, 'два ')), ('- a\n  - два \n  - ', 17));
+      // the newline still composing, as a voice "new line"
+      const word = TextRange(start: 2, end: 4);
+      expect(of(type('- a', '\n', 3, word)), ('- a\n- ', 6));
+      expect(of(type('  - b', '\n', null, word)), ('  - b\n  - ', 10));
+    });
+
+    test('a pasted text ending in a newline goes in as it is', () {
+      expect(of(type('- a', 'b\n')), ('- ab\n', 5));
     });
 
     test('a list number past nine digits is no item', () {
